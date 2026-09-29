@@ -28,48 +28,10 @@
   ],
   "item": [
     {
-      "name": "Auth — OTP (Passenger & Driver)",
+      "name": "Auth — Passenger & Driver",
       "item": [
         {
-          "name": "Request OTP (Passenger)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"+2341234567890\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/otp/request",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "request"]
-            }
-          }
-        },
-        {
-          "name": "Request OTP (Driver)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"+2349876543210\",\n  \"type\": \"driver\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/otp/request",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "request"]
-            }
-          }
-        },
-        {
-          "name": "Verify OTP (New Passenger)",
+          "name": "Register Passenger",
           "event": [
             {
               "listen": "test",
@@ -92,17 +54,17 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+2341234567890\",\n  \"code\": \"123456\",\n  \"type\": \"passenger\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\"\n}"
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+2341234567890\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"passenger\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/otp/verify",
+              "raw": "{{base_url}}/auth/register",
               "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "verify"]
+              "path": ["auth", "register"]
             }
           }
         },
         {
-          "name": "Verify OTP (New Driver)",
+          "name": "Register Driver",
           "event": [
             {
               "listen": "test",
@@ -125,12 +87,93 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+2349876543210\",\n  \"code\": \"123456\",\n  \"type\": \"driver\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\"\n}"
+              "raw": "{\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\",\n  \"phone\": \"+2349876543210\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"driver\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/otp/verify",
+              "raw": "{{base_url}}/auth/register",
               "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "verify"]
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login Passenger",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login Driver",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('driver_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"driver\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
             }
           }
         },

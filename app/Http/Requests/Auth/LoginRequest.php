@@ -4,7 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RequestOtpRequest extends FormRequest
+class LoginRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,18 +17,9 @@ class RequestOtpRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => ['required', 'string', 'regex:/^\+[1-9]\d{6,14}$/'],
+            'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
             'type' => ['required', 'string', 'in:passenger,driver'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'phone.regex' => 'Phone number must be in international format (e.g. +2341234567890).',
         ];
     }
 }

@@ -8,41 +8,23 @@
 
 ## Authentication
 
-### OTP Authentication (Passenger & Driver)
+### Register (Passenger & Driver)
 
-#### Request OTP
 ```
-POST /auth/otp/request
-```
-
-| Field | Type   | Required | Description                              |
-|-------|--------|----------|------------------------------------------|
-| phone | string | Yes      | E.164 format (e.g. `+2341234567890`)     |
-| type  | string | Yes      | `passenger` or `driver`                  |
-
-**Response 200:**
-```json
-{
-  "message": "Verification code sent successfully."
-}
+POST /auth/register
 ```
 
----
+| Field                 | Type   | Required | Description                          |
+|-----------------------|--------|----------|--------------------------------------|
+| first_name            | string | Yes      | First name                           |
+| last_name             | string | Yes      | Last name                            |
+| phone                 | string | Yes      | E.164 format (e.g. `+2341234567890`) |
+| email                 | string | Yes      | Unique email address                 |
+| password              | string | Yes      | Min 8 characters                     |
+| password_confirmation | string | Yes      | Must match password                  |
+| type                  | string | Yes      | `passenger` or `driver`              |
 
-#### Verify OTP
-```
-POST /auth/otp/verify
-```
-
-| Field      | Type   | Required              | Description                       |
-|------------|--------|-----------------------|-----------------------------------|
-| phone      | string | Yes                   | E.164 format                      |
-| code       | string | Yes                   | 6-digit OTP code                  |
-| type       | string | Yes                   | `passenger` or `driver`           |
-| first_name | string | Yes (new users only)  | First name                        |
-| last_name  | string | Yes (new users only)  | Last name                         |
-
-**Response 201 (new user):**
+**Response 201:**
 ```json
 {
   "message": "Account created successfully.",
@@ -51,36 +33,56 @@ POST /auth/otp/verify
     "first_name": "John",
     "last_name": "Doe",
     "phone": "+2341234567890",
+    "email": "john@example.com",
     "type": "passenger",
-    "phone_verified_at": "2026-09-29T10:00:00.000000Z",
     "is_active": true,
     "created_at": "2026-09-29T10:00:00.000000Z"
   },
-  "token": "1|abc123...",
-  "is_new_user": true
+  "token": "1|abc123..."
 }
 ```
 
-**Response 200 (existing user):**
+Driver registration automatically creates a `Driver` record with `pending_review` status.
+
+---
+
+### Login (Passenger & Driver)
+
+```
+POST /auth/login
+```
+
+| Field    | Type   | Required | Description             |
+|----------|--------|----------|-------------------------|
+| email    | string | Yes      | Registered email        |
+| password | string | Yes      | Account password        |
+| type     | string | Yes      | `passenger` or `driver` |
+
+**Response 200:**
 ```json
 {
   "message": "Logged in successfully.",
   "user": { ... },
-  "token": "2|def456...",
-  "is_new_user": false
+  "token": "2|def456..."
 }
 ```
 
-**Response 422 (invalid OTP):**
-```json
-{
-  "message": "Invalid verification code."
-}
-```
+**Response 401:** `Invalid credentials.`  
+**Response 403:** `Your account has been deactivated. Contact support.`
 
 ---
 
-#### Logout
+### Get Current User
+
+```
+GET /auth/me
+```
+**Auth required.** Returns the authenticated user's profile.
+
+---
+
+### Logout
+
 ```
 POST /auth/logout
 ```
@@ -162,7 +164,7 @@ GET /passenger/profile
     "first_name": "John",
     "last_name": "Doe",
     "phone": "+2341234567890",
-    "email": null,
+    "email": "john@example.com",
     "type": "passenger",
     "is_active": true,
     ...

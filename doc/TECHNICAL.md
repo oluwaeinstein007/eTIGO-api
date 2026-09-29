@@ -23,20 +23,19 @@ The E-tiGo backend is a Laravel 13 API application serving three client applicat
 
 ## Authentication Architecture
 
-### Dual Auth Strategy
+### Email/Password Authentication (All User Types)
 
-E-tiGo uses two distinct authentication flows based on user type:
+All user types authenticate using email and password credentials:
 
-#### 1. OTP Authentication (Passengers & Drivers)
-- Phone number is the primary identifier (E.164 format)
-- No password stored — authentication is entirely OTP-based
-- Flow: Request OTP → SMS delivery → Verify OTP → Issue Sanctum token
-- First successful verification for a new phone number creates the account
-- Driver accounts automatically get a `Driver` record in `pending_review` status
+#### 1. Passenger & Driver Registration/Login
+- Self-registration via `POST /auth/register` with email, password, phone number, and user type
+- Login via `POST /auth/login` with email, password, and user type
+- Driver registration automatically creates a `Driver` record in `pending_review` status
+- Phone number is collected during registration (E.164 format) for ride-related communications
 
-#### 2. Email/Password Authentication (Admins)
-- Traditional credential-based login
+#### 2. Admin Login
 - Admin accounts are seeded or created by other admins (no self-registration)
+- Login via `POST /admin/auth/login` with email and password
 - Each admin has an `admin_role` that determines their access scope
 
 ### Token Management
@@ -46,16 +45,16 @@ E-tiGo uses two distinct authentication flows based on user type:
 - Tokens persist until explicit logout or deletion
 - No token expiration configured by default (configurable in `config/sanctum.php`)
 
-### OTP Service
+### Ride-Start PIN Verification
 
-The `OtpService` handles OTP generation and verification:
-- 6-digit numeric codes
-- 5-minute expiry window
-- 60-second resend cooldown
-- Maximum 5 verification attempts per code
-- Previous active codes are invalidated when a new one is requested
+The `OtpService` provides 4-digit PIN generation for ride-start verification (PRD §9.1):
+- A PIN is generated when a ride is accepted and shared with the passenger
+- The driver must enter this PIN to confirm the ride has started
+- 30-minute expiry window
+- Maximum 3 verification attempts per PIN
+- Previous active PINs for the same ride are invalidated when a new one is generated
 
-SMS delivery is abstracted behind the `SmsGateway` contract (`App\Contracts\SmsGateway`). The current implementation logs messages (`LogSmsGateway`). To integrate a real SMS provider, implement the interface and update the binding in `AppServiceProvider`.
+This feature is optional but enabled by default. SMS delivery is abstracted behind the `SmsGateway` contract (`App\Contracts\SmsGateway`). The current implementation logs messages (`LogSmsGateway`). To integrate a real SMS provider, implement the interface and update the binding in `AppServiceProvider`.
 
 ---
 
@@ -100,7 +99,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 | Table                  | Purpose                                          |
 |------------------------|--------------------------------------------------|
 | `users`                | All user types (passenger, driver, admin)         |
-| `otp_codes`            | OTP verification codes                            |
+| `otp_codes`            | Ride-start PIN verification codes                 |
 | `drivers`              | Driver-specific data, KYC status                  |
 | `driver_documents`     | KYC document uploads                              |
 | `vehicles`             | Driver vehicle profiles                           |
@@ -122,7 +121,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 ## Driver Onboarding Flow
 
 ```
-1. Driver signs up via OTP → account created with Driver record (pending_review)
+1. Driver registers via POST /auth/register → account created with Driver record (pending_review)
 2. Driver uploads KYC documents:
    - driving_licence
    - vehicle_registration
@@ -167,7 +166,7 @@ app/
 ├── Http/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
-│   │       ├── Auth/       # OtpAuthController, AdminAuthController
+│   │       ├── Auth/       # AuthController, AdminAuthController
 │   │       ├── Admin/      # DriverManagementController
 │   │       ├── Driver/     # OnboardingController
 │   │       └── Passenger/  # ProfileController
@@ -200,7 +199,7 @@ php artisan test --compact
 
 Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait. The suite covers:
 
-- **Auth/OtpAuthTest** — OTP request, verify, new user creation, existing user login, invalid/expired codes, logout
+- **Auth/AuthTest** — Registration (passenger, driver), login, invalid credentials, wrong type, deactivated user, me endpoint, logout
 - **Auth/AdminAuthTest** — Admin login, invalid credentials, non-admin rejection, deactivated admin, me endpoint, logout
 - **Driver/OnboardingTest** — Onboarding status, profile update, document upload/replace, vehicle registration, role enforcement
 - **Passenger/ProfileTest** — Profile read/update, role enforcement
@@ -216,7 +215,7 @@ Key `.env` variables:
 DB_CONNECTION=pgsql
 DB_DATABASE=etigo-api
 
-# Redis (for OTP caching, driver locations — future)
+# Redis (for driver locations, caching — future)
 REDIS_HOST=127.0.0.1
 
 # SMS Gateway (swap LogSmsGateway for real provider)
@@ -246,14 +245,14 @@ This implementation covers the following PRD tasks:
 
 | Task ID      | Description                         | Status |
 |--------------|-------------------------------------|--------|
-| BE-AUTH-01   | Shared OTP auth service             | Done   |
+| BE-AUTH-01   | Email/password auth service         | Done   |
 | BE-AUTH-02   | Session/token management            | Done   |
 | SETUP-05     | RBAC middleware + Safety Operator    | Done   |
 | SETUP-06     | Immutable audit log                 | Done   |
-| PA-AUTH-01   | Phone input + OTP request           | Done   |
-| PA-AUTH-02   | OTP verify + account creation       | Done   |
+| PA-AUTH-01   | Passenger registration              | Done   |
+| PA-AUTH-02   | Passenger login + session           | Done   |
 | PA-AUTH-03   | Session persistence + logout        | Done   |
-| DA-KYC-01   | Driver sign-up via shared OTP       | Done   |
+| DA-KYC-01   | Driver registration                 | Done   |
 | DA-KYC-02   | Document upload                     | Done   |
 | DA-KYC-03   | KYC status display + gate           | Done   |
 | DA-KYC-04   | Vehicle profile                     | Done   |
