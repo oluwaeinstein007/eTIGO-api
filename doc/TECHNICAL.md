@@ -311,19 +311,23 @@ Each config contains:
 - `per_km_rate` — charge per kilometre of distance
 - `per_minute_rate` — charge per minute of trip duration
 - `minimum_fare` — floor amount (fare can never be lower)
-- `waiting_time_rate` — optional charge per minute of waiting (nullable, for future use)
+- `waiting_time_rate` — per-minute charge when driver waits beyond free period (nullable)
+- `free_waiting_minutes` — grace period before waiting charges apply (default: 5 minutes)
 
 ### Fare Estimation Formula
 
 ```
-fare = max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_minutes × per_minute_rate))
+fare = max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_minutes × per_minute_rate) + waiting_charge)
+waiting_charge = max(0, actual_wait_minutes - free_waiting_minutes) × waiting_time_rate
 ```
+
+The first 5 minutes of waiting (configurable per pricing config) are free. After that, each additional minute is charged at the `waiting_time_rate`. If no `waiting_time_rate` is set, waiting time is always free.
 
 The `FareEstimationService` orchestrates the calculation:
 1. Accepts pickup/destination coordinates and pricing config
 2. Queries the `MapsGateway` contract for distance and duration
-3. Applies the fare formula
-4. Returns the estimate with a pricing snapshot for booking-time rate preservation
+3. Applies the fare formula (waiting time is added to the final fare at ride completion, not the estimate)
+4. Returns the estimate with a pricing snapshot and waiting time policy for booking-time rate preservation
 
 ### Maps Gateway Contract
 

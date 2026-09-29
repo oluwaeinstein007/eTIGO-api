@@ -46,6 +46,7 @@ it('returns fare estimates for all vehicle classes in a city', function () {
                     'distance_km',
                     'duration_minutes',
                     'currency',
+                    'waiting_time_policy' => ['free_minutes', 'per_minute_rate'],
                 ],
             ],
         ])

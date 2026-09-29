@@ -67,6 +67,68 @@ it('returns estimate with all required fields', function () {
     expect($result['duration_minutes'])->toBe(15.0);
     expect($result['pricing_snapshot'])->toHaveKeys([
         'pricing_config_id', 'version', 'base_fare', 'per_km_rate',
-        'per_minute_rate', 'minimum_fare', 'effective_from', 'captured_at',
+        'per_minute_rate', 'minimum_fare', 'free_waiting_minutes',
+        'effective_from', 'captured_at',
     ]);
+    expect($result['waiting_time_policy'])->toHaveKeys(['free_minutes', 'per_minute_rate']);
+});
+
+it('charges no waiting fee within free waiting period', function () {
+    $mockMaps = Mockery::mock(MapsGateway::class);
+    $service = new FareEstimationService($mockMaps);
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500,
+        'per_km_rate' => 100,
+        'per_minute_rate' => 20,
+        'minimum_fare' => 700,
+        'waiting_time_rate' => 15,
+        'free_waiting_minutes' => 5,
+    ]);
+
+    // 3 minutes waiting is within 5 min free — no waiting charge
+    $fareWithWaiting = $service->calculateFare($pricing, 10.0, 20.0, 3.0);
+    $fareWithout = $service->calculateFare($pricing, 10.0, 20.0, 0.0);
+
+    expect($fareWithWaiting)->toBe($fareWithout);
+});
+
+it('charges waiting fee after free waiting period', function () {
+    $mockMaps = Mockery::mock(MapsGateway::class);
+    $service = new FareEstimationService($mockMaps);
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500,
+        'per_km_rate' => 100,
+        'per_minute_rate' => 20,
+        'minimum_fare' => 700,
+        'waiting_time_rate' => 15,
+        'free_waiting_minutes' => 5,
+    ]);
+
+    // 8 minutes waiting: 3 chargeable minutes × ₦15/min = ₦45
+    // Base fare: 500 + (10 × 100) + (20 × 20) = 1900
+    // Total: 1900 + 45 = 1945
+    $fare = $service->calculateFare($pricing, 10.0, 20.0, 8.0);
+
+    expect($fare)->toBe(1945.0);
+});
+
+it('charges no waiting fee when waiting_time_rate is null', function () {
+    $mockMaps = Mockery::mock(MapsGateway::class);
+    $service = new FareEstimationService($mockMaps);
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500,
+        'per_km_rate' => 100,
+        'per_minute_rate' => 20,
+        'minimum_fare' => 700,
+        'waiting_time_rate' => null,
+        'free_waiting_minutes' => 5,
+    ]);
+
+    $fareWithWaiting = $service->calculateFare($pricing, 10.0, 20.0, 15.0);
+    $fareWithout = $service->calculateFare($pricing, 10.0, 20.0, 0.0);
+
+    expect($fareWithWaiting)->toBe($fareWithout);
 });

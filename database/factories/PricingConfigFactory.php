@@ -26,6 +26,7 @@ class PricingConfigFactory extends Factory
             'per_minute_rate' => fake()->randomFloat(2, 10, 50),
             'minimum_fare' => fake()->randomFloat(2, 300, 800),
             'waiting_time_rate' => fake()->optional(0.5)->randomFloat(2, 5, 30),
+            'free_waiting_minutes' => 5,
             'version' => 1,
             'effective_from' => now()->subDay(),
             'created_by_admin_id' => User::factory()->admin(),

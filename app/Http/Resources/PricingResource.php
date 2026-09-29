@@ -21,6 +21,7 @@ class PricingResource extends JsonResource
             'per_minute_rate' => $this->per_minute_rate,
             'minimum_fare' => $this->minimum_fare,
             'waiting_time_rate' => $this->waiting_time_rate,
+            'free_waiting_minutes' => $this->free_waiting_minutes,
             'version' => $this->version,
             'effective_from' => $this->effective_from,
             'city' => new CityResource($this->whenLoaded('city')),

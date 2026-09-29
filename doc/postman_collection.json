@@ -1083,14 +1083,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"base_fare\": 500.00,\n  \"per_km_rate\": 100.00,\n  \"per_minute_rate\": 20.00,\n  \"minimum_fare\": 700.00,\n  \"waiting_time_rate\": 15.00,\n  \"effective_from\": \"2026-10-01T00:00:00Z\"\n}"
+              "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"base_fare\": 500.00,\n  \"per_km_rate\": 100.00,\n  \"per_minute_rate\": 20.00,\n  \"minimum_fare\": 700.00,\n  \"waiting_time_rate\": 15.00,\n  \"free_waiting_minutes\": 5,\n  \"effective_from\": \"2026-10-01T00:00:00Z\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/admin/pricing",
               "host": ["{{base_url}}"],
               "path": ["admin", "pricing"]
             },
-            "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. Returns 201."
+            "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. free_waiting_minutes defaults to 5 if omitted. Returns 201."
           }
         },
         {

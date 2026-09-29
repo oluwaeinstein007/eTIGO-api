@@ -69,6 +69,8 @@ class AdminPricingController extends Controller
                 'per_km_rate' => $config->per_km_rate,
                 'per_minute_rate' => $config->per_minute_rate,
                 'minimum_fare' => $config->minimum_fare,
+                'waiting_time_rate' => $config->waiting_time_rate,
+                'free_waiting_minutes' => $config->free_waiting_minutes,
                 'effective_from' => $config->effective_from->toIso8601String(),
             ]);
 

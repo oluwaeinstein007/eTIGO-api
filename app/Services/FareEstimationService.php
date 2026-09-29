@@ -12,7 +12,7 @@ class FareEstimationService
     ) {}
 
     /**
-     * @return array{fare_estimate: string, distance_km: float, duration_minutes: float, currency: string, pricing_snapshot: array}
+     * @return array{fare_estimate: string, distance_km: float, duration_minutes: float, currency: string, pricing_snapshot: array, waiting_time_policy: array}
      */
     public function estimate(
         PricingConfig $pricing,
@@ -34,20 +34,36 @@ class FareEstimationService
             'duration_minutes' => $route['duration_minutes'],
             'currency' => $currency,
             'pricing_snapshot' => $pricing->toSnapshot(),
+            'waiting_time_policy' => [
+                'free_minutes' => $pricing->free_waiting_minutes,
+                'per_minute_rate' => $pricing->waiting_time_rate,
+            ],
         ];
     }
 
-    public function calculateFare(PricingConfig $pricing, float $distanceKm, float $durationMinutes): float
+    public function calculateFare(PricingConfig $pricing, float $distanceKm, float $durationMinutes, float $waitingMinutes = 0): float
     {
         $distanceCharge = $distanceKm * (float) $pricing->per_km_rate;
         $timeCharge = $durationMinutes * (float) $pricing->per_minute_rate;
-        $calculatedFare = (float) $pricing->base_fare + $distanceCharge + $timeCharge;
+        $waitingCharge = $this->calculateWaitingCharge($pricing, $waitingMinutes);
+        $calculatedFare = (float) $pricing->base_fare + $distanceCharge + $timeCharge + $waitingCharge;
 
         return max((float) $pricing->minimum_fare, round($calculatedFare, 2));
     }
 
+    public function calculateWaitingCharge(PricingConfig $pricing, float $waitingMinutes): float
+    {
+        if ($waitingMinutes <= 0 || ! $pricing->waiting_time_rate) {
+            return 0;
+        }
+
+        $chargeableMinutes = max(0, $waitingMinutes - $pricing->free_waiting_minutes);
+
+        return round($chargeableMinutes * (float) $pricing->waiting_time_rate, 2);
+    }
+
     /**
-     * @return array<int, array{vehicle_class: array, fare_estimate: string, distance_km: float, duration_minutes: float, currency: string}>
+     * @return array<int, array{vehicle_class: array, fare_estimate: string, distance_km: float, duration_minutes: float, currency: string, waiting_time_policy: array}>
      */
     public function estimateAllClasses(
         int $cityId,
@@ -88,6 +104,7 @@ class FareEstimationService
                 'distance_km' => $result['distance_km'],
                 'duration_minutes' => $result['duration_minutes'],
                 'currency' => $result['currency'],
+                'waiting_time_policy' => $result['waiting_time_policy'],
             ];
         }
 

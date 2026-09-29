@@ -20,6 +20,7 @@ class PricingConfig extends Model
         'per_minute_rate',
         'minimum_fare',
         'waiting_time_rate',
+        'free_waiting_minutes',
         'version',
         'effective_from',
         'created_by_admin_id',
@@ -34,6 +35,7 @@ class PricingConfig extends Model
             'per_minute_rate' => 'decimal:2',
             'minimum_fare' => 'decimal:2',
             'waiting_time_rate' => 'decimal:2',
+            'free_waiting_minutes' => 'integer',
             'version' => 'integer',
             'effective_from' => 'datetime',
             'created_at' => 'datetime',
@@ -85,6 +87,7 @@ class PricingConfig extends Model
             'per_minute_rate' => $this->per_minute_rate,
             'minimum_fare' => $this->minimum_fare,
             'waiting_time_rate' => $this->waiting_time_rate,
+            'free_waiting_minutes' => $this->free_waiting_minutes,
             'effective_from' => $this->effective_from->toIso8601String(),
             'captured_at' => now()->toIso8601String(),
         ];
