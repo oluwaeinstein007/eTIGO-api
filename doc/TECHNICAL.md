@@ -298,6 +298,54 @@ All admin mutations are wrapped in `DB::transaction()` and create audit log entr
 
 ---
 
+## Pricing Engine
+
+The Pricing Engine manages versioned fare configurations per city + vehicle class, and provides fare estimates for ride requests.
+
+### Pricing Configurations
+
+Pricing configs are **append-only and versioned** — creating a new config for the same city + vehicle class combination auto-increments the version number. The currently effective config is the one with the latest `effective_from` timestamp that is not in the future.
+
+Each config contains:
+- `base_fare` — fixed charge per trip
+- `per_km_rate` — charge per kilometre of distance
+- `per_minute_rate` — charge per minute of trip duration
+- `minimum_fare` — floor amount (fare can never be lower)
+- `waiting_time_rate` — optional charge per minute of waiting (nullable, for future use)
+
+### Fare Estimation Formula
+
+```
+fare = max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_minutes × per_minute_rate))
+```
+
+The `FareEstimationService` orchestrates the calculation:
+1. Accepts pickup/destination coordinates and pricing config
+2. Queries the `MapsGateway` contract for distance and duration
+3. Applies the fare formula
+4. Returns the estimate with a pricing snapshot for booking-time rate preservation
+
+### Maps Gateway Contract
+
+Distance and duration are obtained through the `MapsGateway` contract (`App\Contracts\MapsGateway`). The current implementation (`HaversineMapsGateway`) uses the Haversine formula with a 1.3x road-distance multiplier and 30 km/h average speed assumption. To integrate a real maps provider (Google Maps, Mapbox, etc.), implement the `MapsGateway` interface and update the binding in `AppServiceProvider`.
+
+### Pricing Snapshot
+
+When a ride is created, the active pricing config is serialised as a JSONB snapshot on the ride record (`pricing_snapshot` column). This ensures in-progress trips retain the booking-time rate even if pricing changes.
+
+### Admin Endpoints
+
+- `POST /admin/pricing` — Create a new pricing config (version auto-incremented)
+- `GET /admin/pricing` — List pricing configs with filters (`city_id`, `vehicle_class_id`, `current_only`), paginated
+- `GET /admin/pricing/current` — Get the currently effective config for a city + vehicle class
+- `GET /admin/pricing/{id}` — Get a specific pricing config
+
+### Public Endpoints
+
+- `POST /rides/estimate` — Returns fare estimates for all active vehicle classes in a city. Requires authentication. Accepts pickup/destination coordinates and city_id.
+
+---
+
 ## Audit Logging
 
 All significant state changes are logged to the `audit_logs` table via `AuditLog::record()`:
@@ -312,7 +360,7 @@ AuditLog::record(
 );
 ```
 
-Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`.
+Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`, `pricing_config_created`.
 
 IP address and user agent are captured automatically from the request.
 
@@ -322,24 +370,25 @@ IP address and user agent are captured automatically from the request.
 
 ```
 app/
-├── Contracts/          # Interface contracts (SmsGateway)
+├── Contracts/          # Interface contracts (SmsGateway, MapsGateway)
 ├── Enums/              # PHP enums (UserType, AdminRole, DriverStatus, SocialProvider, ...)
 ├── Http/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
 │   │       ├── Auth/       # AuthController, AdminAuthController, SocialAuthController
-│   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController
+│   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController, AdminPricingController
 │   │       ├── Driver/     # OnboardingController
 │   │       ├── Passenger/  # ProfileController
 │   │       ├── CityController         # Public city listing
 │   │       ├── CityVehicleClassController  # Public city vehicle classes
+│   │       ├── RideEstimateController  # Fare estimation (invokable)
 │   │       └── HealthController  # Health check (invokable)
 │   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved, LogRequests
 │   ├── Requests/        # Form request validators by domain
-│   └── Resources/       # API resources (UserResource, DriverResource, CityResource, VehicleClassResource, ...)
-├── Models/             # Eloquent models (User, Driver, City, VehicleClass, SocialAccount, ...)
+│   └── Resources/       # API resources (UserResource, DriverResource, CityResource, VehicleClassResource, PricingResource, ...)
+├── Models/             # Eloquent models (User, Driver, City, VehicleClass, PricingConfig, SocialAccount, ...)
 ├── Providers/          # Service providers
-└── Services/           # Business logic (OtpService, SocialAuthService, LogSmsGateway)
+└── Services/           # Business logic (OtpService, SocialAuthService, FareEstimationService, LogSmsGateway, HaversineMapsGateway)
 
 database/
 ├── factories/          # Model factories for testing
@@ -371,6 +420,9 @@ Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait.
 - **Admin/DriverManagementTest** — List/filter drivers, approve/reject, suspend/reactivate, role enforcement
 - **Admin/CityManagementTest** — City CRUD, toggle status, vehicle class pivot sync, validation, role enforcement
 - **Admin/VehicleClassManagementTest** — Vehicle class CRUD, filtering, validation, role enforcement
+- **Admin/PricingManagementTest** — Create pricing config (validation, version auto-increment, audit log), list/filter by city/vehicle class, show, current effective, role enforcement
+- **RideEstimateTest** — Fare estimates for all classes, empty estimates when no pricing, coordinate validation, minimum fare enforcement, effective pricing selection, auth enforcement
+- **FareEstimationServiceTest** — Fare formula correctness, minimum fare application, estimate response structure
 - **CityPublicTest** — Public city listing (active only), city vehicle classes (active pivot + global filter)
 
 ---
@@ -449,3 +501,12 @@ This implementation covers the following PRD tasks:
 | AD-DRV-01   | Review driver KYC submissions       | Done   |
 | AD-DRV-02   | Suspend/reactivate driver           | Done   |
 | BE-CITY-01–15 | City & Vehicle-Class Management API | Done   |
+| BE-PRICE-01  | PricingConfig model with relationships | Done   |
+| BE-PRICE-02  | Admin pricing config creation         | Done   |
+| BE-PRICE-03  | StorePricingFormRequest validation     | Done   |
+| BE-PRICE-04  | Admin pricing config listing          | Done   |
+| BE-PRICE-05  | FareEstimationService                 | Done   |
+| BE-PRICE-06  | Ride fare estimate endpoint           | Done   |
+| BE-PRICE-07  | EstimateRideFormRequest validation    | Done   |
+| BE-PRICE-08  | Pricing snapshot capture              | Done   |
+| BE-PRICE-09  | PricingResource API resource          | Done   |

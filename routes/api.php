@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
+use App\Http\Controllers\Api\V1\RideEstimateController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -57,6 +59,15 @@ Route::prefix('admin/auth')->middleware('throttle:5,1')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Ride Estimates (Authenticated — any user type)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/rides/estimate', RideEstimateController::class);
 });
 
 /*
@@ -115,5 +126,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/', [AdminVehicleClassController::class, 'store']);
         Route::get('/{vehicleClass}', [AdminVehicleClassController::class, 'show']);
         Route::put('/{vehicleClass}', [AdminVehicleClassController::class, 'update']);
+    });
+
+    Route::prefix('pricing')->group(function () {
+        Route::get('/', [AdminPricingController::class, 'index']);
+        Route::post('/', [AdminPricingController::class, 'store']);
+        Route::get('/current', [AdminPricingController::class, 'current']);
+        Route::get('/{pricingConfig}', [AdminPricingController::class, 'show']);
     });
 });

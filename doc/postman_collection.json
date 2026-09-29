@@ -1068,6 +1068,158 @@
           }
         }
       ]
+    },
+    {
+      "name": "Admin — Pricing Management",
+      "item": [
+        {
+          "name": "Create Pricing Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"base_fare\": 500.00,\n  \"per_km_rate\": 100.00,\n  \"per_minute_rate\": 20.00,\n  \"minimum_fare\": 700.00,\n  \"waiting_time_rate\": 15.00,\n  \"effective_from\": \"2026-10-01T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pricing"]
+            },
+            "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. Returns 201."
+          }
+        },
+        {
+          "name": "List Pricing Configs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/pricing?city_id=1&vehicle_class_id=1&current_only=false&per_page=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pricing"],
+              "query": [
+                { "key": "city_id", "value": "1", "description": "Optional: filter by city" },
+                { "key": "vehicle_class_id", "value": "1", "description": "Optional: filter by vehicle class" },
+                { "key": "current_only", "value": "false", "description": "Optional: only show currently effective configs" },
+                { "key": "per_page", "value": "20", "description": "Optional: items per page (default 20)" }
+              ]
+            },
+            "description": "Admin-only. Lists pricing configs with optional filters. Shows current and historical versions, ordered by effective_from desc."
+          }
+        },
+        {
+          "name": "Get Pricing Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/pricing/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pricing", "1"]
+            },
+            "description": "Admin-only. Returns a specific pricing config with city, vehicle class, and creator details."
+          }
+        },
+        {
+          "name": "Get Current Pricing Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/pricing/current?city_id=1&vehicle_class_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pricing", "current"],
+              "query": [
+                { "key": "city_id", "value": "1", "description": "Required: city ID" },
+                { "key": "vehicle_class_id", "value": "1", "description": "Required: vehicle class ID" }
+              ]
+            },
+            "description": "Admin-only. Returns the currently effective pricing config for a city + vehicle class combination. Returns 404 if none exists."
+          }
+        },
+        {
+          "name": "Create Pricing — Validation Errors (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 999,\n  \"base_fare\": -100\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "pricing"]
+            },
+            "description": "Demonstrates validation: invalid city_id, negative rate, missing required fields. Returns 422."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ride Estimates",
+      "item": [
+        {
+          "name": "Get Fare Estimates",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"pickup_lat\": 6.5244,\n  \"pickup_lng\": 3.3792,\n  \"destination_lat\": 6.4541,\n  \"destination_lng\": 3.3947\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rides/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["rides", "estimate"]
+            },
+            "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Haversine formula for distance estimation (will be replaced with maps provider)."
+          }
+        },
+        {
+          "name": "Get Fare Estimates — Validation Errors (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 999,\n  \"pickup_lat\": 91,\n  \"pickup_lng\": 181\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rides/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["rides", "estimate"]
+            },
+            "description": "Demonstrates validation: out-of-range coordinates, invalid city_id, missing fields. Returns 422."
+          }
+        }
+      ]
     }
   ]
 }
