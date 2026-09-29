@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('first_name');
             $table->string('last_name');
-            $table->string('phone')->unique();
+            $table->string('phone')->nullable()->unique();
             $table->string('email')->nullable()->unique();
             $table->string('type');
             $table->string('admin_role')->nullable();

@@ -15,6 +15,7 @@ The E-tiGo backend is a Laravel 13 API application serving three client applicat
 | Database        | PostgreSQL                                |
 | Cache           | Redis (planned), Database (current)       |
 | Auth            | Laravel Sanctum (token-based)             |
+| Social Auth     | Laravel Socialite + socialiteproviders/apple |
 | Testing         | Pest 5.x                                  |
 | Code Style      | Laravel Pint                              |
 | API Versioning  | URL prefix `/api/v1/`                     |
@@ -63,6 +64,84 @@ The `OtpService` provides 4-digit PIN generation for ride-start verification (PR
 
 This feature is optional but enabled by default. SMS delivery is abstracted behind the `SmsGateway` contract (`App\Contracts\SmsGateway`). The current implementation logs messages (`LogSmsGateway`). To integrate a real SMS provider, implement the interface and update the binding in `AppServiceProvider`.
 
+### Social Login (Google & Apple)
+
+Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI and obtains an access token, then sends it to `POST /auth/social-login`.
+
+#### Flow
+
+```
+1. Mobile app → Provider OAuth flow → receives access_token
+2. Mobile app → POST /auth/social-login { provider, access_token, type }
+3. Backend → Socialite::driver($provider)->stateless()->userFromToken($accessToken)
+4. Backend → Three possible outcomes:
+   a) Existing social account → login
+   b) Matching email+type but no social account → link social account to user
+   c) No match → create new user + social account
+5. Backend → returns Sanctum token
+```
+
+#### Implementation Details
+
+- **`SocialProvider` enum** (`app/Enums/SocialProvider.php`): `google`, `apple`
+- **`SocialAccount` model** (`app/Models/SocialAccount.php`): stores provider, provider_id, provider_token, provider_refresh_token per user
+- **`SocialAuthService`** (`app/Services/SocialAuthService.php`): core logic wrapped in `DB::transaction()`; validates user type match and active status
+- **`SocialAuthController`** (`app/Http/Controllers/Api/V1/Auth/SocialAuthController.php`): returns 201 for new users, 200 for existing
+- Google uses Socialite's built-in driver; Apple uses `socialiteproviders/apple` community package registered via `SocialiteWasCalled` event in `AppServiceProvider`
+- `stateless()` is required because the API has no session/cookie state
+- Users table `phone` column is nullable to support social-login-only signups
+
+---
+
+## Global Exception Handler
+
+All API exceptions are caught in `bootstrap/app.php` and rendered as structured JSON:
+
+```json
+{
+  "message": "Human-readable description.",
+  "error_code": "MACHINE_READABLE_CODE",
+  "details": {}
+}
+```
+
+| Exception                  | Status | Error Code         | Notes                                      |
+|----------------------------|--------|--------------------|--------------------------------------------|
+| `AuthenticationException`  | 401    | `UNAUTHENTICATED`  | Missing or invalid Sanctum token           |
+| `ValidationException`      | 422    | `VALIDATION_ERROR`  | Includes `errors` field with per-field messages |
+| `ModelNotFoundException`   | 404    | `NOT_FOUND`         | Eloquent model not found                   |
+| `NotFoundHttpException`    | 404    | `NOT_FOUND`         | Route not found                            |
+| `HttpException`            | varies | `HTTP_ERROR`        | Uses the exception's status code           |
+| `Throwable` (fallback)     | 500    | `SERVER_ERROR`      | Debug `details` only when `APP_DEBUG=true` |
+
+Stack traces are never exposed in production.
+
+---
+
+## Request Logging Middleware
+
+The `LogRequests` middleware (`app/Http/Middleware/LogRequests.php`) is prepended to the API middleware stack and logs every request:
+
+- HTTP method and path
+- Response status code
+- Duration in milliseconds
+- Authenticated user ID (if available)
+- Client IP address
+
+Logs are written to the `single` channel. This provides an audit trail for debugging and performance monitoring.
+
+---
+
+## Health Check Endpoint
+
+`GET /api/v1/health` — unauthenticated endpoint for load balancer and monitoring probes.
+
+Checks:
+- **Database**: attempts a PDO connection
+- **Redis**: sends a `PING` command
+
+Returns `200` with `"status": "healthy"` when all checks pass, or `503` with `"status": "degraded"` when any check fails. Individual check results are listed in the `checks` object.
+
 ---
 
 ## Role-Based Access Control (RBAC)
@@ -103,15 +182,40 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 
 ### Core Tables
 
-| Table                  | Purpose                                          |
-|------------------------|--------------------------------------------------|
-| `users`                | All user types (passenger, driver, admin)         |
-| `otp_codes`            | Ride-start PIN verification codes                 |
-| `drivers`              | Driver-specific data, KYC status                  |
-| `driver_documents`     | KYC document uploads                              |
-| `vehicles`             | Driver vehicle profiles                           |
-| `audit_logs`           | Immutable event log (polymorphic)                 |
-| `personal_access_tokens` | Sanctum API tokens                              |
+| Table                    | Purpose                                          |
+|--------------------------|--------------------------------------------------|
+| `users`                  | All user types (passenger, driver, admin)         |
+| `otp_codes`              | Ride-start PIN verification codes                 |
+| `drivers`                | Driver-specific data, KYC status                  |
+| `driver_documents`       | KYC document uploads                              |
+| `vehicles`               | Driver vehicle profiles                           |
+| `social_accounts`        | OAuth provider links (Google, Apple) per user      |
+| `audit_logs`             | Immutable event log (polymorphic)                 |
+| `personal_access_tokens` | Sanctum API tokens                                |
+| `cities`                 | City definitions with GeoJSON boundaries           |
+| `vehicle_classes`        | Platform-wide vehicle class definitions            |
+| `city_vehicle_classes`   | Pivot: which classes are available per city        |
+| `pricing_configs`        | Versioned fare rates per city + vehicle class      |
+| `rides`                  | Core ride records (UUID PK)                       |
+| `ride_state_transitions` | Append-only ride state audit trail                |
+| `payments`               | Ride payment records                              |
+| `user_payment_methods`   | Tokenized card storage (no raw card data)         |
+| `ratings`                | Post-ride ratings (1-5 stars)                     |
+| `disputes`               | Ride issue reports                                |
+| `promo_codes`            | Promotional discount configurations               |
+| `promo_redemptions`      | Promo usage tracking per user per ride            |
+| `gamification_profiles`  | User tier, points, carbon score aggregates        |
+| `tier_configs`           | Tier level thresholds and benefits                |
+| `point_multiplier_configs` | Condition-based point multipliers               |
+| `trip_carbon_scores`     | Per-trip carbon/emissions calculations            |
+| `sos_incidents`          | SOS emergency incident records                    |
+| `sos_event_log`          | Append-only SOS incident audit trail              |
+| `offline_trip_flags`     | Anti-offline-trip detection flags                 |
+| `ev_charging_stations`   | EV charging station locations                     |
+| `ev_charging_stalls`     | Individual stalls per station                     |
+| `ev_reservations`        | Stall reservation and queue records               |
+| `notifications`          | In-app notification records                       |
+| `device_tokens`          | Push notification device registrations            |
 
 ### Key Design Decisions
 
@@ -122,6 +226,14 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 3. **Polymorphic audit log** — The `audit_logs` table uses `auditable_type`/`auditable_id` morphs so any model's state changes can be tracked without schema changes.
 
 4. **Soft driver-document replacement** — Re-uploading a document of the same type deletes the previous version (file + record), avoiding accumulation of stale documents.
+
+5. **UUID primary key on `rides`** — Ride IDs use UUIDs for external shareability (share tokens, receipts). Foreign keys referencing rides use `uuid('ride_id')` with explicit `->references('id')->on('rides')`.
+
+6. **JSONB columns** — `pricing_snapshot` on rides freezes the pricing config at booking time. `boundary` on cities stores GeoJSON. `telemetry_data` on SOS incidents, `detection_data` on offline flags, and `data` on notifications store structured payloads.
+
+7. **Append-only audit tables** — `ride_state_transitions` and `sos_event_log` are immutable audit trails with no UPDATE or DELETE operations.
+
+8. **Composite indexes** — High-frequency queries are indexed: rides by `(status, city_id)`, `(passenger_id, created_at)`, `(driver_id, created_at)`; notifications by `(user_id, is_read)` and `(user_id, created_at)`.
 
 ---
 
@@ -192,24 +304,25 @@ IP address and user agent are captured automatically from the request.
 ```
 app/
 ├── Contracts/          # Interface contracts (SmsGateway)
-├── Enums/              # PHP enums (UserType, AdminRole, DriverStatus, ...)
+├── Enums/              # PHP enums (UserType, AdminRole, DriverStatus, SocialProvider, ...)
 ├── Http/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
-│   │       ├── Auth/       # AuthController, AdminAuthController
+│   │       ├── Auth/       # AuthController, AdminAuthController, SocialAuthController
 │   │       ├── Admin/      # DriverManagementController
 │   │       ├── Driver/     # OnboardingController
-│   │       └── Passenger/  # ProfileController
-│   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved
+│   │       ├── Passenger/  # ProfileController
+│   │       └── HealthController  # Health check (invokable)
+│   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved, LogRequests
 │   ├── Requests/        # Form request validators by domain
 │   └── Resources/       # API resources (UserResource, DriverResource, ...)
-├── Models/             # Eloquent models
+├── Models/             # Eloquent models (User, Driver, SocialAccount, ...)
 ├── Providers/          # Service providers
-└── Services/           # Business logic (OtpService, LogSmsGateway)
+└── Services/           # Business logic (OtpService, SocialAuthService, LogSmsGateway)
 
 database/
 ├── factories/          # Model factories for testing
-├── migrations/         # Database migrations
+├── migrations/         # Database migrations (25+ migration files)
 └── seeders/            # Admin user seeders
 
 doc/                    # API docs, Postman collection, this file
@@ -231,6 +344,7 @@ Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait.
 
 - **Auth/AuthTest** — Registration (passenger, driver), login, invalid credentials, wrong type, deactivated user, me endpoint, logout
 - **Auth/AdminAuthTest** — Admin login, invalid credentials, non-admin rejection, deactivated admin, me endpoint, logout
+- **Auth/SocialAuthTest** — Google/Apple social login: new passenger, new driver, existing user, email linking, type mismatch (409), deactivated (403), invalid provider (422), missing token (422)
 - **Driver/OnboardingTest** — Onboarding status, profile update, document upload/replace, vehicle registration, role enforcement
 - **Passenger/ProfileTest** — Profile read/update, role enforcement
 - **Admin/DriverManagementTest** — List/filter drivers, approve/reject, suspend/reactivate, role enforcement
@@ -247,6 +361,16 @@ DB_DATABASE=etigo-api
 
 # Redis (for driver locations, caching — future)
 REDIS_HOST=127.0.0.1
+
+# Social Login (Google)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+
+# Social Login (Apple)
+APPLE_CLIENT_ID=
+APPLE_CLIENT_SECRET=
+APPLE_REDIRECT_URI=
 
 # SMS Gateway (swap LogSmsGateway for real provider)
 # SMS_PROVIDER=twilio
@@ -283,8 +407,14 @@ This implementation covers the following PRD tasks:
 |--------------|-------------------------------------|--------|
 | BE-AUTH-01   | Email/password auth service         | Done   |
 | BE-AUTH-02   | Session/token management            | Done   |
+| BE-AUTH-14   | Social login (Google & Apple)       | Done   |
 | SETUP-05     | RBAC middleware + Safety Operator    | Done   |
 | SETUP-06     | Immutable audit log                 | Done   |
+| SETUP-08–34  | All Phase 1 database migrations     | Done   |
+| SETUP-36     | Database indexes for key queries    | Done   |
+| SETUP-45     | Global exception handler            | Done   |
+| SETUP-46     | Request logging middleware          | Done   |
+| SETUP-49     | Health check endpoint               | Done   |
 | PA-AUTH-01   | Passenger registration              | Done   |
 | PA-AUTH-02   | Passenger login + session           | Done   |
 | PA-AUTH-03   | Session persistence + logout        | Done   |
