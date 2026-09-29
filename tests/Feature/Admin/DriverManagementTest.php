@@ -118,6 +118,47 @@ it('allows admin to suspend and reactivate a driver', function () {
     expect($driver->fresh()->status)->toBe(DriverStatus::Approved);
 });
 
+it('rejects review of a non-pending driver', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $driver = Driver::factory()->approved()->create();
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/review", [
+            'action' => 'approve',
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Driver can only be reviewed when in pending review status.']);
+});
+
+it('rejects suspending a non-approved driver', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $driver = Driver::factory()->create();
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/suspend");
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Only approved drivers can be suspended.']);
+});
+
+it('rejects reactivating a non-suspended driver', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $driver = Driver::factory()->approved()->create();
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/reactivate");
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Only suspended drivers can be reactivated.']);
+});
+
 it('prevents non-admin from accessing admin routes', function () {
     $passenger = User::factory()->passenger()->create();
     $token = $passenger->createToken('test', ['passenger'])->plainTextToken;

@@ -2,7 +2,8 @@
 
 **Base URL:** `{APP_URL}/api/v1`  
 **Auth:** Bearer token via Laravel Sanctum (`Authorization: Bearer {token}`)  
-**Content-Type:** `application/json` (except file uploads: `multipart/form-data`)
+**Content-Type:** `application/json` (except file uploads: `multipart/form-data`)  
+**Rate Limiting:** Auth endpoints (`/auth/*`, `/admin/auth/*`) are limited to 5 requests/minute per IP — exceeding returns `429 Too Many Requests`
 
 ---
 
@@ -223,6 +224,8 @@ GET /driver/onboarding/status
 }
 ```
 
+Documents with `rejected` status are excluded from the uploaded count — a rejected document must be re-uploaded before it counts toward onboarding completion.
+
 ---
 
 ### Update Driver Profile
@@ -310,7 +313,7 @@ POST /driver/vehicle
 ```
 PUT /driver/vehicle
 ```
-Same fields as register. Resets vehicle class approval.
+Same fields as register, all optional (partial update supported). Resets vehicle class approval.
 
 ---
 
@@ -373,6 +376,8 @@ POST /admin/drivers/{driver_id}/review
 | action           | string | Yes                     | `approve` or `reject`|
 | rejection_reason | string | Yes (when rejecting)    | Reason for rejection |
 
+**Response 422:** `"Driver can only be reviewed when in pending review status."` — returned when the driver's status is not `pending_review`.
+
 ---
 
 ### Suspend Driver
@@ -381,6 +386,10 @@ POST /admin/drivers/{driver_id}/suspend
 ```
 Force-sets driver offline and blocks them from accepting requests.
 
+No request body required.
+
+**Response 422:** `"Only approved drivers can be suspended."` — returned when the driver is not in `approved` status.
+
 ---
 
 ### Reactivate Driver
@@ -388,6 +397,8 @@ Force-sets driver offline and blocks them from accepting requests.
 POST /admin/drivers/{driver_id}/reactivate
 ```
 Restores driver to approved status.
+
+**Response 422:** `"Only suspended drivers can be reactivated."` — returned when the driver is not in `suspended` status.
 
 ---
 

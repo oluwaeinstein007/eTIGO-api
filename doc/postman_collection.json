@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "E-tiGo ride-hailing platform API — Authentication & Onboarding endpoints",
+    "description": "E-tiGo ride-hailing platform API — Authentication & Onboarding endpoints.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: All endpoints except register/login require Bearer token via Authorization header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -160,6 +160,86 @@
               "host": ["{{base_url}}"],
               "path": ["auth", "login"]
             }
+          }
+        },
+        {
+          "name": "Login — Invalid Password (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"wrongpassword\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Expected: 401 {\"message\": \"Invalid credentials.\"}"
+          }
+        },
+        {
+          "name": "Login — Wrong User Type (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"driver\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Expected: 401 — passenger email used with driver type"
+          }
+        },
+        {
+          "name": "Register — Duplicate Email (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Duplicate\",\n  \"phone\": \"+2340000000000\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Expected: 422 with {\"errors\": {\"email\": [\"The email has already been taken.\"]}}"
+          }
+        },
+        {
+          "name": "Register — Weak Password (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Test\",\n  \"last_name\": \"User\",\n  \"phone\": \"+2341111111111\",\n  \"email\": \"weak@example.com\",\n  \"password\": \"short\",\n  \"password_confirmation\": \"short\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Expected: 422 with {\"errors\": {\"password\": [\"The password field must be at least 8 characters.\"]}}"
           }
         },
         {
@@ -499,7 +579,8 @@
               "raw": "{{base_url}}/admin/drivers/1/review",
               "host": ["{{base_url}}"],
               "path": ["admin", "drivers", "1", "review"]
-            }
+            },
+            "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status."
           }
         },
         {
@@ -523,6 +604,27 @@
           }
         },
         {
+          "name": "Review — Not Pending (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/drivers/1/review",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "drivers", "1", "review"]
+            },
+            "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} — use on a driver that is already approved/rejected/suspended."
+          }
+        },
+        {
           "name": "Suspend Driver",
           "request": {
             "method": "POST",
@@ -534,7 +636,24 @@
               "raw": "{{base_url}}/admin/drivers/1/suspend",
               "host": ["{{base_url}}"],
               "path": ["admin", "drivers", "1", "suspend"]
-            }
+            },
+            "description": "No request body required. Returns 422 if the driver is not in approved status."
+          }
+        },
+        {
+          "name": "Suspend — Not Approved (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/drivers/1/suspend",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "drivers", "1", "suspend"]
+            },
+            "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} — driver must be in approved status."
           }
         },
         {
@@ -549,7 +668,8 @@
               "raw": "{{base_url}}/admin/drivers/1/reactivate",
               "host": ["{{base_url}}"],
               "path": ["admin", "drivers", "1", "reactivate"]
-            }
+            },
+            "description": "No request body required. Returns 422 if the driver is not in suspended status."
           }
         }
       ]

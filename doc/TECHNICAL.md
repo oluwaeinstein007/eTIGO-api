@@ -54,6 +54,13 @@ The `OtpService` provides 4-digit PIN generation for ride-start verification (PR
 - Maximum 3 verification attempts per PIN
 - Previous active PINs for the same ride are invalidated when a new one is generated
 
+#### Security Hardening
+
+- **PIN storage:** PINs are stored as SHA-256 hashes in the `otp_codes` table — plain codes are never persisted
+- **Atomic attempt tracking:** `DB::table()->increment()` ensures the attempt counter is race-condition safe
+- **Timing-safe comparison:** `hash_equals()` prevents timing side-channel attacks during verification
+- **Transaction wrapping:** PIN generation and invalidation of previous codes are wrapped in `DB::transaction()`
+
 This feature is optional but enabled by default. SMS delivery is abstracted behind the `SmsGateway` contract (`App\Contracts\SmsGateway`). The current implementation logs messages (`LogSmsGateway`). To integrate a real SMS provider, implement the interface and update the binding in `AppServiceProvider`.
 
 ---
@@ -134,6 +141,29 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 ```
 
 The `/driver/onboarding/status` endpoint returns a checklist of what's missing.
+
+### Driver Status Transitions
+
+Admin actions enforce valid state transitions and return `422 Unprocessable Entity` for invalid ones:
+
+| Action | Valid From | Transitions To | Invalid Response |
+|--------|-----------|----------------|------------------|
+| Review (approve) | `pending_review` | `approved` | 422 "Driver can only be reviewed when in pending review status." |
+| Review (reject) | `pending_review` | `rejected` | 422 "Driver can only be reviewed when in pending review status." |
+| Suspend | `approved` | `suspended` | 422 "Only approved drivers can be suspended." |
+| Reactivate | `suspended` | `approved` | 422 "Only suspended drivers can be reactivated." |
+
+All admin driver management actions are wrapped in `DB::transaction()` to ensure the status change and audit log are atomic.
+
+### Vehicle Updates
+
+- `POST /driver/vehicle` creates a new vehicle (one per driver)
+- `PUT /driver/vehicle` supports **partial updates** — only provided fields are changed
+- Re-uploading a document of the same type deletes the previous file and record
+
+### Rejected Document Handling
+
+When a driver is rejected, they can re-upload documents and their status remains `rejected` until an admin re-reviews. The rejection reason is stored on the `drivers` record.
 
 ---
 
@@ -235,7 +265,13 @@ REDIS_HOST=127.0.0.1
 | safety@etigo.com   | password   | safety_operator  |
 | ops@etigo.com      | password   | operations       |
 
-Run `php artisan db:seed` to create these accounts.
+Run `php artisan db:seed` to create these accounts. The `AdminSeeder` includes a production guard — it skips seeding when `app()->isProduction()` returns true.
+
+---
+
+## Rate Limiting
+
+Auth routes (`/auth/*` and `/admin/auth/*`) are rate-limited to **5 requests per minute** per IP via Laravel's `throttle:5,1` middleware. Exceeding the limit returns `429 Too Many Requests`.
 
 ---
 

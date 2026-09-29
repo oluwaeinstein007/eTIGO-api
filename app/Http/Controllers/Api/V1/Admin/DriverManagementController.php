@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Driver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DriverManagementController extends Controller
 {
@@ -45,18 +46,26 @@ class DriverManagementController extends Controller
 
     public function review(ReviewDriverRequest $request, Driver $driver): JsonResponse
     {
+        if ($driver->status !== DriverStatus::PendingReview) {
+            return response()->json([
+                'message' => 'Driver can only be reviewed when in pending review status.',
+            ], 422);
+        }
+
         $validated = $request->validated();
         $admin = $request->user();
         $oldStatus = $driver->status;
 
         if ($validated['action'] === 'approve') {
-            $driver->update([
-                'status' => DriverStatus::Approved,
-                'rejection_reason' => null,
-                'approved_at' => now(),
-            ]);
+            DB::transaction(function () use ($driver, $admin, $oldStatus) {
+                $driver->update([
+                    'status' => DriverStatus::Approved,
+                    'rejection_reason' => null,
+                    'approved_at' => now(),
+                ]);
 
-            AuditLog::record($driver, 'driver_approved', $admin, ['status' => $oldStatus->value], ['status' => 'approved']);
+                AuditLog::record($driver, 'driver_approved', $admin, ['status' => $oldStatus->value], ['status' => 'approved']);
+            });
 
             return response()->json([
                 'message' => 'Driver approved successfully.',
@@ -64,15 +73,17 @@ class DriverManagementController extends Controller
             ]);
         }
 
-        $driver->update([
-            'status' => DriverStatus::Rejected,
-            'rejection_reason' => $validated['rejection_reason'],
-        ]);
+        DB::transaction(function () use ($driver, $admin, $oldStatus, $validated) {
+            $driver->update([
+                'status' => DriverStatus::Rejected,
+                'rejection_reason' => $validated['rejection_reason'],
+            ]);
 
-        AuditLog::record($driver, 'driver_rejected', $admin, ['status' => $oldStatus->value], [
-            'status' => 'rejected',
-            'rejection_reason' => $validated['rejection_reason'],
-        ]);
+            AuditLog::record($driver, 'driver_rejected', $admin, ['status' => $oldStatus->value], [
+                'status' => 'rejected',
+                'rejection_reason' => $validated['rejection_reason'],
+            ]);
+        });
 
         return response()->json([
             'message' => 'Driver rejected.',
@@ -80,17 +91,25 @@ class DriverManagementController extends Controller
         ]);
     }
 
-    public function suspend(Driver $driver): JsonResponse
+    public function suspend(Request $request, Driver $driver): JsonResponse
     {
-        $admin = request()->user();
+        if ($driver->status !== DriverStatus::Approved) {
+            return response()->json([
+                'message' => 'Only approved drivers can be suspended.',
+            ], 422);
+        }
 
-        $driver->update([
-            'status' => DriverStatus::Suspended,
-            'is_online' => false,
-            'suspended_at' => now(),
-        ]);
+        $admin = $request->user();
 
-        AuditLog::record($driver, 'driver_suspended', $admin);
+        DB::transaction(function () use ($driver, $admin) {
+            $driver->update([
+                'status' => DriverStatus::Suspended,
+                'is_online' => false,
+                'suspended_at' => now(),
+            ]);
+
+            AuditLog::record($driver, 'driver_suspended', $admin);
+        });
 
         return response()->json([
             'message' => 'Driver suspended successfully.',
@@ -98,16 +117,24 @@ class DriverManagementController extends Controller
         ]);
     }
 
-    public function reactivate(Driver $driver): JsonResponse
+    public function reactivate(Request $request, Driver $driver): JsonResponse
     {
-        $admin = request()->user();
+        if ($driver->status !== DriverStatus::Suspended) {
+            return response()->json([
+                'message' => 'Only suspended drivers can be reactivated.',
+            ], 422);
+        }
 
-        $driver->update([
-            'status' => DriverStatus::Approved,
-            'suspended_at' => null,
-        ]);
+        $admin = $request->user();
 
-        AuditLog::record($driver, 'driver_reactivated', $admin);
+        DB::transaction(function () use ($driver, $admin) {
+            $driver->update([
+                'status' => DriverStatus::Approved,
+                'suspended_at' => null,
+            ]);
+
+            AuditLog::record($driver, 'driver_reactivated', $admin);
+        });
 
         return response()->json([
             'message' => 'Driver reactivated successfully.',
