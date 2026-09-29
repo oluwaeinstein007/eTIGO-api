@@ -489,6 +489,201 @@ Restores driver to approved status.
 
 ---
 
+## Public — Cities
+
+### List Active Cities
+```
+GET /cities
+```
+Returns all active cities. No authentication required.
+
+**Response 200:**
+```json
+{
+  "cities": [
+    {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 30 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "created_at": "2026-09-29T10:00:00.000000Z",
+      "updated_at": "2026-09-29T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### List City Vehicle Classes
+```
+GET /cities/{city_id}/vehicle-classes
+```
+Returns active vehicle classes available in a city. No authentication required. Filters by both pivot `is_active` and global `is_active`.
+
+**Response 200:**
+```json
+{
+  "vehicle_classes": [
+    {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon_url": null,
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-09-29T10:00:00.000000Z",
+      "updated_at": "2026-09-29T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Admin — City Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### List Cities
+```
+GET /admin/cities
+```
+| Query Param | Type    | Description                       |
+|-------------|---------|-----------------------------------|
+| is_active   | boolean | Filter by active/inactive status  |
+| search      | string  | Filter by city name (partial)     |
+| per_page    | integer | Results per page (default: 20)    |
+
+**Response 200:** Paginated list of cities with `meta`.
+
+---
+
+### Create City
+```
+POST /admin/cities
+```
+| Field         | Type   | Required | Description                             |
+|---------------|--------|----------|-----------------------------------------|
+| name          | string | Yes      | Unique city name                        |
+| boundary      | object | No       | GeoJSON with `type`, `coordinates`, optional `radius_km` |
+| timezone      | string | Yes      | Valid PHP timezone (e.g. `Africa/Lagos`) |
+| currency_code | string | Yes      | 3-letter currency code (e.g. `NGN`)     |
+
+**Response 201:**
+```json
+{
+  "message": "City created successfully.",
+  "city": { "id": 1, "name": "Lagos", "slug": "lagos", "..." : "..." }
+}
+```
+
+---
+
+### Get City
+```
+GET /admin/cities/{city_id}
+```
+Returns city with loaded vehicle classes.
+
+---
+
+### Update City
+```
+PUT /admin/cities/{city_id}
+```
+Same fields as create, all optional (partial update supported). Slug auto-regenerated if name changes.
+
+---
+
+### Toggle City Status
+```
+PATCH /admin/cities/{city_id}/status
+```
+Toggles `is_active` between true and false. Creates audit log entry.
+
+---
+
+### Update City Vehicle Classes
+```
+PUT /admin/cities/{city_id}/vehicle-classes
+```
+| Field                              | Type    | Required | Description                    |
+|------------------------------------|---------|----------|--------------------------------|
+| vehicle_classes                    | array   | Yes      | Array of vehicle class entries |
+| vehicle_classes.*.vehicle_class_id | integer | Yes      | Must exist in vehicle_classes  |
+| vehicle_classes.*.is_active        | boolean | Yes      | Enable/disable in this city    |
+
+Syncs the pivot table — entries not included are removed.
+
+**Response 200:**
+```json
+{
+  "message": "City vehicle classes updated successfully.",
+  "city": { "id": 1, "name": "Lagos", "vehicle_classes": ["..."] }
+}
+```
+
+---
+
+## Admin — Vehicle Class Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### List Vehicle Classes
+```
+GET /admin/vehicle-classes
+```
+| Query Param | Type    | Description                      |
+|-------------|---------|----------------------------------|
+| is_active   | boolean | Filter by active/inactive status |
+| per_page    | integer | Results per page (default: 20)   |
+
+**Response 200:** Paginated list of vehicle classes with `meta`.
+
+---
+
+### Create Vehicle Class
+```
+POST /admin/vehicle-classes
+```
+| Field        | Type    | Required | Description                          |
+|--------------|---------|----------|--------------------------------------|
+| name         | string  | Yes      | Unique internal name (e.g. `economy`) |
+| display_name | string  | Yes      | User-facing name (e.g. `Economy`)    |
+| capacity     | integer | Yes      | Passenger capacity (1–20)            |
+| icon_url     | string  | No       | URL to vehicle class icon            |
+| description  | string  | No       | Description text (max 1000 chars)    |
+
+**Response 201:**
+```json
+{
+  "message": "Vehicle class created successfully.",
+  "vehicle_class": { "id": 1, "name": "economy", "display_name": "Economy", "..." : "..." }
+}
+```
+
+---
+
+### Get Vehicle Class
+```
+GET /admin/vehicle-classes/{vehicle_class_id}
+```
+
+---
+
+### Update Vehicle Class
+```
+PUT /admin/vehicle-classes/{vehicle_class_id}
+```
+Same fields as create, all optional (partial update supported).
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:

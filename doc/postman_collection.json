@@ -675,6 +675,234 @@
       ]
     },
     {
+      "name": "Public — Cities",
+      "item": [
+        {
+          "name": "List Active Cities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cities",
+              "host": ["{{base_url}}"],
+              "path": ["cities"]
+            },
+            "description": "No auth required. Returns only active cities."
+          }
+        },
+        {
+          "name": "List City Vehicle Classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cities/1/vehicle-classes",
+              "host": ["{{base_url}}"],
+              "path": ["cities", "1", "vehicle-classes"]
+            },
+            "description": "No auth required. Returns active vehicle classes for the specified city. Filters by both pivot is_active and global is_active."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — City Management",
+      "item": [
+        {
+          "name": "List Cities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/cities",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities"]
+            },
+            "description": "Supports query params: is_active (bool), search (string), per_page (int, default 20)."
+          }
+        },
+        {
+          "name": "Create City",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lagos\",\n  \"timezone\": \"Africa/Lagos\",\n  \"currency_code\": \"NGN\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [3.3792, 6.5244],\n    \"radius_km\": 30\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/cities",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities"]
+            },
+            "description": "Creates a city. Slug is auto-generated from name. Boundary is optional GeoJSON."
+          }
+        },
+        {
+          "name": "Get City",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/cities/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities", "1"]
+            },
+            "description": "Returns city with loaded vehicle classes."
+          }
+        },
+        {
+          "name": "Update City",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Abuja\",\n  \"timezone\": \"Africa/Lagos\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/cities/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities", "1"]
+            },
+            "description": "Partial update supported. Slug auto-regenerated if name changes."
+          }
+        },
+        {
+          "name": "Toggle City Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/cities/1/status",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities", "1", "status"]
+            },
+            "description": "Toggles is_active between true and false. No request body required."
+          }
+        },
+        {
+          "name": "Update City Vehicle Classes",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_classes\": [\n    { \"vehicle_class_id\": 1, \"is_active\": true },\n    { \"vehicle_class_id\": 2, \"is_active\": false }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/cities/1/vehicle-classes",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cities", "1", "vehicle-classes"]
+            },
+            "description": "Syncs the city-vehicle-class pivot table. Entries not included are removed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Vehicle Class Management",
+      "item": [
+        {
+          "name": "List Vehicle Classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/vehicle-classes",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vehicle-classes"]
+            },
+            "description": "Supports query params: is_active (bool), per_page (int, default 20)."
+          }
+        },
+        {
+          "name": "Create Vehicle Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"economy\",\n  \"display_name\": \"Economy\",\n  \"capacity\": 4,\n  \"description\": \"Affordable rides for everyday trips.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/vehicle-classes",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vehicle-classes"]
+            }
+          }
+        },
+        {
+          "name": "Get Vehicle Class",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/vehicle-classes/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vehicle-classes", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Vehicle Class",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Economy Plus\",\n  \"capacity\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/vehicle-classes/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vehicle-classes", "1"]
+            },
+            "description": "Partial update supported."
+          }
+        }
+      ]
+    },
+    {
       "name": "Auth — Social Login",
       "item": [
         {

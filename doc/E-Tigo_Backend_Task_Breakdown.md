@@ -185,21 +185,21 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-CITY-01 | `[ ]` Create `City` Eloquent model with relationships: vehicleClasses(), rides(), pricingConfigs(), evStations() | — | SETUP-08 | — |
-| BE-CITY-02 | `[ ]` Create `VehicleClass` Eloquent model with relationships: cities(), drivers(), pricingConfigs() | — | SETUP-09 | — |
-| BE-CITY-03 | `[ ]` Create `AdminCityController@store` — `POST /api/v1/admin/cities`: create city with name, boundary, timezone, currency; audit log | A-01 | BE-CITY-01, SETUP-52 | Admin-only |
-| BE-CITY-04 | `[ ]` Create `StoreCityFormRequest` — validate name unique, boundary format (GeoJSON), timezone, currency code | A-01 | BE-CITY-03 | — |
-| BE-CITY-05 | `[ ]` Create `AdminCityController@index` — `GET /api/v1/admin/cities`: list cities with pagination, filter by is_active | A-01 | BE-CITY-01 | — |
-| BE-CITY-06 | `[ ]` Create `AdminCityController@update` — `PUT /api/v1/admin/cities/{city}`: update city details; audit log | A-01 | BE-CITY-03 | — |
-| BE-CITY-07 | `[ ]` Create `AdminCityController@toggleStatus` — `PATCH /api/v1/admin/cities/{city}/status`: activate/deactivate; audit log | A-01 | BE-CITY-03 | — |
-| BE-CITY-08 | `[ ]` Create `CityController@index` — `GET /api/v1/cities`: public endpoint listing active cities with boundaries | A-01 | BE-CITY-01 | Cacheable; invalidate on Admin update |
-| BE-CITY-09 | `[ ]` Create `CityResource` and `CityCollection` API resources | — | BE-CITY-01 | — |
-| BE-CITY-10 | `[ ]` Create `AdminVehicleClassController@store` — `POST /api/v1/admin/vehicle-classes`: create vehicle class | A-03 | BE-CITY-02, SETUP-52 | — |
-| BE-CITY-11 | `[ ]` Create `AdminVehicleClassController@index` — `GET /api/v1/admin/vehicle-classes`: list all vehicle classes | A-03 | BE-CITY-10 | — |
-| BE-CITY-12 | `[ ]` Create `AdminVehicleClassController@update` — `PUT /api/v1/admin/vehicle-classes/{vehicleClass}` | A-03 | BE-CITY-10 | — |
-| BE-CITY-13 | `[ ]` Create `AdminCityVehicleClassController@update` — `PUT /api/v1/admin/cities/{city}/vehicle-classes`: enable/disable classes for a city | A-04 | BE-CITY-03, BE-CITY-10 | Accepts array of {vehicle_class_id, is_active} |
-| BE-CITY-14 | `[ ]` Create `CityVehicleClassController@index` — `GET /api/v1/cities/{city}/vehicle-classes`: public endpoint returning active classes for a city | A-04 | BE-CITY-13 | Used by Passenger App vehicle selector; cacheable |
-| BE-CITY-15 | `[ ]` Create `VehicleClassResource` API resource | — | BE-CITY-02 | — |
+| BE-CITY-01 | `[x]` Create `City` Eloquent model with relationships: vehicleClasses(), rides(), pricingConfigs(), evStations() | — | SETUP-08 | Implemented in `App\Models\City` with factory |
+| BE-CITY-02 | `[x]` Create `VehicleClass` Eloquent model with relationships: cities(), drivers(), pricingConfigs() | — | SETUP-09 | Implemented in `App\Models\VehicleClass` with factory |
+| BE-CITY-03 | `[x]` Create `AdminCityController@store` — `POST /api/v1/admin/cities`: create city with name, boundary, timezone, currency; audit log | A-01 | BE-CITY-01, SETUP-52 | Admin-only; auto-generates slug from name |
+| BE-CITY-04 | `[x]` Create `StoreCityFormRequest` — validate name unique, boundary format (GeoJSON), timezone, currency code | A-01 | BE-CITY-03 | Also created `UpdateCityRequest` for PUT |
+| BE-CITY-05 | `[x]` Create `AdminCityController@index` — `GET /api/v1/admin/cities`: list cities with pagination, filter by is_active | A-01 | BE-CITY-01 | Supports search filter |
+| BE-CITY-06 | `[x]` Create `AdminCityController@update` — `PUT /api/v1/admin/cities/{city}`: update city details; audit log | A-01 | BE-CITY-03 | — |
+| BE-CITY-07 | `[x]` Create `AdminCityController@toggleStatus` — `PATCH /api/v1/admin/cities/{city}/status`: activate/deactivate; audit log | A-01 | BE-CITY-03 | — |
+| BE-CITY-08 | `[x]` Create `CityController@index` — `GET /api/v1/cities`: public endpoint listing active cities with boundaries | A-01 | BE-CITY-01 | Cacheable; invalidate on Admin update |
+| BE-CITY-09 | `[x]` Create `CityResource` and `VehicleClassResource` API resources | — | BE-CITY-01 | — |
+| BE-CITY-10 | `[x]` Create `AdminVehicleClassController@store` — `POST /api/v1/admin/vehicle-classes`: create vehicle class | A-03 | BE-CITY-02, SETUP-52 | — |
+| BE-CITY-11 | `[x]` Create `AdminVehicleClassController@index` — `GET /api/v1/admin/vehicle-classes`: list all vehicle classes | A-03 | BE-CITY-10 | Supports is_active filter |
+| BE-CITY-12 | `[x]` Create `AdminVehicleClassController@update` — `PUT /api/v1/admin/vehicle-classes/{vehicleClass}` | A-03 | BE-CITY-10 | — |
+| BE-CITY-13 | `[x]` Create `AdminCityVehicleClassController@update` — `PUT /api/v1/admin/cities/{city}/vehicle-classes`: enable/disable classes for a city | A-04 | BE-CITY-03, BE-CITY-10 | Accepts array of {vehicle_class_id, is_active}; uses sync |
+| BE-CITY-14 | `[x]` Create `CityVehicleClassController@index` — `GET /api/v1/cities/{city}/vehicle-classes`: public endpoint returning active classes for a city | A-04 | BE-CITY-13 | Filters by both pivot is_active and global is_active |
+| BE-CITY-15 | `[x]` Create `VehicleClassResource` API resource | — | BE-CITY-02 | — |
 
 ---
 

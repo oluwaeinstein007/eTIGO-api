@@ -279,6 +279,25 @@ When a driver is rejected, they can re-upload documents and their status remains
 
 ---
 
+## City & Vehicle-Class Management
+
+Cities are the top-level scoping entity for the platform. Each city has a name, slug, GeoJSON boundary, timezone, and currency code. Vehicle classes (e.g. Economy, Premium, SUV) are platform-wide definitions that get enabled per city via the `city_vehicle_classes` pivot table.
+
+### Admin Endpoints
+
+- **Cities:** Full CRUD (`POST/GET/PUT /admin/cities`) plus `PATCH /admin/cities/{id}/status` to toggle active/inactive
+- **Vehicle Classes:** Full CRUD (`POST/GET/PUT /admin/vehicle-classes`)
+- **City-Vehicle-Class Pivot:** `PUT /admin/cities/{id}/vehicle-classes` syncs which vehicle classes are available in a city, with per-entry `is_active` control
+
+### Public Endpoints
+
+- `GET /cities` — Returns all active cities (no auth required)
+- `GET /cities/{id}/vehicle-classes` — Returns vehicle classes active in a city (filters by both the pivot `is_active` and the global `is_active` on vehicle_classes)
+
+All admin mutations are wrapped in `DB::transaction()` and create audit log entries.
+
+---
+
 ## Audit Logging
 
 All significant state changes are logged to the `audit_logs` table via `AuditLog::record()`:
@@ -293,7 +312,7 @@ AuditLog::record(
 );
 ```
 
-Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`.
+Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`.
 
 IP address and user agent are captured automatically from the request.
 
@@ -309,14 +328,16 @@ app/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
 │   │       ├── Auth/       # AuthController, AdminAuthController, SocialAuthController
-│   │       ├── Admin/      # DriverManagementController
+│   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController
 │   │       ├── Driver/     # OnboardingController
 │   │       ├── Passenger/  # ProfileController
+│   │       ├── CityController         # Public city listing
+│   │       ├── CityVehicleClassController  # Public city vehicle classes
 │   │       └── HealthController  # Health check (invokable)
 │   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved, LogRequests
 │   ├── Requests/        # Form request validators by domain
-│   └── Resources/       # API resources (UserResource, DriverResource, ...)
-├── Models/             # Eloquent models (User, Driver, SocialAccount, ...)
+│   └── Resources/       # API resources (UserResource, DriverResource, CityResource, VehicleClassResource, ...)
+├── Models/             # Eloquent models (User, Driver, City, VehicleClass, SocialAccount, ...)
 ├── Providers/          # Service providers
 └── Services/           # Business logic (OtpService, SocialAuthService, LogSmsGateway)
 
@@ -348,6 +369,9 @@ Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait.
 - **Driver/OnboardingTest** — Onboarding status, profile update, document upload/replace, vehicle registration, role enforcement
 - **Passenger/ProfileTest** — Profile read/update, role enforcement
 - **Admin/DriverManagementTest** — List/filter drivers, approve/reject, suspend/reactivate, role enforcement
+- **Admin/CityManagementTest** — City CRUD, toggle status, vehicle class pivot sync, validation, role enforcement
+- **Admin/VehicleClassManagementTest** — Vehicle class CRUD, filtering, validation, role enforcement
+- **CityPublicTest** — Public city listing (active only), city vehicle classes (active pivot + global filter)
 
 ---
 
@@ -424,3 +448,4 @@ This implementation covers the following PRD tasks:
 | DA-KYC-04   | Vehicle profile                     | Done   |
 | AD-DRV-01   | Review driver KYC submissions       | Done   |
 | AD-DRV-02   | Suspend/reactivate driver           | Done   |
+| BE-CITY-01–15 | City & Vehicle-Class Management API | Done   |
