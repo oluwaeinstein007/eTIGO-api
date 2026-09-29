@@ -209,15 +209,15 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-PRICE-01 | `[ ]` Create `PricingConfig` Eloquent model with relationships: city(), vehicleClass() | — | SETUP-13 | — |
-| BE-PRICE-02 | `[ ]` Create `AdminPricingController@store` — `POST /api/v1/admin/pricing`: create pricing config for city + vehicle class with effective_from; audit log | A-06 | BE-PRICE-01, SETUP-52 | ⚠ Confirm whether waiting-time charges apply |
-| BE-PRICE-03 | `[ ]` Create `StorePricingFormRequest` — validate city_id, vehicle_class_id, rates (positive decimals), effective_from (future timestamp) | A-06 | BE-PRICE-02 | — |
-| BE-PRICE-04 | `[ ]` Create `AdminPricingController@index` — `GET /api/v1/admin/pricing`: list pricing configs with filters, show current and historical versions | A-06 | BE-PRICE-01 | — |
-| BE-PRICE-05 | `[ ]` Create `FareEstimationService` — accept pickup/destination coords, city, vehicle class → query maps adapter for distance + duration → apply formula: `max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_min × per_minute_rate))` → return estimate | P-06 | BE-PRICE-01, SETUP-59 | — |
-| BE-PRICE-06 | `[ ]` Create `RideController@estimate` — `POST /api/v1/rides/estimate`: accept pickup, destination, city_id → return fare estimates for all active vehicle classes | P-06 | BE-PRICE-05 | — |
-| BE-PRICE-07 | `[ ]` Create `EstimateRideFormRequest` — validate pickup/destination coordinates, city_id exists and is active | P-06 | BE-PRICE-06 | — |
-| BE-PRICE-08 | `[ ]` Implement pricing snapshot capture: when a ride is created, snapshot the active pricing config as jsonb on the ride record | A-07 | BE-PRICE-01 | In-progress trips retain booking-time rate |
-| BE-PRICE-09 | `[ ]` Create `PricingResource` API resource | — | BE-PRICE-01 | — |
+| BE-PRICE-01 | `[x]` Create `PricingConfig` Eloquent model with relationships: city(), vehicleClass() | — | SETUP-13 | Implemented with factory, scopes, `currentFor()`, and `toSnapshot()` |
+| BE-PRICE-02 | `[x]` Create `AdminPricingController@store` — `POST /api/v1/admin/pricing`: create pricing config for city + vehicle class with effective_from; audit log | A-06 | BE-PRICE-01, SETUP-52 | Version auto-incremented; waiting_time_rate accepted as nullable |
+| BE-PRICE-03 | `[x]` Create `StorePricingFormRequest` — validate city_id, vehicle_class_id, rates (positive decimals), effective_from (future timestamp) | A-06 | BE-PRICE-02 | — |
+| BE-PRICE-04 | `[x]` Create `AdminPricingController@index` — `GET /api/v1/admin/pricing`: list pricing configs with filters, show current and historical versions | A-06 | BE-PRICE-01 | Includes `show` and `current` endpoints |
+| BE-PRICE-05 | `[x]` Create `FareEstimationService` — accept pickup/destination coords, city, vehicle class → query maps adapter for distance + duration → apply formula: `max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_min × per_minute_rate))` → return estimate | P-06 | BE-PRICE-01, SETUP-59 | Uses `MapsGateway` contract; current impl: `HaversineMapsGateway` (swap for real provider) |
+| BE-PRICE-06 | `[x]` Create `RideEstimateController` — `POST /api/v1/rides/estimate`: accept pickup, destination, city_id → return fare estimates for all active vehicle classes | P-06 | BE-PRICE-05 | Invokable controller |
+| BE-PRICE-07 | `[x]` Create `EstimateRideFormRequest` — validate pickup/destination coordinates, city_id exists and is active | P-06 | BE-PRICE-06 | Validates lat/lng ranges |
+| BE-PRICE-08 | `[x]` Implement pricing snapshot capture: when a ride is created, snapshot the active pricing config as jsonb on the ride record | A-07 | BE-PRICE-01 | `PricingConfig::toSnapshot()` + `PricingConfig::currentFor()` |
+| BE-PRICE-09 | `[x]` Create `PricingResource` API resource | — | BE-PRICE-01 | Conditional relationship loading |
 
 ---
 
