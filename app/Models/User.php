@@ -2,31 +2,76 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\AdminRole;
+use App\Enums\UserType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable([
+    'first_name',
+    'last_name',
+    'phone',
+    'email',
+    'type',
+    'admin_role',
+    'password',
+    'profile_photo_path',
+])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
+            'type' => UserType::class,
+            'admin_role' => AdminRole::class,
+            'phone_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
+    }
+
+    public function driver(): HasOne
+    {
+        return $this->hasOne(Driver::class);
+    }
+
+    public function isPassenger(): bool
+    {
+        return $this->type === UserType::Passenger;
+    }
+
+    public function isDriver(): bool
+    {
+        return $this->type === UserType::Driver;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->type === UserType::Admin;
+    }
+
+    public function isSafetyOperator(): bool
+    {
+        return $this->isAdmin() && $this->admin_role === AdminRole::SafetyOperator;
+    }
+
+    public function hasAdminRole(AdminRole $role): bool
+    {
+        return $this->isAdmin() && $this->admin_role === $role;
+    }
+
+    public function hasPhoneVerified(): bool
+    {
+        return $this->phone_verified_at !== null;
     }
 }
