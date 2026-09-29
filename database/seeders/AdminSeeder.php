@@ -12,6 +12,12 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->isProduction()) {
+            $this->command?->warn('Skipping AdminSeeder in production.');
+
+            return;
+        }
+
         $admins = [
             [
                 'first_name' => 'Super',

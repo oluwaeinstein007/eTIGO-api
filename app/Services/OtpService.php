@@ -15,21 +15,26 @@ class OtpService
     /**
      * Generate a ride-start PIN for trip verification.
      */
-    public function generateRidePin(string $rideId): OtpCode
+    /**
+     * @return array{otp: OtpCode, plain_code: string}
+     */
+    public function generateRidePin(string $rideId): array
     {
         OtpCode::where('purpose', 'ride_pin')
             ->where('phone', $rideId)
             ->active()
             ->update(['expires_at' => now()]);
 
-        $code = $this->generateCode(self::PIN_LENGTH);
+        $plainCode = $this->generateCode(self::PIN_LENGTH);
 
-        return OtpCode::create([
+        $otp = OtpCode::create([
             'phone' => $rideId,
-            'code' => $code,
+            'code' => hash('sha256', $plainCode),
             'purpose' => 'ride_pin',
             'expires_at' => now()->addMinutes(self::PIN_EXPIRY_MINUTES),
         ]);
+
+        return ['otp' => $otp, 'plain_code' => $plainCode];
     }
 
     /**
@@ -49,19 +54,21 @@ class OtpService
             return ['valid' => false, 'otp' => null, 'error' => 'No active PIN found for this ride.'];
         }
 
-        if ($otpCode->hasExceededMaxAttempts(self::MAX_ATTEMPTS)) {
-            return ['valid' => false, 'otp' => $otpCode, 'error' => 'Maximum PIN verification attempts exceeded. Contact support.'];
+        $updated = OtpCode::where('id', $otpCode->id)
+            ->where('attempts', '<', self::MAX_ATTEMPTS)
+            ->increment('attempts');
+
+        if ($updated === 0) {
+            return ['valid' => false, 'otp' => $otpCode->fresh(), 'error' => 'Maximum PIN verification attempts exceeded. Contact support.'];
         }
 
-        if ($otpCode->code !== $code) {
-            $otpCode->incrementAttempts();
-
-            return ['valid' => false, 'otp' => $otpCode, 'error' => 'Invalid PIN code.'];
+        if (! hash_equals($otpCode->code, hash('sha256', $code))) {
+            return ['valid' => false, 'otp' => $otpCode->fresh(), 'error' => 'Invalid PIN code.'];
         }
 
         $otpCode->markAsVerified();
 
-        return ['valid' => true, 'otp' => $otpCode, 'error' => null];
+        return ['valid' => true, 'otp' => $otpCode->fresh(), 'error' => null];
     }
 
     private function generateCode(int $length): string
