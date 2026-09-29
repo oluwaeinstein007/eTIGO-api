@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\DocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreVehicleRequest;
 use App\Http\Requests\Driver\UpdateDriverProfileRequest;
+use App\Http\Requests\Driver\UpdateVehicleRequest;
 use App\Http\Requests\Driver\UploadDocumentRequest;
 use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
@@ -27,7 +29,10 @@ class OnboardingController extends Controller
         }
 
         $requiredDocTypes = ['driving_licence', 'vehicle_registration', 'insurance_certificate', 'government_id'];
-        $uploadedDocTypes = $driver->documents->pluck('type.value')->toArray();
+        $uploadedDocTypes = $driver->documents
+            ->where('status', '!==', DocumentStatus::Rejected)
+            ->pluck('type.value')
+            ->toArray();
         $missingDocTypes = array_diff($requiredDocTypes, $uploadedDocTypes);
 
         return response()->json([
@@ -133,7 +138,7 @@ class OnboardingController extends Controller
         ], 201);
     }
 
-    public function updateVehicle(StoreVehicleRequest $request): JsonResponse
+    public function updateVehicle(UpdateVehicleRequest $request): JsonResponse
     {
         $user = $request->user();
         $driver = $user->driver;
