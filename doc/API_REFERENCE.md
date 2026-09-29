@@ -148,6 +148,93 @@ GET /admin/auth/me
 
 ---
 
+### Social Login (Google & Apple)
+
+```
+POST /auth/social-login
+```
+
+Mobile-first flow: the mobile app handles the OAuth flow and sends the provider access token to this endpoint.
+
+| Field        | Type   | Required | Description                    |
+|--------------|--------|----------|--------------------------------|
+| provider     | string | Yes      | `google` or `apple`            |
+| access_token | string | Yes      | OAuth access token from provider |
+| type         | string | Yes      | `passenger` or `driver`        |
+
+**Response 201 (new user):**
+```json
+{
+  "message": "Account created successfully.",
+  "user": {
+    "id": 1,
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com",
+    "type": "passenger",
+    "is_active": true,
+    "created_at": "2026-09-29T10:00:00.000000Z"
+  },
+  "token": "1|abc123...",
+  "is_new_user": true
+}
+```
+
+**Response 200 (existing user):**
+```json
+{
+  "message": "Logged in successfully.",
+  "user": { ... },
+  "token": "2|def456...",
+  "is_new_user": false
+}
+```
+
+**Response 409:** `User type mismatch. This account is registered as a different type.`
+**Response 403:** `Your account has been deactivated. Contact support.`
+**Response 422:** Invalid provider token or validation error.
+
+Notes:
+- If the provider email matches an existing user of the same type, the social account is linked automatically.
+- Driver registration via social login creates a `Driver` record with `pending_review` status.
+- The `phone` field is not required for social-login-only users.
+
+---
+
+## Health Check
+
+```
+GET /health
+```
+
+No authentication required. Returns database and Redis connectivity status.
+
+**Response 200 (all healthy):**
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": true,
+    "redis": true
+  },
+  "timestamp": "2026-09-29T10:00:00.000000Z"
+}
+```
+
+**Response 503 (degraded):**
+```json
+{
+  "status": "degraded",
+  "checks": {
+    "database": true,
+    "redis": false
+  },
+  "timestamp": "2026-09-29T10:00:00.000000Z"
+}
+```
+
+---
+
 ## Passenger
 
 All passenger endpoints require `Authorization: Bearer {token}` from a passenger user.
@@ -404,32 +491,48 @@ Restores driver to approved status.
 
 ## Error Responses
 
-All errors follow a consistent format:
+All API errors return structured JSON with a machine-readable `error_code`:
 
 ```json
 {
-  "message": "Description of the error."
+  "message": "Description of the error.",
+  "error_code": "ERROR_CODE"
 }
 ```
 
-Validation errors (422):
+Validation errors (422) include field-level details:
 ```json
 {
   "message": "The phone field is required.",
+  "error_code": "VALIDATION_ERROR",
   "errors": {
     "phone": ["The phone field is required."]
   }
 }
 ```
 
-| Code | Description            |
-|------|------------------------|
-| 401  | Unauthenticated        |
-| 403  | Forbidden / wrong role |
-| 404  | Resource not found     |
-| 409  | Conflict               |
-| 422  | Validation error       |
-| 500  | Server error           |
+Server errors (500) include debug details only when `APP_DEBUG=true`:
+```json
+{
+  "message": "Internal server error.",
+  "error_code": "SERVER_ERROR",
+  "details": {
+    "exception": "RuntimeException",
+    "file": "/app/Http/Controllers/...",
+    "line": 42
+  }
+}
+```
+
+| Code | Error Code         | Description            |
+|------|--------------------|------------------------|
+| 401  | `UNAUTHENTICATED`  | Missing or invalid token |
+| 403  | `HTTP_ERROR`       | Forbidden / wrong role |
+| 404  | `NOT_FOUND`        | Resource or endpoint not found |
+| 409  | `HTTP_ERROR`       | Conflict               |
+| 422  | `VALIDATION_ERROR` | Validation error       |
+| 429  | `HTTP_ERROR`       | Too many requests      |
+| 500  | `SERVER_ERROR`     | Server error (no stack traces in production) |
 
 ---
 
@@ -472,3 +575,9 @@ Validation errors (422):
 | `pending`  | Awaiting admin review              |
 | `approved` | Approved by admin                  |
 | `rejected` | Rejected (reason provided)         |
+
+### Social Providers
+| Value    | Description                        |
+|----------|------------------------------------|
+| `google` | Google OAuth 2.0                   |
+| `apple`  | Apple Sign In                      |

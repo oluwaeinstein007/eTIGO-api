@@ -673,6 +673,173 @@
           }
         }
       ]
+    },
+    {
+      "name": "Auth — Social Login",
+      "item": [
+        {
+          "name": "Social Login — Google (Passenger)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"ya29.a0AfH6SM...\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/social-login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "social-login"]
+            },
+            "description": "Replace access_token with a valid Google OAuth token. Returns 201 for new users, 200 for existing users."
+          }
+        },
+        {
+          "name": "Social Login — Apple (Passenger)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"apple\",\n  \"access_token\": \"eyJraWQiOiI...\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/social-login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "social-login"]
+            },
+            "description": "Replace access_token with a valid Apple identity token. Returns 201 for new users, 200 for existing users."
+          }
+        },
+        {
+          "name": "Social Login — Google (Driver)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('driver_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"ya29.a0AfH6SM...\",\n  \"type\": \"driver\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/social-login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "social-login"]
+            },
+            "description": "Driver social login. Creates a Driver record with pending_review status for new users."
+          }
+        },
+        {
+          "name": "Social Login — Invalid Provider (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"facebook\",\n  \"access_token\": \"some-token\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/social-login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "social-login"]
+            },
+            "description": "Expected: 422 — only google and apple providers are supported."
+          }
+        },
+        {
+          "name": "Social Login — Missing Token (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"type\": \"passenger\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/social-login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "social-login"]
+            },
+            "description": "Expected: 422 — access_token is required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "No auth required. Returns database and Redis connectivity status. 200 = healthy, 503 = degraded."
+          }
+        }
+      ]
     }
   ]
 }
