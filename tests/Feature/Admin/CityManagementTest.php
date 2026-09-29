@@ -195,6 +195,45 @@ it('validates vehicle class ids when updating city vehicle classes', function ()
         ->assertJsonValidationErrors(['vehicle_classes.0.vehicle_class_id']);
 });
 
+it('rejects duplicate vehicle class ids in pivot update', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $city = City::factory()->create();
+    $vc = VehicleClass::factory()->create();
+
+    $response = $this->withToken($token)
+        ->putJson("/api/v1/admin/cities/{$city->id}/vehicle-classes", [
+            'vehicle_classes' => [
+                ['vehicle_class_id' => $vc->id, 'is_active' => true],
+                ['vehicle_class_id' => $vc->id, 'is_active' => false],
+            ],
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['vehicle_classes.1.vehicle_class_id']);
+});
+
+it('generates unique slug when names produce the same slug', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    City::factory()->create(['name' => 'Lagos', 'slug' => 'lagos']);
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/admin/cities', [
+            'name' => 'LAGOS',
+            'timezone' => 'Africa/Lagos',
+            'currency_code' => 'NGN',
+        ]);
+
+    $response->assertCreated();
+
+    $newCity = City::where('name', 'LAGOS')->first();
+    expect($newCity->slug)->not->toBe('lagos');
+    expect($newCity->slug)->toStartWith('lagos-');
+});
+
 it('prevents non-admin from managing cities', function () {
     $passenger = User::factory()->passenger()->create();
     $token = $passenger->createToken('test', ['passenger'])->plainTextToken;

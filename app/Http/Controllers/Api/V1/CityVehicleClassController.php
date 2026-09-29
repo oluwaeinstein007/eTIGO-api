@@ -11,6 +11,8 @@ class CityVehicleClassController extends Controller
 {
     public function index(City $city): JsonResponse
     {
+        abort_unless($city->is_active, 404);
+
         $vehicleClasses = $city->vehicleClasses()
             ->where('vehicle_classes.is_active', true)
             ->wherePivot('is_active', true)

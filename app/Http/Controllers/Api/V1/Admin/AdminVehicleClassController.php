@@ -22,7 +22,7 @@ class AdminVehicleClassController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
-        $vehicleClasses = $query->orderBy('name')->paginate($request->integer('per_page', 20));
+        $vehicleClasses = $query->orderBy('name')->paginate(min($request->integer('per_page', 20), 100));
 
         return response()->json([
             'vehicle_classes' => VehicleClassResource::collection($vehicleClasses),

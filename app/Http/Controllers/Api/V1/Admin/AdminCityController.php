@@ -27,7 +27,7 @@ class AdminCityController extends Controller
             $query->where('name', 'ilike', '%'.$request->input('search').'%');
         }
 
-        $cities = $query->latest()->paginate($request->integer('per_page', 20));
+        $cities = $query->latest()->paginate(min($request->integer('per_page', 20), 100));
 
         return response()->json([
             'cities' => CityResource::collection($cities),
@@ -46,9 +46,14 @@ class AdminCityController extends Controller
         $admin = $request->user();
 
         $city = DB::transaction(function () use ($validated, $admin) {
+            $slug = Str::slug($validated['name']);
+            if (City::where('slug', $slug)->exists()) {
+                $slug .= '-'.City::where('slug', 'like', $slug.'%')->count();
+            }
+
             $city = City::create([
                 ...$validated,
-                'slug' => Str::slug($validated['name']),
+                'slug' => $slug,
             ]);
 
             AuditLog::record($city, 'city_created', $admin);
@@ -77,7 +82,11 @@ class AdminCityController extends Controller
 
         DB::transaction(function () use ($city, $validated, $admin, $oldValues) {
             if (isset($validated['name'])) {
-                $validated['slug'] = Str::slug($validated['name']);
+                $slug = Str::slug($validated['name']);
+                if (City::where('slug', $slug)->where('id', '!=', $city->id)->exists()) {
+                    $slug .= '-'.City::where('slug', 'like', $slug.'%')->count();
+                }
+                $validated['slug'] = $slug;
             }
 
             $city->update($validated);
