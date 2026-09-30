@@ -14,7 +14,8 @@ class SurgePricingService
      */
     public function getCurrentMultiplier(int $cityId, ?int $vehicleClassId = null): array
     {
-        $rules = SurgeRule::active()
+        $rules = SurgeRule::with('city')
+            ->active()
             ->forCity($cityId)
             ->forVehicleClass($vehicleClassId)
             ->orderByDesc('priority')
@@ -48,7 +49,7 @@ class SurgePricingService
 
             $matches = match ($rule->type) {
                 SurgeType::Manual => true,
-                SurgeType::TimeBased => $this->matchesTimeSchedule($rule->conditions),
+                SurgeType::TimeBased => $this->matchesTimeSchedule($rule->conditions, $rule->city?->timezone),
                 SurgeType::DemandBased => $this->matchesDemandThreshold($rule),
             };
 
@@ -63,9 +64,9 @@ class SurgePricingService
         return $bestRule;
     }
 
-    private function matchesTimeSchedule(array $conditions): bool
+    private function matchesTimeSchedule(array $conditions, ?string $timezone = null): bool
     {
-        $now = Carbon::now();
+        $now = Carbon::now($timezone);
         $daysOfWeek = $conditions['days_of_week'] ?? [];
         $startTime = $conditions['start_time'] ?? null;
         $endTime = $conditions['end_time'] ?? null;
@@ -120,7 +121,8 @@ class SurgePricingService
      */
     public function getMultipliersForCity(int $cityId, array $vehicleClassIds): array
     {
-        $allRules = SurgeRule::active()
+        $allRules = SurgeRule::with('city')
+            ->active()
             ->forCity($cityId)
             ->where(function ($q) use ($vehicleClassIds) {
                 $q->whereNull('vehicle_class_id')

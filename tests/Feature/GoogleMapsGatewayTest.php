@@ -82,6 +82,11 @@ it('reverse geocodes coordinates to an address', function () {
             'results' => [[
                 'formatted_address' => 'Victoria Island, Lagos, Nigeria',
                 'place_id' => 'ChIJwYCC5iqOOxARy9nDZ6OHntw',
+                'address_components' => [
+                    ['long_name' => 'Victoria Island', 'types' => ['neighborhood']],
+                    ['long_name' => 'Lagos', 'types' => ['locality']],
+                    ['long_name' => 'Nigeria', 'types' => ['country']],
+                ],
             ]],
         ]),
     ]);
@@ -91,5 +96,6 @@ it('reverse geocodes coordinates to an address', function () {
     expect($result)->toBe([
         'address' => 'Victoria Island, Lagos, Nigeria',
         'place_id' => 'ChIJwYCC5iqOOxARy9nDZ6OHntw',
+        'city' => 'Lagos',
     ]);
 });

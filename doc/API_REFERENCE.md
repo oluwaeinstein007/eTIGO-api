@@ -760,7 +760,7 @@ POST /rides/estimate
         "capacity": 4,
         "icon_url": null
       },
-      "fare_estimate": "4200.00",
+      "fare_estimate": "6150.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
       "currency": "NGN",

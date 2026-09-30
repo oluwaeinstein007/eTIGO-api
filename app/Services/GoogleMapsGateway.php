@@ -77,7 +77,7 @@ class GoogleMapsGateway implements MapsGateway
     }
 
     /**
-     * @return array{address: string, place_id: string}
+     * @return array{address: string, place_id: string, city: string|null}
      */
     public function reverseGeocode(float $lat, float $lng): array
     {
@@ -99,6 +99,20 @@ class GoogleMapsGateway implements MapsGateway
         return [
             'address' => $result['formatted_address'],
             'place_id' => $result['place_id'],
+            'city' => $this->extractCityFromComponents($result['address_components'] ?? []),
         ];
+    }
+
+    private function extractCityFromComponents(array $components): ?string
+    {
+        foreach (['locality', 'administrative_area_level_2', 'administrative_area_level_1'] as $type) {
+            foreach ($components as $component) {
+                if (in_array($type, $component['types'] ?? [])) {
+                    return $component['long_name'];
+                }
+            }
+        }
+
+        return null;
     }
 }

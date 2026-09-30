@@ -46,7 +46,7 @@ The **Surge Multiplier** is applied after the base fare calculation. When no sur
 | Surge: 1.0x (no surge) | ₦4,100.00 |
 | **Total fare** | **₦4,100.00** |
 
-In this example, the calculated fare (₦4,100) is above the minimum fare (₦1,500), so the passenger pays ₦4,100. If this had been a 0.3 km trip with a 2-minute duration, the calculation would give ₦680 — below the minimum — so the fare would be ₦1,500 instead.
+In this example, the calculated fare (₦4,100) is above the minimum fare (₦1,500), so the passenger pays ₦4,100. If this had been a 0.3 km trip with a 2-minute duration, the calculation would give ₦755 — below the minimum — so the fare would be ₦1,500 instead.
 
 ### With Surge Pricing Active
 
@@ -269,7 +269,7 @@ Routes over 100 km automatically include a warning that the fare is estimated an
 
 ### Short Rides & Minimum Fare
 
-For very short rides (e.g. 0.3 km), the calculated fare might be much lower than the minimum fare. The system automatically bumps it to the minimum. This protects driver earnings — a trip that calculates to ₦680 would be charged at ₦1,500 (the minimum) instead.
+For very short rides (e.g. 0.3 km), the calculated fare might be much lower than the minimum fare. The system automatically bumps it to the minimum. This protects driver earnings — a trip that calculates to ₦755 would be charged at ₦1,500 (the minimum) instead.
 
 ### What the App Sees
 

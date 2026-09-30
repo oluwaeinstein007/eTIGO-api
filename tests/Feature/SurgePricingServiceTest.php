@@ -70,7 +70,7 @@ it('applies manual surge rule when active', function () {
 });
 
 it('applies time-based surge rule during matching schedule', function () {
-    $now = Carbon::now();
+    $now = Carbon::now($this->city->timezone);
 
     $rule = SurgeRule::factory()->timeBased([
         'days_of_week' => [$now->dayOfWeekIso],
@@ -89,7 +89,7 @@ it('applies time-based surge rule during matching schedule', function () {
 });
 
 it('does not apply time-based surge rule outside schedule', function () {
-    $now = Carbon::now();
+    $now = Carbon::now($this->city->timezone);
 
     SurgeRule::factory()->timeBased([
         'days_of_week' => [$now->dayOfWeekIso],
@@ -107,7 +107,7 @@ it('does not apply time-based surge rule outside schedule', function () {
 });
 
 it('does not apply time-based surge rule on a different day', function () {
-    $now = Carbon::now();
+    $now = Carbon::now($this->city->timezone);
     $otherDay = $now->dayOfWeekIso === 7 ? 1 : $now->dayOfWeekIso + 1;
 
     SurgeRule::factory()->timeBased([
@@ -229,10 +229,11 @@ it('applies surge multiplier to fare amount', function () {
 });
 
 it('handles overnight time-based schedule on the same evening', function () {
-    Carbon::setTestNow(Carbon::parse('2026-09-30 23:30:00'));
+    $tz = $this->city->timezone;
+    Carbon::setTestNow(Carbon::parse('2026-09-30 23:30:00', $tz)->utc());
 
     $rule = SurgeRule::factory()->timeBased([
-        'days_of_week' => [Carbon::now()->dayOfWeekIso],
+        'days_of_week' => [Carbon::now($tz)->dayOfWeekIso],
         'start_time' => '22:00',
         'end_time' => '06:00',
     ])->create([
@@ -250,10 +251,11 @@ it('handles overnight time-based schedule on the same evening', function () {
 });
 
 it('handles overnight time-based schedule into the next morning', function () {
-    // Wednesday 22:00–06:00 schedule, tested at Thursday 02:00
-    Carbon::setTestNow(Carbon::parse('2026-10-01 02:00:00')); // Thursday
+    $tz = $this->city->timezone;
+    // Wednesday 22:00–06:00 schedule, tested at Thursday 02:00 in city timezone
+    Carbon::setTestNow(Carbon::parse('2026-10-01 02:00:00', $tz)->utc());
 
-    $wednesday = Carbon::parse('2026-09-30')->dayOfWeekIso; // 3
+    $wednesday = Carbon::parse('2026-09-30', $tz)->dayOfWeekIso; // 3
 
     $rule = SurgeRule::factory()->timeBased([
         'days_of_week' => [$wednesday],
@@ -274,8 +276,9 @@ it('handles overnight time-based schedule into the next morning', function () {
 });
 
 it('does not match overnight schedule when previous day is not in days_of_week', function () {
-    // Schedule for Monday only (22:00–06:00), tested at Wednesday 03:00
-    Carbon::setTestNow(Carbon::parse('2026-10-01 03:00:00')); // Thursday
+    $tz = $this->city->timezone;
+    // Schedule for Monday only (22:00–06:00), tested at Thursday 03:00 in city timezone
+    Carbon::setTestNow(Carbon::parse('2026-10-01 03:00:00', $tz)->utc());
 
     $monday = 1;
 

@@ -20,7 +20,7 @@ interface MapsGateway
     public function geocode(string $address): array;
 
     /**
-     * @return array{address: string, place_id: string}
+     * @return array{address: string, place_id: string, city: string|null}
      */
     public function reverseGeocode(float $lat, float $lng): array;
 }

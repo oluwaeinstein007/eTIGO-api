@@ -23,8 +23,10 @@ class CityDetectionService
             $location = $this->mapsGateway->reverseGeocode($lat, $lng);
             $resolvedAddress = $location['address'];
 
+            $cityName = $location['city'] ?? $this->extractCityName($resolvedAddress);
+
             $city = City::where('is_active', true)
-                ->whereRaw('LOWER(name) = ?', [mb_strtolower($this->extractCityName($resolvedAddress))])
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityName)])
                 ->first();
         } catch (\Throwable) {
             // Reverse geocoding unavailable — fall through to boundary matching
