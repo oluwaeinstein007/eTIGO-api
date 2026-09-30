@@ -617,6 +617,7 @@ PUT /admin/cities/{city_id}/vehicle-classes
 | vehicle_classes                    | array   | Yes      | Array of vehicle class entries |
 | vehicle_classes.*.vehicle_class_id | integer | Yes      | Must exist in vehicle_classes  |
 | vehicle_classes.*.is_active        | boolean | Yes      | Enable/disable in this city    |
+| vehicle_classes.*.sort_order       | integer | No       | Display order (0–999, default 0)|
 
 Syncs the pivot table — entries not included are removed.
 
@@ -681,6 +682,390 @@ GET /admin/vehicle-classes/{vehicle_class_id}
 PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
 Same fields as create, all optional (partial update supported).
+
+---
+
+## City Detection
+
+### Detect City by Location
+```
+GET /cities/detect
+```
+
+No authentication required. Detects which active city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
+
+| Query Param | Type   | Required | Description                           |
+|-------------|--------|----------|---------------------------------------|
+| lat         | number | Yes      | Latitude (-90 to 90)                  |
+| lng         | number | Yes      | Longitude (-180 to 180)               |
+
+**Response 200:**
+```json
+{
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 30 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "created_at": "2026-09-29T10:00:00.000000Z",
+    "updated_at": "2026-09-29T10:00:00.000000Z"
+  },
+  "resolved_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria"
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "No active city found for this location.",
+  "resolved_address": "123 Main Street, Unknown Town, Nigeria"
+}
+```
+
+---
+
+## Ride Estimates
+
+### Get Fare Estimates
+```
+POST /rides/estimate
+```
+
+**Auth required.** Returns fare estimates for all active vehicle classes in the specified city.
+
+| Field           | Type   | Required | Description                |
+|-----------------|--------|----------|----------------------------|
+| city_id         | integer| Yes      | Must exist in cities table |
+| pickup_lat      | number | Yes      | Pickup latitude (-90 to 90)|
+| pickup_lng      | number | Yes      | Pickup longitude (-180 to 180)|
+| destination_lat | number | Yes      | Destination latitude       |
+| destination_lng | number | Yes      | Destination longitude      |
+
+**Response 200:**
+```json
+{
+  "estimates": [
+    {
+      "vehicle_class": {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4
+      },
+      "distance_km": 12.5,
+      "duration_minutes": 25,
+      "fare": 1750.00,
+      "currency": "NGN",
+      "fare_breakdown": {
+        "base_fare": 500.00,
+        "distance_charge": 1250.00,
+        "time_charge": 500.00,
+        "minimum_fare": 700.00,
+        "waiting_time_rate": 15.00,
+        "free_waiting_minutes": 5
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Admin — Pricing Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### List Pricing Configs
+```
+GET /admin/pricing
+```
+| Query Param      | Type    | Description                                    |
+|------------------|---------|------------------------------------------------|
+| city_id          | integer | Filter by city                                 |
+| vehicle_class_id | integer | Filter by vehicle class                        |
+| current_only     | boolean | Only show currently effective configs          |
+| per_page         | integer | Results per page (default: 20)                 |
+
+**Response 200:** Paginated list of pricing configs with `meta`.
+
+---
+
+### Create Pricing Config
+```
+POST /admin/pricing
+```
+| Field               | Type    | Required | Description                              |
+|---------------------|---------|----------|------------------------------------------|
+| city_id             | integer | Yes      | Must exist in cities table               |
+| vehicle_class_id    | integer | Yes      | Must exist in vehicle_classes table      |
+| base_fare           | number  | Yes      | Base fare amount (≥0)                    |
+| per_km_rate         | number  | Yes      | Rate per kilometre (≥0)                  |
+| per_minute_rate     | number  | Yes      | Rate per minute (≥0)                     |
+| minimum_fare        | number  | Yes      | Minimum fare charged (≥0)               |
+| waiting_time_rate   | number  | No       | Per-minute waiting charge (≥0)           |
+| free_waiting_minutes| integer | No       | Free waiting minutes (default: 5)        |
+| effective_from      | string  | Yes      | ISO 8601 datetime                        |
+
+Version is auto-incremented per city + vehicle class combination.
+
+**Response 201:**
+```json
+{
+  "message": "Pricing configuration created successfully.",
+  "pricing_config": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "base_fare": 500.00,
+    "per_km_rate": 100.00,
+    "per_minute_rate": 20.00,
+    "minimum_fare": 700.00,
+    "waiting_time_rate": 15.00,
+    "free_waiting_minutes": 5,
+    "version": 1,
+    "effective_from": "2026-10-01T00:00:00.000000Z",
+    "city": { "id": 1, "name": "Lagos" },
+    "vehicle_class": { "id": 1, "name": "economy" }
+  }
+}
+```
+
+---
+
+### Get Pricing Config
+```
+GET /admin/pricing/{pricing_config_id}
+```
+Returns a specific pricing config with city, vehicle class, and creator details.
+
+---
+
+### Get Current Pricing Config
+```
+GET /admin/pricing/current
+```
+| Query Param      | Type    | Required | Description          |
+|------------------|---------|----------|----------------------|
+| city_id          | integer | Yes      | City ID              |
+| vehicle_class_id | integer | Yes      | Vehicle class ID     |
+
+Returns the currently effective pricing config for the given city + vehicle class. **Response 404** if none exists.
+
+---
+
+## Device Tokens
+
+Push notification token registration for mobile apps.
+
+**Middleware:** `auth:sanctum`
+
+### Register Device Token
+```
+POST /device-tokens
+```
+| Field    | Type   | Required | Description                         |
+|----------|--------|----------|-------------------------------------|
+| token    | string | Yes      | FCM/APNs device token (max 500)     |
+| platform | string | Yes      | `ios`, `android`, or `web`          |
+
+Uses `updateOrCreate` — re-registering the same token is a no-op.
+
+**Response 201:**
+```json
+{
+  "message": "Device token registered."
+}
+```
+
+---
+
+### Remove Device Token
+```
+DELETE /device-tokens
+```
+| Field    | Type   | Required | Description                         |
+|----------|--------|----------|-------------------------------------|
+| token    | string | Yes      | FCM/APNs device token               |
+| platform | string | Yes      | `ios`, `android`, or `web`          |
+
+**Response 200:**
+```json
+{
+  "message": "Device token removed."
+}
+```
+
+---
+
+## Notifications
+
+**Middleware:** `auth:sanctum`
+
+### List Notifications
+```
+GET /notifications
+```
+Returns paginated notifications for the authenticated user, newest first. Default 20 per page.
+
+**Response 200:** Standard Laravel pagination envelope with `data`, `current_page`, `last_page`, `per_page`, `total`.
+
+---
+
+### Get Unread Count
+```
+GET /notifications/unread-count
+```
+
+**Response 200:**
+```json
+{
+  "unread_count": 5
+}
+```
+
+---
+
+### Mark Notification as Read
+```
+PATCH /notifications/{notification_id}/read
+```
+Only the notification owner can mark it as read. **Response 403** if the notification belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Notification marked as read."
+}
+```
+
+---
+
+### Mark All Notifications as Read
+```
+POST /notifications/read-all
+```
+
+**Response 200:**
+```json
+{
+  "message": "All notifications marked as read."
+}
+```
+
+---
+
+## Payment Methods
+
+**Middleware:** `auth:sanctum`
+
+### List Payment Methods
+```
+GET /payment-methods
+```
+Returns the authenticated user's saved payment methods, default method first.
+
+**Response 200:**
+```json
+{
+  "payment_methods": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "card_last_four": "4081",
+      "card_brand": "visa",
+      "is_default": true,
+      "created_at": "2026-09-30T10:00:00.000000Z",
+      "updated_at": "2026-09-30T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Initialize Payment
+```
+POST /payments/initialize
+```
+| Field        | Type   | Required | Description                       |
+|--------------|--------|----------|-----------------------------------|
+| amount       | number | Yes      | Amount (≥1)                       |
+| currency     | string | Yes      | 3-letter currency code (e.g. `NGN`) |
+| redirect_url | string | Yes      | URL to redirect after payment     |
+
+**Response 200:**
+```json
+{
+  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "tx_ref": "ETIGO-ABCDEFGHIJKL"
+}
+```
+
+---
+
+### Verify Payment
+```
+GET /payments/{transactionId}/verify
+```
+Verifies a payment transaction with the gateway. If successful and card details are present, automatically saves the card as a payment method. First saved card becomes the default.
+
+**Response 200:**
+```json
+{
+  "status": "successful",
+  "tx_ref": "ETIGO-ABCDEFGHIJKL",
+  "amount": 100.00,
+  "currency": "NGN",
+  "card_last_four": "4081",
+  "card_brand": "visa"
+}
+```
+
+---
+
+### Set Default Payment Method
+```
+PATCH /payment-methods/{payment_method_id}/default
+```
+Sets the specified payment method as default. Only the owner can change it. **Response 403** if it belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Default payment method updated."
+}
+```
+
+---
+
+### Delete Payment Method
+```
+DELETE /payment-methods/{payment_method_id}
+```
+Only the owner can delete it. **Response 403** if it belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Payment method removed."
+}
+```
+
+---
+
+## Payment Webhooks
+
+### Flutterwave Webhook
+```
+POST /webhooks/flutterwave
+```
+**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_ENCRYPTION_KEY`. Receives payment status updates from Flutterwave and updates the corresponding Payment record.
+
+**Response 401:** Invalid signature.  
+**Response 200:** `{"status": "ok"}` on success, `{"status": "ignored"}` if no transaction ID.
 
 ---
 

@@ -331,7 +331,7 @@ The `FareEstimationService` orchestrates the calculation:
 
 ### Maps Gateway Contract
 
-Distance and duration are obtained through the `MapsGateway` contract (`App\Contracts\MapsGateway`). The current implementation (`HaversineMapsGateway`) uses the Haversine formula with a 1.3x road-distance multiplier and 30 km/h average speed assumption. To integrate a real maps provider (Google Maps, Mapbox, etc.), implement the `MapsGateway` interface and update the binding in `AppServiceProvider`.
+Distance and duration are obtained through the `MapsGateway` contract (`App\Contracts\MapsGateway`). The production implementation (`GoogleMapsGateway`) uses the Google Maps Distance Matrix API for accurate road distances and real-time traffic-aware durations. The contract also provides `geocode()` and `reverseGeocode()` methods. Configure via `GOOGLE_MAPS_API_KEY` in `.env`.
 
 ### Pricing Snapshot
 
