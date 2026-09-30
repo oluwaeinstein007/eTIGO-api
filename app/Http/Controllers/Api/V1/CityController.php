@@ -43,7 +43,7 @@ class CityController extends Controller
             $resolvedAddress = $location['address'];
 
             $city = City::where('is_active', true)
-                ->whereRaw('LOWER(name) = ?', [strtolower($this->extractCityName($resolvedAddress))])
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($this->extractCityName($resolvedAddress))])
                 ->first();
         } catch (\Throwable) {
             // Reverse geocoding unavailable — fall through to boundary matching

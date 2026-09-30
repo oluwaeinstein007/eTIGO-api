@@ -50,9 +50,10 @@ class PaymentMethodController extends Controller
         $result = $this->paymentGateway->verifyTransaction($transactionId);
 
         $txRef = $result['tx_ref'] ?? null;
-        $ownerUserId = $txRef ? Cache::pull("payment_tx_ref:{$txRef}") : null;
+        $cacheKey = $txRef ? "payment_tx_ref:{$txRef}" : null;
+        $ownerUserId = $cacheKey ? Cache::get($cacheKey) : null;
 
-        if ($ownerUserId && (int) $ownerUserId !== $request->user()->id) {
+        if (! $ownerUserId || (int) $ownerUserId !== $request->user()->id) {
             abort(403, 'Transaction does not belong to this user.');
         }
 
@@ -68,6 +69,8 @@ class PaymentMethodController extends Controller
                     'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
                 ],
             );
+
+            Cache::forget($cacheKey);
         }
 
         return response()->json($result);

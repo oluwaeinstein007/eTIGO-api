@@ -4,6 +4,7 @@ use App\Contracts\PaymentGateway;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Services\FakePaymentGateway;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -53,6 +54,8 @@ it('validates required fields for payment initialization', function () {
 });
 
 it('verifies a transaction and saves the payment method', function () {
+    Cache::put('payment_tx_ref:FAKE-TX-VERIFY', $this->user->id, now()->addHours(24));
+
     $response = $this->withToken($this->token)
         ->getJson('/api/v1/payments/fake_txn_123/verify');
 

@@ -40,7 +40,7 @@ class FakePaymentGateway implements PaymentGateway
     {
         return [
             'status' => 'successful',
-            'tx_ref' => 'fake_tx_'.Str::random(10),
+            'tx_ref' => 'FAKE-TX-VERIFY',
             'transaction_id' => $transactionId,
             'amount' => 0.0,
             'currency' => 'NGN',
