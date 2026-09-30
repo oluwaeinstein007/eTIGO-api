@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\MapsGateway;
+use App\Models\City;
 use App\Models\PricingConfig;
 
 class FareEstimationService
@@ -72,25 +73,37 @@ class FareEstimationService
         float $destinationLat,
         float $destinationLng,
     ): array {
-        $city = \App\Models\City::findOrFail($cityId);
+        $city = City::findOrFail($cityId);
         $currency = $city->currency_code;
 
-        $activeClassIds = $city->vehicleClasses()
+        $activeClasses = $city->vehicleClasses()
             ->wherePivot('is_active', true)
             ->where('vehicle_classes.is_active', true)
-            ->pluck('vehicle_classes.id');
+            ->orderBy('city_vehicle_classes.sort_order')
+            ->orderBy('vehicle_classes.name')
+            ->get();
+
+        if ($activeClasses->isEmpty()) {
+            return [];
+        }
+
+        $route = $this->mapsGateway->getDistanceAndDuration(
+            $pickupLat, $pickupLng, $destinationLat, $destinationLng,
+        );
+
+        $pickupAddress = $this->mapsGateway->reverseGeocode($pickupLat, $pickupLng);
+        $destinationAddress = $this->mapsGateway->reverseGeocode($destinationLat, $destinationLng);
 
         $estimates = [];
 
-        foreach ($activeClassIds as $classId) {
-            $pricing = PricingConfig::currentFor($cityId, $classId);
+        foreach ($activeClasses as $vehicleClass) {
+            $pricing = PricingConfig::currentFor($cityId, $vehicleClass->id);
 
             if (! $pricing) {
                 continue;
             }
 
-            $vehicleClass = $pricing->vehicleClass;
-            $result = $this->estimate($pricing, $pickupLat, $pickupLng, $destinationLat, $destinationLng, $currency);
+            $fare = $this->calculateFare($pricing, $route['distance_km'], $route['duration_minutes']);
 
             $estimates[] = [
                 'vehicle_class' => [
@@ -100,11 +113,17 @@ class FareEstimationService
                     'capacity' => $vehicleClass->capacity,
                     'icon_url' => $vehicleClass->icon_url,
                 ],
-                'fare_estimate' => $result['fare_estimate'],
-                'distance_km' => $result['distance_km'],
-                'duration_minutes' => $result['duration_minutes'],
-                'currency' => $result['currency'],
-                'waiting_time_policy' => $result['waiting_time_policy'],
+                'fare_estimate' => number_format($fare, 2, '.', ''),
+                'distance_km' => $route['distance_km'],
+                'duration_minutes' => $route['duration_minutes'],
+                'currency' => $currency,
+                'pickup_address' => $pickupAddress['address'],
+                'destination_address' => $destinationAddress['address'],
+                'pricing_snapshot' => $pricing->toSnapshot(),
+                'waiting_time_policy' => [
+                    'free_minutes' => $pricing->free_waiting_minutes,
+                    'per_minute_rate' => $pricing->waiting_time_rate,
+                ],
             ];
         }
 

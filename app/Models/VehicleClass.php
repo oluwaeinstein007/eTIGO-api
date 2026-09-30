@@ -31,7 +31,7 @@ class VehicleClass extends Model
     public function cities(): BelongsToMany
     {
         return $this->belongsToMany(City::class, 'city_vehicle_classes')
-            ->withPivot('is_active');
+            ->withPivot('is_active', 'sort_order');
     }
 
     public function drivers(): HasMany
