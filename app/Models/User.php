@@ -51,6 +51,21 @@ class User extends Authenticatable
         return $this->hasMany(SocialAccount::class);
     }
 
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
+    public function paymentMethods(): HasMany
+    {
+        return $this->hasMany(UserPaymentMethod::class);
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
+    }
+
     public function isPassenger(): bool
     {
         return $this->type === UserType::Passenger;

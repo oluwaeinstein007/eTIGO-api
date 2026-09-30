@@ -3,11 +3,19 @@
 namespace App\Providers;
 
 use App\Contracts\MapsGateway;
+use App\Contracts\PaymentGateway;
+use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
+use App\Services\FakePaymentGateway;
+use App\Services\FirebasePushGateway;
+use App\Services\FlutterwavePaymentGateway;
+use App\Services\GoogleMapsGateway;
 use App\Services\HaversineMapsGateway;
+use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Kreait\Firebase\Factory;
 use SocialiteProviders\Apple\AppleExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
@@ -16,11 +24,56 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SmsGateway::class, LogSmsGateway::class);
-        $this->app->bind(MapsGateway::class, HaversineMapsGateway::class);
+
+        $this->registerMapsGateway();
+        $this->registerPushNotificationGateway();
+        $this->registerPaymentGateway();
     }
 
     public function boot(): void
     {
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
+    }
+
+    private function registerMapsGateway(): void
+    {
+        $this->app->bind(MapsGateway::class, function () {
+            $apiKey = config('services.google_maps.api_key');
+
+            if ($apiKey) {
+                return new GoogleMapsGateway($apiKey);
+            }
+
+            return new HaversineMapsGateway;
+        });
+    }
+
+    private function registerPushNotificationGateway(): void
+    {
+        $this->app->bind(PushNotificationGateway::class, function () {
+            $credentialsPath = config('services.firebase.credentials_path');
+
+            if ($credentialsPath && file_exists($credentialsPath)) {
+                $factory = (new Factory)->withServiceAccount($credentialsPath);
+                $messaging = $factory->createMessaging();
+
+                return new FirebasePushGateway($messaging);
+            }
+
+            return new LogPushGateway;
+        });
+    }
+
+    private function registerPaymentGateway(): void
+    {
+        $this->app->bind(PaymentGateway::class, function () {
+            $secretKey = config('services.flutterwave.secret_key');
+
+            if ($secretKey) {
+                return new FlutterwavePaymentGateway($secretKey);
+            }
+
+            return new FakePaymentGateway;
+        });
     }
 }

@@ -34,4 +34,20 @@ class HaversineMapsGateway implements MapsGateway
             'duration_minutes' => $durationMinutes,
         ];
     }
+
+    /**
+     * @return array{lat: float, lng: float, formatted_address: string}
+     */
+    public function geocode(string $address): array
+    {
+        throw new \RuntimeException('Geocoding is not available with the Haversine fallback gateway. Configure Google Maps.');
+    }
+
+    /**
+     * @return array{address: string, place_id: string}
+     */
+    public function reverseGeocode(float $lat, float $lng): array
+    {
+        throw new \RuntimeException('Reverse geocoding is not available with the Haversine fallback gateway. Configure Google Maps.');
+    }
 }

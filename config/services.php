@@ -47,4 +47,19 @@ return [
         'redirect' => env('APPLE_REDIRECT_URI'),
     ],
 
+    'google_maps' => [
+        'api_key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'firebase' => [
+        'credentials_path' => env('FIREBASE_CREDENTIALS_PATH'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+    ],
+
+    'flutterwave' => [
+        'secret_key' => env('FLUTTERWAVE_SECRET_KEY'),
+        'public_key' => env('FLUTTERWAVE_PUBLIC_KEY'),
+        'encryption_key' => env('FLUTTERWAVE_ENCRYPTION_KEY'),
+    ],
+
 ];
