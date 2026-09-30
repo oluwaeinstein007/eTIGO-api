@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
@@ -159,5 +160,14 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/', [AdminPricingController::class, 'store']);
         Route::get('/current', [AdminPricingController::class, 'current']);
         Route::get('/{pricingConfig}', [AdminPricingController::class, 'show']);
+    });
+
+    Route::prefix('surge-rules')->group(function () {
+        Route::get('/', [AdminSurgeRuleController::class, 'index']);
+        Route::post('/', [AdminSurgeRuleController::class, 'store']);
+        Route::get('/current-multiplier', [AdminSurgeRuleController::class, 'currentMultiplier']);
+        Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
+        Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
+        Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
     });
 });
