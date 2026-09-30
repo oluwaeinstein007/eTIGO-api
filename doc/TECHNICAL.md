@@ -196,6 +196,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 | `vehicle_classes`        | Platform-wide vehicle class definitions            |
 | `city_vehicle_classes`   | Pivot: which classes are available per city        |
 | `pricing_configs`        | Versioned fare rates per city + vehicle class      |
+| `surge_rules`            | Surge pricing rules per city (optional vehicle class) |
 | `rides`                  | Core ride records (UUID PK)                       |
 | `ride_state_transitions` | Append-only ride state audit trail                |
 | `payments`               | Ride payment records                              |
@@ -317,17 +318,20 @@ Each config contains:
 ### Fare Estimation Formula
 
 ```
-fare = max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_minutes × per_minute_rate) + waiting_charge)
+base_fare = max(minimum_fare, base_fare + (distance_km × per_km_rate) + (duration_minutes × per_minute_rate) + waiting_charge)
 waiting_charge = max(0, actual_wait_minutes - free_waiting_minutes) × waiting_time_rate
+final_fare = base_fare × surge_multiplier
 ```
 
-The first 5 minutes of waiting (configurable per pricing config) are free. After that, each additional minute is charged at the `waiting_time_rate`. If no `waiting_time_rate` is set, waiting time is always free.
+The first 5 minutes of waiting (configurable per pricing config) are free. After that, each additional minute is charged at the `waiting_time_rate`. If no `waiting_time_rate` is set, waiting time is always free. The surge multiplier is applied after the base fare calculation (including minimum fare enforcement).
 
 The `FareEstimationService` orchestrates the calculation:
 1. Accepts pickup/destination coordinates and pricing config
 2. Queries the `MapsGateway` contract for distance and duration
-3. Applies the fare formula (waiting time is added to the final fare at ride completion, not the estimate)
-4. Returns the estimate with a pricing snapshot and waiting time policy for booking-time rate preservation
+3. Applies the base fare formula (waiting time is added to the final fare at ride completion, not the estimate)
+4. Queries `SurgePricingService` for the current surge multiplier for the city + vehicle class
+5. Applies the surge multiplier to the base fare
+6. Returns the estimate with pricing snapshot, waiting time policy, and surge info for booking-time rate preservation
 
 ### Maps Gateway Contract
 
@@ -348,6 +352,113 @@ When a ride is created, the active pricing config is serialised as a JSONB snaps
 
 - `POST /rides/estimate` — Returns fare estimates for all active vehicle classes in a city. Requires authentication. Accepts pickup/destination coordinates and city_id.
 
+### Edge Case Handling
+
+The fare estimation system handles several pricing edge cases:
+
+**Cross-City Rides:**
+When a passenger's destination is in a different city than their pickup, the system detects this using the `CityDetectionService` (reverse geocoding + boundary matching). Pickup city pricing always applies — this is the industry standard (Uber, Bolt). The response includes a `cross_city` object with destination city details and a `warnings` array with a human-readable message for the mobile app to display.
+
+**Destination Outside Service Area:**
+If the destination coordinates don't match any active E-tiGo city, the estimate still proceeds using pickup city pricing, but a warning is returned indicating the driver may not find return trips from the destination.
+
+**Long-Distance Rides:**
+Routes exceeding 100 km trigger a warning that the fare is estimated and may vary. The fare is still calculated normally using the full route distance.
+
+**Inactive City Validation:**
+The `EstimateRideRequest` validates that the specified `city_id` references an active city. Inactive cities return a 422 validation error.
+
+**Same Pickup and Destination:**
+Identical pickup and destination coordinates are rejected with a 422 validation error before fare calculation.
+
+**Very Short Distance:**
+When the calculated fare (base + distance + time) falls below the minimum fare, the minimum fare applies. This protects driver earnings on short trips.
+
+**City Detection Service:**
+The `CityDetectionService` extracts city-from-coordinates detection into a reusable service, used by both the public `GET /cities/detect` endpoint and the cross-city detection in fare estimation. Detection uses reverse geocoding first, then falls back to boundary matching (haversine distance within city radius).
+
+---
+
+## Surge Pricing
+
+The Surge Pricing system applies dynamic fare multipliers during high-demand periods. Rules are configured per city (optionally per vehicle class) and evaluated in real-time during fare estimation.
+
+### Surge Rule Types
+
+| Type           | Trigger                                                    | Use Case                      |
+|----------------|------------------------------------------------------------|-------------------------------|
+| `manual`       | Admin toggles `is_active`                                  | Rain, events, emergencies     |
+| `time_based`   | Current time matches schedule (days_of_week + time window) | Rush hours, weekday peaks     |
+| `demand_based` | Demand/supply ratio exceeds threshold                      | Real-time demand surges       |
+
+### Rule Evaluation
+
+The `SurgePricingService` evaluates surge rules with this logic:
+
+1. Query all active rules for the given city + vehicle class (including city-wide rules with `vehicle_class_id = null`)
+2. Filter to rules within their `effective_from`/`effective_until` window
+3. Evaluate each rule's conditions:
+   - **Manual:** Always matches when active
+   - **Time-based:** Matches when current day and time fall within the schedule (supports overnight spans like 22:00–06:00)
+   - **Demand-based:** Matches when real-time demand/supply ratio exceeds `min_demand_supply_ratio` (placeholder — returns 0.0 until wired to driver availability data)
+4. From matching rules, select the one with highest `priority` (ties broken by highest `multiplier`)
+5. Return the multiplier (default 1.0 when no rules match)
+
+### Multiplier Constraints
+
+- Minimum: 1.00 (no discount via surge)
+- Maximum: 5.00 (admin-enforced cap at creation)
+- Applied after the base fare formula: `final_fare = base_fare × surge_multiplier`
+
+### Conditions Schema
+
+**Time-based:**
+```json
+{
+  "days_of_week": [1, 2, 3, 4, 5],
+  "start_time": "07:00",
+  "end_time": "09:00"
+}
+```
+Days use ISO numbering: 1 = Monday, 7 = Sunday. Overnight spans (start > end) are supported.
+
+**Demand-based:**
+```json
+{
+  "min_demand_supply_ratio": 2.0
+}
+```
+
+**Manual:**
+```json
+{}
+```
+
+### Admin Endpoints
+
+- `POST /admin/surge-rules` — Create a surge rule
+- `GET /admin/surge-rules` — List surge rules with filters (`city_id`, `vehicle_class_id`, `active_only`), paginated
+- `GET /admin/surge-rules/{id}` — Get a specific surge rule
+- `PUT /admin/surge-rules/{id}` — Update a surge rule
+- `PATCH /admin/surge-rules/{id}/status` — Toggle active/inactive
+- `GET /admin/surge-rules/current-multiplier` — Get the live surge multiplier for a city
+
+### Surge in Fare Estimates
+
+Fare estimate responses now include a `surge` object:
+
+```json
+{
+  "surge": {
+    "active": true,
+    "multiplier": 1.5,
+    "rule_name": "Morning Rush Hour"
+  }
+}
+```
+
+The `fare_estimate` field already includes the surge multiplier. The `pricing_snapshot` preserves the base rates, and the surge info is separate so clients can display "1.5x surge" to passengers.
+
 ---
 
 ## Audit Logging
@@ -364,7 +475,7 @@ AuditLog::record(
 );
 ```
 
-Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`, `pricing_config_created`.
+Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`, `pricing_config_created`, `surge_rule_created`, `surge_rule_updated`, `surge_rule_toggled`.
 
 IP address and user agent are captured automatically from the request.
 
@@ -380,7 +491,7 @@ app/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
 │   │       ├── Auth/       # AuthController, AdminAuthController, SocialAuthController
-│   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController, AdminPricingController
+│   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController, AdminPricingController, AdminSurgeRuleController
 │   │       ├── Driver/     # OnboardingController
 │   │       ├── Passenger/  # ProfileController
 │   │       ├── CityController         # Public city listing
@@ -389,10 +500,10 @@ app/
 │   │       └── HealthController  # Health check (invokable)
 │   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved, LogRequests
 │   ├── Requests/        # Form request validators by domain
-│   └── Resources/       # API resources (UserResource, DriverResource, CityResource, VehicleClassResource, PricingResource, ...)
-├── Models/             # Eloquent models (User, Driver, City, VehicleClass, PricingConfig, SocialAccount, ...)
+│   └── Resources/       # API resources (UserResource, DriverResource, CityResource, VehicleClassResource, PricingResource, SurgeRuleResource, ...)
+├── Models/             # Eloquent models (User, Driver, City, VehicleClass, PricingConfig, SurgeRule, SocialAccount, ...)
 ├── Providers/          # Service providers
-└── Services/           # Business logic (OtpService, SocialAuthService, FareEstimationService, LogSmsGateway, HaversineMapsGateway)
+└── Services/           # Business logic (OtpService, SocialAuthService, FareEstimationService, SurgePricingService, CityDetectionService, LogSmsGateway, HaversineMapsGateway)
 
 database/
 ├── factories/          # Model factories for testing
@@ -425,8 +536,11 @@ Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait.
 - **Admin/CityManagementTest** — City CRUD, toggle status, vehicle class pivot sync, validation, role enforcement
 - **Admin/VehicleClassManagementTest** — Vehicle class CRUD, filtering, validation, role enforcement
 - **Admin/PricingManagementTest** — Create pricing config (validation, version auto-increment, audit log), list/filter by city/vehicle class, show, current effective, role enforcement
+- **Admin/SurgeRuleManagementTest** — Create surge rules (manual, time-based, demand-based), validation (multiplier bounds, type enum, conditions), list/filter, show, update, toggle status, current multiplier, role enforcement
 - **RideEstimateTest** — Fare estimates for all classes, empty estimates when no pricing, coordinate validation, minimum fare enforcement, effective pricing selection, auth enforcement
-- **FareEstimationServiceTest** — Fare formula correctness, minimum fare application, estimate response structure
+- **FareEstimationServiceTest** — Fare formula correctness, minimum fare application, estimate response structure, surge multiplier integration, zero/very-short distance minimum fare enforcement
+- **PricingEdgeCaseTest** — Inactive city rejection, same pickup/destination rejection, cross-city ride detection and warnings, destination outside service area, long-distance ride warnings, pickup city pricing for cross-city rides, minimum fare for very short rides, multiple simultaneous warnings
+- **SurgePricingServiceTest** — Rule evaluation (manual, time-based, demand-based), inactive/expired/future rules, priority resolution, same-priority multiplier tiebreak, city-wide vs vehicle-class-specific rules, cross-city isolation, overnight schedules, surge math
 - **CityPublicTest** — Public city listing (active only), city vehicle classes (active pivot + global filter)
 
 ---
@@ -514,3 +628,14 @@ This implementation covers the following PRD tasks:
 | BE-PRICE-07  | EstimateRideFormRequest validation    | Done   |
 | BE-PRICE-08  | Pricing snapshot capture              | Done   |
 | BE-PRICE-09  | PricingResource API resource          | Done   |
+| BE-SURGE-01  | SurgeRule model + migration + factory | Done   |
+| BE-SURGE-02  | SurgePricingService (manual/time/demand rules) | Done |
+| BE-SURGE-03  | Admin surge rule CRUD + toggle        | Done   |
+| BE-SURGE-04  | Surge integration into FareEstimation | Done   |
+| BE-SURGE-05  | Current multiplier endpoint           | Done   |
+| BE-SURGE-06  | SurgeRuleResource + audit logging     | Done   |
+| BE-PRICE-11  | Cross-city ride detection + warnings  | Done   |
+| BE-PRICE-12  | Inactive city validation              | Done   |
+| BE-PRICE-13  | Same pickup/destination rejection     | Done   |
+| BE-PRICE-14  | Long-distance ride warnings           | Done   |
+| BE-PRICE-15  | CityDetectionService extraction       | Done   |
