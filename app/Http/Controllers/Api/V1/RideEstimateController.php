@@ -17,7 +17,7 @@ class RideEstimateController extends Controller
     {
         $validated = $request->validated();
 
-        $estimates = $this->fareEstimationService->estimateAllClasses(
+        $result = $this->fareEstimationService->estimateAllClasses(
             $validated['city_id'],
             $validated['pickup_lat'],
             $validated['pickup_lng'],
@@ -25,15 +25,26 @@ class RideEstimateController extends Controller
             $validated['destination_lng'],
         );
 
-        if (empty($estimates)) {
+        if (empty($result['estimates'])) {
             return response()->json([
                 'message' => 'No pricing available for this city. Please try a different city.',
                 'estimates' => [],
+                'warnings' => $result['warnings'],
             ]);
         }
 
-        return response()->json([
-            'estimates' => $estimates,
-        ]);
+        $response = [
+            'estimates' => $result['estimates'],
+        ];
+
+        if (! empty($result['warnings'])) {
+            $response['warnings'] = $result['warnings'];
+        }
+
+        if ($result['cross_city'] !== null) {
+            $response['cross_city'] = $result['cross_city'];
+        }
+
+        return response()->json($response);
     }
 }
