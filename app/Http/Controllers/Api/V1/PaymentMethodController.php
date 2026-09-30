@@ -8,6 +8,7 @@ use App\Http\Requests\Payment\InitializePaymentRequest;
 use App\Models\UserPaymentMethod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class PaymentMethodController extends Controller
@@ -39,12 +40,21 @@ class PaymentMethodController extends Controller
             'customer_name' => "{$user->first_name} {$user->last_name}",
         ]);
 
+        Cache::put("payment_tx_ref:{$txRef}", $user->id, now()->addHours(24));
+
         return response()->json($result);
     }
 
     public function verify(Request $request, string $transactionId): JsonResponse
     {
         $result = $this->paymentGateway->verifyTransaction($transactionId);
+
+        $txRef = $result['tx_ref'] ?? null;
+        $ownerUserId = $txRef ? Cache::pull("payment_tx_ref:{$txRef}") : null;
+
+        if ($ownerUserId && (int) $ownerUserId !== $request->user()->id) {
+            abort(403, 'Transaction does not belong to this user.');
+        }
 
         if ($result['status'] === 'successful' && $result['card_last_four']) {
             UserPaymentMethod::firstOrCreate(

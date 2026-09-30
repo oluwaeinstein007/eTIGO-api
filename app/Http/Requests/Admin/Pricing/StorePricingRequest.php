@@ -23,8 +23,8 @@ class StorePricingRequest extends FormRequest
             'per_km_rate' => ['required', 'numeric', 'min:0'],
             'per_minute_rate' => ['required', 'numeric', 'min:0'],
             'minimum_fare' => ['required', 'numeric', 'min:0'],
-            'waiting_time_rate' => ['nullable', 'numeric', 'min:0'],
-            'free_waiting_minutes' => ['nullable', 'integer', 'min:0', 'max:30'],
+            'waiting_time_rate' => ['sometimes', 'numeric', 'min:0'],
+            'free_waiting_minutes' => ['sometimes', 'integer', 'min:0', 'max:30'],
             'effective_from' => ['required', 'date', 'after:now'],
         ];
     }

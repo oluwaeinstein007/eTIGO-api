@@ -73,6 +73,10 @@ class AppServiceProvider extends ServiceProvider
                 return new FlutterwavePaymentGateway($secretKey);
             }
 
+            if (! $this->app->environment('local', 'testing')) {
+                throw new \RuntimeException('Flutterwave secret key is not configured. Set FLUTTERWAVE_SECRET_KEY in your environment.');
+            }
+
             return new FakePaymentGateway;
         });
     }

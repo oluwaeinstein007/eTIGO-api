@@ -48,6 +48,9 @@ class HaversineMapsGateway implements MapsGateway
      */
     public function reverseGeocode(float $lat, float $lng): array
     {
-        throw new \RuntimeException('Reverse geocoding is not available with the Haversine fallback gateway. Configure Google Maps.');
+        return [
+            'address' => "{$lat},{$lng}",
+            'place_id' => '',
+        ];
     }
 }

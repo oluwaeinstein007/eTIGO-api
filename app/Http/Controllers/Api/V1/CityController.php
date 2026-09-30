@@ -35,11 +35,19 @@ class CityController extends Controller
         $lat = (float) $request->input('lat');
         $lng = (float) $request->input('lng');
 
-        $location = $mapsGateway->reverseGeocode($lat, $lng);
+        $city = null;
+        $resolvedAddress = null;
 
-        $city = City::where('is_active', true)
-            ->whereRaw('LOWER(name) = ?', [strtolower($this->extractCityName($location['address']))])
-            ->first();
+        try {
+            $location = $mapsGateway->reverseGeocode($lat, $lng);
+            $resolvedAddress = $location['address'];
+
+            $city = City::where('is_active', true)
+                ->whereRaw('LOWER(name) = ?', [strtolower($this->extractCityName($resolvedAddress))])
+                ->first();
+        } catch (\Throwable) {
+            // Reverse geocoding unavailable — fall through to boundary matching
+        }
 
         if (! $city) {
             $city = $this->findCityByBoundary($lat, $lng);
@@ -48,13 +56,13 @@ class CityController extends Controller
         if (! $city) {
             return response()->json([
                 'message' => 'No active city found for this location.',
-                'resolved_address' => $location['address'],
+                'resolved_address' => $resolvedAddress,
             ], 404);
         }
 
         return response()->json([
             'city' => new CityResource($city),
-            'resolved_address' => $location['address'],
+            'resolved_address' => $resolvedAddress,
         ]);
     }
 

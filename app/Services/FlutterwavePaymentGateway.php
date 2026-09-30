@@ -123,6 +123,8 @@ class FlutterwavePaymentGateway implements PaymentGateway
     {
         $response = Http::withToken($this->secretKey)
             ->acceptJson()
+            ->timeout(15)
+            ->connectTimeout(5)
             ->{$method}("{$this->baseUrl}{$path}", $data);
 
         $response->throw();

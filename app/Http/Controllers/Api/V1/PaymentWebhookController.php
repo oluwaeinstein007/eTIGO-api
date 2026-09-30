@@ -19,7 +19,13 @@ class PaymentWebhookController extends Controller
     {
         $secretHash = config('services.flutterwave.encryption_key');
 
-        if ($secretHash && $request->header('verif-hash') !== $secretHash) {
+        if (! $secretHash) {
+            Log::error('Flutterwave webhook: encryption key not configured');
+
+            return response()->json(['status' => 'error'], 500);
+        }
+
+        if (! hash_equals($secretHash, (string) $request->header('verif-hash'))) {
             Log::warning('Flutterwave webhook: invalid signature');
 
             return response()->json(['status' => 'error'], 401);
