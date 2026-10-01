@@ -20,10 +20,10 @@ apt-get update
 
 echo "==> Installing PHP 8.3 and extensions..."
 apt-get install -y \
-    php8.3-fpm php8.3-cli php8.3-common \
-    php8.3-pgsql php8.3-mbstring php8.3-xml php8.3-curl \
-    php8.3-zip php8.3-bcmath php8.3-intl php8.3-readline \
-    php8.3-redis php8.3-gd php8.3-tokenizer
+    php8.4-fpm php8.4-cli php8.4-common \
+    php8.4-pgsql php8.4-mbstring php8.4-xml php8.4-curl \
+    php8.4-zip php8.4-bcmath php8.4-intl php8.4-readline \
+    php8.4-redis php8.4-gd php8.4-tokenizer
 
 echo "==> Installing Nginx..."
 apt-get install -y nginx
@@ -86,7 +86,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_hide_header X-Powered-By;
@@ -114,7 +114,7 @@ cat > /etc/php/8.3/fpm/pool.d/etigo.conf << 'PHPFPM'
 [etigo]
 user = deploy
 group = www-data
-listen = /var/run/php/php8.3-fpm.sock
+listen = /var/run/php/php8.4-fpm.sock
 listen.owner = www-data
 listen.group = www-data
 pm = dynamic
@@ -130,7 +130,7 @@ PHPFPM
 
 rm -f /etc/php/8.3/fpm/pool.d/www.conf
 mkdir -p /var/log/php
-systemctl restart php8.3-fpm
+systemctl restart php8.4-fpm
 
 echo "==> Configuring Laravel queue worker (Supervisor)..."
 cat > /etc/supervisor/conf.d/etigo-worker.conf << 'SUPERVISOR'
