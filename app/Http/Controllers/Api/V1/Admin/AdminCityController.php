@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\City\UpdateCityRequest;
 use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
+use App\Services\AppCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,10 @@ use Illuminate\Support\Str;
 
 class AdminCityController extends Controller
 {
+    public function __construct(
+        private AppCacheService $cache,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = City::query();
@@ -61,6 +66,8 @@ class AdminCityController extends Controller
             return $city;
         });
 
+        $this->cache->invalidateCities();
+
         return response()->json([
             'message' => 'City created successfully.',
             'city' => new CityResource($city),
@@ -94,6 +101,8 @@ class AdminCityController extends Controller
             AuditLog::record($city, 'city_updated', $admin, $oldValues, $city->only(array_keys($oldValues)));
         });
 
+        $this->cache->invalidateCities();
+
         return response()->json([
             'message' => 'City updated successfully.',
             'city' => new CityResource($city->fresh()),
@@ -116,6 +125,8 @@ class AdminCityController extends Controller
                 ['is_active' => $city->is_active],
             );
         });
+
+        $this->cache->invalidateCities();
 
         return response()->json([
             'message' => $city->is_active ? 'City activated successfully.' : 'City deactivated successfully.',

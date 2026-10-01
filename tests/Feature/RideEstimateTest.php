@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\MapsGateway;
 use App\Models\City;
 use App\Models\PricingConfig;
 use App\Models\User;
@@ -14,6 +15,13 @@ beforeEach(function () {
     $this->city->vehicleClasses()->attach($this->vehicleClass->id, ['is_active' => true]);
 
     $this->admin = User::factory()->admin()->create();
+
+    $mockMaps = Mockery::mock(MapsGateway::class);
+    $mockMaps->shouldReceive('getDistanceAndDuration')
+        ->andReturn(['distance_km' => 8.5, 'duration_minutes' => 15.0]);
+    $mockMaps->shouldReceive('reverseGeocode')
+        ->andReturn(['address' => '123 Test Street, Lagos, Nigeria', 'place_id' => 'ChIJtest']);
+    $this->app->instance(MapsGateway::class, $mockMaps);
 });
 
 it('returns fare estimates for all vehicle classes in a city', function () {
@@ -46,6 +54,10 @@ it('returns fare estimates for all vehicle classes in a city', function () {
                     'distance_km',
                     'duration_minutes',
                     'currency',
+                    'pickup_address',
+                    'destination_address',
+                    'pricing_snapshot',
+                    'waiting_time_policy' => ['free_minutes', 'per_minute_rate'],
                 ],
             ],
         ])

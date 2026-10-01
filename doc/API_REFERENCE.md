@@ -617,6 +617,7 @@ PUT /admin/cities/{city_id}/vehicle-classes
 | vehicle_classes                    | array   | Yes      | Array of vehicle class entries |
 | vehicle_classes.*.vehicle_class_id | integer | Yes      | Must exist in vehicle_classes  |
 | vehicle_classes.*.is_active        | boolean | Yes      | Enable/disable in this city    |
+| vehicle_classes.*.sort_order       | integer | No       | Display order (0–999, default 0)|
 
 Syncs the pivot table — entries not included are removed.
 
@@ -681,6 +682,588 @@ GET /admin/vehicle-classes/{vehicle_class_id}
 PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
 Same fields as create, all optional (partial update supported).
+
+---
+
+## City Detection
+
+### Detect City by Location
+```
+GET /cities/detect
+```
+
+No authentication required. Detects which active city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
+
+| Query Param | Type   | Required | Description                           |
+|-------------|--------|----------|---------------------------------------|
+| lat         | number | Yes      | Latitude (-90 to 90)                  |
+| lng         | number | Yes      | Longitude (-180 to 180)               |
+
+**Response 200:**
+```json
+{
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 30 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "created_at": "2026-09-29T10:00:00.000000Z",
+    "updated_at": "2026-09-29T10:00:00.000000Z"
+  },
+  "resolved_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria"
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "No active city found for this location.",
+  "resolved_address": "123 Main Street, Unknown Town, Nigeria"
+}
+```
+
+---
+
+## Ride Estimates
+
+### Get Fare Estimates
+```
+POST /rides/estimate
+```
+
+**Auth required.** Returns fare estimates for all active vehicle classes in the specified city. Detects cross-city rides and long-distance trips, returning warnings when applicable. Pickup city pricing always applies.
+
+| Field           | Type   | Required | Description                |
+|-----------------|--------|----------|----------------------------|
+| city_id         | integer| Yes      | Must exist in cities table and be active |
+| pickup_lat      | number | Yes      | Pickup latitude (-90 to 90)|
+| pickup_lng      | number | Yes      | Pickup longitude (-180 to 180)|
+| destination_lat | number | Yes      | Destination latitude       |
+| destination_lng | number | Yes      | Destination longitude      |
+
+**Validation rules:**
+- `city_id` must reference an **active** city — inactive cities return 422
+- Pickup and destination coordinates cannot be identical — returns 422
+
+**Response 200:**
+```json
+{
+  "estimates": [
+    {
+      "vehicle_class": {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4,
+        "icon_url": null
+      },
+      "fare_estimate": "6150.00",
+      "distance_km": 10.0,
+      "duration_minutes": 25.0,
+      "currency": "NGN",
+      "pickup_address": "123 Wuse 2, Abuja, Nigeria",
+      "destination_address": "456 Garki, Abuja, Nigeria",
+      "pricing_snapshot": {
+        "pricing_config_id": 1,
+        "version": 1,
+        "base_fare": "600.00",
+        "per_km_rate": "250.00",
+        "per_minute_rate": "40.00",
+        "minimum_fare": "1500.00",
+        "waiting_time_rate": "50.00",
+        "free_waiting_minutes": 5,
+        "effective_from": "2026-09-30T00:00:00+00:00",
+        "captured_at": "2026-09-30T10:00:00+00:00"
+      },
+      "waiting_time_policy": {
+        "free_minutes": 5,
+        "per_minute_rate": "50.00"
+      },
+      "surge": {
+        "active": true,
+        "multiplier": 1.5,
+        "rule_name": "Morning Rush Hour"
+      }
+    }
+  ],
+  "warnings": [
+    "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
+  ],
+  "cross_city": {
+    "destination_city_id": 2,
+    "destination_city_name": "Lagos",
+    "pickup_city_name": "Abuja",
+    "warning": "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
+  }
+}
+```
+
+The `surge` object is always included. When no surge is active, `active` is `false` and `multiplier` is `1`. The `fare_estimate` already includes the surge multiplier applied.
+
+**Edge case fields (conditional):**
+
+| Field       | Included When                                     | Description                                                       |
+|-------------|---------------------------------------------------|-------------------------------------------------------------------|
+| `warnings`  | Cross-city ride, destination outside service area, or distance > 100 km | Array of human-readable warning strings for the mobile app to display |
+| `cross_city`| Destination is in a different city or outside all service areas | Object with pickup/destination city details                        |
+
+**Warning scenarios:**
+- **Cross-city ride:** Destination is in a different E-tiGo service city. Pickup city pricing applies.
+- **Outside service area:** Destination is not in any active E-tiGo city. Pickup city pricing applies, but the driver may not find return trips.
+- **Long-distance ride:** Route exceeds 100 km. Fare is estimated and may vary.
+
+---
+
+## Admin — Pricing Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### List Pricing Configs
+```
+GET /admin/pricing
+```
+| Query Param      | Type    | Description                                    |
+|------------------|---------|------------------------------------------------|
+| city_id          | integer | Filter by city                                 |
+| vehicle_class_id | integer | Filter by vehicle class                        |
+| current_only     | boolean | Only show currently effective configs          |
+| per_page         | integer | Results per page (default: 20)                 |
+
+**Response 200:** Paginated list of pricing configs with `meta`.
+
+---
+
+### Create Pricing Config
+```
+POST /admin/pricing
+```
+| Field               | Type    | Required | Description                              |
+|---------------------|---------|----------|------------------------------------------|
+| city_id             | integer | Yes      | Must exist in cities table               |
+| vehicle_class_id    | integer | Yes      | Must exist in vehicle_classes table      |
+| base_fare           | number  | Yes      | Base fare amount (≥0)                    |
+| per_km_rate         | number  | Yes      | Rate per kilometre (≥0)                  |
+| per_minute_rate     | number  | Yes      | Rate per minute (≥0)                     |
+| minimum_fare        | number  | Yes      | Minimum fare charged (≥0)               |
+| waiting_time_rate   | number  | No       | Per-minute waiting charge (≥0)           |
+| free_waiting_minutes| integer | No       | Free waiting minutes (default: 5)        |
+| effective_from      | string  | Yes      | ISO 8601 datetime                        |
+
+Version is auto-incremented per city + vehicle class combination.
+
+**Response 201:**
+```json
+{
+  "message": "Pricing configuration created successfully.",
+  "pricing_config": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "base_fare": 500.00,
+    "per_km_rate": 100.00,
+    "per_minute_rate": 20.00,
+    "minimum_fare": 700.00,
+    "waiting_time_rate": 15.00,
+    "free_waiting_minutes": 5,
+    "version": 1,
+    "effective_from": "2026-10-01T00:00:00.000000Z",
+    "city": { "id": 1, "name": "Lagos" },
+    "vehicle_class": { "id": 1, "name": "economy" }
+  }
+}
+```
+
+---
+
+### Get Pricing Config
+```
+GET /admin/pricing/{pricing_config_id}
+```
+Returns a specific pricing config with city, vehicle class, and creator details.
+
+---
+
+### Get Current Pricing Config
+```
+GET /admin/pricing/current
+```
+| Query Param      | Type    | Required | Description          |
+|------------------|---------|----------|----------------------|
+| city_id          | integer | Yes      | City ID              |
+| vehicle_class_id | integer | Yes      | Vehicle class ID     |
+
+Returns the currently effective pricing config for the given city + vehicle class. **Response 404** if none exists.
+
+---
+
+## Admin — Surge Pricing
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+Surge pricing applies a multiplier to fares during high-demand periods (rush hour, rain, events). Three rule types are supported:
+
+| Type           | How It Works                                                         |
+|----------------|----------------------------------------------------------------------|
+| `manual`       | Admin toggles on/off — for weather, events, emergencies              |
+| `time_based`   | Fires on a schedule (days of week + time window) — for rush hours    |
+| `demand_based` | Fires when demand/supply ratio exceeds threshold — wired for future  |
+
+**Fare formula with surge:** `fare = max(minimum_fare, base + distance + time + waiting) × surge_multiplier`
+
+### List Surge Rules
+```
+GET /admin/surge-rules
+```
+| Query Param      | Type    | Description                         |
+|------------------|---------|-------------------------------------|
+| city_id          | integer | Filter by city                      |
+| vehicle_class_id | integer | Filter by vehicle class             |
+| active_only      | boolean | Only show currently active rules    |
+| per_page         | integer | Results per page (default: 20)      |
+
+**Response 200:** Paginated list of surge rules with `meta`.
+
+---
+
+### Create Surge Rule
+```
+POST /admin/surge-rules
+```
+| Field                                | Type    | Required                      | Description                              |
+|--------------------------------------|---------|-------------------------------|------------------------------------------|
+| city_id                              | integer | Yes                           | Must exist in cities table               |
+| vehicle_class_id                     | integer | No                            | Scope to vehicle class (null = all)      |
+| name                                 | string  | Yes                           | Rule name (e.g. "Morning Rush Hour")     |
+| type                                 | string  | Yes                           | `manual`, `time_based`, or `demand_based`|
+| multiplier                           | number  | Yes                           | Surge multiplier (1.00–5.00)             |
+| conditions                           | object  | Depends on type               | Type-specific conditions (see below)     |
+| conditions.days_of_week              | array   | Yes (time_based)              | ISO day numbers: 1=Mon, 7=Sun            |
+| conditions.start_time                | string  | Yes (time_based)              | HH:mm format (e.g. "07:00")             |
+| conditions.end_time                  | string  | Yes (time_based)              | HH:mm format (e.g. "09:00")             |
+| conditions.min_demand_supply_ratio   | number  | Yes (demand_based)            | Minimum ratio to trigger (≥1.0)          |
+| priority                             | integer | No                            | Higher wins when rules conflict (0–100)  |
+| is_active                            | boolean | No                            | Default: true                            |
+| effective_from                       | string  | Yes                           | ISO 8601 datetime                        |
+| effective_until                      | string  | No                            | ISO 8601 datetime (null = no expiry)     |
+
+**Response 201:**
+```json
+{
+  "message": "Surge rule created successfully.",
+  "surge_rule": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": null,
+    "name": "Morning Rush Hour",
+    "type": "time_based",
+    "multiplier": "1.50",
+    "conditions": {
+      "days_of_week": [1, 2, 3, 4, 5],
+      "start_time": "07:00",
+      "end_time": "09:00"
+    },
+    "priority": 5,
+    "is_active": true,
+    "effective_from": "2026-09-30T00:00:00.000000Z",
+    "effective_until": null,
+    "city": { "id": 1, "name": "Abuja" },
+    "created_at": "2026-09-30T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Get Surge Rule
+```
+GET /admin/surge-rules/{surge_rule_id}
+```
+Returns a specific surge rule with city, vehicle class, and creator details.
+
+---
+
+### Update Surge Rule
+```
+PUT /admin/surge-rules/{surge_rule_id}
+```
+Same fields as create, all optional (partial update). City and vehicle class cannot be changed after creation.
+
+**Response 200:**
+```json
+{
+  "message": "Surge rule updated successfully.",
+  "surge_rule": { ... }
+}
+```
+
+---
+
+### Toggle Surge Rule Status
+```
+PATCH /admin/surge-rules/{surge_rule_id}/status
+```
+Toggles `is_active` between true and false. No request body required.
+
+**Response 200:**
+```json
+{
+  "message": "Surge rule activated.",
+  "surge_rule": { ... }
+}
+```
+
+---
+
+### Get Current Surge Multiplier
+```
+GET /admin/surge-rules/current-multiplier
+```
+| Query Param      | Type    | Required | Description                    |
+|------------------|---------|----------|--------------------------------|
+| city_id          | integer | Yes      | City ID                        |
+| vehicle_class_id | integer | No       | Vehicle class ID (null = all)  |
+
+Returns the currently active surge multiplier for the given city (and optionally vehicle class).
+
+**Response 200 (surge active):**
+```json
+{
+  "surge": {
+    "active": true,
+    "multiplier": 1.5,
+    "rule_name": "Morning Rush Hour",
+    "rule": { ... }
+  }
+}
+```
+
+**Response 200 (no surge):**
+```json
+{
+  "surge": {
+    "active": false,
+    "multiplier": 1,
+    "rule_name": null,
+    "rule": null
+  }
+}
+```
+
+---
+
+## Device Tokens
+
+Push notification token registration for mobile apps.
+
+**Middleware:** `auth:sanctum`
+
+### Register Device Token
+```
+POST /device-tokens
+```
+| Field    | Type   | Required | Description                         |
+|----------|--------|----------|-------------------------------------|
+| token    | string | Yes      | FCM/APNs device token (max 500)     |
+| platform | string | Yes      | `ios`, `android`, or `web`          |
+
+Uses `updateOrCreate` — re-registering the same token is a no-op.
+
+**Response 201:**
+```json
+{
+  "message": "Device token registered."
+}
+```
+
+---
+
+### Remove Device Token
+```
+DELETE /device-tokens
+```
+| Field    | Type   | Required | Description                         |
+|----------|--------|----------|-------------------------------------|
+| token    | string | Yes      | FCM/APNs device token               |
+| platform | string | Yes      | `ios`, `android`, or `web`          |
+
+**Response 200:**
+```json
+{
+  "message": "Device token removed."
+}
+```
+
+---
+
+## Notifications
+
+**Middleware:** `auth:sanctum`
+
+### List Notifications
+```
+GET /notifications
+```
+Returns paginated notifications for the authenticated user, newest first. Default 20 per page.
+
+**Response 200:** Standard Laravel pagination envelope with `data`, `current_page`, `last_page`, `per_page`, `total`.
+
+---
+
+### Get Unread Count
+```
+GET /notifications/unread-count
+```
+
+**Response 200:**
+```json
+{
+  "unread_count": 5
+}
+```
+
+---
+
+### Mark Notification as Read
+```
+PATCH /notifications/{notification_id}/read
+```
+Only the notification owner can mark it as read. **Response 403** if the notification belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Notification marked as read."
+}
+```
+
+---
+
+### Mark All Notifications as Read
+```
+POST /notifications/read-all
+```
+
+**Response 200:**
+```json
+{
+  "message": "All notifications marked as read."
+}
+```
+
+---
+
+## Payment Methods
+
+**Middleware:** `auth:sanctum`
+
+### List Payment Methods
+```
+GET /payment-methods
+```
+Returns the authenticated user's saved payment methods, default method first.
+
+**Response 200:**
+```json
+{
+  "payment_methods": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "card_last_four": "4081",
+      "card_brand": "visa",
+      "is_default": true,
+      "created_at": "2026-09-30T10:00:00.000000Z",
+      "updated_at": "2026-09-30T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Initialize Payment
+```
+POST /payments/initialize
+```
+| Field        | Type   | Required | Description                       |
+|--------------|--------|----------|-----------------------------------|
+| amount       | number | Yes      | Amount (≥1)                       |
+| currency     | string | Yes      | 3-letter currency code (e.g. `NGN`) |
+| redirect_url | string | Yes      | URL to redirect after payment     |
+
+**Response 200:**
+```json
+{
+  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "tx_ref": "ETIGO-ABCDEFGHIJKL"
+}
+```
+
+---
+
+### Verify Payment
+```
+GET /payments/{transactionId}/verify
+```
+Verifies a payment transaction with the gateway. If successful and card details are present, automatically saves the card as a payment method. First saved card becomes the default.
+
+**Response 200:**
+```json
+{
+  "status": "successful",
+  "tx_ref": "ETIGO-ABCDEFGHIJKL",
+  "amount": 100.00,
+  "currency": "NGN",
+  "card_last_four": "4081",
+  "card_brand": "visa"
+}
+```
+
+---
+
+### Set Default Payment Method
+```
+PATCH /payment-methods/{payment_method_id}/default
+```
+Sets the specified payment method as default. Only the owner can change it. **Response 403** if it belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Default payment method updated."
+}
+```
+
+---
+
+### Delete Payment Method
+```
+DELETE /payment-methods/{payment_method_id}
+```
+Only the owner can delete it. **Response 403** if it belongs to another user.
+
+**Response 200:**
+```json
+{
+  "message": "Payment method removed."
+}
+```
+
+---
+
+## Payment Webhooks
+
+### Flutterwave Webhook
+```
+POST /webhooks/flutterwave
+```
+**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_ENCRYPTION_KEY`. Receives payment status updates from Flutterwave and updates the corresponding Payment record.
+
+**Response 401:** Invalid signature.  
+**Response 200:** `{"status": "ok"}` on success, `{"status": "ignored"}` if no transaction ID.
 
 ---
 
@@ -776,3 +1359,10 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 |----------|------------------------------------|
 | `google` | Google OAuth 2.0                   |
 | `apple`  | Apple Sign In                      |
+
+### Surge Types
+| Value          | Description                                      |
+|----------------|--------------------------------------------------|
+| `manual`       | Admin-toggled surge (weather, events, emergencies)|
+| `time_based`   | Scheduled surge by day of week + time window     |
+| `demand_based` | Dynamic surge based on demand/supply ratio       |

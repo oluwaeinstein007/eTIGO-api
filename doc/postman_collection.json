@@ -813,7 +813,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vehicle_classes\": [\n    { \"vehicle_class_id\": 1, \"is_active\": true },\n    { \"vehicle_class_id\": 2, \"is_active\": false }\n  ]\n}"
+              "raw": "{\n  \"vehicle_classes\": [\n    { \"vehicle_class_id\": 1, \"is_active\": true, \"sort_order\": 1 },\n    { \"vehicle_class_id\": 2, \"is_active\": false, \"sort_order\": 2 }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/admin/cities/1/vehicle-classes",
@@ -1070,6 +1070,323 @@
       ]
     },
     {
+      "name": "City Detection",
+      "item": [
+        {
+          "name": "Detect City by Location",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cities/detect?lat=6.5244&lng=3.3792",
+              "host": ["{{base_url}}"],
+              "path": ["cities", "detect"],
+              "query": [
+                { "key": "lat", "value": "6.5244", "description": "Latitude (-90 to 90)" },
+                { "key": "lng", "value": "3.3792", "description": "Longitude (-180 to 180)" }
+              ]
+            },
+            "description": "No auth required. Detects the active city for given coordinates using reverse geocoding and boundary matching. Returns 404 if no matching city."
+          }
+        },
+        {
+          "name": "Detect City — Invalid Coordinates (422)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cities/detect?lat=91&lng=181",
+              "host": ["{{base_url}}"],
+              "path": ["cities", "detect"],
+              "query": [
+                { "key": "lat", "value": "91" },
+                { "key": "lng", "value": "181" }
+              ]
+            },
+            "description": "Expected: 422 — coordinates out of range."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Device Tokens",
+      "item": [
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fMHb3x...:APA91bH...\",\n  \"platform\": \"android\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/device-tokens",
+              "host": ["{{base_url}}"],
+              "path": ["device-tokens"]
+            },
+            "description": "Auth required. Registers an FCM/APNs device token. Re-registering the same token is a no-op. Platform: ios, android, or web."
+          }
+        },
+        {
+          "name": "Remove Device Token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fMHb3x...:APA91bH...\",\n  \"platform\": \"android\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/device-tokens",
+              "host": ["{{base_url}}"],
+              "path": ["device-tokens"]
+            },
+            "description": "Auth required. Removes a specific device token."
+          }
+        },
+        {
+          "name": "Register Token — Validation (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"platform\": \"windows\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/device-tokens",
+              "host": ["{{base_url}}"],
+              "path": ["device-tokens"]
+            },
+            "description": "Expected: 422 — missing token, invalid platform."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": ["{{base_url}}"],
+              "path": ["notifications"]
+            },
+            "description": "Auth required. Returns paginated notifications for the current user, newest first."
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/unread-count",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "unread-count"]
+            },
+            "description": "Auth required. Returns {\"unread_count\": N}."
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/1/read",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "1", "read"]
+            },
+            "description": "Auth required. Only the notification owner can mark it. Returns 403 if not the owner."
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "read-all"]
+            },
+            "description": "Auth required. Marks all unread notifications for the current user as read."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Methods",
+      "item": [
+        {
+          "name": "List Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payment-methods",
+              "host": ["{{base_url}}"],
+              "path": ["payment-methods"]
+            },
+            "description": "Auth required. Returns saved payment methods, default method first."
+          }
+        },
+        {
+          "name": "Initialize Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"currency\": \"NGN\",\n  \"redirect_url\": \"https://myapp.com/payment/callback\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/initialize",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "initialize"]
+            },
+            "description": "Auth required. Initializes a payment with Flutterwave. Returns a payment link and transaction reference."
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payments/123456/verify",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "123456", "verify"]
+            },
+            "description": "Auth required. Verifies a payment with the gateway. If successful and card details are present, saves the card as a payment method. Replace 123456 with the actual transaction ID."
+          }
+        },
+        {
+          "name": "Set Default Payment Method",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payment-methods/1/default",
+              "host": ["{{base_url}}"],
+              "path": ["payment-methods", "1", "default"]
+            },
+            "description": "Auth required. Sets the specified payment method as default. Returns 403 if not the owner."
+          }
+        },
+        {
+          "name": "Delete Payment Method",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payment-methods/1",
+              "host": ["{{base_url}}"],
+              "path": ["payment-methods", "1"]
+            },
+            "description": "Auth required. Deletes a payment method. Returns 403 if not the owner."
+          }
+        },
+        {
+          "name": "Initialize — Validation (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": -1,\n  \"currency\": \"INVALID\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/initialize",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "initialize"]
+            },
+            "description": "Expected: 422 — negative amount, invalid currency, missing redirect_url."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Webhooks",
+      "item": [
+        {
+          "name": "Flutterwave Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "verif-hash", "value": "your-flutterwave-encryption-key" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.completed\",\n  \"data\": {\n    \"id\": 123456,\n    \"tx_ref\": \"ETIGO-ABCDEFGHIJKL\",\n    \"status\": \"successful\",\n    \"amount\": 100,\n    \"currency\": \"NGN\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/flutterwave",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "flutterwave"]
+            },
+            "description": "No auth — verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin — Pricing Management",
       "item": [
         {
@@ -1083,14 +1400,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"base_fare\": 500.00,\n  \"per_km_rate\": 100.00,\n  \"per_minute_rate\": 20.00,\n  \"minimum_fare\": 700.00,\n  \"waiting_time_rate\": 15.00,\n  \"effective_from\": \"2026-10-01T00:00:00Z\"\n}"
+              "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"base_fare\": 500.00,\n  \"per_km_rate\": 100.00,\n  \"per_minute_rate\": 20.00,\n  \"minimum_fare\": 700.00,\n  \"waiting_time_rate\": 15.00,\n  \"free_waiting_minutes\": 5,\n  \"effective_from\": \"2026-10-01T00:00:00Z\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/admin/pricing",
               "host": ["{{base_url}}"],
               "path": ["admin", "pricing"]
             },
-            "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. Returns 201."
+            "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. free_waiting_minutes defaults to 5 if omitted. Returns 201."
           }
         },
         {
@@ -1175,6 +1492,168 @@
       ]
     },
     {
+      "name": "Admin — Surge Pricing",
+      "item": [
+        {
+          "name": "Create Surge Rule (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"name\": \"Heavy Rain\",\n  \"type\": \"manual\",\n  \"multiplier\": 1.50,\n  \"effective_from\": \"2026-09-30T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules"]
+            },
+            "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00–5.00. Returns 201."
+          }
+        },
+        {
+          "name": "Create Surge Rule (Time-Based)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"name\": \"Morning Rush Hour\",\n  \"type\": \"time_based\",\n  \"multiplier\": 1.30,\n  \"conditions\": {\n    \"days_of_week\": [1, 2, 3, 4, 5],\n    \"start_time\": \"07:00\",\n    \"end_time\": \"09:00\"\n  },\n  \"priority\": 5,\n  \"effective_from\": \"2026-09-30T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules"]
+            },
+            "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00–06:00). Returns 201."
+          }
+        },
+        {
+          "name": "Create Surge Rule (Demand-Based)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"name\": \"High Demand\",\n  \"type\": \"demand_based\",\n  \"multiplier\": 2.00,\n  \"conditions\": {\n    \"min_demand_supply_ratio\": 2.5\n  },\n  \"effective_from\": \"2026-09-30T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules"]
+            },
+            "description": "Admin-only. Creates a demand-based surge rule. Fires when demand/supply ratio exceeds the threshold. Currently a placeholder until real driver availability data is wired. Returns 201."
+          }
+        },
+        {
+          "name": "List Surge Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules?city_id=1&active_only=false&per_page=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules"],
+              "query": [
+                { "key": "city_id", "value": "1", "description": "Optional: filter by city" },
+                { "key": "active_only", "value": "false", "description": "Optional: only show active rules" },
+                { "key": "per_page", "value": "20", "description": "Optional: items per page (default 20)" }
+              ]
+            },
+            "description": "Admin-only. Lists surge rules with optional filters. Ordered by priority desc, then created_at desc."
+          }
+        },
+        {
+          "name": "Get Surge Rule",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules", "1"]
+            },
+            "description": "Admin-only. Returns a specific surge rule with city, vehicle class, and creator details."
+          }
+        },
+        {
+          "name": "Update Surge Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Rush Hour\",\n  \"multiplier\": 1.80\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules", "1"]
+            },
+            "description": "Admin-only. Partial update of a surge rule. Audit logged."
+          }
+        },
+        {
+          "name": "Toggle Surge Rule Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules/1/status",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules", "1", "status"]
+            },
+            "description": "Admin-only. Toggles is_active between true and false. Audit logged."
+          }
+        },
+        {
+          "name": "Get Current Surge Multiplier",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/surge-rules/current-multiplier?city_id=1&vehicle_class_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "surge-rules", "current-multiplier"],
+              "query": [
+                { "key": "city_id", "value": "1", "description": "Required: city ID" },
+                { "key": "vehicle_class_id", "value": "1", "description": "Optional: vehicle class ID (null = city-wide)" }
+              ]
+            },
+            "description": "Admin-only. Returns the currently active surge multiplier for a city (and optionally vehicle class). Returns multiplier 1.0 if no rules match."
+          }
+        }
+      ]
+    },
+    {
       "name": "Ride Estimates",
       "item": [
         {
@@ -1188,14 +1667,56 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"city_id\": 1,\n  \"pickup_lat\": 6.5244,\n  \"pickup_lng\": 3.3792,\n  \"destination_lat\": 6.4541,\n  \"destination_lng\": 3.3947\n}"
+              "raw": "{\n  \"city_id\": 1,\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"destination_lat\": 9.0765,\n  \"destination_lng\": 7.3986\n}"
             },
             "url": {
               "raw": "{{base_url}}/rides/estimate",
               "host": ["{{base_url}}"],
               "path": ["rides", "estimate"]
             },
-            "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Haversine formula for distance estimation (will be replaced with maps provider)."
+            "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Google Maps for distance/duration. Includes surge pricing multiplier when active. Detects cross-city rides and returns warnings. City must be active."
+          }
+        },
+        {
+          "name": "Get Fare Estimates — Cross-City Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"destination_lat\": 6.5244,\n  \"destination_lng\": 3.3792\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rides/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["rides", "estimate"]
+            },
+            "description": "Cross-city ride from Abuja to Lagos. Response includes 'warnings' array and 'cross_city' object. Pickup city pricing (Abuja) applies for the entire trip."
+          }
+        },
+        {
+          "name": "Get Fare Estimates — Same Pickup/Destination (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city_id\": 1,\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"destination_lat\": 9.0579,\n  \"destination_lng\": 7.4951\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rides/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["rides", "estimate"]
+            },
+            "description": "Identical pickup and destination coordinates. Returns 422 validation error."
           }
         },
         {
