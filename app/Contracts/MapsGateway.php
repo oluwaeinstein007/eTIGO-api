@@ -13,4 +13,14 @@ interface MapsGateway
         float $destinationLat,
         float $destinationLng,
     ): array;
+
+    /**
+     * @return array{lat: float, lng: float, formatted_address: string}
+     */
+    public function geocode(string $address): array;
+
+    /**
+     * @return array{address: string, place_id: string, city: string|null}
+     */
+    public function reverseGeocode(float $lat, float $lng): array;
 }

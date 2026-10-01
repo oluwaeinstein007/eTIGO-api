@@ -22,6 +22,7 @@ class VehicleClassResource extends JsonResource
             'is_active' => $this->is_active,
             'pivot' => $this->when($this->pivot !== null, fn () => [
                 'is_active' => (bool) $this->pivot?->is_active,
+                'sort_order' => (int) ($this->pivot?->sort_order ?? 0),
             ]),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

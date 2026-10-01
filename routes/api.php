@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
@@ -10,9 +11,13 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
+use App\Http\Controllers\Api\V1\PaymentMethodController;
+use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,7 +34,15 @@ Route::get('/health', HealthController::class);
 |--------------------------------------------------------------------------
 */
 Route::get('/cities', [CityController::class, 'index']);
+Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);
+
+/*
+|--------------------------------------------------------------------------
+| Payment Webhooks (unauthenticated — verified by signature)
+|--------------------------------------------------------------------------
+*/
+Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
 
 /*
 |--------------------------------------------------------------------------
@@ -68,6 +81,20 @@ Route::prefix('admin/auth')->middleware('throttle:5,1')->group(function () {
 */
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/rides/estimate', RideEstimateController::class);
+
+    Route::post('/device-tokens', [DeviceTokenController::class, 'store']);
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
+    Route::post('/payments/initialize', [PaymentMethodController::class, 'initialize']);
+    Route::get('/payments/{transactionId}/verify', [PaymentMethodController::class, 'verify']);
+    Route::patch('/payment-methods/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
+    Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
 });
 
 /*
@@ -133,5 +160,14 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/', [AdminPricingController::class, 'store']);
         Route::get('/current', [AdminPricingController::class, 'current']);
         Route::get('/{pricingConfig}', [AdminPricingController::class, 'show']);
+    });
+
+    Route::prefix('surge-rules')->group(function () {
+        Route::get('/', [AdminSurgeRuleController::class, 'index']);
+        Route::post('/', [AdminSurgeRuleController::class, 'store']);
+        Route::get('/current-multiplier', [AdminSurgeRuleController::class, 'currentMultiplier']);
+        Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
+        Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
+        Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
     });
 });

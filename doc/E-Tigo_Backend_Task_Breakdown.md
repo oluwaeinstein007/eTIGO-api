@@ -113,9 +113,9 @@
 |----|------|---------|------|-------|
 | SETUP-38 | `[ ]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
 | SETUP-39 | `[x]` OTP/PIN codes stored in PostgreSQL `otp_codes` table (not Redis): SHA-256 hashed code, 30-min expiry, 3 max attempts, atomic increment; used for ride-start PIN verification | B-03 | SETUP-07 | Migration creates otp_codes table; OtpService handles generation/verification |
-| SETUP-40 | `[ ]` Configure Redis for session/token state (refresh token storage) | B-03 | SETUP-38 | Key pattern: `refresh_token:{token_hash}` |
-| SETUP-41 | `[ ]` Configure Redis for live driver-location cache using geo-indexing (GEOADD/GEORADIUS) | B-03 | SETUP-38 | Key: `driver_locations` (geo set); secondary key per driver: `driver:{id}:location` (hash with heading, speed, timestamp) |
-| SETUP-42 | `[ ]` Configure Redis for application caching (city configs, pricing, vehicle classes) with tagged cache and invalidation on Admin writes | B-03 | SETUP-38 | Use Laravel cache tags; short TTL with explicit invalidation |
+| SETUP-40 | `[x]` Configure Redis for session/token state (refresh token storage) | B-03 | SETUP-38 | Key pattern: `refresh_token:{token_hash}` |
+| SETUP-41 | `[x]` Configure Redis for live driver-location cache using geo-indexing (GEOADD/GEORADIUS) | B-03 | SETUP-38 | Key: `driver_locations` (geo set); secondary key per driver: `driver:{id}:location` (hash with heading, speed, timestamp) |
+| SETUP-42 | `[x]` Configure Redis for application caching (city configs, pricing, vehicle classes) with tagged cache and invalidation on Admin writes | B-03 | SETUP-38 | Use Laravel cache tags; short TTL with explicit invalidation |
 
 ### 1.4 API Server Bootstrap
 
@@ -126,7 +126,7 @@
 | SETUP-45 | `[x]` Implement global exception handler with structured JSON error responses for all exception types | B-01 | SETUP-43 | Format: `{ message, error_code, details }` — never expose stack traces in production |
 | SETUP-46 | `[x]` Implement request logging middleware: log method, path, status, duration, authenticated user_id | B-09 | SETUP-43 | — |
 | SETUP-47 | `[x]` Implement rate limiting middleware: `throttle:5,1` on auth routes (5 requests/minute) | NF-01 | SETUP-43 | Laravel's built-in `ThrottleRequests`; applied to both `/auth` and `/admin/auth` route groups |
-| SETUP-48 | `[ ]` Configure CORS for Admin Dashboard and mobile app origins | B-01 | SETUP-43 | — |
+| SETUP-48 | `[x]` Configure CORS for Admin Dashboard and mobile app origins | B-01 | SETUP-43 | — |
 | SETUP-49 | `[x]` Implement health check endpoint: `GET /api/v1/health` — returns DB and Redis connectivity status | NF-01 | SETUP-43 | Used by load balancer and monitoring |
 | SETUP-50 | `[x]` Implement API resources for consistent response enveloping: UserResource, DriverResource, DriverDocumentResource, VehicleResource | B-01 | SETUP-43 | Laravel API Resources |
 
@@ -218,6 +218,30 @@
 | BE-PRICE-07 | `[x]` Create `EstimateRideFormRequest` — validate pickup/destination coordinates, city_id exists and is active | P-06 | BE-PRICE-06 | Validates lat/lng ranges |
 | BE-PRICE-08 | `[x]` Implement pricing snapshot capture: when a ride is created, snapshot the active pricing config as jsonb on the ride record | A-07 | BE-PRICE-01 | `PricingConfig::toSnapshot()` + `PricingConfig::currentFor()` |
 | BE-PRICE-09 | `[x]` Create `PricingResource` API resource | — | BE-PRICE-01 | Conditional relationship loading |
+| BE-PRICE-10 | `[x]` Create `PricingConfigSeeder` with recommended defaults (Abuja/Lagos rates: Base ₦600, Per-km ₦250, Per-min ₦40, Min ₦1,500, Wait ₦50/min) | — | BE-PRICE-01 | Skips production; seeds per city + vehicle class |
+
+### Surge Pricing
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-SURGE-01 | `[x]` Create `SurgeType` enum (`manual`, `time_based`, `demand_based`) | — | — | Backed PHP enum |
+| BE-SURGE-02 | `[x]` Create migration: `surge_rules` table — city_id (FK), vehicle_class_id (FK nullable), name, type, multiplier (3,2), conditions (jsonb), priority, is_active, effective_from, effective_until (nullable), created_by_admin_id (FK), timestamps | — | SETUP-08 | Multiplier capped 1.00–5.00 |
+| BE-SURGE-03 | `[x]` Create `SurgeRule` Eloquent model with relationships: city(), vehicleClass(), scopes: active(), forCity(), forVehicleClass() | — | BE-SURGE-02 | With factory including `timeBased()`, `demandBased()`, `manual()`, `inactive()`, `expired()`, `future()` states |
+| BE-SURGE-04 | `[x]` Create `SurgePricingService` — evaluate active surge rules by priority, match conditions (manual=always, time_based=schedule, demand_based=ratio threshold), return highest-priority matching multiplier | — | BE-SURGE-03 | Demand-based returns 0.0 (placeholder) until wired to real driver availability |
+| BE-SURGE-05 | `[x]` Integrate surge into `FareEstimationService` — apply surge multiplier after base fare calculation; include `surge` object in estimate responses | — | BE-SURGE-04, BE-PRICE-05 | Formula: `final_fare = base_fare × surge_multiplier` |
+| BE-SURGE-06 | `[x]` Create `AdminSurgeRuleController` — full CRUD (`POST/GET/PUT /admin/surge-rules`), toggle status (`PATCH /{id}/status`), current multiplier (`GET /current-multiplier`) | — | BE-SURGE-04 | Includes audit logging for create/update/toggle |
+| BE-SURGE-07 | `[x]` Create `StoreSurgeRuleRequest` and `UpdateSurgeRuleRequest` — validate type enum, multiplier range (1.00–5.00), conditions by type (days_of_week + times for time_based, min_ratio for demand_based) | — | BE-SURGE-06 | — |
+| BE-SURGE-08 | `[x]` Create `SurgeRuleResource` API resource | — | BE-SURGE-03 | Conditional relationship loading |
+
+### Pricing Edge Cases
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-PRICE-11 | `[x]` Cross-city ride detection — detect destination city via `CityDetectionService`, return `warnings` and `cross_city` object in estimate response, apply pickup city pricing | — | BE-PRICE-05 | Industry standard: pickup city pricing applies |
+| BE-PRICE-12 | `[x]` Inactive city validation — `EstimateRideRequest` rejects inactive cities with 422 | — | BE-PRICE-07 | Prevents estimates for decommissioned cities |
+| BE-PRICE-13 | `[x]` Same pickup/destination rejection — `EstimateRideRequest` rejects identical coordinates with 422 | — | BE-PRICE-07 | Catches user input errors before maps API call |
+| BE-PRICE-14 | `[x]` Long-distance ride warning — routes > 100 km include a warning in estimate response | — | BE-PRICE-05 | Fare still calculated; warning for mobile app display |
+| BE-PRICE-15 | `[x]` Extract `CityDetectionService` — reusable service for city-from-coordinates detection (reverse geocode + boundary matching), used by both `CityController` and `FareEstimationService` | — | BE-CITY-01 | Replaces duplicated detection logic in CityController |
 
 ---
 

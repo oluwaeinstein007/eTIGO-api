@@ -24,6 +24,7 @@ it('creates a pricing config', function () {
             'per_minute_rate' => 20.00,
             'minimum_fare' => 700.00,
             'waiting_time_rate' => 15.00,
+            'free_waiting_minutes' => 5,
             'effective_from' => now()->addDay()->toIso8601String(),
         ]);
 
@@ -31,6 +32,7 @@ it('creates a pricing config', function () {
         ->assertJson(['message' => 'Pricing configuration created successfully.'])
         ->assertJsonPath('pricing_config.base_fare', '500.00')
         ->assertJsonPath('pricing_config.per_km_rate', '100.00')
+        ->assertJsonPath('pricing_config.free_waiting_minutes', 5)
         ->assertJsonPath('pricing_config.version', 1);
 
     $this->assertDatabaseHas('pricing_configs', [
