@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
+use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
@@ -13,6 +15,7 @@ use App\Services\GoogleMapsGateway;
 use App\Services\HaversineMapsGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
+use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -35,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerMapsGateway();
         $this->registerPushNotificationGateway();
         $this->registerPaymentGateway();
+        $this->registerKycGateway();
     }
 
     public function boot(): void
@@ -68,6 +72,20 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new LogPushGateway;
+        });
+    }
+
+    private function registerKycGateway(): void
+    {
+        $this->app->bind(KycGateway::class, function () {
+            $clientId = config('services.qoreid.client_id');
+            $secretKey = config('services.qoreid.secret_key');
+
+            if ($clientId && $secretKey) {
+                return new QoreIdKycGateway($clientId, $secretKey);
+            }
+
+            return new FakeKycGateway;
         });
     }
 

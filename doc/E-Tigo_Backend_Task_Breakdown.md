@@ -505,6 +505,27 @@
 | BE-ADMIN-15 | `[ ]` Create `AdminPassengerController@suspend` / `reactivate` — suspend or reactivate passenger account; audit log | A-12 | BE-ADMIN-14 | — |
 | BE-ADMIN-16 | `[x]` Create `DriverResource`, `DriverDocumentResource`, `VehicleResource` API resources | — | BE-ADMIN-01 | Used by both driver onboarding and admin endpoints |
 
+### 16.1 KYC Identity Verification (QoreID)
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-KYC-01 | `[x]` Create migration: `kyc_verifications` table — driver_id (FK), type (enum), id_number, provider_reference, status, provider_response (text, encrypted), match_data (json), failure_reason, verified_at, expires_at, timestamps | D-02 | SETUP-11 | `provider_response` is `text` for `encrypted:array` cast (not `json`) |
+| BE-KYC-02 | `[x]` Create migration: add `kyc_status` and `kyc_verified_at` to `drivers` table | D-02 | BE-KYC-01 | Aggregate status: not_started, in_progress, verified, failed |
+| BE-KYC-03 | `[x]` Create `KycVerificationType`, `KycVerificationStatus`, `KycStatus` enums | — | — | Backed PHP enums with label() and qoreIdProductCode() helpers |
+| BE-KYC-04 | `[x]` Create `KycVerification` Eloquent model with relationships, casts, scopes | — | BE-KYC-01 | encrypted:array for provider_response |
+| BE-KYC-05 | `[x]` Define `KycGateway` contract interface: verifyNin, verifyDriversLicense, verifyVehiclePlate, createLivenessSession, getSessionResult | — | — | Adapter pattern matching existing SMS/Maps pattern |
+| BE-KYC-06 | `[x]` Implement `QoreIdKycGateway` — real QoreID implementation with OAuth2 token caching, NIN Premium, Driver's License, License Plate Basic, and Liveness Session endpoints | D-02 | BE-KYC-05 | 🔒 Token cached 3500s; HMAC-SHA256 webhook verification |
+| BE-KYC-07 | `[x]` Implement `FakeKycGateway` — deterministic test/dev adapter: IDs starting with '000' fail, others pass; logs all calls | — | BE-KYC-05 | Bound in AppServiceProvider when QOREID credentials absent |
+| BE-KYC-08 | `[x]` Create `KycVerificationService` — orchestrator: verifyNin, verifyDriversLicense, verifyVehiclePlate, createLivenessSession, processLivenessResult, recalculateDriverKycStatus | D-02 | BE-KYC-05 | Duplicate prevention; DB::transaction wrapping; auto-recalculates aggregate status |
+| BE-KYC-09 | `[x]` Create `KycController` — driver-facing endpoints: status, verifyNin, verifyDriversLicense, verifyVehiclePlate, createLivenessSession, verifications | D-02 | BE-KYC-08 | Routes under /driver/kyc/*; audit logging |
+| BE-KYC-10 | `[x]` Create `KycWebhookController` — handles QoreID webhook callbacks for liveness verification results; HMAC-SHA256 signature verification | D-02 | BE-KYC-08 | 🔒 Route: POST /webhooks/qoreid; passes dev when no secret configured |
+| BE-KYC-11 | `[x]` Create `VerifyVehiclePlateJob` — queued background job for auto-triggered plate verification on vehicle registration/update | D-04 | BE-KYC-08 | 2 retries; dispatched from OnboardingController |
+| BE-KYC-12 | `[x]` Integrate auto plate verification into vehicle onboarding: dispatch job on storeVehicle, expire + re-dispatch on plate change in updateVehicle | D-04 | BE-KYC-11, BE-ADMIN-04 | — |
+| BE-KYC-13 | `[x]` Create form requests: VerifyNinRequest (digits:11), VerifyDriversLicenseRequest (min:6, max:20), VerifyVehiclePlateRequest (min:3, max:20) | D-02 | BE-KYC-09 | — |
+| BE-KYC-14 | `[x]` Create `KycVerificationResource` API resource — strips sdk_token from match_data for security | — | BE-KYC-04 | — |
+| BE-KYC-15 | `[x]` Add kyc_status filter to admin driver listing; load kycVerifications on admin driver show | A-10 | BE-KYC-04, BE-ADMIN-07 | — |
+| BE-KYC-16 | `[x]` Create KYC test suite (20 Pest tests): NIN, license, plate, liveness, webhooks, duplicate prevention, retry, auto-trigger, status aggregation | — | BE-KYC-09 | Uses FakeKycGateway; Queue::fake() for job assertions |
+
 ---
 
 ## 17. Admin Reporting API

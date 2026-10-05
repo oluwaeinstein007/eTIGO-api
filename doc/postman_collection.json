@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo \u2014 Local\" or \"E-tiGo \u2014 Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: Passengers and drivers authenticate via phone OTP (WhatsApp) or social OAuth (Google, Apple, Facebook). Admins use email/password. All protected endpoints require Bearer token via Authorization header.",
+    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo — Local\" or \"E-tiGo — Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: Passengers and drivers authenticate via phone OTP (WhatsApp) or social OAuth (Google, Apple, Facebook). Admins use email/password. All protected endpoints require Bearer token via Authorization header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,7 +13,7 @@
   ],
   "item": [
     {
-      "name": "Auth \u2014 Passenger & Driver (OTP + Social)",
+      "name": "Auth — Passenger & Driver (OTP + Social)",
       "item": [
         {
           "name": "Send OTP",
@@ -48,7 +48,7 @@
           }
         },
         {
-          "name": "Verify OTP (Existing User \u2192 Login)",
+          "name": "Verify OTP (Existing User → Login)",
           "event": [
             {
               "listen": "test",
@@ -375,7 +375,7 @@
       ]
     },
     {
-      "name": "Auth \u2014 Admin",
+      "name": "Auth — Admin",
       "item": [
         {
           "name": "Admin Login",
@@ -481,8 +481,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -490,8 +496,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/auth/forgot-password",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "forgot-password"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "forgot-password"
+              ]
             },
             "description": "Sends password reset link. Same response for existing and non-existing emails (enumeration prevention)."
           }
@@ -501,8 +513,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -510,8 +528,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/auth/reset-password",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "reset-password"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "reset-password"
+              ]
             },
             "description": "Resets password and revokes all existing tokens."
           }
@@ -521,12 +545,23 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/auth/invite/verify/TOKEN_HERE",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "invite", "verify", "TOKEN_HERE"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "invite",
+                "verify",
+                "TOKEN_HERE"
+              ]
             },
             "description": "No auth required. Validates invitation token before showing accept form."
           }
@@ -550,8 +585,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -559,8 +600,15 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/auth/invite/accept",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "invite", "accept"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "invite",
+                "accept"
+              ]
             },
             "description": "Creates admin account from invitation. Returns auth token."
           }
@@ -576,13 +624,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins"
+              ]
             }
           }
         },
@@ -591,13 +650,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "1"
+              ]
             }
           }
         },
@@ -606,9 +677,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -616,8 +696,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/admins/invite",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "invite"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "invite"
+              ]
             },
             "description": "Sends invitation email with 48-hour expiring link. Cannot invite super_admin role."
           }
@@ -627,13 +713,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/invitations",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "invitations"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "invitations"
+              ]
             }
           }
         },
@@ -642,13 +740,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/invitations/1/resend",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "invitations", "1", "resend"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "invitations",
+                "1",
+                "resend"
+              ]
             },
             "description": "Regenerates token and extends expiry. Sends new email."
           }
@@ -658,13 +770,26 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/invitations/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "invitations", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "invitations",
+                "1"
+              ]
             },
             "description": "Immediately expires the invitation token."
           }
@@ -674,9 +799,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -684,8 +818,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/admins/2",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "2"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "2"
+              ]
             },
             "description": "Cannot assign super_admin role or modify super admin accounts."
           }
@@ -695,13 +835,26 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/2/deactivate",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "2", "deactivate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "2",
+                "deactivate"
+              ]
             },
             "description": "Deactivates admin and revokes all their tokens. Cannot deactivate self or other super admins."
           }
@@ -711,13 +864,26 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/admins/2/reactivate",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "admins", "2", "reactivate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "admins",
+                "2",
+                "reactivate"
+              ]
             }
           }
         }
@@ -789,7 +955,7 @@
       ]
     },
     {
-      "name": "Driver \u2014 Onboarding",
+      "name": "Driver — Onboarding",
       "item": [
         {
           "name": "Onboarding Status",
@@ -1050,7 +1216,325 @@
       ]
     },
     {
-      "name": "Admin \u2014 Driver Management",
+      "name": "🔐 Driver — KYC Verification",
+      "description": "KYC identity verification endpoints for drivers. Uses QoreID for NIN, Driver's License, Vehicle Plate, and Liveness verification.\n\n**Required verifications for `verified` status:** NIN + Driver's License + Vehicle Plate.\n\n**Test values (FakeKycGateway):**\n- IDs starting with `000` → fail\n- All other IDs → pass\n- Liveness sessions with `fail` in session ID → fail",
+      "item": [
+        {
+          "name": "KYC Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "status"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nReturns the driver's aggregate KYC status and per-type verification summary.\n\n**Response:** `200` with `{kyc_status, kyc_verified_at, verifications}`\n\n**KYC Status values:** `not_started`, `in_progress`, `verified`, `failed`"
+          }
+        },
+        {
+          "name": "Verify NIN",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nin_number\": \"12345678901\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verify-nin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verify-nin"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nSubmits a NIN for verification against QoreID. Name matching is performed against the driver's registered name.\n\n**Required fields:**\n- `nin_number` — string, exactly 11 digits\n\n**Responses:**\n- `200` — NIN verified successfully\n- `422` — Verification failed (name mismatch, invalid NIN)\n- `409` — Already verified or in progress\n\n**Test:** Use `00012345678` to trigger a failure."
+          }
+        },
+        {
+          "name": "Verify NIN — Failure (000 prefix)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nin_number\": \"00012345678\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verify-nin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verify-nin"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nDemonstrates NIN verification failure. IDs starting with `000` are deterministically rejected by the FakeKycGateway.\n\n**Expected response:** `422`"
+          }
+        },
+        {
+          "name": "⛔ Verify NIN — Validation (422)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nin_number\": \"12345\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verify-nin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verify-nin"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nDemonstrates NIN validation error — must be exactly 11 digits.\n\n**Expected response:** `422` with validation errors."
+          }
+        },
+        {
+          "name": "Verify Driver's License",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"license_number\": \"ABC123DEF\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verify-license",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verify-license"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nSubmits a driver's license number for verification.\n\n**Required fields:**\n- `license_number` — string, 6–20 characters\n\n**Responses:**\n- `200` — License verified successfully\n- `422` — Verification failed\n- `409` — Already verified or in progress\n\n**Test:** Use `000FAIL` to trigger a failure."
+          }
+        },
+        {
+          "name": "Verify Vehicle Plate",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate_number\": \"LAG-123AB\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verify-vehicle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verify-vehicle"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nVerifies a vehicle plate number against the national vehicle registry. Requires a registered vehicle.\n\n**Required fields:**\n- `plate_number` — string, 3–20 characters\n\n**Responses:**\n- `200` — Plate verified successfully\n- `422` — Verification failed or no vehicle registered\n- `409` — Already verified or in progress\n\n**Note:** Plate verification also auto-triggers on vehicle registration and plate number changes."
+          }
+        },
+        {
+          "name": "Create Liveness Session",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/liveness-session",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "liveness-session"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nCreates a QoreID liveness verification session. Returns an `sdk_token` for the mobile SDK.\n\nNo request body required.\n\n**Response:** `201` with `{message, session_id, sdk_token, expires_at, verification}`\n\nThe mobile app uses the `sdk_token` to initialize the QoreID SDK. Verification results are delivered asynchronously via the QoreID webhook."
+          }
+        },
+        {
+          "name": "List KYC Verifications",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/kyc/verifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "kyc",
+                "verifications"
+              ]
+            },
+            "description": "**Auth required (driver).**\n\nReturns all KYC verifications for the authenticated driver, newest first.\n\n**Response:** `200` with `{verifications: [...]}`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Driver Management",
       "item": [
         {
           "name": "List All Drivers",
@@ -1284,7 +1768,7 @@
           }
         },
         {
-          "name": "Review \u2014 Not Pending (422)",
+          "name": "Review — Not Pending (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -1317,7 +1801,7 @@
                 "review"
               ]
             },
-            "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} \u2014 use on a driver that is already approved/rejected/suspended."
+            "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} — use on a driver that is already approved/rejected/suspended."
           }
         },
         {
@@ -1350,7 +1834,7 @@
           }
         },
         {
-          "name": "Suspend \u2014 Not Approved (422)",
+          "name": "Suspend — Not Approved (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -1375,7 +1859,7 @@
                 "suspend"
               ]
             },
-            "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} \u2014 driver must be in approved status."
+            "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} — driver must be in approved status."
           }
         },
         {
@@ -1406,11 +1890,47 @@
             },
             "description": "No request body required. Returns 422 if the driver is not in suspended status."
           }
+        },
+        {
+          "name": "Toggle Fleet Vehicle",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/drivers/{{driver_id}}/vehicle/fleet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "{{driver_id}}",
+                "vehicle",
+                "fleet"
+              ]
+            },
+            "description": "**Auth required (admin).**\n\nToggles a driver's vehicle as fleet-owned (company vehicle). Fleet vehicles skip plate verification in the KYC flow.\n\nNo request body required.\n\n**Responses:**\n- `200` — Toggled successfully (message indicates new state)\n- `422` — Driver has no registered vehicle\n\n**Effect:** After toggling, the driver's `kyc_status` is recalculated. If marked fleet and NIN + License are verified, `kyc_status` becomes `verified` without plate verification."
+          }
         }
       ]
     },
     {
-      "name": "Public \u2014 Cities",
+      "name": "Public — Cities",
       "item": [
         {
           "name": "List Active Cities",
@@ -1461,7 +1981,7 @@
       ]
     },
     {
-      "name": "Admin \u2014 City Management",
+      "name": "Admin — City Management",
       "item": [
         {
           "name": "List Cities",
@@ -1658,7 +2178,7 @@
       ]
     },
     {
-      "name": "Admin \u2014 Vehicle Class Management",
+      "name": "Admin — Vehicle Class Management",
       "item": [
         {
           "name": "List Vehicle Classes",
@@ -1852,7 +2372,7 @@
           }
         },
         {
-          "name": "Detect City \u2014 Invalid Coordinates (422)",
+          "name": "Detect City — Invalid Coordinates (422)",
           "request": {
             "method": "GET",
             "header": [
@@ -1881,7 +2401,7 @@
                 }
               ]
             },
-            "description": "Expected: 422 \u2014 coordinates out of range."
+            "description": "Expected: 422 — coordinates out of range."
           }
         }
       ]
@@ -1958,7 +2478,7 @@
           }
         },
         {
-          "name": "Register Token \u2014 Validation (422)",
+          "name": "Register Token — Validation (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -1988,7 +2508,7 @@
                 "device-tokens"
               ]
             },
-            "description": "Expected: 422 \u2014 missing token, invalid platform."
+            "description": "Expected: 422 — missing token, invalid platform."
           }
         }
       ]
@@ -2254,7 +2774,7 @@
           }
         },
         {
-          "name": "Initialize \u2014 Validation (422)",
+          "name": "Initialize — Validation (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -2285,7 +2805,7 @@
                 "initialize"
               ]
             },
-            "description": "Expected: 422 \u2014 negative amount, invalid currency, missing redirect_url."
+            "description": "Expected: 422 — negative amount, invalid currency, missing redirect_url."
           }
         }
       ]
@@ -2325,13 +2845,49 @@
                 "flutterwave"
               ]
             },
-            "description": "No auth \u2014 verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+            "description": "No auth — verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+          }
+        },
+        {
+          "name": "QoreID KYC Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-QoreID-Signature",
+                "value": "test_signature_placeholder",
+                "description": "HMAC-SHA256 signature (optional in dev when QOREID_WEBHOOK_SECRET is not set)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"verification_completed\",\n  \"sessionId\": \"etigo_kyc_1_1696500000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/qoreid",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "qoreid"
+              ]
+            },
+            "description": "**No auth required** — verified by HMAC-SHA256 signature.\n\nReceives liveness verification results from QoreID.\n\n**Handled events:** `verification_completed`, `step_verification_completed`, `identity`\n\n**Headers:**\n- `X-QoreID-Signature` — HMAC-SHA256 of body using `QOREID_WEBHOOK_SECRET` (optional in dev when secret is not configured)\n\n**Responses:**\n- `200` — Webhook processed\n- `401` — Invalid signature\n- `400` — Missing session ID"
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Pricing Management",
+      "name": "Admin — Pricing Management",
       "item": [
         {
           "name": "Create Pricing Config",
@@ -2486,7 +3042,7 @@
           }
         },
         {
-          "name": "Create Pricing \u2014 Validation Errors (422)",
+          "name": "Create Pricing — Validation Errors (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -2523,7 +3079,7 @@
       ]
     },
     {
-      "name": "Admin \u2014 Surge Pricing",
+      "name": "Admin — Surge Pricing",
       "item": [
         {
           "name": "Create Surge Rule (Manual)",
@@ -2557,7 +3113,7 @@
                 "surge-rules"
               ]
             },
-            "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00\u20135.00. Returns 201."
+            "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00–5.00. Returns 201."
           }
         },
         {
@@ -2592,7 +3148,7 @@
                 "surge-rules"
               ]
             },
-            "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00\u201306:00). Returns 201."
+            "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00–06:00). Returns 201."
           }
         },
         {
@@ -2848,7 +3404,7 @@
           }
         },
         {
-          "name": "Get Fare Estimates \u2014 Cross-City Ride",
+          "name": "Get Fare Estimates — Cross-City Ride",
           "request": {
             "method": "POST",
             "header": [
@@ -2883,7 +3439,7 @@
           }
         },
         {
-          "name": "Get Fare Estimates \u2014 Same Pickup/Destination (422)",
+          "name": "Get Fare Estimates — Same Pickup/Destination (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -2918,7 +3474,7 @@
           }
         },
         {
-          "name": "Get Fare Estimates \u2014 Validation Errors (422)",
+          "name": "Get Fare Estimates — Validation Errors (422)",
           "request": {
             "method": "POST",
             "header": [

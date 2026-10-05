@@ -9,9 +9,11 @@ use App\Http\Requests\Admin\ReviewDocumentRequest;
 use App\Http\Requests\Admin\ReviewDriverRequest;
 use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
+use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Services\KycVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,10 @@ class DriverManagementController extends Controller
 
         if ($request->has('status')) {
             $query->where('status', $request->input('status'));
+        }
+
+        if ($request->has('kyc_status')) {
+            $query->where('kyc_status', $request->input('kyc_status'));
         }
 
         $drivers = $query->latest()->paginate(20);
@@ -41,7 +47,7 @@ class DriverManagementController extends Controller
 
     public function show(Driver $driver): JsonResponse
     {
-        $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city']);
+        $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications']);
 
         return response()->json([
             'driver' => new DriverResource($driver),
@@ -209,6 +215,35 @@ class DriverManagementController extends Controller
         return response()->json([
             'message' => 'Driver reactivated successfully.',
             'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city'])),
+        ]);
+    }
+
+    public function toggleFleetVehicle(Request $request, Driver $driver, KycVerificationService $kycService): JsonResponse
+    {
+        if (! $driver->vehicle) {
+            return response()->json(['message' => 'Driver has no registered vehicle.'], 422);
+        }
+
+        $vehicle = $driver->vehicle;
+        $wasFleet = $vehicle->is_fleet;
+
+        DB::transaction(function () use ($driver, $vehicle, $wasFleet, $request, $kycService) {
+            $vehicle->update(['is_fleet' => ! $wasFleet]);
+
+            AuditLog::record(
+                $vehicle,
+                $wasFleet ? 'vehicle_unmarked_fleet' : 'vehicle_marked_fleet',
+                $request->user(),
+            );
+
+            $kycService->recalculateDriverKycStatus($driver);
+        });
+
+        return response()->json([
+            'message' => $wasFleet
+                ? 'Vehicle unmarked as fleet. Plate verification now required.'
+                : 'Vehicle marked as fleet. Plate verification skipped.',
+            'vehicle' => new VehicleResource($vehicle->fresh()),
         ]);
     }
 
