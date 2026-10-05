@@ -3,6 +3,7 @@
 use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleClass;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -17,9 +18,11 @@ it('returns driver onboarding status', function () {
         ->assertJsonStructure([
             'driver',
             'onboarding_complete',
+            'can_submit',
             'missing_documents',
             'has_vehicle',
             'has_licence_number',
+            'has_city',
         ]);
 });
 
@@ -39,7 +42,7 @@ it('allows driver to update their profile', function () {
 });
 
 it('allows driver to upload a KYC document', function () {
-    Storage::fake('local');
+    Storage::fake('s3');
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
@@ -61,7 +64,7 @@ it('allows driver to upload a KYC document', function () {
 });
 
 it('replaces existing document of same type on re-upload', function () {
-    Storage::fake('local');
+    Storage::fake('s3');
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
@@ -82,7 +85,7 @@ it('replaces existing document of same type on re-upload', function () {
 });
 
 it('lists driver documents', function () {
-    Storage::fake('local');
+    Storage::fake('s3');
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
@@ -102,6 +105,7 @@ it('lists driver documents', function () {
 
 it('allows driver to register a vehicle', function () {
     $driver = Driver::factory()->create();
+    $vehicleClass = VehicleClass::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -111,6 +115,7 @@ it('allows driver to register a vehicle', function () {
             'colour' => 'White',
             'plate_number' => 'ABC-1234',
             'year' => 2022,
+            'vehicle_class_id' => $vehicleClass->id,
         ]);
 
     $response->assertCreated()
@@ -120,11 +125,13 @@ it('allows driver to register a vehicle', function () {
         'driver_id' => $driver->id,
         'make' => 'Toyota',
         'plate_number' => 'ABC-1234',
+        'vehicle_class_id' => $vehicleClass->id,
     ]);
 });
 
 it('prevents duplicate vehicle registration', function () {
     $driver = Driver::factory()->create();
+    $vehicleClass = VehicleClass::factory()->create();
     Vehicle::factory()->create(['driver_id' => $driver->id]);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
@@ -134,6 +141,8 @@ it('prevents duplicate vehicle registration', function () {
             'model' => 'Civic',
             'colour' => 'Black',
             'plate_number' => 'XYZ-9999',
+            'year' => 2023,
+            'vehicle_class_id' => $vehicleClass->id,
         ]);
 
     $response->assertStatus(409);

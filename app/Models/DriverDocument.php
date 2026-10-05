@@ -16,6 +16,7 @@ class DriverDocument extends Model
         'original_filename',
         'mime_type',
         'file_size',
+        'expires_at',
         'status',
         'rejection_reason',
         'reviewed_by',
@@ -28,6 +29,7 @@ class DriverDocument extends Model
             'type' => DocumentType::class,
             'status' => DocumentStatus::class,
             'file_size' => 'integer',
+            'expires_at' => 'date',
             'reviewed_at' => 'datetime',
         ];
     }

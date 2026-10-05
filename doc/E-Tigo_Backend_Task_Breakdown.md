@@ -66,21 +66,21 @@
 |----|------|---------|------|-------|
 | SETUP-01 | `[x]` Initialize Laravel 13 project structure with proper directory layout: `app/`, `routes/`, `database/`, `config/`, `tests/` | — | — | Laravel 13 (PHP 8.5); `.env.example` configured for PostgreSQL |
 | SETUP-02 | `[x]` Configure code quality tooling: Laravel Pint for code style | — | SETUP-01 | Pint runs on CI; Pest 5.x for testing |
-| SETUP-03 | `[ ]` Set up CI pipeline: lint → static analysis → unit tests → feature tests → build | — | SETUP-01 | Branch protection on `main`; require passing CI before merge |
-| SETUP-04 | `[ ]` Configure staging and production deployment pipelines with environment-specific `.env` config | — | SETUP-03 | Include `php artisan migrate --force` step in deploy pipeline |
+| SETUP-03 | `[x]` Set up CI pipeline: lint → static analysis → unit tests → feature tests → build | — | SETUP-01 | Branch protection on `main`; require passing CI before merge |
+| SETUP-04 | `[x]` Configure staging and production deployment pipelines with environment-specific `.env` config | — | SETUP-03 | Include `php artisan migrate --force` step in deploy pipeline |
 | SETUP-05 | `[x]` Define and document API contract: request/response shapes, enums, error formats — see `doc/API_REFERENCE.md`, `doc/postman_collection.json`, `doc/TECHNICAL.md` | — | SETUP-01 | PHP enums for UserType, AdminRole, DriverStatus, DocumentType, DocumentStatus |
 
 ### 1.2 Database Schema & Migrations
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| SETUP-06 | `[ ]` Provision PostgreSQL instance (staging + production) and configure connection pooling in `config/database.php` | B-02 | SETUP-04 | — |
+| SETUP-06 | `[x]` Provision PostgreSQL instance (staging + production) and configure connection pooling in `config/database.php` | B-02 | SETUP-04 | — |
 | SETUP-07 | `[x]` Create migration: `users` table — id, first_name, last_name, phone (unique E.164), email (unique), type (enum: passenger/driver/admin), admin_role (enum nullable), password, phone_verified_at, is_active, profile_photo_path, created_at, updated_at | B-02 | SETUP-06 | Shared table for all user types; role-specific data in separate tables |
 | SETUP-08 | `[x]` Create migration: `cities` table — id, name, slug (unique), boundary (GeoJSON polygon or point+radius), timezone, currency_code, is_active, created_at, updated_at | B-02 | SETUP-06 | Top-level scoping entity |
 | SETUP-09 | `[x]` Create migration: `vehicle_classes` table — id, name, display_name, capacity, icon_url, description, is_active, created_at, updated_at | B-02 | SETUP-06 | Platform-wide definitions |
 | SETUP-10 | `[x]` Create migration: `city_vehicle_classes` pivot table — city_id (FK), vehicle_class_id (FK), is_active, unique constraint on (city_id, vehicle_class_id) | B-02 | SETUP-08, SETUP-09 | Controls which classes are available in which cities |
-| SETUP-11 | `[x]` Create migration: `drivers` table — id, user_id (FK unique), status (enum: pending_review/approved/rejected/suspended), licence_number (nullable), rejection_reason (nullable), is_online (bool default false), approved_at (nullable), suspended_at (nullable), created_at, updated_at. Separate `vehicles` table for vehicle data. | B-02 | SETUP-07, SETUP-09 | — |
-| SETUP-12 | `[x]` Create migration: `driver_documents` table — id, driver_id (FK), type (enum: driving_licence/vehicle_registration/insurance_certificate/government_id), file_path, original_filename, mime_type, file_size, status (enum: pending/approved/rejected), rejection_reason (nullable), reviewed_by (FK nullable), reviewed_at (nullable), created_at, updated_at | B-02, NF-04 | SETUP-11 | 🔒 Files stored via Laravel filesystem; re-upload replaces previous |
+| SETUP-11 | `[x]` Create migration: `drivers` table — id, user_id (FK unique), city_id (FK nullable), status (enum: onboarding/pending_review/approved/rejected/suspended), licence_number (nullable), rejection_reason (nullable), is_online (bool default false), approved_at (nullable), suspended_at (nullable), created_at, updated_at. Separate `vehicles` table for vehicle data. | B-02 | SETUP-07, SETUP-09 | Default status is `onboarding`; city_id links to cities table |
+| SETUP-12 | `[x]` Create migration: `driver_documents` table — id, driver_id (FK), type (enum: driving_licence/vehicle_registration/insurance_certificate/government_id), file_path, original_filename, mime_type, file_size, expires_at (date nullable), status (enum: pending/approved/rejected), rejection_reason (nullable), reviewed_by (FK nullable), reviewed_at (nullable), created_at, updated_at | B-02, NF-04 | SETUP-11 | 🔒 Files stored on S3; re-upload replaces previous; expires_at tracks document expiry |
 | SETUP-13 | `[x]` Create migration: `pricing_configs` table — id, city_id (FK), vehicle_class_id (FK), base_fare, per_km_rate, per_minute_rate, minimum_fare, waiting_time_rate (nullable), version (int), effective_from (timestamp), created_by_admin_id (FK), created_at | A-06, A-07 | SETUP-08, SETUP-10 | Versioned with effective timestamp |
 | SETUP-14 | `[x]` Create migration: `rides` table — id (UUID), city_id (FK), vehicle_class_id (FK), passenger_id (FK), driver_id (FK nullable), pickup_lat, pickup_lng, pickup_address, destination_lat, destination_lng, destination_address, status (enum: requested/searching/matched/driver_en_route/driver_arrived/in_progress/completed/cancelled/no_driver_found), pin_code (char 4), share_token (unique), fare_estimate_amount, final_fare_amount (nullable), fare_currency, pricing_snapshot (jsonb), payment_method (enum: cash/card), payment_status (enum), cancelled_by (FK nullable), cancellation_reason (nullable), matched_at (nullable), started_at (nullable), completed_at (nullable), created_at, updated_at | B-02, §8.2, §8.5 | SETUP-08, SETUP-10, SETUP-07, SETUP-11 | Every ride scoped to city + vehicle class from creation |
 | SETUP-15 | `[x]` Create migration: `ride_state_transitions` audit table — id, ride_id (FK), from_state, to_state, triggered_by_type (enum: user/system), triggered_by_id (nullable), metadata (jsonb nullable), created_at | B-09, NF-06 | SETUP-14 | Append-only; no UPDATE or DELETE; use DB trigger or policy to enforce |
@@ -111,7 +111,7 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| SETUP-38 | `[ ]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
+| SETUP-38 | `[x]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
 | SETUP-39 | `[x]` OTP/PIN codes stored in PostgreSQL `otp_codes` table (not Redis): SHA-256 hashed code, 30-min expiry, 3 max attempts, atomic increment; used for ride-start PIN verification | B-03 | SETUP-07 | Migration creates otp_codes table; OtpService handles generation/verification |
 | SETUP-40 | `[x]` Configure Redis for session/token state (refresh token storage) | B-03 | SETUP-38 | Key pattern: `refresh_token:{token_hash}` |
 | SETUP-41 | `[x]` Configure Redis for live driver-location cache using geo-indexing (GEOADD/GEORADIUS) | B-03 | SETUP-38 | Key: `driver_locations` (geo set); secondary key per driver: `driver:{id}:location` (hash with heading, speed, timestamp) |
@@ -145,12 +145,12 @@
 |----|------|---------|------|-------|
 | SETUP-55 | `[x]` Define `SmsGateway` contract interface: `send(string $phone, string $message): bool` | B-05 | SETUP-43 | Adapter pattern for swappable SMS providers |
 | SETUP-56 | `[x]` Implement `LogSmsGateway` adapter (logs to channel instead of sending SMS); bound in `AppServiceProvider` | B-05 | SETUP-55 | Swap for Twilio/etc. by implementing `SmsGateway` interface |
-| SETUP-57 | `[ ]` Define push notification adapter interface: `sendToUser(userId, notification): void`, `sendToDevice(token, payload): void` | B-06 | SETUP-43 | — |
-| SETUP-58 | `[ ]` Implement concrete push notification adapter (FCM + APNs) | B-06 | SETUP-57 | — |
-| SETUP-59 | `[ ]` Define maps adapter interface: `geocode(address)`, `reverseGeocode(lat, lng)`, `autocomplete(query)`, `directions(origin, destination)`, `distanceMatrix(origins, destinations)` | B-07 | SETUP-43 | ⚠ OQ-02: Provider TBD; track per-call cost |
-| SETUP-60 | `[ ]` Implement concrete maps adapter for the confirmed provider | B-07 | SETUP-59 | — |
-| SETUP-61 | `[ ]` Define payment gateway adapter interface: `createCustomer(userId)`, `tokenizeCard(cardData)`, `authorize(amount, token)`, `capture(transactionId)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
-| SETUP-62 | `[ ]` Implement concrete payment gateway adapter for the confirmed provider | B-08, NF-05 | SETUP-61 | — |
+| SETUP-57 | `[x]` Define push notification adapter interface: `sendToUser(userId, notification): void`, `sendToDevice(token, payload): void` | B-06 | SETUP-43 | — |
+| SETUP-58 | `[x]` Implement concrete push notification adapter (FCM + APNs) | B-06 | SETUP-57 | — |
+| SETUP-59 | `[x]` Define maps adapter interface: `geocode(address)`, `reverseGeocode(lat, lng)`, `autocomplete(query)`, `directions(origin, destination)`, `distanceMatrix(origins, destinations)` | B-07 | SETUP-43 | ⚠ OQ-02: Provider TBD; track per-call cost |
+| SETUP-60 | `[x]` Implement concrete maps adapter for the confirmed provider | B-07 | SETUP-59 | — |
+| SETUP-61 | `[x]` Define payment gateway adapter interface: `createCustomer(userId)`, `initializePayment(data)`, `verifyTransaction(transactionId)`, `chargeWithToken(data)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
+| SETUP-62 | `[x]` Implement concrete payment gateway adapter for the confirmed provider | B-08, NF-05 | SETUP-61 | — |
 
 ---
 
@@ -162,12 +162,16 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-AUTH-01 | `[x]` Create `AuthController@register` — `POST /api/v1/auth/register`: accept first_name, last_name, phone (E.164), email, password (confirmed), type (passenger/driver); create User; auto-create Driver record for drivers with `pending_review` status; issue Sanctum token | P-01, D-01 | SETUP-07, SETUP-11 | Rate-limited via `throttle:5,1`; validates unique email + phone |
+| BE-AUTH-01 | `[x]` Create `AuthController@register` — `POST /api/v1/auth/register`: accept first_name, last_name, phone (E.164), email, type (passenger/driver), city_id (required for drivers); create User; auto-create Driver record for drivers with `onboarding` status and city; issue Sanctum token | P-01, D-01 | SETUP-07, SETUP-11 | Rate-limited via `throttle:5,1`; validates unique email + phone; city_id validated against cities table |
 | BE-AUTH-02 | `[x]` Create `RegisterRequest` FormRequest — validate first_name, last_name, phone (E.164 regex, unique), email (unique), password (min:8, confirmed), type (passenger/driver) | P-01 | BE-AUTH-01 | Custom error messages for phone format and uniqueness |
 | BE-AUTH-03 | `[x]` Create `AuthController@login` — `POST /api/v1/auth/login`: validate email + password + type against users table; reject wrong type, inactive accounts; issue Sanctum token with type-scoped abilities | P-01, P-02 | BE-AUTH-01 | Returns 401 for invalid credentials, 403 for deactivated |
 | BE-AUTH-04 | `[x]` Create `LoginRequest` FormRequest — validate email, password, type (passenger/driver) | P-01 | BE-AUTH-03 | — |
-| BE-AUTH-05 | `[x]` Create `AdminAuthController@login` — `POST /api/v1/admin/auth/login`: admin email/password login; token abilities include admin role (e.g. `['admin', 'super_admin']`) | §8.4 | SETUP-35 | Rate-limited; admin accounts created by seeder or other admins |
+| BE-AUTH-05 | `[x]` Create `AdminAuthController@login` — `POST /api/v1/admin/auth/login`: admin email/password login; token abilities include admin role (e.g. `['admin', 'super_admin']`); tokens expire after 8 hours (configurable via `SANCTUM_TOKEN_EXPIRATION`) | §8.4 | SETUP-35 | Rate-limited; admin accounts created via invitation by super admin |
 | BE-AUTH-06 | `[x]` Create `AdminLoginRequest` FormRequest — validate email, password | §8.4 | BE-AUTH-05 | — |
+| BE-AUTH-14 | `[x]` Create admin invitation flow: `AdminManagementController@invite` sends email with 48h-expiring signed token; `AdminInvitationController@accept` creates admin account; verify/resend/revoke endpoints | §8.4 | BE-AUTH-05 | Super admin only; cannot invite another super_admin |
+| BE-AUTH-15 | `[x]` Create admin password reset: `AdminInvitationController@forgotPassword/resetPassword` using Laravel's password broker; enumeration-safe response; revokes all tokens on reset | §8.4 | BE-AUTH-05 | — |
+| BE-AUTH-16 | `[x]` Create admin management CRUD: list/show/update-role/deactivate/reactivate admins; super admin only; cannot modify other super admins or self-deactivate | §8.4 | BE-AUTH-14 | Routes: `GET/PUT /admin/admins/{id}`, `POST .../deactivate`, `POST .../reactivate` |
+| BE-AUTH-17 | `[x]` Super admin bypass in `EnsureAdminRole` middleware — super admins pass through all role-gated routes automatically | §8.4 | SETUP-52 | — |
 | BE-AUTH-07 | `[x]` Create `AuthController@logout` and `AdminAuthController@logout` — `POST /api/v1/auth/logout` / `POST /api/v1/admin/auth/logout`: revoke current Sanctum token; audit log | P-03 | BE-AUTH-01 | — |
 | BE-AUTH-08 | `[x]` Create `AuthController@me` and `AdminAuthController@me` — `GET /api/v1/auth/me` / `GET /api/v1/admin/auth/me`: return authenticated user profile via UserResource | P-03 | SETUP-51 | Used by all three apps on launch to verify session |
 | BE-AUTH-09 | `[x]` Create `ProfileController@show/update` — `GET/PUT /api/v1/passenger/profile`: read and update passenger profile (first_name, last_name, email) | P-02 | BE-AUTH-08 | — |
@@ -484,9 +488,11 @@
 |----|------|---------|------|-------|
 | BE-ADMIN-01 | `[x]` Create `Driver` Eloquent model with relationships: user(), documents(), vehicle(); casts status→DriverStatus enum | — | SETUP-11 | Implemented in `App\Models\Driver` |
 | BE-ADMIN-02 | `[x]` Create `DriverDocument` Eloquent model with `DocumentType` and `DocumentStatus` enums | — | SETUP-12 | Soft-replacement: re-uploading same type deletes previous |
-| BE-ADMIN-03 | `[x]` Create `OnboardingController@uploadDocument` — `POST /api/v1/driver/documents`: upload KYC documents (driving_licence, vehicle_registration, insurance_certificate, government_id); max 5MB, jpeg/png/pdf | D-02 | BE-ADMIN-02 | Previous doc of same type is deleted on re-upload |
-| BE-ADMIN-04 | `[x]` Create `OnboardingController@storeVehicle` / `updateVehicle` — `POST/PUT /api/v1/driver/vehicle`: register or update vehicle (make, model, colour, plate_number, year); vehicle class assigned by Admin | D-04 | BE-ADMIN-01 | PUT supports partial updates |
-| BE-ADMIN-05 | `[x]` Create `OnboardingController@status` — `GET /api/v1/driver/onboarding/status`: return driver profile, documents, vehicle, and missing-items checklist | D-03 | BE-ADMIN-01 | — |
+| BE-ADMIN-03 | `[x]` Create `OnboardingController@uploadDocument` — `POST /api/v1/driver/documents`: upload KYC documents (driving_licence, vehicle_registration, insurance_certificate, government_id); max 10MB, jpeg/png/pdf; optional `expires_at` date; stored on S3 | D-02 | BE-ADMIN-02 | Previous doc of same type is deleted on re-upload |
+| BE-ADMIN-04 | `[x]` Create `OnboardingController@storeVehicle` / `updateVehicle` — `POST/PUT /api/v1/driver/vehicle`: register or update vehicle (make, model, colour, plate_number, year, vehicle_class_id); driver selects preferred vehicle class; final class confirmed by Admin | D-04 | BE-ADMIN-01 | PUT supports partial updates; vehicle_class_id required on creation |
+| BE-ADMIN-05 | `[x]` Create `OnboardingController@status` — `GET /api/v1/driver/onboarding/status`: return driver profile, documents, vehicle, city, missing-items checklist, `can_submit` flag, and `has_city` flag | D-03 | BE-ADMIN-01 | Response includes full onboarding completeness check |
+| BE-ADMIN-05b | `[x]` Create `OnboardingController@submitForReview` — `POST /api/v1/driver/onboarding/submit`: validate all required onboarding data (documents, vehicle, licence, city) is present; transition driver from `onboarding` or `rejected` to `pending_review`; returns 422 with specific errors if incomplete | D-03 | BE-ADMIN-05 | Explicit submission step — industry standard for KYC flows |
+| BE-ADMIN-05c | `[x]` Create `DriverManagementController@reviewDocument` — `POST /api/v1/admin/drivers/{driver}/documents/{document}/review`: approve or reject individual documents with reason; auto-transitions driver to `rejected` when all docs reviewed and any rejected | A-10 | BE-ADMIN-09 | Per-document review matches design's granular rejection UX |
 | BE-ADMIN-06 | `[ ]` Create `DriverController@toggleOnline` — `POST /api/v1/drivers/toggle-online`: toggle online/offline; validate approved + vehicle class assigned + not suspended | D-05 | BE-ADMIN-01 | — |
 | BE-ADMIN-07 | `[x]` Create `DriverManagementController@index` — `GET /api/v1/admin/drivers`: list drivers with status filter and search (name/email/phone), paginated | A-10 | BE-ADMIN-01, SETUP-52 | Admin-only via `user.type:admin` middleware |
 | BE-ADMIN-08 | `[x]` Create `DriverManagementController@show` — `GET /api/v1/admin/drivers/{driver}`: full profile with user, documents, vehicle | A-10 | BE-ADMIN-07 | — |

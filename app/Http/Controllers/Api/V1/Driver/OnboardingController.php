@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Enums\DocumentStatus;
+use App\Enums\DriverStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreVehicleRequest;
 use App\Http\Requests\Driver\UpdateDriverProfileRequest;
@@ -13,6 +14,7 @@ use App\Http\Resources\DriverResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class OnboardingController extends Controller
@@ -20,7 +22,7 @@ class OnboardingController extends Controller
     public function status(): JsonResponse
     {
         $user = request()->user();
-        $driver = $user->driver()->with(['documents', 'vehicle'])->first();
+        $driver = $user->driver()->with(['documents', 'vehicle.vehicleClass', 'city'])->first();
 
         if (! $driver) {
             return response()->json([
@@ -35,12 +37,19 @@ class OnboardingController extends Controller
             ->toArray();
         $missingDocTypes = array_diff($requiredDocTypes, $uploadedDocTypes);
 
+        $onboardingComplete = empty($missingDocTypes)
+            && $driver->vehicle !== null
+            && $driver->licence_number !== null
+            && $driver->city_id !== null;
+
         return response()->json([
             'driver' => new DriverResource($driver),
-            'onboarding_complete' => empty($missingDocTypes) && $driver->vehicle !== null && $driver->licence_number !== null,
+            'onboarding_complete' => $onboardingComplete,
+            'can_submit' => $onboardingComplete && in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
             'missing_documents' => array_values($missingDocTypes),
             'has_vehicle' => $driver->vehicle !== null,
             'has_licence_number' => $driver->licence_number !== null,
+            'has_city' => $driver->city_id !== null,
         ]);
     }
 
@@ -59,7 +68,7 @@ class OnboardingController extends Controller
 
         return response()->json([
             'message' => 'Driver profile updated successfully.',
-            'driver' => new DriverResource($driver->fresh(['documents', 'vehicle'])),
+            'driver' => new DriverResource($driver->fresh(['documents', 'vehicle.vehicleClass', 'city'])),
         ]);
     }
 
@@ -73,25 +82,39 @@ class OnboardingController extends Controller
         }
 
         $file = $request->file('document');
-        $path = $file->store("driver-documents/{$driver->id}", 'local');
+        $path = $file->store("driver-documents/{$driver->id}", 's3');
 
         $existing = $driver->documents()
             ->where('type', $request->validated('type'))
             ->whereIn('status', ['pending', 'approved'])
             ->first();
 
-        if ($existing) {
-            Storage::disk('local')->delete($existing->file_path);
-            $existing->delete();
+        $oldFilePath = $existing?->file_path;
+
+        try {
+            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing) {
+                if ($existing) {
+                    $existing->delete();
+                }
+
+                return $driver->documents()->create([
+                    'type' => $request->validated('type'),
+                    'file_path' => $path,
+                    'original_filename' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'expires_at' => $request->validated('expires_at'),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('s3')->delete($path);
+
+            throw $e;
         }
 
-        $document = $driver->documents()->create([
-            'type' => $request->validated('type'),
-            'file_path' => $path,
-            'original_filename' => $file->getClientOriginalName(),
-            'mime_type' => $file->getMimeType(),
-            'file_size' => $file->getSize(),
-        ]);
+        if ($oldFilePath) {
+            Storage::disk('s3')->delete($oldFilePath);
+        }
 
         AuditLog::record($document, 'document_uploaded', $user);
 
@@ -134,7 +157,7 @@ class OnboardingController extends Controller
 
         return response()->json([
             'message' => 'Vehicle registered successfully.',
-            'vehicle' => new VehicleResource($vehicle),
+            'vehicle' => new VehicleResource($vehicle->load('vehicleClass')),
         ], 201);
     }
 
@@ -159,7 +182,7 @@ class OnboardingController extends Controller
 
         return response()->json([
             'message' => 'Vehicle updated successfully. Vehicle class approval has been reset.',
-            'vehicle' => new VehicleResource($vehicle->fresh()),
+            'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
         ]);
     }
 
@@ -173,7 +196,67 @@ class OnboardingController extends Controller
         }
 
         return response()->json([
-            'vehicle' => new VehicleResource($driver->vehicle),
+            'vehicle' => new VehicleResource($driver->vehicle->load('vehicleClass')),
+        ]);
+    }
+
+    public function submitForReview(): JsonResponse
+    {
+        $user = request()->user();
+        $driver = $user->driver()->with(['documents', 'vehicle'])->first();
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if (! in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected])) {
+            return response()->json([
+                'message' => 'Application can only be submitted from onboarding or rejected status.',
+            ], 422);
+        }
+
+        $requiredDocTypes = ['driving_licence', 'vehicle_registration', 'insurance_certificate', 'government_id'];
+        $uploadedDocTypes = $driver->documents
+            ->where('status', '!==', DocumentStatus::Rejected)
+            ->pluck('type.value')
+            ->toArray();
+        $missingDocTypes = array_diff($requiredDocTypes, $uploadedDocTypes);
+
+        $errors = [];
+
+        if (! empty($missingDocTypes)) {
+            $errors[] = 'Missing documents: '.implode(', ', $missingDocTypes);
+        }
+
+        if (! $driver->vehicle) {
+            $errors[] = 'Vehicle information is required.';
+        }
+
+        if (! $driver->licence_number) {
+            $errors[] = 'Licence number is required.';
+        }
+
+        if (! $driver->city_id) {
+            $errors[] = 'City selection is required.';
+        }
+
+        if (! empty($errors)) {
+            return response()->json([
+                'message' => 'Cannot submit application. Please complete all required steps.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        $driver->update([
+            'status' => DriverStatus::PendingReview,
+            'rejection_reason' => null,
+        ]);
+
+        AuditLog::record($driver, 'application_submitted', $user);
+
+        return response()->json([
+            'message' => 'Application submitted for review.',
+            'driver' => new DriverResource($driver->fresh(['documents', 'vehicle.vehicleClass', 'city'])),
         ]);
     }
 }

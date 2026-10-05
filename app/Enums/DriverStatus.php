@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum DriverStatus: string
 {
+    case Onboarding = 'onboarding';
     case PendingReview = 'pending_review';
     case Approved = 'approved';
     case Rejected = 'rejected';

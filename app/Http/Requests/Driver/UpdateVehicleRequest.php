@@ -24,7 +24,8 @@ class UpdateVehicleRequest extends FormRequest
             'model' => ['sometimes', 'required', 'string', 'max:100'],
             'colour' => ['sometimes', 'required', 'string', 'max:50'],
             'plate_number' => ['sometimes', 'required', 'string', 'max:20', Rule::unique('vehicles', 'plate_number')->ignore($vehicle)],
-            'year' => ['nullable', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
+            'year' => ['sometimes', 'required', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
+            'vehicle_class_id' => ['sometimes', 'required', 'integer', 'exists:vehicle_classes,id'],
         ];
     }
 }
