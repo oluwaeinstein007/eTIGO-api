@@ -21,7 +21,8 @@ class StoreVehicleRequest extends FormRequest
             'model' => ['required', 'string', 'max:100'],
             'colour' => ['required', 'string', 'max:50'],
             'plate_number' => ['required', 'string', 'max:20', 'unique:vehicles,plate_number'],
-            'year' => ['nullable', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
+            'year' => ['required', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
+            'vehicle_class_id' => ['required', 'integer', 'exists:vehicle_classes,id'],
         ];
     }
 }

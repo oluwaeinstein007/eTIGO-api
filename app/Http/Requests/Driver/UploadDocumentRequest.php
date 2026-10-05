@@ -21,6 +21,7 @@ class UploadDocumentRequest extends FormRequest
         return [
             'type' => ['required', 'string', Rule::enum(DocumentType::class)],
             'document' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'expires_at' => ['nullable', 'date', 'after:today'],
         ];
     }
 

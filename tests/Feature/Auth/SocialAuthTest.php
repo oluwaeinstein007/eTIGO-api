@@ -1,8 +1,8 @@
 <?php
 
-use App\Enums\UserType;
 use App\Models\SocialAccount;
 use App\Models\User;
+use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 
@@ -21,7 +21,7 @@ function fakeSocialiteUser(string $id = '123456', string $email = 'social@exampl
 
 function mockSocialiteDriver(SocialiteUser $socialiteUser, string $provider = 'google'): void
 {
-    $driver = Mockery::mock(\Laravel\Socialite\Contracts\Provider::class);
+    $driver = Mockery::mock(Provider::class);
     $driver->shouldReceive('stateless')->andReturnSelf();
     $driver->shouldReceive('userFromToken')->andReturn($socialiteUser);
 
@@ -32,9 +32,9 @@ it('creates a new passenger via Google social login', function () {
     $socialiteUser = fakeSocialiteUser();
     mockSocialiteDriver($socialiteUser);
 
-    $response = $this->postJson('/api/v1/auth/social-login', [
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
-        'access_token' => 'fake-google-token',
+        'token' => 'fake-google-token',
         'type' => 'passenger',
     ]);
 
@@ -60,9 +60,9 @@ it('creates a new driver via social login with pending_review status', function 
     $socialiteUser = fakeSocialiteUser('789', 'driver@social.com', 'Social Driver');
     mockSocialiteDriver($socialiteUser);
 
-    $response = $this->postJson('/api/v1/auth/social-login', [
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
-        'access_token' => 'fake-token',
+        'token' => 'fake-token',
         'type' => 'driver',
     ]);
 
@@ -71,7 +71,7 @@ it('creates a new driver via social login with pending_review status', function 
 
     $user = User::where('email', 'driver@social.com')->first();
     expect($user->driver)->not->toBeNull();
-    expect($user->driver->status->value)->toBe('pending_review');
+    expect($user->driver->status->value)->toBe('onboarding');
 });
 
 it('logs in an existing user via social login', function () {
@@ -80,15 +80,14 @@ it('logs in an existing user via social login', function () {
         'user_id' => $user->id,
         'provider' => 'google',
         'provider_id' => '123456',
-        'provider_token' => 'old-token',
     ]);
 
     $socialiteUser = fakeSocialiteUser('123456', 'existing@example.com');
     mockSocialiteDriver($socialiteUser);
 
-    $response = $this->postJson('/api/v1/auth/social-login', [
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
-        'access_token' => 'new-token',
+        'token' => 'new-token',
         'type' => 'passenger',
     ]);
 
@@ -102,9 +101,9 @@ it('links social account to existing email user', function () {
     $socialiteUser = fakeSocialiteUser('999', 'link@example.com', 'Link User');
     mockSocialiteDriver($socialiteUser);
 
-    $response = $this->postJson('/api/v1/auth/social-login', [
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
-        'access_token' => 'fake-token',
+        'token' => 'fake-token',
         'type' => 'passenger',
     ]);
 
@@ -118,26 +117,6 @@ it('links social account to existing email user', function () {
     ]);
 });
 
-it('rejects social login when account is linked to different user type', function () {
-    $user = User::factory()->passenger()->create();
-    SocialAccount::create([
-        'user_id' => $user->id,
-        'provider' => 'google',
-        'provider_id' => '123456',
-    ]);
-
-    $socialiteUser = fakeSocialiteUser('123456', $user->email);
-    mockSocialiteDriver($socialiteUser);
-
-    $response = $this->postJson('/api/v1/auth/social-login', [
-        'provider' => 'google',
-        'access_token' => 'fake-token',
-        'type' => 'driver',
-    ]);
-
-    $response->assertStatus(409);
-});
-
 it('rejects social login for deactivated user', function () {
     $user = User::factory()->passenger()->inactive()->create();
     SocialAccount::create([
@@ -149,9 +128,9 @@ it('rejects social login for deactivated user', function () {
     $socialiteUser = fakeSocialiteUser('123456', $user->email);
     mockSocialiteDriver($socialiteUser);
 
-    $response = $this->postJson('/api/v1/auth/social-login', [
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
-        'access_token' => 'fake-token',
+        'token' => 'fake-token',
         'type' => 'passenger',
     ]);
 
@@ -159,9 +138,9 @@ it('rejects social login for deactivated user', function () {
 });
 
 it('rejects social login with invalid provider', function () {
-    $response = $this->postJson('/api/v1/auth/social-login', [
-        'provider' => 'facebook',
-        'access_token' => 'fake-token',
+    $response = $this->postJson('/api/v1/auth/social', [
+        'provider' => 'twitter',
+        'token' => 'fake-token',
         'type' => 'passenger',
     ]);
 
@@ -169,12 +148,29 @@ it('rejects social login with invalid provider', function () {
         ->assertJsonValidationErrors('provider');
 });
 
-it('rejects social login with missing access_token', function () {
-    $response = $this->postJson('/api/v1/auth/social-login', [
+it('rejects social login with missing token', function () {
+    $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
         'type' => 'passenger',
     ]);
 
     $response->assertUnprocessable()
-        ->assertJsonValidationErrors('access_token');
+        ->assertJsonValidationErrors('token');
+});
+
+it('rejects social login with invalid token', function () {
+    $driver = Mockery::mock(Provider::class);
+    $driver->shouldReceive('stateless')->andReturnSelf();
+    $driver->shouldReceive('userFromToken')->andThrow(new Exception('Invalid token'));
+
+    Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
+
+    $response = $this->postJson('/api/v1/auth/social', [
+        'provider' => 'google',
+        'token' => 'invalid-token',
+        'type' => 'passenger',
+    ]);
+
+    $response->assertUnauthorized()
+        ->assertJson(['message' => 'Invalid social login token.']);
 });

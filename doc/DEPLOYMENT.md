@@ -138,6 +138,13 @@ SESSION_DRIVER=redis
 CACHE_STORE=redis
 QUEUE_CONNECTION=database
 REDIS_SCHEME=tcp
+
+# S3 — Driver document storage
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=eu-west-1
+AWS_BUCKET=etigo-driver-documents
+AWS_USE_PATH_STYLE_ENDPOINT=false
 ```
 
 To update environment variables:
