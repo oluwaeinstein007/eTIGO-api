@@ -1,28 +1,13 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "E-tiGo ride-hailing platform API — Authentication & Onboarding endpoints.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: All endpoints except register/login require Bearer token via Authorization header.",
+    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo — Local\" or \"E-tiGo — Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: All endpoints except register/login require Bearer token via Authorization header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:8000/api/v1",
-      "type": "string"
-    },
-    {
-      "key": "passenger_token",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "driver_token",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "admin_token",
-      "value": "",
+      "value": "http://159.223.161.162/api/v1",
       "type": "string"
     }
   ],

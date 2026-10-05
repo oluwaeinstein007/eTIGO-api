@@ -62,4 +62,9 @@ return [
         'encryption_key' => env('FLUTTERWAVE_ENCRYPTION_KEY'),
     ],
 
+    'postman' => [
+        'api_key' => env('POSTMAN_API_KEY'),
+        'collection_id' => env('POSTMAN_COLLECTION_ID'),
+    ],
+
 ];

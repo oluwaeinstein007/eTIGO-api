@@ -66,15 +66,15 @@
 |----|------|---------|------|-------|
 | SETUP-01 | `[x]` Initialize Laravel 13 project structure with proper directory layout: `app/`, `routes/`, `database/`, `config/`, `tests/` | — | — | Laravel 13 (PHP 8.5); `.env.example` configured for PostgreSQL |
 | SETUP-02 | `[x]` Configure code quality tooling: Laravel Pint for code style | — | SETUP-01 | Pint runs on CI; Pest 5.x for testing |
-| SETUP-03 | `[ ]` Set up CI pipeline: lint → static analysis → unit tests → feature tests → build | — | SETUP-01 | Branch protection on `main`; require passing CI before merge |
-| SETUP-04 | `[ ]` Configure staging and production deployment pipelines with environment-specific `.env` config | — | SETUP-03 | Include `php artisan migrate --force` step in deploy pipeline |
+| SETUP-03 | `[x]` Set up CI pipeline: lint → static analysis → unit tests → feature tests → build | — | SETUP-01 | Branch protection on `main`; require passing CI before merge |
+| SETUP-04 | `[x]` Configure staging and production deployment pipelines with environment-specific `.env` config | — | SETUP-03 | Include `php artisan migrate --force` step in deploy pipeline |
 | SETUP-05 | `[x]` Define and document API contract: request/response shapes, enums, error formats — see `doc/API_REFERENCE.md`, `doc/postman_collection.json`, `doc/TECHNICAL.md` | — | SETUP-01 | PHP enums for UserType, AdminRole, DriverStatus, DocumentType, DocumentStatus |
 
 ### 1.2 Database Schema & Migrations
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| SETUP-06 | `[ ]` Provision PostgreSQL instance (staging + production) and configure connection pooling in `config/database.php` | B-02 | SETUP-04 | — |
+| SETUP-06 | `[x]` Provision PostgreSQL instance (staging + production) and configure connection pooling in `config/database.php` | B-02 | SETUP-04 | — |
 | SETUP-07 | `[x]` Create migration: `users` table — id, first_name, last_name, phone (unique E.164), email (unique), type (enum: passenger/driver/admin), admin_role (enum nullable), password, phone_verified_at, is_active, profile_photo_path, created_at, updated_at | B-02 | SETUP-06 | Shared table for all user types; role-specific data in separate tables |
 | SETUP-08 | `[x]` Create migration: `cities` table — id, name, slug (unique), boundary (GeoJSON polygon or point+radius), timezone, currency_code, is_active, created_at, updated_at | B-02 | SETUP-06 | Top-level scoping entity |
 | SETUP-09 | `[x]` Create migration: `vehicle_classes` table — id, name, display_name, capacity, icon_url, description, is_active, created_at, updated_at | B-02 | SETUP-06 | Platform-wide definitions |
@@ -111,7 +111,7 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| SETUP-38 | `[ ]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
+| SETUP-38 | `[x]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
 | SETUP-39 | `[x]` OTP/PIN codes stored in PostgreSQL `otp_codes` table (not Redis): SHA-256 hashed code, 30-min expiry, 3 max attempts, atomic increment; used for ride-start PIN verification | B-03 | SETUP-07 | Migration creates otp_codes table; OtpService handles generation/verification |
 | SETUP-40 | `[x]` Configure Redis for session/token state (refresh token storage) | B-03 | SETUP-38 | Key pattern: `refresh_token:{token_hash}` |
 | SETUP-41 | `[x]` Configure Redis for live driver-location cache using geo-indexing (GEOADD/GEORADIUS) | B-03 | SETUP-38 | Key: `driver_locations` (geo set); secondary key per driver: `driver:{id}:location` (hash with heading, speed, timestamp) |
@@ -145,12 +145,12 @@
 |----|------|---------|------|-------|
 | SETUP-55 | `[x]` Define `SmsGateway` contract interface: `send(string $phone, string $message): bool` | B-05 | SETUP-43 | Adapter pattern for swappable SMS providers |
 | SETUP-56 | `[x]` Implement `LogSmsGateway` adapter (logs to channel instead of sending SMS); bound in `AppServiceProvider` | B-05 | SETUP-55 | Swap for Twilio/etc. by implementing `SmsGateway` interface |
-| SETUP-57 | `[ ]` Define push notification adapter interface: `sendToUser(userId, notification): void`, `sendToDevice(token, payload): void` | B-06 | SETUP-43 | — |
-| SETUP-58 | `[ ]` Implement concrete push notification adapter (FCM + APNs) | B-06 | SETUP-57 | — |
-| SETUP-59 | `[ ]` Define maps adapter interface: `geocode(address)`, `reverseGeocode(lat, lng)`, `autocomplete(query)`, `directions(origin, destination)`, `distanceMatrix(origins, destinations)` | B-07 | SETUP-43 | ⚠ OQ-02: Provider TBD; track per-call cost |
-| SETUP-60 | `[ ]` Implement concrete maps adapter for the confirmed provider | B-07 | SETUP-59 | — |
-| SETUP-61 | `[ ]` Define payment gateway adapter interface: `createCustomer(userId)`, `tokenizeCard(cardData)`, `authorize(amount, token)`, `capture(transactionId)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
-| SETUP-62 | `[ ]` Implement concrete payment gateway adapter for the confirmed provider | B-08, NF-05 | SETUP-61 | — |
+| SETUP-57 | `[x]` Define push notification adapter interface: `sendToUser(userId, notification): void`, `sendToDevice(token, payload): void` | B-06 | SETUP-43 | — |
+| SETUP-58 | `[x]` Implement concrete push notification adapter (FCM + APNs) | B-06 | SETUP-57 | — |
+| SETUP-59 | `[x]` Define maps adapter interface: `geocode(address)`, `reverseGeocode(lat, lng)`, `autocomplete(query)`, `directions(origin, destination)`, `distanceMatrix(origins, destinations)` | B-07 | SETUP-43 | ⚠ OQ-02: Provider TBD; track per-call cost |
+| SETUP-60 | `[x]` Implement concrete maps adapter for the confirmed provider | B-07 | SETUP-59 | — |
+| SETUP-61 | `[x]` Define payment gateway adapter interface: `createCustomer(userId)`, `tokenizeCard(cardData)`, `authorize(amount, token)`, `capture(transactionId)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
+| SETUP-62 | `[x]` Implement concrete payment gateway adapter for the confirmed provider | B-08, NF-05 | SETUP-61 | — |
 
 ---
 
