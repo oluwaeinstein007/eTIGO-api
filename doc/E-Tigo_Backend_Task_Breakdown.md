@@ -149,7 +149,7 @@
 | SETUP-58 | `[x]` Implement concrete push notification adapter (FCM + APNs) | B-06 | SETUP-57 | — |
 | SETUP-59 | `[x]` Define maps adapter interface: `geocode(address)`, `reverseGeocode(lat, lng)`, `autocomplete(query)`, `directions(origin, destination)`, `distanceMatrix(origins, destinations)` | B-07 | SETUP-43 | ⚠ OQ-02: Provider TBD; track per-call cost |
 | SETUP-60 | `[x]` Implement concrete maps adapter for the confirmed provider | B-07 | SETUP-59 | — |
-| SETUP-61 | `[x]` Define payment gateway adapter interface: `createCustomer(userId)`, `tokenizeCard(cardData)`, `authorize(amount, token)`, `capture(transactionId)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
+| SETUP-61 | `[x]` Define payment gateway adapter interface: `createCustomer(userId)`, `initializePayment(data)`, `verifyTransaction(transactionId)`, `chargeWithToken(data)`, `refund(transactionId, amount)` | B-08 | SETUP-43 | ⚠ OQ-03: Provider TBD. 🔒 No raw card data stored; tokenisation only (NF-05) |
 | SETUP-62 | `[x]` Implement concrete payment gateway adapter for the confirmed provider | B-08, NF-05 | SETUP-61 | — |
 
 ---

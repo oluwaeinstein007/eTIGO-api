@@ -15,6 +15,7 @@ class SyncPostmanCollection extends Command
     {
         $apiKey = config('services.postman.api_key');
         $collectionId = config('services.postman.collection_id');
+        $workspaceId = config('services.postman.workspace_id');
 
         if (! $apiKey || ! $collectionId) {
             $this->error('POSTMAN_API_KEY and POSTMAN_COLLECTION_ID must be set in .env');
@@ -28,7 +29,7 @@ class SyncPostmanCollection extends Command
             $failed = true;
         }
 
-        if (! $this->syncEnvironments($apiKey)) {
+        if (! $this->syncEnvironments($apiKey, $workspaceId)) {
             $failed = true;
         }
 
@@ -79,7 +80,7 @@ class SyncPostmanCollection extends Command
         return false;
     }
 
-    private function syncEnvironments(string $apiKey): bool
+    private function syncEnvironments(string $apiKey, ?string $workspaceId): bool
     {
         $envDir = base_path('doc/postman_environments');
 
@@ -88,7 +89,14 @@ class SyncPostmanCollection extends Command
         }
 
         $files = glob("{$envDir}/*.json");
-        $existing = $this->fetchExistingEnvironments($apiKey);
+        $existing = $this->fetchExistingEnvironments($apiKey, $workspaceId);
+
+        if ($existing === null) {
+            $this->error('Failed to fetch existing environments — skipping environment sync.');
+
+            return false;
+        }
+
         $allOk = true;
 
         foreach ($files as $file) {
@@ -113,21 +121,26 @@ class SyncPostmanCollection extends Command
             if (isset($existing[$name])) {
                 $allOk = $this->updateEnvironment($apiKey, $existing[$name], $data, $name) && $allOk;
             } else {
-                $allOk = $this->createEnvironment($apiKey, $data, $name) && $allOk;
+                $allOk = $this->createEnvironment($apiKey, $data, $name, $workspaceId) && $allOk;
             }
         }
 
         return $allOk;
     }
 
-    private function fetchExistingEnvironments(string $apiKey): array
+    /**
+     * @return array<string, string>|null Null on API failure, map of name => id on success.
+     */
+    private function fetchExistingEnvironments(string $apiKey, ?string $workspaceId): ?array
     {
+        $query = $workspaceId ? ['workspace' => $workspaceId] : [];
+
         $response = Http::withHeaders([
             'X-Api-Key' => $apiKey,
-        ])->get('https://api.getpostman.com/environments');
+        ])->get('https://api.getpostman.com/environments', $query);
 
         if (! $response->successful()) {
-            return [];
+            return null;
         }
 
         $map = [];
@@ -138,13 +151,15 @@ class SyncPostmanCollection extends Command
         return $map;
     }
 
-    private function createEnvironment(string $apiKey, array $data, string $name): bool
+    private function createEnvironment(string $apiKey, array $data, string $name, ?string $workspaceId): bool
     {
         $this->info("Creating environment: {$name}...");
 
+        $query = $workspaceId ? ['workspace' => $workspaceId] : [];
+
         $response = Http::withHeaders([
             'X-Api-Key' => $apiKey,
-        ])->post('https://api.getpostman.com/environments', $data);
+        ])->post('https://api.getpostman.com/environments?'.http_build_query($query), $data);
 
         if ($response->successful()) {
             $this->info("Environment \"{$name}\" created.");
@@ -160,6 +175,33 @@ class SyncPostmanCollection extends Command
     private function updateEnvironment(string $apiKey, string $envId, array $data, string $name): bool
     {
         $this->info("Updating environment: {$name}...");
+
+        $remote = Http::withHeaders([
+            'X-Api-Key' => $apiKey,
+        ])->get("https://api.getpostman.com/environments/{$envId}");
+
+        if (! $remote->successful()) {
+            $this->error("Failed to fetch current \"{$name}\" for merge ({$remote->status()})");
+
+            return false;
+        }
+
+        $remoteValues = collect($remote->json('environment.values', []))->keyBy('key');
+        $localValues = collect($data['environment']['values'] ?? []);
+
+        $merged = $localValues->map(function (array $var) use ($remoteValues) {
+            $key = $var['key'];
+            if (($var['value'] ?? '') === '' && $remoteValues->has($key)) {
+                $var['value'] = $remoteValues[$key]['value'] ?? '';
+            }
+
+            return $var;
+        });
+
+        $remoteOnly = $remoteValues->diffKeys($localValues->keyBy('key'));
+        $merged = $merged->merge($remoteOnly->values());
+
+        $data['environment']['values'] = $merged->values()->all();
 
         $response = Http::withHeaders([
             'X-Api-Key' => $apiKey,

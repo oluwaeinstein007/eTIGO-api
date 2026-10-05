@@ -4,7 +4,7 @@
     "values": [
       {
         "key": "base_url",
-        "value": "http://159.223.161.162/api/v1",
+        "value": "https://staging.etigo.ng/api/v1",
         "type": "default",
         "enabled": true
       },

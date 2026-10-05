@@ -65,6 +65,7 @@ return [
     'postman' => [
         'api_key' => env('POSTMAN_API_KEY'),
         'collection_id' => env('POSTMAN_COLLECTION_ID'),
+        'workspace_id' => env('POSTMAN_WORKSPACE_ID'),
     ],
 
 ];

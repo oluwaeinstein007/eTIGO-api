@@ -197,7 +197,6 @@ tail -f /var/log/php/etigo-error.log
 - **File permissions**: App owned by `deploy:www-data`, storage is `775`
 
 
-Credentials (saved in scratchpad for this session):
+### Credentials
 
-DB user: etigo / password: xjOLzAqmd9E2LORQLyhfoRUv
-Redis password: ZQktVYS7GLFSasS3bZf8goG5
+Database and Redis credentials are stored in the server's `.env` file and must not be committed to the repository. Rotate credentials via the hosting provider's dashboard or directly on the server, then update `.env` accordingly.
