@@ -20,7 +20,9 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
+use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,6 +49,13 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
 Route::post('/webhooks/qoreid', [KycWebhookController::class, 'handle']);
+
+/*
+|--------------------------------------------------------------------------
+| Ride Share (public — no auth, validated by share token)
+|--------------------------------------------------------------------------
+*/
+Route::get('/rides/{ride}/share/{token}', [RideShareController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -108,6 +117,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/{transactionId}/verify', [PaymentMethodController::class, 'verify']);
     Route::patch('/payment-methods/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
     Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Ride Routes (authenticated — any role, scoped inside controller)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
+    Route::post('/', [RideController::class, 'store'])->middleware('user.type:passenger');
+    Route::get('/', [RideController::class, 'index']);
+    Route::get('/{ride}', [RideController::class, 'show']);
+    Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
+    Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
+    Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');
+    Route::post('/{ride}/complete', [RideController::class, 'complete'])->middleware('user.type:driver');
 });
 
 /*

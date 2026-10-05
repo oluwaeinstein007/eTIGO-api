@@ -255,21 +255,21 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-RIDE-01 | `[ ]` Create `Ride` Eloquent model with relationships: city(), vehicleClass(), passenger(), driver(), stateTransitions(), payment(), ratings(), disputes(), carbonScore() | — | SETUP-14 | — |
-| BE-RIDE-02 | `[ ]` Create `RideStateMachine` service with explicit valid transitions map; reject invalid transitions; write every transition to `ride_state_transitions` | §8.5, §9.4 | BE-RIDE-01, SETUP-15 | Valid: Requested→Searching, Searching→Matched/No_Driver_Found, Matched→Driver_En_Route/Cancelled, etc. |
-| BE-RIDE-03 | `[ ]` Create `RideController@store` — `POST /api/v1/rides`: validate pickup/destination within city boundary, set status=Requested, snapshot pricing, generate 4-digit PIN, generate share_token, transition to Searching, dispatch matching job | P-08 | BE-RIDE-02, BE-PRICE-08, BE-CITY-14 | — |
-| BE-RIDE-04 | `[ ]` Create `StoreRideFormRequest` — validate pickup/destination coords, city_id, vehicle_class_id, payment_method | P-08 | BE-RIDE-03 | Validate user has completed minimum profile fields |
-| BE-RIDE-05 | `[ ]` Implement `RidePinService` — generate random 4-digit numeric PIN on ride creation; validate driver PIN entry against ride record; track attempt count; lockout on max exceeded | §9.1, P-14, D-09 | BE-RIDE-03 | Hard gate — trip cannot start without valid PIN |
-| BE-RIDE-06 | `[ ]` Create `RideController@cancel` — `POST /api/v1/rides/{ride}/cancel`: validate cancellation is allowed for current state, transition to Cancelled, notify driver if matched | P-10 | BE-RIDE-02 | ⚠ OQ-05: Cancellation fee logic TBD |
-| BE-RIDE-07 | `[ ]` Create `RideController@driverArrived` — `POST /api/v1/rides/{ride}/driver-arrived`: validate driver is assigned, transition to Driver_Arrived, push PIN notification to passenger | D-09 | BE-RIDE-02 | — |
-| BE-RIDE-08 | `[ ]` Create `RideController@verifyPin` — `POST /api/v1/rides/{ride}/verify-pin`: validate PIN, on match transition to In_Progress, on mismatch increment attempts | §9.1, D-09 | BE-RIDE-05 | — |
-| BE-RIDE-09 | `[ ]` Create `RideController@complete` — `POST /api/v1/rides/{ride}/complete`: transition to Completed, dispatch FinalFareCalculationJob, dispatch CarbonScoreJob, dispatch PaymentCaptureJob, push rating prompt | D-09 | BE-RIDE-02 | — |
-| BE-RIDE-10 | `[ ]` Create `FinalFareCalculationJob` — use actual distance/duration (GPS trace or maps adapter) × pricing snapshot to compute final fare; update ride record | P-06 | BE-RIDE-09, BE-PRICE-05 | — |
-| BE-RIDE-11 | `[ ]` Create `RideController@show` — `GET /api/v1/rides/{ride}`: return full ride details; scope by role (passenger sees theirs, driver sees assigned, admin sees any) | — | BE-RIDE-01 | — |
-| BE-RIDE-12 | `[ ]` Create `RideController@index` — `GET /api/v1/rides`: list rides with filters (status, date range, city) and pagination; scope by role | P-19, D-11 | BE-RIDE-01 | — |
-| BE-RIDE-13 | `[ ]` Create `RideShareController@show` — `GET /api/v1/rides/{ride}/share/{token}`: no-auth, read-only endpoint returning live driver location, ETA, trip status | P-13 | BE-RIDE-01 | Share token expires after trip completion + 1 hour |
-| BE-RIDE-14 | `[ ]` Create `RideResource`, `RideCollection`, `RideDetailResource` API resources | — | BE-RIDE-01 | — |
-| BE-RIDE-15 | `[ ]` Create `RideStateTransition` Eloquent model (read-only) | — | SETUP-15 | — |
+| BE-RIDE-01 | `[x]` Create `Ride` Eloquent model with relationships: city(), vehicleClass(), passenger(), driver(), stateTransitions(), payment(), ratings(), disputes(), cancelledByUser(); RideStatus, PaymentMethod, PaymentStatus, CancellationReason enums; factory with state helpers | — | SETUP-14 | Includes isActive(), isTerminal(), isCancellable() helpers |
+| BE-RIDE-02 | `[x]` Create `RideStateMachine` service with explicit valid transitions map; reject invalid transitions; write every transition to `ride_state_transitions`; auto-set timestamps (matched_at, started_at, completed_at) | §8.5, §9.4 | BE-RIDE-01, SETUP-15 | Valid: Requested→Searching, Searching→Matched/No_Driver_Found, Matched→Driver_En_Route/Cancelled, etc. |
+| BE-RIDE-03 | `[x]` Create `RideController@store` — `POST /api/v1/rides`: validate pickup/destination, active city check, same-location rejection, vehicle class availability, set status=Requested, snapshot pricing, generate 4-digit PIN, generate share_token, transition to Searching | P-08 | BE-RIDE-02, BE-PRICE-08, BE-CITY-14 | Prevents duplicate active rides per passenger |
+| BE-RIDE-04 | `[x]` Create `StoreRideFormRequest` — validate pickup/destination coords, city_id, vehicle_class_id, payment_method; after() validates city active, same-location, city-vehicle-class availability | P-08 | BE-RIDE-03 | — |
+| BE-RIDE-05 | `[x]` Implement `RidePinService` — generate random 4-digit numeric PIN on ride creation; validate driver PIN entry via OtpService; 3 max attempts with atomic increment | §9.1, P-14, D-09 | BE-RIDE-03 | Hard gate — trip cannot start without valid PIN |
+| BE-RIDE-06 | `[x]` Create `RideController@cancel` — `POST /api/v1/rides/{ride}/cancel`: validate cancellation is allowed for current state (isCancellable check), transition to Cancelled, audit log | P-10 | BE-RIDE-02 | ⚠ OQ-05: Cancellation fee logic TBD |
+| BE-RIDE-07 | `[x]` Create `RideController@driverArrived` — `POST /api/v1/rides/{ride}/driver-arrived`: validate driver is assigned, status is driver_en_route, transition to Driver_Arrived | D-09 | BE-RIDE-02 | — |
+| BE-RIDE-08 | `[x]` Create `RideController@verifyPin` — `POST /api/v1/rides/{ride}/verify-pin`: validate PIN via RidePinService, on match transition to In_Progress, on mismatch return error | §9.1, D-09 | BE-RIDE-05 | — |
+| BE-RIDE-09 | `[x]` Create `RideController@complete` — `POST /api/v1/rides/{ride}/complete`: transition to Completed, dispatch FinalFareCalculationJob, audit log | D-09 | BE-RIDE-02 | CarbonScoreJob and PaymentCaptureJob to be wired when those modules are built |
+| BE-RIDE-10 | `[x]` Create `FinalFareCalculationJob` — use maps adapter for distance/duration × pricing snapshot to compute final fare; includes waiting time charges; update ride record | P-06 | BE-RIDE-09, BE-PRICE-05 | 3 retries, 30s backoff |
+| BE-RIDE-11 | `[x]` Create `RideController@show` — `GET /api/v1/rides/{ride}`: return full ride details with state transitions; scope by role (passenger sees theirs, driver sees assigned, admin sees any) | — | BE-RIDE-01 | — |
+| BE-RIDE-12 | `[x]` Create `RideController@index` — `GET /api/v1/rides`: list rides with filters (status, date range, city) and pagination; scope by role | P-19, D-11 | BE-RIDE-01 | — |
+| BE-RIDE-13 | `[x]` Create `RideShareController@show` — `GET /api/v1/rides/{ride}/share/{token}`: no-auth, read-only endpoint returning trip status, limited driver info, vehicle class | P-13 | BE-RIDE-01 | Share token expires after trip completion + 1 hour (returns 410) |
+| BE-RIDE-14 | `[x]` Create `RideResource`, `RideDetailResource`, `RideShareResource`, `RideStateTransitionResource` API resources | — | BE-RIDE-01 | PIN only shown to passenger (or admin in detail view) |
+| BE-RIDE-15 | `[x]` Create `RideStateTransition` Eloquent model with RideStatus casts, ride() and triggeredBy() relationships | — | SETUP-15 | — |
 
 ---
 

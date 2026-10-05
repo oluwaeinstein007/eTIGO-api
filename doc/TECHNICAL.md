@@ -481,6 +481,69 @@ The `fare_estimate` field already includes the surge multiplier. The `pricing_sn
 
 ---
 
+## Ride State Machine & Core Engine
+
+### State Machine
+
+The `RideStateMachine` service enforces a strict directed graph of ride state transitions. Every transition is atomic (DB transaction), writes an immutable audit record to `ride_state_transitions`, and auto-sets timestamps (`matched_at`, `started_at`, `completed_at`).
+
+```
+                    ┌──────────────────────────────────────────────────────────┐
+                    │                      CANCELLED                          │
+                    └──────────────────────────────────────────────────────────┘
+                      ↑        ↑         ↑           ↑          ↑
+REQUESTED → SEARCHING → MATCHED → DRIVER_EN_ROUTE → DRIVER_ARRIVED → IN_PROGRESS → COMPLETED
+                 ↓
+          NO_DRIVER_FOUND
+```
+
+Invalid transitions throw `\InvalidArgumentException`. Terminal states (completed, cancelled, no_driver_found) have no outgoing transitions.
+
+### Ride Lifecycle
+
+1. **Passenger creates ride** (`POST /rides`) — status transitions: `requested` → `searching`
+   - Pricing snapshot captured from active `PricingConfig`
+   - 4-digit PIN generated via `OtpService` (SHA-256 hashed, 30-min expiry, 3 max attempts)
+   - Share token generated for public tracking link
+   - One active ride per passenger enforced (409 if duplicate)
+
+2. **Driver matched** (via matching engine) — `searching` → `matched` → `driver_en_route`
+
+3. **Driver arrives** (`POST /rides/{id}/driver-arrived`) — `driver_en_route` → `driver_arrived`
+
+4. **PIN verification** (`POST /rides/{id}/verify-pin`) — `driver_arrived` → `in_progress`
+   - Hard gate: ride cannot start without valid PIN
+   - Constant-time comparison via `hash_equals()`
+
+5. **Ride completion** (`POST /rides/{id}/complete`) — `in_progress` → `completed`
+   - Dispatches `FinalFareCalculationJob` (queued, 3 retries, 30s backoff)
+   - Final fare = `max(minimum_fare, base + distance×per_km + duration×per_min + waiting_charge)`
+
+6. **Cancellation** (`POST /rides/{id}/cancel`) — any cancellable state → `cancelled`
+   - Cancellable states: requested, searching, matched, driver_en_route, driver_arrived
+   - In-progress rides cannot be cancelled (must be completed)
+   - Records `cancelled_by` user and `cancellation_reason`
+
+### Key Services
+
+| Service | Responsibility |
+|---------|---------------|
+| `RideStateMachine` | Enforces transition graph, writes audit trail, sets timestamps |
+| `RideService` | Orchestrates ride lifecycle (create, cancel, arrive, verify, complete, final fare) |
+| `RidePinService` | Delegates to `OtpService` for 4-digit PIN generation and verification |
+| `FinalFareCalculationJob` | Calculates actual fare post-completion using maps distance/duration + waiting time |
+
+### Enums
+
+| Enum | Values |
+|------|--------|
+| `RideStatus` | requested, searching, matched, driver_en_route, driver_arrived, in_progress, completed, cancelled, no_driver_found |
+| `PaymentMethod` | cash, card |
+| `PaymentStatus` | pending, authorized, captured, settled, refunded, failed, pending_collection, collected |
+| `CancellationReason` | changed_mind, driver_too_far, wait_too_long, wrong_pickup, wrong_destination, price_changed, found_alternative, emergency, driver_no_show, passenger_no_show, vehicle_mismatch, safety_concern, other, system_timeout |
+
+---
+
 ## Audit Logging
 
 All significant state changes are logged to the `audit_logs` table via `AuditLog::record()`:
@@ -495,7 +558,7 @@ AuditLog::record(
 );
 ```
 
-Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`, `pricing_config_created`, `surge_rule_created`, `surge_rule_updated`, `surge_rule_toggled`.
+Logged events include: `registered`, `logged_in`, `logged_out`, `profile_updated`, `document_uploaded`, `vehicle_registered`, `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated`, `city_created`, `city_updated`, `city_activated`, `city_deactivated`, `city_vehicle_classes_updated`, `vehicle_class_created`, `vehicle_class_updated`, `pricing_config_created`, `surge_rule_created`, `surge_rule_updated`, `surge_rule_toggled`, `ride_created`, `ride_cancelled`, `ride_completed`.
 
 IP address and user agent are captured automatically from the request.
 
@@ -516,7 +579,9 @@ app/
 │   │       ├── Passenger/  # ProfileController
 │   │       ├── CityController         # Public city listing
 │   │       ├── CityVehicleClassController  # Public city vehicle classes
+│   │       ├── RideController         # Ride CRUD + lifecycle (store, show, index, cancel, arrive, verify, complete)
 │   │       ├── RideEstimateController  # Fare estimation (invokable)
+│   │       ├── RideShareController    # Public ride tracking via share token
 │   │       └── HealthController  # Health check (invokable)
 │   ├── Middleware/      # EnsureUserType, EnsureAdminRole, EnsureDriverApproved, LogRequests
 │   ├── Requests/        # Form request validators by domain

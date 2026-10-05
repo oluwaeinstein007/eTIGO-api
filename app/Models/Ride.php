@@ -2,14 +2,19 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
+use App\Enums\RideStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Ride extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'city_id',
@@ -41,6 +46,9 @@ class Ride extends Model
     protected function casts(): array
     {
         return [
+            'status' => RideStatus::class,
+            'payment_method' => PaymentMethod::class,
+            'payment_status' => PaymentStatus::class,
             'pickup_lat' => 'decimal:7',
             'pickup_lng' => 'decimal:7',
             'destination_lat' => 'decimal:7',
@@ -74,8 +82,53 @@ class Ride extends Model
         return $this->belongsTo(User::class, 'driver_id');
     }
 
+    public function cancelledByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function stateTransitions(): HasMany
+    {
+        return $this->hasMany(RideStateTransition::class)->orderBy('created_at');
+    }
+
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
+    }
+
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(Rating::class);
+    }
+
+    public function disputes(): HasMany
+    {
+        return $this->hasMany(Dispute::class);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status->isActive();
+    }
+
+    public function isTerminal(): bool
+    {
+        return $this->status->isTerminal();
+    }
+
+    public function isCancellable(): bool
+    {
+        return $this->status->isCancellable();
+    }
+
+    public function belongsToPassenger(User $user): bool
+    {
+        return $this->passenger_id === $user->id;
+    }
+
+    public function isAssignedToDriver(int $driverId): bool
+    {
+        return $this->driver_id === $driverId;
     }
 }

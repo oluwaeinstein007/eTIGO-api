@@ -1127,6 +1127,275 @@ The `surge` object is always included. When no surge is active, `active` is `fal
 
 ---
 
+## Rides
+
+### Create Ride
+```
+POST /rides
+```
+
+**Auth required. Middleware:** `user.type:passenger`
+
+Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
+
+| Field              | Type    | Required | Description                         |
+|--------------------|---------|----------|-------------------------------------|
+| city_id            | integer | Yes      | Must exist and be active            |
+| vehicle_class_id   | integer | Yes      | Must be active in the specified city |
+| pickup_lat         | number  | Yes      | Pickup latitude (-90 to 90)         |
+| pickup_lng         | number  | Yes      | Pickup longitude (-180 to 180)      |
+| pickup_address     | string  | Yes      | Human-readable pickup address       |
+| destination_lat    | number  | Yes      | Destination latitude                |
+| destination_lng    | number  | Yes      | Destination longitude               |
+| destination_address| string  | Yes      | Human-readable destination address  |
+| payment_method     | string  | Yes      | `cash` or `card`                    |
+
+**Validation rules:**
+- City must be active
+- Pickup and destination cannot be identical coordinates
+- Vehicle class must be available and active in the city
+
+**Response 201:**
+```json
+{
+  "message": "Ride created successfully.",
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "passenger_id": 1,
+    "driver_id": null,
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Test Street"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Dest Street"
+    },
+    "status": "searching",
+    "status_label": "Searching for Driver",
+    "pin_code": "7249",
+    "share_token": "abc123xyz...",
+    "fare_estimate_amount": "3750.00",
+    "final_fare_amount": null,
+    "fare_currency": "NGN",
+    "payment_method": "cash",
+    "payment_status": "pending",
+    "created_at": "2026-10-06T10:00:00.000000Z"
+  },
+  "pin_code": "7249"
+}
+```
+
+**Response 409:** `You already have an active ride. Please complete or cancel it first.`
+**Response 422:** Validation errors
+
+---
+
+### List Rides
+```
+GET /rides
+```
+
+**Auth required.** Passengers see their own rides, drivers see rides assigned to them. Supports filtering and pagination.
+
+| Query Param | Type    | Description                          |
+|-------------|---------|--------------------------------------|
+| status      | string  | Filter by ride status enum value     |
+| city_id     | integer | Filter by city                       |
+| from_date   | date    | Filter rides from this date          |
+| to_date     | date    | Filter rides until this date         |
+| per_page    | integer | Results per page (default: 15)       |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "id": "...",
+      "status": "completed",
+      "status_label": "Completed",
+      "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
+      "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
+      "fare_estimate_amount": "3750.00",
+      "final_fare_amount": "3900.00",
+      "fare_currency": "NGN",
+      "payment_method": "cash",
+      "created_at": "2026-10-06T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 3,
+    "per_page": 15,
+    "total": 42
+  }
+}
+```
+
+---
+
+### Show Ride
+```
+GET /rides/{ride}
+```
+
+**Auth required.** Returns full ride details with state transition history. Passengers see their rides, drivers see assigned rides, admins see any ride. PIN code is only visible to the passenger (and admins).
+
+**Response 200:**
+```json
+{
+  "ride": {
+    "id": "...",
+    "status": "in_progress",
+    "status_label": "In Progress",
+    "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
+    "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
+    "pricing_snapshot": { "..." },
+    "state_transitions": [
+      {
+        "id": 1,
+        "from_state": "requested",
+        "to_state": "searching",
+        "triggered_by_type": "passenger",
+        "created_at": "2026-10-06T10:00:00.000000Z"
+      }
+    ],
+    "matched_at": "2026-10-06T10:01:00.000000Z",
+    "started_at": "2026-10-06T10:05:00.000000Z"
+  }
+}
+```
+
+**Response 403:** `Unauthorized.`
+
+---
+
+### Cancel Ride
+```
+POST /rides/{ride}/cancel
+```
+
+**Auth required.** Cancels a ride that is in a cancellable state (requested, searching, matched, driver_en_route, driver_arrived). In-progress and completed rides cannot be cancelled.
+
+| Field          | Type   | Required | Description                                    |
+|----------------|--------|----------|------------------------------------------------|
+| reason         | string | No       | Cancellation reason (see `CancellationReason` enum) |
+| reason_details | string | No       | Additional details (max 500 chars)             |
+
+**Response 200:**
+```json
+{
+  "message": "Ride cancelled successfully.",
+  "ride": { "..." }
+}
+```
+
+**Response 403:** `You are not authorized to cancel this ride.`
+**Response 422:** `This ride cannot be cancelled in its current state.`
+
+---
+
+### Driver Arrived
+```
+POST /rides/{ride}/driver-arrived
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Driver marks arrival at pickup location. Only valid when ride status is `driver_en_route` and the driver is the one assigned to the ride.
+
+**Response 200:**
+```json
+{
+  "message": "Driver arrival confirmed. Waiting for passenger PIN verification.",
+  "ride": { "..." }
+}
+```
+
+**Response 403:** `You are not assigned to this ride.`
+**Response 422:** `Cannot mark arrival in current ride state.`
+
+---
+
+### Verify PIN
+```
+POST /rides/{ride}/verify-pin
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Driver submits the 4-digit PIN received from the passenger. On success, the ride transitions to `in_progress`. Maximum 3 attempts before lockout.
+
+| Field    | Type   | Required | Description         |
+|----------|--------|----------|---------------------|
+| pin_code | string | Yes      | 4-digit numeric PIN |
+
+**Response 200:**
+```json
+{
+  "message": "PIN verified. Ride started.",
+  "verified": true,
+  "ride": { "..." }
+}
+```
+
+**Response 422:** `Invalid PIN code.` (or `Maximum PIN verification attempts exceeded.`)
+
+---
+
+### Complete Ride
+```
+POST /rides/{ride}/complete
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Driver completes the ride. Only valid when ride status is `in_progress`. Dispatches a background job to calculate the final fare based on actual distance/duration.
+
+**Response 200:**
+```json
+{
+  "message": "Ride completed successfully.",
+  "ride": { "..." }
+}
+```
+
+**Response 403:** `You are not assigned to this ride.`
+**Response 422:** `Only in-progress rides can be completed.`
+
+---
+
+### Ride Share Link (Public)
+```
+GET /rides/{ride}/share/{token}
+```
+
+**No auth required.** Public endpoint for sharing ride tracking. Returns limited ride info (status, location, vehicle class, driver first name). Share token expires 1 hour after ride completion (returns 410).
+
+**Response 200:**
+```json
+{
+  "ride": {
+    "id": "...",
+    "status": "in_progress",
+    "status_label": "In Progress",
+    "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
+    "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
+    "vehicle_class": { "name": "economy", "display_name": "Economy" },
+    "driver": { "first_name": "John" }
+  }
+}
+```
+
+**Response 404:** `Invalid or expired share link.`
+**Response 410:** `This share link has expired.`
+
+---
+
 ## Admin — Pricing Management
 
 **Middleware:** `auth:sanctum`, `user.type:admin`
@@ -1701,3 +1970,61 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `verified`   | Identity confirmed                               |
 | `failed`     | Verification failed (reason in failure_reason)   |
 | `expired`    | Superseded by a newer verification (e.g. plate change) |
+
+### Ride Status
+| Value             | Description                                      |
+|-------------------|--------------------------------------------------|
+| `requested`       | Ride requested by passenger                      |
+| `searching`       | Searching for available drivers                  |
+| `matched`         | Driver matched to ride                           |
+| `driver_en_route` | Driver is heading to pickup                      |
+| `driver_arrived`  | Driver arrived at pickup, waiting for PIN        |
+| `in_progress`     | Ride is actively in progress                     |
+| `completed`       | Ride completed                                   |
+| `cancelled`       | Ride cancelled by passenger, driver, or system   |
+| `no_driver_found` | No driver could be matched                       |
+
+**State transitions:**
+- `requested` -> `searching`, `cancelled`
+- `searching` -> `matched`, `no_driver_found`, `cancelled`
+- `matched` -> `driver_en_route`, `cancelled`
+- `driver_en_route` -> `driver_arrived`, `cancelled`
+- `driver_arrived` -> `in_progress`, `cancelled`
+- `in_progress` -> `completed`
+- `completed`, `cancelled`, `no_driver_found` -> (terminal states)
+
+### Payment Method
+| Value  | Description |
+|--------|-------------|
+| `cash` | Cash payment on delivery |
+| `card` | Card payment via gateway |
+
+### Payment Status
+| Value                | Description                              |
+|----------------------|------------------------------------------|
+| `pending`            | Payment not yet processed                |
+| `authorized`         | Card payment authorized                  |
+| `captured`           | Card payment captured                    |
+| `settled`            | Payment settled                          |
+| `refunded`           | Payment refunded                         |
+| `failed`             | Payment failed                           |
+| `pending_collection` | Cash payment awaiting driver collection  |
+| `collected`          | Cash payment collected by driver         |
+
+### Cancellation Reason
+| Value                | Description                              |
+|----------------------|------------------------------------------|
+| `changed_mind`       | Passenger changed their mind             |
+| `driver_too_far`     | Driver is too far away                   |
+| `wait_too_long`      | Wait time is too long                    |
+| `wrong_pickup`       | Wrong pickup location                    |
+| `wrong_destination`  | Wrong destination                        |
+| `price_changed`      | Price changed                            |
+| `found_alternative`  | Found alternative transport              |
+| `emergency`          | Emergency                                |
+| `driver_no_show`     | Driver did not show up                   |
+| `passenger_no_show`  | Passenger did not show up                |
+| `vehicle_mismatch`   | Vehicle does not match                   |
+| `safety_concern`     | Safety concern                           |
+| `other`              | Other reason                             |
+| `system_timeout`     | System timeout                           |
