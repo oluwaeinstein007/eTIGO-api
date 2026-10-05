@@ -31,14 +31,22 @@ enum RideStatus: string
 
     public function isActive(): bool
     {
-        return in_array($this, [
+        return in_array($this, self::activeStatuses());
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function activeStatuses(): array
+    {
+        return [
             self::Requested,
             self::Searching,
             self::Matched,
             self::DriverEnRoute,
             self::DriverArrived,
             self::InProgress,
-        ]);
+        ];
     }
 
     public function isTerminal(): bool

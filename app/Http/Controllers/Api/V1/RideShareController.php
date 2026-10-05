@@ -19,8 +19,12 @@ class RideShareController extends Controller
             return response()->json(['message' => 'Invalid or expired share link.'], 404);
         }
 
-        if ($ride->isTerminal() && $ride->completed_at?->addHour()->isPast()) {
-            return response()->json(['message' => 'This share link has expired.'], 410);
+        if ($ride->isTerminal()) {
+            $expiredAt = $ride->completed_at ?? $ride->updated_at;
+
+            if ($expiredAt?->addHour()->isPast()) {
+                return response()->json(['message' => 'This share link has expired.'], 410);
+            }
         }
 
         $ride->load(['vehicleClass', 'driver']);

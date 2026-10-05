@@ -35,12 +35,8 @@ class RideStateTransition extends Model
         return $this->belongsTo(Ride::class);
     }
 
-    public function triggeredBy(): ?BelongsTo
+    public function triggeredBy(): BelongsTo
     {
-        if ($this->triggered_by_id) {
-            return $this->belongsTo(User::class, 'triggered_by_id');
-        }
-
-        return null;
+        return $this->belongsTo(User::class, 'triggered_by_id');
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Resources\RideDetailResource;
 use App\Http\Resources\RideResource;
 use App\Jobs\FinalFareCalculationJob;
 use App\Models\Ride;
+use App\Models\User;
 use App\Services\RideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,14 +28,7 @@ class RideController extends Controller
         $user = $request->user();
 
         $activeRide = Ride::where('passenger_id', $user->id)
-            ->whereIn('status', [
-                RideStatus::Requested,
-                RideStatus::Searching,
-                RideStatus::Matched,
-                RideStatus::DriverEnRoute,
-                RideStatus::DriverArrived,
-                RideStatus::InProgress,
-            ])
+            ->whereIn('status', RideStatus::activeStatuses())
             ->exists();
 
         if ($activeRide) {
@@ -111,9 +105,11 @@ class RideController extends Controller
             $query->whereDate('created_at', '<=', $request->input('to_date'));
         }
 
+        $perPage = min($request->integer('per_page', 15), 50);
+
         $rides = $query->with(['city', 'vehicleClass'])
             ->orderByDesc('created_at')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($perPage);
 
         return response()->json([
             'rides' => RideResource::collection($rides),
@@ -242,7 +238,7 @@ class RideController extends Controller
         ]);
     }
 
-    private function canViewRide($user, Ride $ride): bool
+    private function canViewRide(User $user, Ride $ride): bool
     {
         if ($user->isAdmin()) {
             return true;
@@ -259,7 +255,7 @@ class RideController extends Controller
         return false;
     }
 
-    private function canCancelRide($user, Ride $ride): bool
+    private function canCancelRide(User $user, Ride $ride): bool
     {
         if ($user->isAdmin()) {
             return true;

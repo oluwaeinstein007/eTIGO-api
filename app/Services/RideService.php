@@ -96,13 +96,21 @@ class RideService
         User $cancelledBy,
         ?string $reason = null,
     ): Ride {
-        return DB::transaction(function () use ($ride, $cancelledBy, $reason) {
+        $previousStatus = $ride->status instanceof RideStatus
+            ? $ride->status->value
+            : $ride->status;
+
+        return DB::transaction(function () use ($ride, $cancelledBy, $reason, $previousStatus) {
             $ride->update([
                 'cancelled_by' => $cancelledBy->id,
                 'cancellation_reason' => $reason,
             ]);
 
-            $triggeredByType = $cancelledBy->isDriver() ? 'driver' : 'passenger';
+            $triggeredByType = match (true) {
+                $cancelledBy->isAdmin() => 'admin',
+                $cancelledBy->isDriver() => 'driver',
+                default => 'passenger',
+            };
 
             $this->stateMachine->transitionTo(
                 $ride,
@@ -115,7 +123,7 @@ class RideService
             AuditLog::record($ride, 'ride_cancelled', $cancelledBy, null, [
                 'reason' => $reason,
                 'cancelled_by_type' => $triggeredByType,
-                'previous_status' => $ride->getOriginal('status'),
+                'previous_status' => $previousStatus,
             ]);
 
             return $ride->fresh();

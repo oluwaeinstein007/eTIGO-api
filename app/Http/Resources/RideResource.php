@@ -62,6 +62,10 @@ class RideResource extends JsonResource
             return false;
         }
 
+        if ($user->isAdmin()) {
+            return true;
+        }
+
         return $user->id === $this->passenger_id;
     }
 }
