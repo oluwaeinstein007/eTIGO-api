@@ -17,6 +17,7 @@ class DriverDocumentResource extends JsonResource
             'id' => $this->id,
             'type' => $this->type,
             'original_filename' => $this->original_filename,
+            'expires_at' => $this->expires_at,
             'status' => $this->status,
             'rejection_reason' => $this->when($this->resource->status === DocumentStatus::Rejected, $this->rejection_reason),
             'reviewed_at' => $this->reviewed_at,

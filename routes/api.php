@@ -124,6 +124,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);
+    Route::post('/onboarding/submit', [OnboardingController::class, 'submitForReview']);
     Route::put('/profile', [OnboardingController::class, 'updateProfile']);
 
     Route::post('/documents', [OnboardingController::class, 'uploadDocument']);
@@ -145,6 +146,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/pending', [DriverManagementController::class, 'pendingReview']);
         Route::get('/{driver}', [DriverManagementController::class, 'show']);
         Route::post('/{driver}/review', [DriverManagementController::class, 'review']);
+        Route::post('/{driver}/documents/{document}/review', [DriverManagementController::class, 'reviewDocument']);
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
     });

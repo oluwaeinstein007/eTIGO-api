@@ -2,6 +2,7 @@
 
 use App\Contracts\SmsGateway;
 use App\Enums\UserType;
+use App\Models\City;
 use App\Models\OtpCode;
 use App\Models\User;
 
@@ -179,11 +180,14 @@ it('completes registration for a new driver with driver record', function () {
         'verified_at' => now(),
     ]);
 
+    $city = City::factory()->create();
+
     $response = $this->postJson('/api/v1/auth/register/complete', [
         'phone' => '+2349876543210',
         'first_name' => 'Jane',
         'last_name' => 'Driver',
         'type' => 'driver',
+        'city_id' => $city->id,
     ]);
 
     $response->assertCreated()
@@ -194,7 +198,7 @@ it('completes registration for a new driver with driver record', function () {
     $user = User::where('phone', '+2349876543210')->first();
     expect($user->type)->toBe(UserType::Driver);
     expect($user->driver)->not->toBeNull();
-    expect($user->driver->status->value)->toBe('pending_review');
+    expect($user->driver->status->value)->toBe('onboarding');
 });
 
 it('rejects registration without phone verification', function () {

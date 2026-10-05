@@ -475,6 +475,251 @@
               ]
             }
           }
+        },
+        {
+          "name": "Admin Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@etigo.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "forgot-password"]
+            },
+            "description": "Sends password reset link. Same response for existing and non-existing emails (enumeration prevention)."
+          }
+        },
+        {
+          "name": "Admin Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"RESET_TOKEN_FROM_EMAIL\",\n  \"email\": \"admin@etigo.com\",\n  \"password\": \"NewSecureP@ss1\",\n  \"password_confirmation\": \"NewSecureP@ss1\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "reset-password"]
+            },
+            "description": "Resets password and revokes all existing tokens."
+          }
+        },
+        {
+          "name": "Verify Invitation Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/auth/invite/verify/TOKEN_HERE",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "invite", "verify", "TOKEN_HERE"]
+            },
+            "description": "No auth required. Validates invitation token before showing accept form."
+          }
+        },
+        {
+          "name": "Accept Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('admin_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"INVITATION_TOKEN_HERE\",\n  \"first_name\": \"New\",\n  \"last_name\": \"Admin\",\n  \"phone\": \"+2341234567890\",\n  \"password\": \"SecureP@ss1\",\n  \"password_confirmation\": \"SecureP@ss1\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/auth/invite/accept",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "invite", "accept"]
+            },
+            "description": "Creates admin account from invitation. Returns auth token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Admin Management",
+      "description": "Super admin only. Manage admin users: invite, list, update roles, deactivate/reactivate.",
+      "item": [
+        {
+          "name": "List Admins",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins"]
+            }
+          }
+        },
+        {
+          "name": "Get Admin",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "1"]
+            }
+          }
+        },
+        {
+          "name": "Invite Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new-ops@etigo.com\",\n  \"admin_role\": \"operations\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/admins/invite",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "invite"]
+            },
+            "description": "Sends invitation email with 48-hour expiring link. Cannot invite super_admin role."
+          }
+        },
+        {
+          "name": "List Invitations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/invitations",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "invitations"]
+            }
+          }
+        },
+        {
+          "name": "Resend Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/invitations/1/resend",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "invitations", "1", "resend"]
+            },
+            "description": "Regenerates token and extends expiry. Sends new email."
+          }
+        },
+        {
+          "name": "Revoke Invitation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/invitations/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "invitations", "1"]
+            },
+            "description": "Immediately expires the invitation token."
+          }
+        },
+        {
+          "name": "Update Admin Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin_role\": \"operations\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/admins/2",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "2"]
+            },
+            "description": "Cannot assign super_admin role or modify super admin accounts."
+          }
+        },
+        {
+          "name": "Deactivate Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/2/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "2", "deactivate"]
+            },
+            "description": "Deactivates admin and revokes all their tokens. Cannot deactivate self or other super admins."
+          }
+        },
+        {
+          "name": "Reactivate Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/admins/2/reactivate",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "admins", "2", "reactivate"]
+            }
+          }
         }
       ]
     },
@@ -773,6 +1018,34 @@
               ]
             }
           }
+        },
+        {
+          "name": "Submit for Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/onboarding/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "onboarding",
+                "submit"
+              ]
+            },
+            "description": "Submits the driver application for admin review. Requires all documents uploaded, vehicle registered, licence number set, and city selected. Works from onboarding or rejected status. Returns 422 with specific errors if requirements are not met."
+          }
         }
       ]
     },
@@ -930,6 +1203,84 @@
                 "review"
               ]
             }
+          }
+        },
+        {
+          "name": "Approve Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/drivers/1/documents/1/review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "documents",
+                "1",
+                "review"
+              ]
+            },
+            "description": "Approve a single driver document. Only pending documents can be reviewed."
+          }
+        },
+        {
+          "name": "Reject Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"rejection_reason\": \"Document expired on 12 Aug 2026. Please upload a valid commercial insurance certificate.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/drivers/1/documents/1/review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "documents",
+                "1",
+                "review"
+              ]
+            },
+            "description": "Reject a single driver document with a reason. When all documents are reviewed and any are rejected, the driver status is automatically set to rejected."
           }
         },
         {

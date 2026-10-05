@@ -16,6 +16,7 @@ class DriverResource extends JsonResource
         return [
             'id' => $this->id,
             'user' => new UserResource($this->whenLoaded('user')),
+            'city' => new CityResource($this->whenLoaded('city')),
             'status' => $this->status,
             'licence_number' => $this->licence_number,
             'rejection_reason' => $this->when($this->resource->status === DriverStatus::Rejected, $this->rejection_reason),

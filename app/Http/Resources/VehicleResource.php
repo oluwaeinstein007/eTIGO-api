@@ -20,6 +20,8 @@ class VehicleResource extends JsonResource
             'plate_number' => $this->plate_number,
             'year' => $this->year,
             'vehicle_class' => $this->vehicle_class,
+            'vehicle_class_id' => $this->vehicle_class_id,
+            'vehicle_class_detail' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'vehicle_class_approved' => $this->vehicle_class_approved,
             'created_at' => $this->created_at,
         ];
