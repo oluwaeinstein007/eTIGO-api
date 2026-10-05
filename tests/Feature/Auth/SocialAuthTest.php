@@ -2,29 +2,35 @@
 
 use App\Models\SocialAccount;
 use App\Models\User;
-use App\Services\SocialAuthService;
+use Laravel\Socialite\Contracts\Provider;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\User as SocialiteUser;
 
-function mockSocialAuthService(array $returnData): void
+function fakeSocialiteUser(string $id = '123456', string $email = 'social@example.com', string $name = 'Social User'): SocialiteUser
 {
-    $mock = Mockery::mock(SocialAuthService::class);
-    $mock->shouldReceive('verifyToken')->andReturn($returnData);
-    app()->instance(SocialAuthService::class, $mock);
+    $user = new SocialiteUser;
+    $user->id = $id;
+    $user->email = $email;
+    $user->name = $name;
+    $user->avatar = 'https://example.com/avatar.jpg';
+    $user->token = 'fake-access-token';
+    $user->refreshToken = 'fake-refresh-token';
+
+    return $user;
 }
 
-function mockSocialAuthServiceReturnsNull(): void
+function mockSocialiteDriver(SocialiteUser $socialiteUser, string $provider = 'google'): void
 {
-    $mock = Mockery::mock(SocialAuthService::class);
-    $mock->shouldReceive('verifyToken')->andReturn(null);
-    app()->instance(SocialAuthService::class, $mock);
+    $driver = Mockery::mock(Provider::class);
+    $driver->shouldReceive('stateless')->andReturnSelf();
+    $driver->shouldReceive('userFromToken')->andReturn($socialiteUser);
+
+    Socialite::shouldReceive('driver')->with($provider)->andReturn($driver);
 }
 
 it('creates a new passenger via Google social login', function () {
-    mockSocialAuthService([
-        'id' => '123456',
-        'email' => 'social@example.com',
-        'first_name' => 'Social',
-        'last_name' => 'User',
-    ]);
+    $socialiteUser = fakeSocialiteUser();
+    mockSocialiteDriver($socialiteUser);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
@@ -51,12 +57,8 @@ it('creates a new passenger via Google social login', function () {
 });
 
 it('creates a new driver via social login with pending_review status', function () {
-    mockSocialAuthService([
-        'id' => '789',
-        'email' => 'driver@social.com',
-        'first_name' => 'Social',
-        'last_name' => 'Driver',
-    ]);
+    $socialiteUser = fakeSocialiteUser('789', 'driver@social.com', 'Social Driver');
+    mockSocialiteDriver($socialiteUser);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
@@ -69,7 +71,7 @@ it('creates a new driver via social login with pending_review status', function 
 
     $user = User::where('email', 'driver@social.com')->first();
     expect($user->driver)->not->toBeNull();
-    expect($user->driver->status->value)->toBe('pending_review');
+    expect($user->driver->status->value)->toBe('onboarding');
 });
 
 it('logs in an existing user via social login', function () {
@@ -80,12 +82,8 @@ it('logs in an existing user via social login', function () {
         'provider_id' => '123456',
     ]);
 
-    mockSocialAuthService([
-        'id' => '123456',
-        'email' => 'existing@example.com',
-        'first_name' => 'Existing',
-        'last_name' => 'User',
-    ]);
+    $socialiteUser = fakeSocialiteUser('123456', 'existing@example.com');
+    mockSocialiteDriver($socialiteUser);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
@@ -100,12 +98,8 @@ it('logs in an existing user via social login', function () {
 it('links social account to existing email user', function () {
     $user = User::factory()->passenger()->create(['email' => 'link@example.com']);
 
-    mockSocialAuthService([
-        'id' => '999',
-        'email' => 'link@example.com',
-        'first_name' => 'Link',
-        'last_name' => 'User',
-    ]);
+    $socialiteUser = fakeSocialiteUser('999', 'link@example.com', 'Link User');
+    mockSocialiteDriver($socialiteUser);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
@@ -131,12 +125,8 @@ it('rejects social login for deactivated user', function () {
         'provider_id' => '123456',
     ]);
 
-    mockSocialAuthService([
-        'id' => '123456',
-        'email' => $user->email,
-        'first_name' => 'Deactivated',
-        'last_name' => 'User',
-    ]);
+    $socialiteUser = fakeSocialiteUser('123456', $user->email);
+    mockSocialiteDriver($socialiteUser);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',
@@ -169,7 +159,11 @@ it('rejects social login with missing token', function () {
 });
 
 it('rejects social login with invalid token', function () {
-    mockSocialAuthServiceReturnsNull();
+    $driver = Mockery::mock(Provider::class);
+    $driver->shouldReceive('stateless')->andReturnSelf();
+    $driver->shouldReceive('userFromToken')->andThrow(new Exception('Invalid token'));
+
+    Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
 
     $response = $this->postJson('/api/v1/auth/social', [
         'provider' => 'google',

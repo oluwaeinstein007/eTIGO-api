@@ -14,8 +14,11 @@ use App\Services\HaversineMapsGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\WhatsAppGateway;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
+use SocialiteProviders\Apple\AppleExtendSocialite;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
     }
 
     private function registerMapsGateway(): void

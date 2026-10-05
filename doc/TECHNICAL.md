@@ -15,7 +15,7 @@ The E-tiGo backend is a Laravel 13 API application serving three client applicat
 | Database        | PostgreSQL                                |
 | Cache           | Redis (planned), Database (current)       |
 | Auth            | Laravel Sanctum (token-based)             |
-| Social Auth     | Client-side OAuth (Google, Apple, Facebook)  |
+| Social Auth     | Laravel Socialite (Google, Apple, Facebook)  |
 | Testing         | Pest 5.x                                  |
 | Code Style      | Laravel Pint                              |
 | API Versioning  | URL prefix `/api/v1/`                     |
@@ -85,17 +85,14 @@ The `OtpService` also provides 4-digit PIN generation for ride-start verificatio
 
 ### Social Login (Google, Apple & Facebook)
 
-Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and sends the ID token or access token to the backend for server-side verification.
+Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and sends the access token to the backend. The backend uses Laravel Socialite's `userFromToken()` to verify the token and retrieve user profile data.
 
 #### Flow
 
 ```
-1. Mobile app → Provider OAuth flow → receives token
+1. Mobile app → Provider OAuth flow → receives access_token
 2. Mobile app → POST /auth/social { provider, token, type }
-3. Backend → verifies token server-side:
-   - Google: tokeninfo endpoint
-   - Apple: JWT decode + signature verification
-   - Facebook: debug_token + Graph API profile fetch
+3. Backend → Socialite::driver($provider)->stateless()->userFromToken($token)
 4. Backend → Three possible outcomes:
    a) Existing social account → login
    b) Matching email+type but no social account → link social account to user
@@ -107,8 +104,10 @@ Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI natively
 
 - **`SocialProvider` enum** (`app/Enums/SocialProvider.php`): `google`, `apple`, `facebook`
 - **`SocialAccount` model** (`app/Models/SocialAccount.php`): stores provider, provider_id, provider_token, provider_refresh_token per user
-- **`SocialAuthService`** (`app/Services/SocialAuthService.php`): core logic wrapped in `DB::transaction()`; validates user type match and active status
+- **`SocialAuthService`** (`app/Services/SocialAuthService.php`): uses Socialite `userFromToken()` for token verification, returns normalised user data
 - Social auth is handled within `AuthController@socialAuth` — a single endpoint for all providers
+- Google uses Socialite's built-in driver; Apple uses `socialiteproviders/apple` community package registered via `SocialiteWasCalled` event in `AppServiceProvider`; Facebook uses Socialite's built-in driver
+- `stateless()` is required because the API has no session/cookie state
 - Users table `phone` column is nullable to support social-login-only signups
 
 ---

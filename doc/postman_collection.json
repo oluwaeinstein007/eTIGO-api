@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo — Local\" or \"E-tiGo — Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: Passengers and drivers authenticate via phone OTP (WhatsApp) or social OAuth (Google, Apple, Facebook). Admins use email/password. All protected endpoints require Bearer token via Authorization header.",
+    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo \u2014 Local\" or \"E-tiGo \u2014 Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: Passengers and drivers authenticate via phone OTP (WhatsApp) or social OAuth (Google, Apple, Facebook). Admins use email/password. All protected endpoints require Bearer token via Authorization header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,15 +13,21 @@
   ],
   "item": [
     {
-      "name": "Auth — Passenger & Driver (OTP + Social)",
+      "name": "Auth \u2014 Passenger & Driver (OTP + Social)",
       "item": [
         {
           "name": "Send OTP",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -29,14 +35,20 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/otp/send",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "send"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "otp",
+                "send"
+              ]
             },
             "description": "Sends a 6-digit OTP via WhatsApp. 60-second cooldown between requests. Code expires after 5 minutes."
           }
         },
         {
-          "name": "Verify OTP (Existing User → Login)",
+          "name": "Verify OTP (Existing User \u2192 Login)",
           "event": [
             {
               "listen": "test",
@@ -54,8 +66,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -63,8 +81,14 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/otp/verify",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "otp", "verify"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "otp",
+                "verify"
+              ]
             },
             "description": "If user exists: returns token (logged in). If new user: returns is_new_user: true."
           }
@@ -88,8 +112,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -97,8 +127,14 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/register/complete",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "register", "complete"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "complete"
+              ]
             },
             "description": "Called after OTP verification when is_new_user is true. Phone must be verified within the last 10 minutes."
           }
@@ -122,19 +158,31 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"+2349876543210\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\",\n  \"type\": \"driver\"\n}"
+              "raw": "{\n  \"phone\": \"+2349876543210\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\",\n  \"type\": \"driver\",\n  \"city_id\": 1\n}"
             },
             "url": {
               "raw": "{{base_url}}/auth/register/complete",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "register", "complete"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "complete"
+              ]
             },
-            "description": "Driver registration creates a Driver record with pending_review status."
+            "description": "Driver registration creates a Driver record with onboarding status. city_id is required for drivers."
           }
         },
         {
@@ -156,8 +204,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -165,8 +219,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/social",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "social"
+              ]
             },
             "description": "Send the ID token from Google Sign-In SDK. Creates account if new, logs in if existing."
           }
@@ -190,8 +249,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -199,8 +264,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/social",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "social"
+              ]
             },
             "description": "Send the identity token from Apple Sign In."
           }
@@ -224,8 +294,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -233,8 +309,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/social",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "social"
+              ]
             },
             "description": "Send the access token from Facebook SDK."
           }
@@ -244,13 +325,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/auth/me",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "me"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
             }
           }
         },
@@ -259,20 +351,31 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/auth/logout",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "logout"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
             }
           }
         }
       ]
     },
     {
-      "name": "Auth — Admin",
+      "name": "Auth \u2014 Admin",
       "item": [
         {
           "name": "Admin Login",
@@ -293,8 +396,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -302,8 +411,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/auth/login",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -312,13 +427,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/auth/me",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "me"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "me"
+              ]
             }
           }
         },
@@ -327,13 +454,25 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/auth/logout",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "auth", "logout"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "logout"
+              ]
             }
           }
         }
@@ -347,13 +486,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/passenger/profile",
-              "host": ["{{base_url}}"],
-              "path": ["passenger", "profile"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "passenger",
+                "profile"
+              ]
             }
           }
         },
@@ -362,9 +512,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -372,28 +531,45 @@
             },
             "url": {
               "raw": "{{base_url}}/passenger/profile",
-              "host": ["{{base_url}}"],
-              "path": ["passenger", "profile"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "passenger",
+                "profile"
+              ]
             }
           }
         }
       ]
     },
     {
-      "name": "Driver — Onboarding",
+      "name": "Driver \u2014 Onboarding",
       "item": [
         {
           "name": "Onboarding Status",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/driver/onboarding/status",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "onboarding", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "onboarding",
+                "status"
+              ]
             }
           }
         },
@@ -402,18 +578,32 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"licence_number\": \"AB123CDE\"\n}"
+              "raw": "{\n  \"licence_number\": \"AB123CDE\",\n  \"city_id\": 1\n}"
             },
             "url": {
               "raw": "{{base_url}}/driver/profile",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "profile"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "profile"
+              ]
             }
           }
         },
@@ -422,20 +612,45 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "type", "value": "driving_licence", "type": "text" },
-                { "key": "document", "type": "file", "src": "" }
+                {
+                  "key": "type",
+                  "value": "driving_licence",
+                  "type": "text"
+                },
+                {
+                  "key": "document",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "expires_at",
+                  "value": "2027-12-31",
+                  "type": "text",
+                  "description": "Optional. Document expiry date (YYYY-MM-DD). Must be a future date."
+                }
               ]
             },
             "url": {
               "raw": "{{base_url}}/driver/documents",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "documents"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "documents"
+              ]
             }
           }
         },
@@ -444,13 +659,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/driver/documents",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "documents"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "documents"
+              ]
             }
           }
         },
@@ -459,18 +685,32 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"make\": \"Toyota\",\n  \"model\": \"Corolla\",\n  \"colour\": \"White\",\n  \"plate_number\": \"ABC-1234\",\n  \"year\": 2022\n}"
+              "raw": "{\n  \"make\": \"Toyota\",\n  \"model\": \"Corolla\",\n  \"colour\": \"White\",\n  \"plate_number\": \"ABC-1234\",\n  \"year\": 2022,\n  \"vehicle_class_id\": 1\n}"
             },
             "url": {
               "raw": "{{base_url}}/driver/vehicle",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "vehicle"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "vehicle"
+              ]
             }
           }
         },
@@ -479,18 +719,32 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"make\": \"Honda\",\n  \"model\": \"Civic\",\n  \"colour\": \"Black\",\n  \"plate_number\": \"XYZ-9999\",\n  \"year\": 2023\n}"
+              "raw": "{\n  \"make\": \"Honda\",\n  \"model\": \"Civic\",\n  \"colour\": \"Black\",\n  \"plate_number\": \"XYZ-9999\",\n  \"year\": 2023,\n  \"vehicle_class_id\": 2\n}"
             },
             "url": {
               "raw": "{{base_url}}/driver/vehicle",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "vehicle"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "vehicle"
+              ]
             }
           }
         },
@@ -499,33 +753,55 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/driver/vehicle",
-              "host": ["{{base_url}}"],
-              "path": ["driver", "vehicle"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "vehicle"
+              ]
             }
           }
         }
       ]
     },
     {
-      "name": "Admin — Driver Management",
+      "name": "Admin \u2014 Driver Management",
       "item": [
         {
           "name": "List All Drivers",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers"
+              ]
             }
           }
         },
@@ -534,13 +810,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers/pending",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "pending"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "pending"
+              ]
             }
           }
         },
@@ -549,13 +837,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1"
+              ]
             }
           }
         },
@@ -564,9 +864,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -574,8 +883,15 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/review",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "review"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "review"
+              ]
             },
             "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status."
           }
@@ -585,9 +901,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -595,19 +920,35 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/review",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "review"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "review"
+              ]
             }
           }
         },
         {
-          "name": "Review — Not Pending (422)",
+          "name": "Review \u2014 Not Pending (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -615,10 +956,17 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/review",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "review"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "review"
+              ]
             },
-            "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} — use on a driver that is already approved/rejected/suspended."
+            "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} \u2014 use on a driver that is already approved/rejected/suspended."
           }
         },
         {
@@ -626,31 +974,57 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/suspend",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "suspend"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "suspend"
+              ]
             },
             "description": "No request body required. Returns 422 if the driver is not in approved status."
           }
         },
         {
-          "name": "Suspend — Not Approved (422)",
+          "name": "Suspend \u2014 Not Approved (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/suspend",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "suspend"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "suspend"
+              ]
             },
-            "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} — driver must be in approved status."
+            "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} \u2014 driver must be in approved status."
           }
         },
         {
@@ -658,13 +1032,26 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/drivers/1/reactivate",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "drivers", "1", "reactivate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers",
+                "1",
+                "reactivate"
+              ]
             },
             "description": "No request body required. Returns 422 if the driver is not in suspended status."
           }
@@ -672,19 +1059,26 @@
       ]
     },
     {
-      "name": "Public — Cities",
+      "name": "Public \u2014 Cities",
       "item": [
         {
           "name": "List Active Cities",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/cities",
-              "host": ["{{base_url}}"],
-              "path": ["cities"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cities"
+              ]
             },
             "description": "No auth required. Returns only active cities."
           }
@@ -694,12 +1088,21 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/cities/1/vehicle-classes",
-              "host": ["{{base_url}}"],
-              "path": ["cities", "1", "vehicle-classes"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cities",
+                "1",
+                "vehicle-classes"
+              ]
             },
             "description": "No auth required. Returns active vehicle classes for the specified city. Filters by both pivot is_active and global is_active."
           }
@@ -707,20 +1110,31 @@
       ]
     },
     {
-      "name": "Admin — City Management",
+      "name": "Admin \u2014 City Management",
       "item": [
         {
           "name": "List Cities",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/cities",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities"
+              ]
             },
             "description": "Supports query params: is_active (bool), search (string), per_page (int, default 20)."
           }
@@ -730,9 +1144,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -740,8 +1163,13 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/cities",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities"
+              ]
             },
             "description": "Creates a city. Slug is auto-generated from name. Boundary is optional GeoJSON."
           }
@@ -751,13 +1179,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/cities/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities",
+                "1"
+              ]
             },
             "description": "Returns city with loaded vehicle classes."
           }
@@ -767,9 +1207,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -777,8 +1226,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/cities/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities",
+                "1"
+              ]
             },
             "description": "Partial update supported. Slug auto-regenerated if name changes."
           }
@@ -788,13 +1243,26 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/cities/1/status",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities", "1", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities",
+                "1",
+                "status"
+              ]
             },
             "description": "Toggles is_active between true and false. No request body required."
           }
@@ -804,9 +1272,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -814,8 +1291,15 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/cities/1/vehicle-classes",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "cities", "1", "vehicle-classes"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "cities",
+                "1",
+                "vehicle-classes"
+              ]
             },
             "description": "Syncs the city-vehicle-class pivot table. Entries not included are removed."
           }
@@ -823,20 +1307,31 @@
       ]
     },
     {
-      "name": "Admin — Vehicle Class Management",
+      "name": "Admin \u2014 Vehicle Class Management",
       "item": [
         {
           "name": "List Vehicle Classes",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/vehicle-classes",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "vehicle-classes"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "vehicle-classes"
+              ]
             },
             "description": "Supports query params: is_active (bool), per_page (int, default 20)."
           }
@@ -846,9 +1341,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -856,8 +1360,13 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/vehicle-classes",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "vehicle-classes"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "vehicle-classes"
+              ]
             }
           }
         },
@@ -866,13 +1375,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/vehicle-classes/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "vehicle-classes", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "vehicle-classes",
+                "1"
+              ]
             }
           }
         },
@@ -881,9 +1402,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -891,157 +1421,16 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/vehicle-classes/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "vehicle-classes", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "vehicle-classes",
+                "1"
+              ]
             },
             "description": "Partial update supported."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Auth — Social Login",
-      "item": [
-        {
-          "name": "Social Login — Google (Passenger)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"ya29.a0AfH6SM...\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/social-login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social-login"]
-            },
-            "description": "Replace access_token with a valid Google OAuth token. Returns 201 for new users, 200 for existing users."
-          }
-        },
-        {
-          "name": "Social Login — Apple (Passenger)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"apple\",\n  \"access_token\": \"eyJraWQiOiI...\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/social-login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social-login"]
-            },
-            "description": "Replace access_token with a valid Apple identity token. Returns 201 for new users, 200 for existing users."
-          }
-        },
-        {
-          "name": "Social Login — Google (Driver)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('driver_token', jsonData.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"ya29.a0AfH6SM...\",\n  \"type\": \"driver\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/social-login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social-login"]
-            },
-            "description": "Driver social login. Creates a Driver record with pending_review status for new users."
-          }
-        },
-        {
-          "name": "Social Login — Invalid Provider (422)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"facebook\",\n  \"access_token\": \"some-token\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/social-login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social-login"]
-            },
-            "description": "Expected: 422 — only google and apple providers are supported."
-          }
-        },
-        {
-          "name": "Social Login — Missing Token (422)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"google\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/social-login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "social-login"]
-            },
-            "description": "Expected: 422 — access_token is required."
           }
         }
       ]
@@ -1054,12 +1443,19 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/health",
-              "host": ["{{base_url}}"],
-              "path": ["health"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
             },
             "description": "No auth required. Returns database and Redis connectivity status. 200 = healthy, 503 = degraded."
           }
@@ -1074,37 +1470,67 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/cities/detect?lat=6.5244&lng=3.3792",
-              "host": ["{{base_url}}"],
-              "path": ["cities", "detect"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cities",
+                "detect"
+              ],
               "query": [
-                { "key": "lat", "value": "6.5244", "description": "Latitude (-90 to 90)" },
-                { "key": "lng", "value": "3.3792", "description": "Longitude (-180 to 180)" }
+                {
+                  "key": "lat",
+                  "value": "6.5244",
+                  "description": "Latitude (-90 to 90)"
+                },
+                {
+                  "key": "lng",
+                  "value": "3.3792",
+                  "description": "Longitude (-180 to 180)"
+                }
               ]
             },
             "description": "No auth required. Detects the active city for given coordinates using reverse geocoding and boundary matching. Returns 404 if no matching city."
           }
         },
         {
-          "name": "Detect City — Invalid Coordinates (422)",
+          "name": "Detect City \u2014 Invalid Coordinates (422)",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/cities/detect?lat=91&lng=181",
-              "host": ["{{base_url}}"],
-              "path": ["cities", "detect"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cities",
+                "detect"
+              ],
               "query": [
-                { "key": "lat", "value": "91" },
-                { "key": "lng", "value": "181" }
+                {
+                  "key": "lat",
+                  "value": "91"
+                },
+                {
+                  "key": "lng",
+                  "value": "181"
+                }
               ]
             },
-            "description": "Expected: 422 — coordinates out of range."
+            "description": "Expected: 422 \u2014 coordinates out of range."
           }
         }
       ]
@@ -1117,9 +1543,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1127,8 +1562,12 @@
             },
             "url": {
               "raw": "{{base_url}}/device-tokens",
-              "host": ["{{base_url}}"],
-              "path": ["device-tokens"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "device-tokens"
+              ]
             },
             "description": "Auth required. Registers an FCM/APNs device token. Re-registering the same token is a no-op. Platform: ios, android, or web."
           }
@@ -1138,9 +1577,18 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1148,20 +1596,33 @@
             },
             "url": {
               "raw": "{{base_url}}/device-tokens",
-              "host": ["{{base_url}}"],
-              "path": ["device-tokens"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "device-tokens"
+              ]
             },
             "description": "Auth required. Removes a specific device token."
           }
         },
         {
-          "name": "Register Token — Validation (422)",
+          "name": "Register Token \u2014 Validation (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1169,10 +1630,14 @@
             },
             "url": {
               "raw": "{{base_url}}/device-tokens",
-              "host": ["{{base_url}}"],
-              "path": ["device-tokens"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "device-tokens"
+              ]
             },
-            "description": "Expected: 422 — missing token, invalid platform."
+            "description": "Expected: 422 \u2014 missing token, invalid platform."
           }
         }
       ]
@@ -1185,13 +1650,23 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/notifications",
-              "host": ["{{base_url}}"],
-              "path": ["notifications"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ]
             },
             "description": "Auth required. Returns paginated notifications for the current user, newest first."
           }
@@ -1201,13 +1676,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/notifications/unread-count",
-              "host": ["{{base_url}}"],
-              "path": ["notifications", "unread-count"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "unread-count"
+              ]
             },
             "description": "Auth required. Returns {\"unread_count\": N}."
           }
@@ -1217,13 +1703,25 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/notifications/1/read",
-              "host": ["{{base_url}}"],
-              "path": ["notifications", "1", "read"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "1",
+                "read"
+              ]
             },
             "description": "Auth required. Only the notification owner can mark it. Returns 403 if not the owner."
           }
@@ -1233,13 +1731,24 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/notifications/read-all",
-              "host": ["{{base_url}}"],
-              "path": ["notifications", "read-all"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
             },
             "description": "Auth required. Marks all unread notifications for the current user as read."
           }
@@ -1254,13 +1763,23 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/payment-methods",
-              "host": ["{{base_url}}"],
-              "path": ["payment-methods"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payment-methods"
+              ]
             },
             "description": "Auth required. Returns saved payment methods, default method first."
           }
@@ -1270,9 +1789,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1280,8 +1808,13 @@
             },
             "url": {
               "raw": "{{base_url}}/payments/initialize",
-              "host": ["{{base_url}}"],
-              "path": ["payments", "initialize"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "initialize"
+              ]
             },
             "description": "Auth required. Initializes a payment with Flutterwave. Returns a payment link and transaction reference."
           }
@@ -1291,13 +1824,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/payments/123456/verify",
-              "host": ["{{base_url}}"],
-              "path": ["payments", "123456", "verify"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "123456",
+                "verify"
+              ]
             },
             "description": "Auth required. Verifies a payment with the gateway. If successful and card details are present, saves the card as a payment method. Replace 123456 with the actual transaction ID."
           }
@@ -1307,13 +1852,25 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/payment-methods/1/default",
-              "host": ["{{base_url}}"],
-              "path": ["payment-methods", "1", "default"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payment-methods",
+                "1",
+                "default"
+              ]
             },
             "description": "Auth required. Sets the specified payment method as default. Returns 403 if not the owner."
           }
@@ -1323,25 +1880,45 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/payment-methods/1",
-              "host": ["{{base_url}}"],
-              "path": ["payment-methods", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payment-methods",
+                "1"
+              ]
             },
             "description": "Auth required. Deletes a payment method. Returns 403 if not the owner."
           }
         },
         {
-          "name": "Initialize — Validation (422)",
+          "name": "Initialize \u2014 Validation (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1349,10 +1926,15 @@
             },
             "url": {
               "raw": "{{base_url}}/payments/initialize",
-              "host": ["{{base_url}}"],
-              "path": ["payments", "initialize"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "initialize"
+              ]
             },
-            "description": "Expected: 422 — negative amount, invalid currency, missing redirect_url."
+            "description": "Expected: 422 \u2014 negative amount, invalid currency, missing redirect_url."
           }
         }
       ]
@@ -1365,9 +1947,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "verif-hash", "value": "your-flutterwave-encryption-key" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "verif-hash",
+                "value": "your-flutterwave-encryption-key"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1375,25 +1966,39 @@
             },
             "url": {
               "raw": "{{base_url}}/webhooks/flutterwave",
-              "host": ["{{base_url}}"],
-              "path": ["webhooks", "flutterwave"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "flutterwave"
+              ]
             },
-            "description": "No auth — verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+            "description": "No auth \u2014 verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
           }
         }
       ]
     },
     {
-      "name": "Admin — Pricing Management",
+      "name": "Admin \u2014 Pricing Management",
       "item": [
         {
           "name": "Create Pricing Config",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1401,8 +2006,13 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/pricing",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "pricing"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pricing"
+              ]
             },
             "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. free_waiting_minutes defaults to 5 if omitted. Returns 201."
           }
@@ -1412,18 +2022,45 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/pricing?city_id=1&vehicle_class_id=1&current_only=false&per_page=20",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "pricing"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pricing"
+              ],
               "query": [
-                { "key": "city_id", "value": "1", "description": "Optional: filter by city" },
-                { "key": "vehicle_class_id", "value": "1", "description": "Optional: filter by vehicle class" },
-                { "key": "current_only", "value": "false", "description": "Optional: only show currently effective configs" },
-                { "key": "per_page", "value": "20", "description": "Optional: items per page (default 20)" }
+                {
+                  "key": "city_id",
+                  "value": "1",
+                  "description": "Optional: filter by city"
+                },
+                {
+                  "key": "vehicle_class_id",
+                  "value": "1",
+                  "description": "Optional: filter by vehicle class"
+                },
+                {
+                  "key": "current_only",
+                  "value": "false",
+                  "description": "Optional: only show currently effective configs"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Optional: items per page (default 20)"
+                }
               ]
             },
             "description": "Admin-only. Lists pricing configs with optional filters. Shows current and historical versions, ordered by effective_from desc."
@@ -1434,13 +2071,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/pricing/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "pricing", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pricing",
+                "1"
+              ]
             },
             "description": "Admin-only. Returns a specific pricing config with city, vehicle class, and creator details."
           }
@@ -1450,29 +2099,58 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/pricing/current?city_id=1&vehicle_class_id=1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "pricing", "current"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pricing",
+                "current"
+              ],
               "query": [
-                { "key": "city_id", "value": "1", "description": "Required: city ID" },
-                { "key": "vehicle_class_id", "value": "1", "description": "Required: vehicle class ID" }
+                {
+                  "key": "city_id",
+                  "value": "1",
+                  "description": "Required: city ID"
+                },
+                {
+                  "key": "vehicle_class_id",
+                  "value": "1",
+                  "description": "Required: vehicle class ID"
+                }
               ]
             },
             "description": "Admin-only. Returns the currently effective pricing config for a city + vehicle class combination. Returns 404 if none exists."
           }
         },
         {
-          "name": "Create Pricing — Validation Errors (422)",
+          "name": "Create Pricing \u2014 Validation Errors (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1480,8 +2158,13 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/pricing",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "pricing"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pricing"
+              ]
             },
             "description": "Demonstrates validation: invalid city_id, negative rate, missing required fields. Returns 422."
           }
@@ -1489,16 +2172,25 @@
       ]
     },
     {
-      "name": "Admin — Surge Pricing",
+      "name": "Admin \u2014 Surge Pricing",
       "item": [
         {
           "name": "Create Surge Rule (Manual)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1506,10 +2198,15 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/surge-rules",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules"
+              ]
             },
-            "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00–5.00. Returns 201."
+            "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00\u20135.00. Returns 201."
           }
         },
         {
@@ -1517,9 +2214,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1527,10 +2233,15 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/surge-rules",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules"
+              ]
             },
-            "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00–06:00). Returns 201."
+            "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00\u201306:00). Returns 201."
           }
         },
         {
@@ -1538,9 +2249,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1548,8 +2268,13 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/surge-rules",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules"
+              ]
             },
             "description": "Admin-only. Creates a demand-based surge rule. Fires when demand/supply ratio exceeds the threshold. Currently a placeholder until real driver availability data is wired. Returns 201."
           }
@@ -1559,17 +2284,40 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/surge-rules?city_id=1&active_only=false&per_page=20",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules"
+              ],
               "query": [
-                { "key": "city_id", "value": "1", "description": "Optional: filter by city" },
-                { "key": "active_only", "value": "false", "description": "Optional: only show active rules" },
-                { "key": "per_page", "value": "20", "description": "Optional: items per page (default 20)" }
+                {
+                  "key": "city_id",
+                  "value": "1",
+                  "description": "Optional: filter by city"
+                },
+                {
+                  "key": "active_only",
+                  "value": "false",
+                  "description": "Optional: only show active rules"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Optional: items per page (default 20)"
+                }
               ]
             },
             "description": "Admin-only. Lists surge rules with optional filters. Ordered by priority desc, then created_at desc."
@@ -1580,13 +2328,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/surge-rules/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules",
+                "1"
+              ]
             },
             "description": "Admin-only. Returns a specific surge rule with city, vehicle class, and creator details."
           }
@@ -1596,9 +2356,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1606,8 +2375,14 @@
             },
             "url": {
               "raw": "{{base_url}}/admin/surge-rules/1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules", "1"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules",
+                "1"
+              ]
             },
             "description": "Admin-only. Partial update of a surge rule. Audit logged."
           }
@@ -1617,13 +2392,26 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/surge-rules/1/status",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules", "1", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules",
+                "1",
+                "status"
+              ]
             },
             "description": "Admin-only. Toggles is_active between true and false. Audit logged."
           }
@@ -1633,16 +2421,36 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/surge-rules/current-multiplier?city_id=1&vehicle_class_id=1",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "surge-rules", "current-multiplier"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "surge-rules",
+                "current-multiplier"
+              ],
               "query": [
-                { "key": "city_id", "value": "1", "description": "Required: city ID" },
-                { "key": "vehicle_class_id", "value": "1", "description": "Optional: vehicle class ID (null = city-wide)" }
+                {
+                  "key": "city_id",
+                  "value": "1",
+                  "description": "Required: city ID"
+                },
+                {
+                  "key": "vehicle_class_id",
+                  "value": "1",
+                  "description": "Optional: vehicle class ID (null = city-wide)"
+                }
               ]
             },
             "description": "Admin-only. Returns the currently active surge multiplier for a city (and optionally vehicle class). Returns multiplier 1.0 if no rules match."
@@ -1658,9 +2466,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1668,20 +2485,34 @@
             },
             "url": {
               "raw": "{{base_url}}/rides/estimate",
-              "host": ["{{base_url}}"],
-              "path": ["rides", "estimate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rides",
+                "estimate"
+              ]
             },
             "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Google Maps for distance/duration. Includes surge pricing multiplier when active. Detects cross-city rides and returns warnings. City must be active."
           }
         },
         {
-          "name": "Get Fare Estimates — Cross-City Ride",
+          "name": "Get Fare Estimates \u2014 Cross-City Ride",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1689,20 +2520,34 @@
             },
             "url": {
               "raw": "{{base_url}}/rides/estimate",
-              "host": ["{{base_url}}"],
-              "path": ["rides", "estimate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rides",
+                "estimate"
+              ]
             },
             "description": "Cross-city ride from Abuja to Lagos. Response includes 'warnings' array and 'cross_city' object. Pickup city pricing (Abuja) applies for the entire trip."
           }
         },
         {
-          "name": "Get Fare Estimates — Same Pickup/Destination (422)",
+          "name": "Get Fare Estimates \u2014 Same Pickup/Destination (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1710,20 +2555,34 @@
             },
             "url": {
               "raw": "{{base_url}}/rides/estimate",
-              "host": ["{{base_url}}"],
-              "path": ["rides", "estimate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rides",
+                "estimate"
+              ]
             },
             "description": "Identical pickup and destination coordinates. Returns 422 validation error."
           }
         },
         {
-          "name": "Get Fare Estimates — Validation Errors (422)",
+          "name": "Get Fare Estimates \u2014 Validation Errors (422)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{passenger_token}}" }
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1731,8 +2590,13 @@
             },
             "url": {
               "raw": "{{base_url}}/rides/estimate",
-              "host": ["{{base_url}}"],
-              "path": ["rides", "estimate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rides",
+                "estimate"
+              ]
             },
             "description": "Demonstrates validation: out-of-range coordinates, invalid city_id, missing fields. Returns 422."
           }
