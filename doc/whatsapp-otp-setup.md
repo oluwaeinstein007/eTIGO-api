@@ -51,6 +51,7 @@ We use Meta's WhatsApp Cloud API to send one-time verification codes to users vi
 | Variable | Where to find it |
 |---|---|
 | `GOOGLE_CLIENT_ID` | The **Web** Client ID (or Android — the mobile team will clarify which one they use for ID token verification) |
+| `GOOGLE_CLIENT_SECRET` | Credentials → OAuth 2.0 Client IDs → Client secret |
 
 ---
 
@@ -68,6 +69,7 @@ We use Meta's WhatsApp Cloud API to send one-time verification codes to users vi
 | Variable | Where to find it |
 |---|---|
 | `APPLE_CLIENT_ID` | The Service ID identifier (e.g. `com.etigo.service`) |
+| `APPLE_CLIENT_SECRET` | Generated JWT from your private key (see [Apple docs](https://developer.apple.com/documentation/sign_in_with_apple/generate_and_validate_tokens)) |
 
 ---
 
@@ -100,9 +102,11 @@ WHATSAPP_OTP_TEMPLATE=otp_verification
 
 # Google
 GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
 # Apple
 APPLE_CLIENT_ID=com.etigo.service
+APPLE_CLIENT_SECRET=your_apple_client_secret
 
 # Facebook
 FACEBOOK_APP_ID=your_facebook_app_id
