@@ -23,7 +23,7 @@ class DriverLocationService
         $conn = $this->redis();
         $member = (string) $driverId;
 
-        $conn->geoadd(self::GEO_KEY, $lng, $lat, $member);
+        $conn->client()->rawCommand('GEOADD', self::GEO_KEY, (string) $lng, (string) $lat, $member);
 
         $key = sprintf(self::DRIVER_KEY_PREFIX, $driverId);
         $conn->hmset($key, [
@@ -50,8 +50,11 @@ class DriverLocationService
      */
     public function findNearbyDrivers(float $lat, float $lng, float $radiusKm, int $limit = 20): array
     {
-        $results = $this->redis()->georadius(
-            self::GEO_KEY, $lng, $lat, $radiusKm, 'km', 'WITHDIST', 'ASC', 'COUNT', $limit,
+        $results = $this->redis()->client()->rawCommand(
+            'GEOSEARCH', self::GEO_KEY,
+            'FROMLONLAT', (string) $lng, (string) $lat,
+            'BYRADIUS', (string) $radiusKm, 'km',
+            'ASC', 'COUNT', (string) $limit, 'WITHDIST',
         );
 
         if (! $results) {

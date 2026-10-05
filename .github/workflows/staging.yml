@@ -15,8 +15,8 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: etigo_test
-          POSTGRES_USER: etigo
+          POSTGRES_DB: etigo_api_test
+          POSTGRES_USER: root
           POSTGRES_PASSWORD: password
         ports:
           - 5432:5432
@@ -42,7 +42,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: pgsql, redis, mbstring, xml, curl, zip, bcmath, intl, gd
           coverage: none
 
@@ -63,11 +63,12 @@ jobs:
       - name: Prepare environment
         run: |
           cp .env.example .env
-          sed -i 's/DB_HOST=127.0.0.1/DB_HOST=127.0.0.1/' .env
-          sed -i 's/DB_DATABASE=etigo_api/DB_DATABASE=etigo_test/' .env
-          sed -i 's/DB_USERNAME=root/DB_USERNAME=etigo/' .env
-          sed -i 's/DB_PASSWORD=/DB_PASSWORD=password/' .env
+          sed -i 's/DB_DATABASE=etigo_api/DB_DATABASE=etigo_api_test/' .env
+          sed -i 's/DB_USERNAME=root/DB_USERNAME=root/' .env
+          sed -i 's/DB_PASSWORD=$/DB_PASSWORD=password/' .env
+          sed -i '/^DB_PASSWORD=/c\DB_PASSWORD=password' .env
           sed -i 's/REDIS_SCHEME=tls/REDIS_SCHEME=tcp/' .env
+          sed -i 's/REDIS_PASSWORD=null/REDIS_PASSWORD=/' .env
           php artisan key:generate
 
       - name: Run migrations
