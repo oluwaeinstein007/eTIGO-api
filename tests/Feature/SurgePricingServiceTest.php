@@ -70,6 +70,9 @@ it('applies manual surge rule when active', function () {
 });
 
 it('applies time-based surge rule during matching schedule', function () {
+    $frozen = Carbon::now($this->city->timezone)->setTime(12, 0);
+    Carbon::setTestNow($frozen);
+
     $now = Carbon::now($this->city->timezone);
 
     $rule = SurgeRule::factory()->timeBased([
@@ -86,6 +89,8 @@ it('applies time-based surge rule during matching schedule', function () {
 
     expect($result['multiplier'])->toBe(1.5);
     expect($result['rule']->id)->toBe($rule->id);
+
+    Carbon::setTestNow();
 });
 
 it('does not apply time-based surge rule outside schedule', function () {
