@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 class SyncPostmanCollection extends Command
@@ -63,11 +65,17 @@ class SyncPostmanCollection extends Command
 
         $this->info('Syncing collection...');
 
-        $response = Http::withHeaders([
-            'X-Api-Key' => $apiKey,
-        ])->put("https://api.getpostman.com/collections/{$collectionId}", [
-            'collection' => $collection,
-        ]);
+        try {
+            $response = Http::withHeaders([
+                'X-Api-Key' => $apiKey,
+            ])->timeout(30)->retry(3, 500, fn ($e) => $e instanceof ConnectionException, throw: false)->put("https://api.getpostman.com/collections/{$collectionId}", [
+                'collection' => $collection,
+            ]);
+        } catch (ConnectionException|RequestException $e) {
+            $this->error("Collection sync failed: {$e->getMessage()}");
+
+            return false;
+        }
 
         if ($response->successful()) {
             $this->info('Collection synced.');
@@ -135,9 +143,15 @@ class SyncPostmanCollection extends Command
     {
         $query = $workspaceId ? ['workspace' => $workspaceId] : [];
 
-        $response = Http::withHeaders([
-            'X-Api-Key' => $apiKey,
-        ])->get('https://api.getpostman.com/environments', $query);
+        try {
+            $response = Http::withHeaders([
+                'X-Api-Key' => $apiKey,
+            ])->timeout(30)->retry(3, 500, fn ($e) => $e instanceof ConnectionException, throw: false)->get('https://api.getpostman.com/environments', $query);
+        } catch (ConnectionException|RequestException $e) {
+            $this->error("Failed to fetch environments: {$e->getMessage()}");
+
+            return null;
+        }
 
         if (! $response->successful()) {
             return null;
@@ -157,9 +171,15 @@ class SyncPostmanCollection extends Command
 
         $query = $workspaceId ? ['workspace' => $workspaceId] : [];
 
-        $response = Http::withHeaders([
-            'X-Api-Key' => $apiKey,
-        ])->post('https://api.getpostman.com/environments?'.http_build_query($query), $data);
+        try {
+            $response = Http::withHeaders([
+                'X-Api-Key' => $apiKey,
+            ])->timeout(30)->retry(3, 500, fn ($e) => $e instanceof ConnectionException, throw: false)->post('https://api.getpostman.com/environments?'.http_build_query($query), $data);
+        } catch (ConnectionException|RequestException $e) {
+            $this->error("Failed to create \"{$name}\": {$e->getMessage()}");
+
+            return false;
+        }
 
         if ($response->successful()) {
             $this->info("Environment \"{$name}\" created.");
@@ -176,9 +196,15 @@ class SyncPostmanCollection extends Command
     {
         $this->info("Updating environment: {$name}...");
 
-        $remote = Http::withHeaders([
-            'X-Api-Key' => $apiKey,
-        ])->get("https://api.getpostman.com/environments/{$envId}");
+        try {
+            $remote = Http::withHeaders([
+                'X-Api-Key' => $apiKey,
+            ])->timeout(30)->retry(3, 500, fn ($e) => $e instanceof ConnectionException, throw: false)->get("https://api.getpostman.com/environments/{$envId}");
+        } catch (ConnectionException|RequestException $e) {
+            $this->error("Failed to fetch current \"{$name}\" for merge: {$e->getMessage()}");
+
+            return false;
+        }
 
         if (! $remote->successful()) {
             $this->error("Failed to fetch current \"{$name}\" for merge ({$remote->status()})");
@@ -203,9 +229,15 @@ class SyncPostmanCollection extends Command
 
         $data['environment']['values'] = $merged->values()->all();
 
-        $response = Http::withHeaders([
-            'X-Api-Key' => $apiKey,
-        ])->put("https://api.getpostman.com/environments/{$envId}", $data);
+        try {
+            $response = Http::withHeaders([
+                'X-Api-Key' => $apiKey,
+            ])->timeout(30)->retry(3, 500, fn ($e) => $e instanceof ConnectionException, throw: false)->put("https://api.getpostman.com/environments/{$envId}", $data);
+        } catch (ConnectionException|RequestException $e) {
+            $this->error("Failed to update \"{$name}\": {$e->getMessage()}");
+
+            return false;
+        }
 
         if ($response->successful()) {
             $this->info("Environment \"{$name}\" updated.");
