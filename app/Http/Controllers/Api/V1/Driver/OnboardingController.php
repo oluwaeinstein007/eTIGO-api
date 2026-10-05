@@ -12,6 +12,7 @@ use App\Http\Requests\Driver\UploadDocumentRequest;
 use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
 use App\Http\Resources\VehicleResource;
+use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,8 @@ class OnboardingController extends Controller
             'has_vehicle' => $driver->vehicle !== null,
             'has_licence_number' => $driver->licence_number !== null,
             'has_city' => $driver->city_id !== null,
+            'kyc_status' => $driver->kyc_status,
+            'kyc_verified_at' => $driver->kyc_verified_at,
         ]);
     }
 
@@ -155,8 +158,16 @@ class OnboardingController extends Controller
 
         AuditLog::record($vehicle, 'vehicle_registered', $user);
 
+        if (! $vehicle->is_fleet) {
+            VerifyVehiclePlateJob::dispatch($driver, $vehicle->plate_number);
+        }
+
+        $message = $vehicle->is_fleet
+            ? 'Vehicle registered successfully. Fleet vehicle — plate verification skipped.'
+            : 'Vehicle registered successfully. Plate verification initiated.';
+
         return response()->json([
-            'message' => 'Vehicle registered successfully.',
+            'message' => $message,
             'vehicle' => new VehicleResource($vehicle->load('vehicleClass')),
         ], 201);
     }
@@ -171,17 +182,27 @@ class OnboardingController extends Controller
         }
 
         $vehicle = $driver->vehicle;
+        $oldPlate = $vehicle->plate_number;
         $oldValues = $vehicle->only(['make', 'model', 'colour', 'plate_number', 'year']);
 
-        $vehicle->update(array_merge($request->validated(), [
-            'vehicle_class_approved' => false,
-            'class_approved_by' => null,
-        ]));
+        $vehicle->update($request->validated());
 
         AuditLog::record($vehicle, 'vehicle_updated', $user, $oldValues, $request->validated());
 
+        $newPlate = $vehicle->fresh()->plate_number;
+        if ($newPlate !== $oldPlate && ! $vehicle->fresh()->is_fleet) {
+            $driver->kycVerifications()
+                ->where('type', 'vehicle_plate')
+                ->whereIn('status', ['verified', 'processing'])
+                ->update(['status' => 'expired']);
+
+            VerifyVehiclePlateJob::dispatch($driver, $newPlate);
+        }
+
         return response()->json([
-            'message' => 'Vehicle updated successfully. Vehicle class approval has been reset.',
+            'message' => $newPlate !== $oldPlate
+                ? 'Vehicle updated successfully. Plate re-verification initiated.'
+                : 'Vehicle updated successfully.',
             'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
         ]);
     }

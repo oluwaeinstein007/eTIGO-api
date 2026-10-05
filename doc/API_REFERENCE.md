@@ -340,7 +340,9 @@ GET /driver/onboarding/status
   "onboarding_complete": false,
   "missing_documents": ["driving_licence", "vehicle_registration", "insurance_certificate", "government_id"],
   "has_vehicle": false,
-  "has_licence_number": false
+  "has_licence_number": false,
+  "kyc_status": "not_started",
+  "kyc_verified_at": null
 }
 ```
 
@@ -411,7 +413,7 @@ POST /driver/vehicle
 **Response 201:**
 ```json
 {
-  "message": "Vehicle registered successfully.",
+  "message": "Vehicle registered successfully. Plate verification initiated.",
   "vehicle": {
     "id": 1,
     "make": "Toyota",
@@ -444,6 +446,242 @@ GET /driver/vehicle
 
 ---
 
+## Driver — KYC Verification
+
+All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
+
+KYC verification uses QoreID as the identity verification provider. Drivers must complete NIN verification, driver's license verification, and vehicle plate verification before their `kyc_status` becomes `verified`. Liveness verification is supported but optional for the `verified` status.
+
+Vehicle plate verification auto-triggers when a vehicle is registered or the plate number is updated.
+
+### KYC Status
+```
+GET /driver/kyc/status
+```
+
+Returns the driver's aggregate KYC status and per-type verification summary.
+
+**Response 200:**
+```json
+{
+  "kyc_status": "in_progress",
+  "kyc_verified_at": null,
+  "verifications": {
+    "nin": {
+      "status": "verified",
+      "verified_at": "2026-10-05T10:00:00.000000Z",
+      "failure_reason": null
+    },
+    "drivers_license": {
+      "status": "not_started",
+      "verified_at": null,
+      "failure_reason": null
+    },
+    "vehicle_plate": {
+      "status": "not_started",
+      "verified_at": null,
+      "failure_reason": null
+    },
+    "liveness": {
+      "status": "not_started",
+      "verified_at": null,
+      "failure_reason": null
+    }
+  }
+}
+```
+
+**KYC Status values:**
+
+| Value          | Description                                        |
+|----------------|----------------------------------------------------|
+| `not_started`  | No verifications submitted yet                     |
+| `in_progress`  | At least one verification submitted, not all done  |
+| `verified`     | NIN + License + Vehicle Plate all verified         |
+| `failed`       | At least one required verification failed          |
+
+---
+
+### Verify NIN
+```
+POST /driver/kyc/verify-nin
+```
+
+| Field      | Type   | Required | Description               |
+|------------|--------|----------|---------------------------|
+| nin_number | string | Yes      | 11-digit NIN number       |
+
+**Response 200 (verified):**
+```json
+{
+  "message": "NIN verified successfully.",
+  "verification": {
+    "id": 1,
+    "type": "nin",
+    "status": "verified",
+    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "failure_reason": null,
+    "created_at": "2026-10-05T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422 (failed):**
+```json
+{
+  "message": "NIN verification failed: Name mismatch.",
+  "verification": {
+    "id": 1,
+    "type": "nin",
+    "status": "failed",
+    "verified_at": null,
+    "failure_reason": "Name mismatch",
+    "created_at": "2026-10-05T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 409:** `"A NIN verification is already completed or in progress."` — duplicate prevention.
+
+---
+
+### Verify Driver's License
+```
+POST /driver/kyc/verify-license
+```
+
+| Field          | Type   | Required | Description                   |
+|----------------|--------|----------|-------------------------------|
+| license_number | string | Yes      | License number (6–20 chars)   |
+
+**Response 200 (verified):**
+```json
+{
+  "message": "Driver's license verified successfully.",
+  "verification": {
+    "id": 2,
+    "type": "drivers_license",
+    "status": "verified",
+    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "failure_reason": null,
+    "created_at": "2026-10-05T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:** Verification failed.  
+**Response 409:** Already completed or in progress.
+
+---
+
+### Verify Vehicle Plate
+```
+POST /driver/kyc/verify-vehicle
+```
+
+| Field        | Type   | Required | Description                   |
+|--------------|--------|----------|-------------------------------|
+| plate_number | string | Yes      | Plate number (3–20 chars)     |
+
+Requires a registered vehicle. Returns 422 with `"Register a vehicle before verifying its plate."` if no vehicle exists.
+
+**Response 200 (verified):**
+```json
+{
+  "message": "Vehicle plate verified successfully.",
+  "verification": {
+    "id": 3,
+    "type": "vehicle_plate",
+    "status": "verified",
+    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "failure_reason": null,
+    "created_at": "2026-10-05T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:** Verification failed or no vehicle registered.  
+**Response 409:** Already completed or in progress.
+
+**Auto-trigger:** Vehicle plate verification is automatically dispatched as a background job when:
+- A new vehicle is registered (`POST /driver/vehicle`)
+- A vehicle's plate number is updated (`PUT /driver/vehicle`)
+
+When a plate number changes, existing plate verifications are expired and a new one is dispatched.
+
+---
+
+### Create Liveness Session
+```
+POST /driver/kyc/liveness-session
+```
+
+No request body. Creates a QoreID liveness session for the mobile SDK.
+
+**Response 201:**
+```json
+{
+  "message": "Liveness session created. Use the SDK token in the mobile app.",
+  "session_id": "etigo_kyc_1_1696500000",
+  "sdk_token": "eyJhbGciOi...",
+  "expires_at": "2026-10-05T11:00:00.000000Z",
+  "verification": {
+    "id": 4,
+    "type": "liveness",
+    "status": "processing",
+    "verified_at": null,
+    "failure_reason": null,
+    "created_at": "2026-10-05T10:00:00.000000Z"
+  }
+}
+```
+
+The mobile app uses the `sdk_token` to initialize the QoreID SDK. Results are delivered via webhook.
+
+**Response 409:** Already completed or in progress.
+
+---
+
+### List Verifications
+```
+GET /driver/kyc/verifications
+```
+
+Returns all KYC verifications for the authenticated driver, newest first.
+
+**Response 200:**
+```json
+{
+  "verifications": [
+    {
+      "id": 1,
+      "type": "nin",
+      "status": "verified",
+      "verified_at": "2026-10-05T10:00:00.000000Z",
+      "failure_reason": null,
+      "created_at": "2026-10-05T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### KYC Webhook (QoreID)
+```
+POST /webhooks/qoreid
+```
+
+**No authentication** — verified by HMAC-SHA256 signature (`X-QoreID-Signature` header) using the configured webhook secret. Receives liveness verification results from QoreID.
+
+Handled events: `verification_completed`, `step_verification_completed`, `identity`.
+
+**Response 200:** `{"message": "Webhook processed."}`  
+**Response 401:** Invalid signature.  
+**Response 400:** Missing session ID.
+
+---
+
 ## Admin — Driver Management
 
 All admin endpoints require `Authorization: Bearer {token}` from an admin user.
@@ -456,6 +694,7 @@ GET /admin/drivers
 | Query Param | Type   | Required | Description                                          |
 |-------------|--------|----------|------------------------------------------------------|
 | status      | string | No       | Filter: `onboarding`, `pending_review`, `approved`, `rejected`, `suspended` |
+| kyc_status  | string | No       | Filter: `not_started`, `in_progress`, `verified`, `failed`    |
 
 **Response 200:**
 ```json
@@ -497,6 +736,44 @@ POST /admin/drivers/{driver_id}/review
 | rejection_reason | string | Yes (when rejecting)    | Reason for rejection |
 
 **Response 422:** `"Driver can only be reviewed when in pending review status."` — returned when the driver's status is not `pending_review`.
+
+---
+
+### Toggle Fleet Vehicle
+```
+PATCH /admin/drivers/{driver_id}/vehicle/fleet
+```
+
+Toggles a driver's vehicle as fleet-owned (company vehicle). Fleet vehicles skip plate verification in the KYC flow — only NIN and Driver's License are required.
+
+No request body required.
+
+**Response 200 (marked as fleet):**
+```json
+{
+  "message": "Vehicle marked as fleet. Plate verification skipped.",
+  "vehicle": {
+    "id": 1,
+    "make": "Toyota",
+    "model": "Corolla",
+    "plate_number": "FLEET-001",
+    "is_fleet": true,
+    ...
+  }
+}
+```
+
+**Response 200 (unmarked):**
+```json
+{
+  "message": "Vehicle unmarked as fleet. Plate verification now required.",
+  "vehicle": { ... }
+}
+```
+
+**Response 422:** `"Driver has no registered vehicle."`
+
+After toggling, the driver's `kyc_status` is automatically recalculated. If the vehicle is marked fleet and NIN + License are already verified, `kyc_status` becomes `verified` without plate verification.
 
 ---
 
@@ -1399,3 +1676,28 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `manual`       | Admin-toggled surge (weather, events, emergencies)|
 | `time_based`   | Scheduled surge by day of week + time window     |
 | `demand_based` | Dynamic surge based on demand/supply ratio       |
+
+### KYC Status (Driver-level)
+| Value          | Description                                      |
+|----------------|--------------------------------------------------|
+| `not_started`  | No verifications submitted yet                   |
+| `in_progress`  | At least one verification submitted              |
+| `verified`     | All required verifications passed                |
+| `failed`       | At least one required verification failed        |
+
+### KYC Verification Type
+| Value             | Description                                   |
+|-------------------|-----------------------------------------------|
+| `nin`             | National Identification Number                |
+| `drivers_license` | Driver's license                              |
+| `vehicle_plate`   | Vehicle plate number                          |
+| `liveness`        | Facial liveness check (via QoreID SDK)        |
+
+### KYC Verification Status
+| Value        | Description                                      |
+|--------------|--------------------------------------------------|
+| `pending`    | Created, not yet sent to provider                |
+| `processing` | Sent to provider, awaiting result                |
+| `verified`   | Identity confirmed                               |
+| `failed`     | Verification failed (reason in failure_reason)   |
+| `expired`    | Superseded by a newer verification (e.g. plate change) |

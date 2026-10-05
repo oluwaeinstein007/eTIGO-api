@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Driver;
 use App\Models\Vehicle;
+use App\Models\VehicleClass;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,19 +21,19 @@ class VehicleFactory extends Factory
     {
         return [
             'driver_id' => Driver::factory(),
-            'make' => fake()->randomElement(['Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia', 'Tesla']),
-            'model' => fake()->randomElement(['Corolla', 'Civic', 'Sentra', 'Elantra', 'Rio', 'Model 3']),
+            'make' => fake()->randomElement(['Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia']),
+            'model' => fake()->randomElement(['Corolla', 'Civic', 'Sentra', 'Elantra', 'Rio']),
             'colour' => fake()->safeColorName(),
             'plate_number' => strtoupper(fake()->unique()->bothify('???-####')),
             'year' => fake()->numberBetween(2018, (int) date('Y')),
+            'vehicle_class_id' => VehicleClass::factory(),
         ];
     }
 
-    public function classApproved(string $vehicleClass = 'standard'): static
+    public function fleet(): static
     {
         return $this->state(fn (array $attributes) => [
-            'vehicle_class' => $vehicleClass,
-            'vehicle_class_approved' => true,
+            'is_fleet' => true,
         ]);
     }
 }

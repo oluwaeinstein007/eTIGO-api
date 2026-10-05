@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
+use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -44,6 +46,7 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 |--------------------------------------------------------------------------
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
+Route::post('/webhooks/qoreid', [KycWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
@@ -133,6 +136,15 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::post('/vehicle', [OnboardingController::class, 'storeVehicle']);
     Route::put('/vehicle', [OnboardingController::class, 'updateVehicle']);
     Route::get('/vehicle', [OnboardingController::class, 'vehicle']);
+
+    Route::prefix('kyc')->group(function () {
+        Route::get('/status', [KycController::class, 'status']);
+        Route::get('/verifications', [KycController::class, 'verifications']);
+        Route::post('/verify-nin', [KycController::class, 'verifyNin']);
+        Route::post('/verify-license', [KycController::class, 'verifyDriversLicense']);
+        Route::post('/verify-vehicle', [KycController::class, 'verifyVehiclePlate']);
+        Route::post('/liveness-session', [KycController::class, 'createLivenessSession']);
+    });
 });
 
 /*
@@ -149,6 +161,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/documents/{document}/review', [DriverManagementController::class, 'reviewDocument']);
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
+        Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
     });
 
     Route::prefix('cities')->group(function () {
