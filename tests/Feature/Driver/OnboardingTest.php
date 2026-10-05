@@ -119,7 +119,7 @@ it('allows driver to register a vehicle', function () {
         ]);
 
     $response->assertCreated()
-        ->assertJson(['message' => 'Vehicle registered successfully.']);
+        ->assertJson(['message' => 'Vehicle registered successfully. Plate verification initiated.']);
 
     $this->assertDatabaseHas('vehicles', [
         'driver_id' => $driver->id,

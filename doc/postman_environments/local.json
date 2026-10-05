@@ -25,6 +25,54 @@
         "value": "",
         "type": "secret",
         "enabled": true
+      },
+      {
+        "key": "city_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "vehicle_class_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "driver_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "notification_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "pricing_config_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "surge_rule_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "payment_method_id",
+        "value": "1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "transaction_id",
+        "value": "123456",
+        "type": "default",
+        "enabled": true
       }
     ]
   }

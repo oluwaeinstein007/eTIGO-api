@@ -74,6 +74,12 @@ return [
         'encryption_key' => env('FLUTTERWAVE_ENCRYPTION_KEY'),
     ],
 
+    'qoreid' => [
+        'client_id' => env('QOREID_CLIENT_ID'),
+        'secret_key' => env('QOREID_SECRET_KEY'),
+        'webhook_secret' => env('QOREID_WEBHOOK_SECRET'),
+    ],
+
     'postman' => [
         'api_key' => env('POSTMAN_API_KEY'),
         'collection_id' => env('POSTMAN_COLLECTION_ID'),

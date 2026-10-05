@@ -19,10 +19,9 @@ class VehicleResource extends JsonResource
             'colour' => $this->colour,
             'plate_number' => $this->plate_number,
             'year' => $this->year,
-            'vehicle_class' => $this->vehicle_class,
+            'is_fleet' => $this->is_fleet,
             'vehicle_class_id' => $this->vehicle_class_id,
-            'vehicle_class_detail' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
-            'vehicle_class_approved' => $this->vehicle_class_approved,
+            'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_at' => $this->created_at,
         ];
     }

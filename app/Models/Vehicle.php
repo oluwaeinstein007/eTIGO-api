@@ -17,17 +17,15 @@ class Vehicle extends Model
         'colour',
         'plate_number',
         'year',
-        'vehicle_class',
+        'is_fleet',
         'vehicle_class_id',
-        'vehicle_class_approved',
-        'class_approved_by',
     ];
 
     protected function casts(): array
     {
         return [
             'year' => 'integer',
-            'vehicle_class_approved' => 'boolean',
+            'is_fleet' => 'boolean',
         ];
     }
 
@@ -39,10 +37,5 @@ class Vehicle extends Model
     public function vehicleClass(): BelongsTo
     {
         return $this->belongsTo(VehicleClass::class);
-    }
-
-    public function classApprovedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'class_approved_by');
     }
 }

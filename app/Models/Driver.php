@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DriverStatus;
+use App\Enums\KycStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,8 @@ class Driver extends Model
         'user_id',
         'city_id',
         'status',
+        'kyc_status',
+        'kyc_verified_at',
         'licence_number',
         'rejection_reason',
         'is_online',
@@ -28,9 +31,11 @@ class Driver extends Model
     {
         return [
             'status' => DriverStatus::class,
+            'kyc_status' => KycStatus::class,
             'is_online' => 'boolean',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
+            'kyc_verified_at' => 'datetime',
         ];
     }
 
@@ -54,6 +59,11 @@ class Driver extends Model
         return $this->hasOne(Vehicle::class);
     }
 
+    public function kycVerifications(): HasMany
+    {
+        return $this->hasMany(KycVerification::class);
+    }
+
     public function isApproved(): bool
     {
         return $this->status === DriverStatus::Approved;
@@ -69,10 +79,15 @@ class Driver extends Model
         return $this->status === DriverStatus::Suspended;
     }
 
+    public function isKycVerified(): bool
+    {
+        return $this->kyc_status === KycStatus::Verified;
+    }
+
     public function canGoOnline(): bool
     {
         return $this->isApproved()
             && $this->vehicle !== null
-            && $this->vehicle->vehicle_class_approved;
+            && $this->vehicle->vehicle_class_id !== null;
     }
 }
