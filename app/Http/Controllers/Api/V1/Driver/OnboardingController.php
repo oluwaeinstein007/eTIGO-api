@@ -14,6 +14,7 @@ use App\Http\Resources\DriverResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class OnboardingController extends Controller
@@ -44,7 +45,7 @@ class OnboardingController extends Controller
         return response()->json([
             'driver' => new DriverResource($driver),
             'onboarding_complete' => $onboardingComplete,
-            'can_submit' => $onboardingComplete && $driver->status === DriverStatus::Onboarding,
+            'can_submit' => $onboardingComplete && in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
             'missing_documents' => array_values($missingDocTypes),
             'has_vehicle' => $driver->vehicle !== null,
             'has_licence_number' => $driver->licence_number !== null,
@@ -88,19 +89,32 @@ class OnboardingController extends Controller
             ->whereIn('status', ['pending', 'approved'])
             ->first();
 
-        if ($existing) {
-            Storage::disk('s3')->delete($existing->file_path);
-            $existing->delete();
+        $oldFilePath = $existing?->file_path;
+
+        try {
+            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing) {
+                if ($existing) {
+                    $existing->delete();
+                }
+
+                return $driver->documents()->create([
+                    'type' => $request->validated('type'),
+                    'file_path' => $path,
+                    'original_filename' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'expires_at' => $request->validated('expires_at'),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('s3')->delete($path);
+
+            throw $e;
         }
 
-        $document = $driver->documents()->create([
-            'type' => $request->validated('type'),
-            'file_path' => $path,
-            'original_filename' => $file->getClientOriginalName(),
-            'mime_type' => $file->getMimeType(),
-            'file_size' => $file->getSize(),
-            'expires_at' => $request->validated('expires_at'),
-        ]);
+        if ($oldFilePath) {
+            Storage::disk('s3')->delete($oldFilePath);
+        }
 
         AuditLog::record($document, 'document_uploaded', $user);
 

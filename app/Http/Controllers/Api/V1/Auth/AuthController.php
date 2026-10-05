@@ -92,13 +92,7 @@ class AuthController extends Controller
     public function completeRegistration(CompleteRegistrationRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $phone = $request->input('phone');
-
-        if (! $phone || ! preg_match('/^\+[1-9]\d{6,14}$/', $phone)) {
-            return response()->json([
-                'message' => 'Invalid phone number.',
-            ], 422);
-        }
+        $phone = $validated['phone'];
 
         if (User::where('phone', $phone)->exists()) {
             return response()->json([
@@ -172,6 +166,12 @@ class AuthController extends Controller
         if ($socialAccount) {
             $user = $socialAccount->user;
 
+            if ($user->type !== $userType) {
+                return response()->json([
+                    'message' => 'This social account is linked to a different user type.',
+                ], 409);
+            }
+
             if (! $user->is_active) {
                 return response()->json([
                     'message' => 'Your account has been deactivated. Contact support.',
@@ -199,17 +199,17 @@ class AuthController extends Controller
                 ->first();
 
             if ($existingUser) {
-                SocialAccount::create([
-                    'user_id' => $existingUser->id,
-                    'provider' => $provider->value,
-                    'provider_id' => $socialUser['id'],
-                ]);
-
                 if (! $existingUser->is_active) {
                     return response()->json([
                         'message' => 'Your account has been deactivated. Contact support.',
                     ], 403);
                 }
+
+                SocialAccount::create([
+                    'user_id' => $existingUser->id,
+                    'provider' => $provider->value,
+                    'provider_id' => $socialUser['id'],
+                ]);
 
                 AuditLog::record($existingUser, 'logged_in');
 
@@ -224,6 +224,14 @@ class AuthController extends Controller
                     'user' => new UserResource($existingUser),
                     'token' => $token,
                 ]);
+            }
+
+            $otherTypeUser = User::where('email', $socialUser['email'])->first();
+
+            if ($otherTypeUser) {
+                return response()->json([
+                    'message' => 'An account with this email already exists under a different type.',
+                ], 409);
             }
         }
 

@@ -17,6 +17,7 @@ class CompleteRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'phone' => ['required', 'string', 'regex:/^\+[1-9]\d{6,14}$/'],
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],

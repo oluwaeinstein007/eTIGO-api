@@ -48,18 +48,21 @@ class AdminInvitationController extends Controller
     {
         $validated = $request->validated();
 
-        $invitation = AdminInvitation::where('token', $validated['token'])
-            ->whereNull('accepted_at')
-            ->where('expires_at', '>', now())
-            ->first();
+        $result = DB::transaction(function () use ($validated) {
+            $invitation = AdminInvitation::where('token', $validated['token'])
+                ->whereNull('accepted_at')
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->first();
 
-        if (! $invitation) {
-            return response()->json([
-                'message' => 'Invalid, expired, or already accepted invitation.',
-            ], 422);
-        }
+            if (! $invitation) {
+                return ['error' => 'Invalid, expired, or already accepted invitation.', 'status' => 422];
+            }
 
-        $user = DB::transaction(function () use ($validated, $invitation) {
+            if (User::where('email', $invitation->email)->exists()) {
+                return ['error' => 'A user with this email already exists.', 'status' => 409];
+            }
+
             $user = User::create([
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
@@ -73,8 +76,14 @@ class AdminInvitationController extends Controller
 
             $invitation->update(['accepted_at' => now()]);
 
-            return $user;
+            return ['user' => $user];
         });
+
+        if (isset($result['error'])) {
+            return response()->json(['message' => $result['error']], $result['status']);
+        }
+
+        $user = $result['user'];
 
         $abilities = ['admin', $user->admin_role->value];
         $token = $user->createToken('admin-auth', $abilities)->plainTextToken;

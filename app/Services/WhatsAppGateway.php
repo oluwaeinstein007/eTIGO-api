@@ -14,24 +14,35 @@ class WhatsAppGateway implements SmsGateway
         $accessToken = config('services.whatsapp.access_token');
         $otpTemplateName = config('services.whatsapp.otp_template_name', 'otp_verification');
 
-        $response = Http::withToken($accessToken)
-            ->post("https://graph.facebook.com/v21.0/{$phoneNumberId}/messages", [
-                'messaging_product' => 'whatsapp',
-                'to' => ltrim($phone, '+'),
-                'type' => 'template',
-                'template' => [
-                    'name' => $otpTemplateName,
-                    'language' => ['code' => 'en'],
-                    'components' => [
-                        [
-                            'type' => 'body',
-                            'parameters' => [
-                                ['type' => 'text', 'text' => $message],
+        try {
+            $response = Http::withToken($accessToken)
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->post("https://graph.facebook.com/v21.0/{$phoneNumberId}/messages", [
+                    'messaging_product' => 'whatsapp',
+                    'to' => ltrim($phone, '+'),
+                    'type' => 'template',
+                    'template' => [
+                        'name' => $otpTemplateName,
+                        'language' => ['code' => 'en'],
+                        'components' => [
+                            [
+                                'type' => 'body',
+                                'parameters' => [
+                                    ['type' => 'text', 'text' => $message],
+                                ],
                             ],
                         ],
                     ],
-                ],
+                ]);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('WhatsApp connection failed', [
+                'phone' => $phone,
+                'error' => $e->getMessage(),
             ]);
+
+            return false;
+        }
 
         if ($response->failed()) {
             Log::error('WhatsApp OTP delivery failed', [

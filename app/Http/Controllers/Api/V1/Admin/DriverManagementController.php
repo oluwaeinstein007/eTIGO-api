@@ -122,34 +122,38 @@ class DriverManagementController extends Controller
             ? DocumentStatus::Approved
             : DocumentStatus::Rejected;
 
-        $document->update([
-            'status' => $newStatus,
-            'rejection_reason' => $validated['rejection_reason'] ?? null,
-            'reviewed_by' => $admin->id,
-            'reviewed_at' => now(),
-        ]);
+        DB::transaction(function () use ($document, $driver, $admin, $validated, $newStatus) {
+            $document->update([
+                'status' => $newStatus,
+                'rejection_reason' => $validated['rejection_reason'] ?? null,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
+            ]);
 
-        $action = $validated['action'] === 'approve' ? 'document_approved' : 'document_rejected';
-        AuditLog::record($document, $action, $admin);
+            $action = $validated['action'] === 'approve' ? 'document_approved' : 'document_rejected';
+            AuditLog::record($document, $action, $admin);
 
-        $hasRejectedDocs = $driver->documents()
-            ->where('status', DocumentStatus::Rejected)
-            ->exists();
+            $lockedDriver = Driver::lockForUpdate()->find($driver->id);
 
-        if ($hasRejectedDocs && $driver->status === DriverStatus::PendingReview) {
-            $allReviewed = ! $driver->documents()
-                ->where('status', DocumentStatus::Pending)
+            $hasRejectedDocs = $lockedDriver->documents()
+                ->where('status', DocumentStatus::Rejected)
                 ->exists();
 
-            if ($allReviewed) {
-                $driver->update([
-                    'status' => DriverStatus::Rejected,
-                    'rejection_reason' => 'One or more documents were rejected. Please re-upload and resubmit.',
-                ]);
+            if ($hasRejectedDocs && $lockedDriver->status === DriverStatus::PendingReview) {
+                $allReviewed = ! $lockedDriver->documents()
+                    ->where('status', DocumentStatus::Pending)
+                    ->exists();
 
-                AuditLog::record($driver, 'driver_rejected', $admin);
+                if ($allReviewed) {
+                    $lockedDriver->update([
+                        'status' => DriverStatus::Rejected,
+                        'rejection_reason' => 'One or more documents were rejected. Please re-upload and resubmit.',
+                    ]);
+
+                    AuditLog::record($lockedDriver, 'driver_rejected', $admin);
+                }
             }
-        }
+        });
 
         return response()->json([
             'message' => "Document {$validated['action']}d successfully.",

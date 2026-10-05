@@ -125,8 +125,12 @@ class AdminManagementController extends Controller
             ->latest()
             ->paginate(20);
 
+        $items = collect($invitations->items())->map(function ($invitation) {
+            return collect($invitation->toArray())->except('token');
+        });
+
         return response()->json([
-            'invitations' => $invitations->items(),
+            'invitations' => $items,
             'meta' => [
                 'current_page' => $invitations->currentPage(),
                 'last_page' => $invitations->lastPage(),

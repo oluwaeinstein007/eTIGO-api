@@ -110,7 +110,7 @@ Called after OTP verification when `is_new_user` is `true`. Phone must have been
 }
 ```
 
-Driver registration automatically creates a `Driver` record with `pending_review` status.
+Driver registration automatically creates a `Driver` record with `onboarding` status. Drivers must provide `city_id` (required, must exist in cities table).
 
 **Response 403:** `Phone number not verified. Please verify your phone first.`  
 **Response 409:** `An account with this phone number already exists.`
@@ -330,7 +330,7 @@ GET /driver/onboarding/status
 {
   "driver": {
     "id": 1,
-    "status": "pending_review",
+    "status": "onboarding",
     "licence_number": null,
     "is_online": false,
     "documents": [],
@@ -455,7 +455,7 @@ GET /admin/drivers
 
 | Query Param | Type   | Required | Description                                          |
 |-------------|--------|----------|------------------------------------------------------|
-| status      | string | No       | Filter: `pending_review`, `approved`, `rejected`, `suspended` |
+| status      | string | No       | Filter: `onboarding`, `pending_review`, `approved`, `rejected`, `suspended` |
 
 **Response 200:**
 ```json

@@ -72,7 +72,7 @@ See `doc/whatsapp-otp-setup.md` for client setup instructions.
 - Sanctum personal access tokens with ability scoping
 - Token abilities match user type: `['passenger']`, `['driver']`, `['admin', 'super_admin']`
 - Tokens persist until explicit logout or deletion
-- No token expiration configured by default (configurable in `config/sanctum.php`)
+- Admin tokens expire after 480 minutes by default (configurable in `config/sanctum.php`)
 
 ### Ride-Start PIN Verification
 
@@ -260,7 +260,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 ## Driver Onboarding Flow
 
 ```
-1. Driver registers via OTP verification + POST /auth/register/complete → account created with Driver record (pending_review)
+1. Driver registers via OTP verification + POST /auth/register/complete → account created with Driver record (onboarding)
 2. Driver uploads KYC documents:
    - driving_licence
    - vehicle_registration
@@ -280,6 +280,7 @@ Admin actions enforce valid state transitions and return `422 Unprocessable Enti
 
 | Action | Valid From | Transitions To | Invalid Response |
 |--------|-----------|----------------|------------------|
+| Submit for review | `onboarding`, `rejected` | `pending_review` | 422 "Application can only be submitted from onboarding or rejected status." |
 | Review (approve) | `pending_review` | `approved` | 422 "Driver can only be reviewed when in pending review status." |
 | Review (reject) | `pending_review` | `rejected` | 422 "Driver can only be reviewed when in pending review status." |
 | Suspend | `approved` | `suspended` | 422 "Only approved drivers can be suspended." |

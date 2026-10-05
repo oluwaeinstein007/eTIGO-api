@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('drivers', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('status')->default('onboarding');
+            $table->string('status')->default('pending_review');
             $table->string('licence_number')->nullable();
             $table->text('rejection_reason')->nullable();
             $table->boolean('is_online')->default(false);

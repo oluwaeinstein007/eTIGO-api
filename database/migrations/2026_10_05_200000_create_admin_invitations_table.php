@@ -10,15 +10,13 @@ return new class extends Migration
     {
         Schema::create('admin_invitations', function (Blueprint $table) {
             $table->id();
-            $table->string('email')->unique();
+            $table->string('email')->index();
             $table->string('admin_role');
             $table->string('token', 64)->unique();
             $table->foreignId('invited_by')->constrained('users')->cascadeOnDelete();
             $table->timestamp('accepted_at')->nullable();
             $table->timestamp('expires_at');
             $table->timestamps();
-
-            $table->index('token');
         });
     }
 
