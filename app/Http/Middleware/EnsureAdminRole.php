@@ -20,6 +20,10 @@ class EnsureAdminRole
             return response()->json(['message' => 'Forbidden. Admin access required.'], 403);
         }
 
+        if ($user->admin_role === AdminRole::SuperAdmin) {
+            return $next($request);
+        }
+
         if (empty($roles)) {
             return $next($request);
         }

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo — Local\" or \"E-tiGo — Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: All endpoints except register/login require Bearer token via Authorization header.",
+    "description": "E-tiGo ride-hailing platform API.\n\nEnvironments: Select \"E-tiGo — Local\" or \"E-tiGo — Staging\" to switch between servers.\n\nRate Limiting: Auth routes (auth/*, admin/auth/*) are limited to 5 requests/minute per IP.\n\nAuth: Passengers and drivers authenticate via phone OTP (WhatsApp) or social OAuth (Google, Apple, Facebook). Admins use email/password. All protected endpoints require Bearer token via Authorization header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,10 +13,30 @@
   ],
   "item": [
     {
-      "name": "Auth — Passenger & Driver",
+      "name": "Auth — Passenger & Driver (OTP + Social)",
       "item": [
         {
-          "name": "Register Passenger",
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+2341234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/send",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "send"]
+            },
+            "description": "Sends a 6-digit OTP via WhatsApp. 60-second cooldown between requests. Code expires after 5 minutes."
+          }
+        },
+        {
+          "name": "Verify OTP (Existing User → Login)",
           "event": [
             {
               "listen": "test",
@@ -39,50 +59,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+2341234567890\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"passenger\"\n}"
+              "raw": "{\n  \"phone\": \"+2341234567890\",\n  \"code\": \"123456\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/register",
+              "raw": "{{base_url}}/auth/otp/verify",
               "host": ["{{base_url}}"],
-              "path": ["auth", "register"]
-            }
+              "path": ["auth", "otp", "verify"]
+            },
+            "description": "If user exists: returns token (logged in). If new user: returns is_new_user: true."
           }
         },
         {
-          "name": "Register Driver",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('driver_token', jsonData.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\",\n  \"phone\": \"+2349876543210\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"driver\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/register",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "register"]
-            }
-          }
-        },
-        {
-          "name": "Login Passenger",
+          "name": "Complete Registration (Passenger)",
           "event": [
             {
               "listen": "test",
@@ -105,17 +93,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"passenger\"\n}"
+              "raw": "{\n  \"phone\": \"+2341234567890\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john@example.com\",\n  \"type\": \"passenger\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/auth/register/complete",
               "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
-            }
+              "path": ["auth", "register", "complete"]
+            },
+            "description": "Called after OTP verification when is_new_user is true. Phone must be verified within the last 10 minutes."
           }
         },
         {
-          "name": "Login Driver",
+          "name": "Complete Registration (Driver)",
           "event": [
             {
               "listen": "test",
@@ -138,17 +127,32 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"driver\"\n}"
+              "raw": "{\n  \"phone\": \"+2349876543210\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Driver\",\n  \"type\": \"driver\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/auth/register/complete",
               "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
+              "path": ["auth", "register", "complete"]
+            },
+            "description": "Driver registration creates a Driver record with pending_review status."
+          }
+        },
+        {
+          "name": "Social Login (Google)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }
-        },
-        {
-          "name": "Login — Invalid Password (401)",
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -157,18 +161,32 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"wrongpassword\",\n  \"type\": \"passenger\"\n}"
+              "raw": "{\n  \"provider\": \"google\",\n  \"token\": \"<google-id-token>\",\n  \"type\": \"passenger\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/auth/social",
               "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
+              "path": ["auth", "social"]
             },
-            "description": "Expected: 401 {\"message\": \"Invalid credentials.\"}"
+            "description": "Send the ID token from Google Sign-In SDK. Creates account if new, logs in if existing."
           }
         },
         {
-          "name": "Login — Wrong User Type (401)",
+          "name": "Social Login (Apple)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -177,18 +195,32 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"type\": \"driver\"\n}"
+              "raw": "{\n  \"provider\": \"apple\",\n  \"token\": \"<apple-identity-token>\",\n  \"type\": \"passenger\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/auth/social",
               "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
+              "path": ["auth", "social"]
             },
-            "description": "Expected: 401 — passenger email used with driver type"
+            "description": "Send the identity token from Apple Sign In."
           }
         },
         {
-          "name": "Register — Duplicate Email (422)",
+          "name": "Social Login (Facebook)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -197,34 +229,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Duplicate\",\n  \"phone\": \"+2340000000000\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"type\": \"passenger\"\n}"
+              "raw": "{\n  \"provider\": \"facebook\",\n  \"token\": \"<facebook-access-token>\",\n  \"type\": \"passenger\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/register",
+              "raw": "{{base_url}}/auth/social",
               "host": ["{{base_url}}"],
-              "path": ["auth", "register"]
+              "path": ["auth", "social"]
             },
-            "description": "Expected: 422 with {\"errors\": {\"email\": [\"The email has already been taken.\"]}}"
-          }
-        },
-        {
-          "name": "Register — Weak Password (422)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Accept", "value": "application/json" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"first_name\": \"Test\",\n  \"last_name\": \"User\",\n  \"phone\": \"+2341111111111\",\n  \"email\": \"weak@example.com\",\n  \"password\": \"short\",\n  \"password_confirmation\": \"short\",\n  \"type\": \"passenger\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/register",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "register"]
-            },
-            "description": "Expected: 422 with {\"errors\": {\"password\": [\"The password field must be at least 8 characters.\"]}}"
+            "description": "Send the access token from Facebook SDK."
           }
         },
         {

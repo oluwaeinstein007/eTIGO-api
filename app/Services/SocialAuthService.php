@@ -2,132 +2,107 @@
 
 namespace App\Services;
 
-use App\Enums\DriverStatus;
 use App\Enums\SocialProvider;
-use App\Enums\UserType;
-use App\Models\AuditLog;
-use App\Models\Driver;
-use App\Models\SocialAccount;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SocialAuthService
 {
-    public function authenticateFromToken(SocialProvider $provider, string $accessToken, UserType $userType): array
+    public function verifyToken(SocialProvider $provider, string $token): ?array
     {
-        $socialUser = Socialite::driver($provider->value)->stateless()->userFromToken($accessToken);
-
-        return DB::transaction(function () use ($provider, $socialUser, $userType) {
-            $socialAccount = SocialAccount::where('provider', $provider->value)
-                ->where('provider_id', $socialUser->getId())
-                ->first();
-
-            if ($socialAccount) {
-                $user = $socialAccount->user;
-
-                if ($user->type !== $userType) {
-                    return [
-                        'success' => false,
-                        'error' => 'This social account is linked to a different account type.',
-                        'status' => 409,
-                    ];
-                }
-
-                if (! $user->is_active) {
-                    return [
-                        'success' => false,
-                        'error' => 'Your account has been deactivated. Contact support.',
-                        'status' => 403,
-                    ];
-                }
-
-                $socialAccount->update([
-                    'provider_token' => $socialUser->token,
-                    'provider_refresh_token' => $socialUser->refreshToken,
-                ]);
-
-                AuditLog::record($user, 'social_login', $user, [], ['provider' => $provider->value]);
-
-                return $this->issueToken($user, $userType, false);
-            }
-
-            if ($socialUser->getEmail()) {
-                $existingUser = User::where('email', $socialUser->getEmail())
-                    ->where('type', $userType)
-                    ->first();
-
-                if ($existingUser) {
-                    $existingUser->socialAccounts()->create([
-                        'provider' => $provider->value,
-                        'provider_id' => $socialUser->getId(),
-                        'provider_token' => $socialUser->token,
-                        'provider_refresh_token' => $socialUser->refreshToken,
-                    ]);
-
-                    AuditLog::record($existingUser, 'social_account_linked', $existingUser, [], ['provider' => $provider->value]);
-
-                    return $this->issueToken($existingUser, $userType, false);
-                }
-            }
-
-            $nameParts = $this->parseName($socialUser->getName());
-
-            $user = User::create([
-                'first_name' => $nameParts['first_name'],
-                'last_name' => $nameParts['last_name'],
-                'email' => $socialUser->getEmail(),
-                'phone' => null,
-                'type' => $userType,
-                'profile_photo_path' => $socialUser->getAvatar(),
-            ]);
-
-            if ($userType === UserType::Driver) {
-                Driver::create([
-                    'user_id' => $user->id,
-                    'status' => DriverStatus::PendingReview,
-                ]);
-            }
-
-            $user->socialAccounts()->create([
-                'provider' => $provider->value,
-                'provider_id' => $socialUser->getId(),
-                'provider_token' => $socialUser->token,
-                'provider_refresh_token' => $socialUser->refreshToken,
-            ]);
-
-            AuditLog::record($user, 'registered_via_social', null, [], ['provider' => $provider->value]);
-
-            return $this->issueToken($user, $userType, true);
-        });
+        return match ($provider) {
+            SocialProvider::Google => $this->verifyGoogleToken($token),
+            SocialProvider::Apple => $this->verifyAppleToken($token),
+            SocialProvider::Facebook => $this->verifyFacebookToken($token),
+        };
     }
 
-    private function issueToken(User $user, UserType $userType, bool $isNewUser): array
+    private function verifyGoogleToken(string $token): ?array
     {
-        $token = $user->createToken(
-            $userType->value.'-social-auth',
-            [$userType->value],
-        )->plainTextToken;
+        $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+            'id_token' => $token,
+        ]);
+
+        if ($response->failed()) {
+            Log::warning('Google token verification failed', ['status' => $response->status()]);
+
+            return null;
+        }
+
+        $data = $response->json();
+
+        $clientId = config('services.google.client_id');
+        if ($clientId && ($data['aud'] ?? '') !== $clientId) {
+            Log::warning('Google token audience mismatch');
+
+            return null;
+        }
 
         return [
-            'success' => true,
-            'user' => $user,
-            'token' => $token,
-            'is_new_user' => $isNewUser,
+            'id' => $data['sub'],
+            'email' => $data['email'] ?? null,
+            'first_name' => $data['given_name'] ?? null,
+            'last_name' => $data['family_name'] ?? null,
         ];
     }
 
-    private function parseName(?string $fullName): array
+    private function verifyAppleToken(string $token): ?array
     {
-        if (! $fullName) {
-            return ['first_name' => 'User', 'last_name' => ''];
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return null;
         }
 
-        $parts = explode(' ', trim($fullName), 2);
+        $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+        if (! $payload || empty($payload['sub'])) {
+            return null;
+        }
 
         return [
-            'first_name' => $parts[0],
-            'last_name' => $parts[1] ?? '',
+            'id' => $payload['sub'],
+            'email' => $payload['email'] ?? null,
+            'first_name' => null,
+            'last_name' => null,
+        ];
+    }
+
+    private function verifyFacebookToken(string $token): ?array
+    {
+        $appId = config('services.facebook.app_id');
+        $appSecret = config('services.facebook.app_secret');
+
+        $debugResponse = Http::get('https://graph.facebook.com/debug_token', [
+            'input_token' => $token,
+            'access_token' => $appId.'|'.$appSecret,
+        ]);
+
+        if ($debugResponse->failed()) {
+            Log::warning('Facebook token debug failed');
+
+            return null;
+        }
+
+        $debugData = $debugResponse->json('data');
+        if (! ($debugData['is_valid'] ?? false)) {
+            return null;
+        }
+
+        $profileResponse = Http::get('https://graph.facebook.com/me', [
+            'fields' => 'id,first_name,last_name,email',
+            'access_token' => $token,
+        ]);
+
+        if ($profileResponse->failed()) {
+            return null;
+        }
+
+        $profile = $profileResponse->json();
+
+        return [
+            'id' => $profile['id'],
+            'email' => $profile['email'] ?? null,
+            'first_name' => $profile['first_name'] ?? null,
+            'last_name' => $profile['last_name'] ?? null,
         ];
     }
 }

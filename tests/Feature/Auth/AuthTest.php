@@ -1,16 +1,156 @@
 <?php
 
+use App\Contracts\SmsGateway;
 use App\Enums\UserType;
+use App\Models\OtpCode;
 use App\Models\User;
 
-it('registers a new passenger account', function () {
-    $response = $this->postJson('/api/v1/auth/register', [
+beforeEach(function () {
+    $this->smsGateway = Mockery::mock(SmsGateway::class);
+    $this->app->instance(SmsGateway::class, $this->smsGateway);
+});
+
+it('sends an OTP to a valid phone number', function () {
+    $this->smsGateway->shouldReceive('send')->once()->andReturn(true);
+
+    $response = $this->postJson('/api/v1/auth/otp/send', [
+        'phone' => '+2341234567890',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Verification code sent.'])
+        ->assertJsonStructure(['expires_at']);
+
+    $this->assertDatabaseHas('otp_codes', [
+        'phone' => '+2341234567890',
+        'purpose' => 'login',
+    ]);
+});
+
+it('rejects OTP request with invalid phone format', function () {
+    $response = $this->postJson('/api/v1/auth/otp/send', [
+        'phone' => '1234567890',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors('phone');
+});
+
+it('rate limits OTP requests within cooldown period', function () {
+    $this->smsGateway->shouldReceive('send')->once()->andReturn(true);
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890']);
+
+    $response = $this->postJson('/api/v1/auth/otp/send', [
+        'phone' => '+2341234567890',
+    ]);
+
+    $response->assertStatus(429)
+        ->assertJson(['message' => 'Please wait before requesting another code.']);
+});
+
+it('logs in an existing user after OTP verification', function () {
+    $user = User::factory()->passenger()->create([
+        'phone' => '+2341234567890',
+    ]);
+
+    $code = '123456';
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', $code),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2341234567890',
+        'code' => $code,
+    ]);
+
+    $response->assertOk()
+        ->assertJsonStructure(['message', 'user', 'token'])
+        ->assertJson([
+            'is_new_user' => false,
+            'user' => [
+                'phone' => '+2341234567890',
+                'type' => 'passenger',
+            ],
+        ]);
+});
+
+it('returns is_new_user when phone is not registered', function () {
+    $code = '123456';
+    OtpCode::create([
+        'phone' => '+2349999999999',
+        'code' => hash('sha256', $code),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2349999999999',
+        'code' => $code,
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'is_new_user' => true,
+            'phone' => '+2349999999999',
+        ]);
+});
+
+it('rejects OTP verification with wrong code', function () {
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', '123456'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2341234567890',
+        'code' => '000000',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJson(['message' => 'Invalid verification code.']);
+});
+
+it('rejects OTP verification for deactivated user', function () {
+    User::factory()->passenger()->inactive()->create([
+        'phone' => '+2341234567890',
+    ]);
+
+    $code = '123456';
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', $code),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2341234567890',
+        'code' => $code,
+    ]);
+
+    $response->assertForbidden();
+});
+
+it('completes registration for a new passenger after OTP verification', function () {
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', '123456'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+        'verified_at' => now(),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/register/complete', [
+        'phone' => '+2341234567890',
         'first_name' => 'John',
         'last_name' => 'Doe',
-        'phone' => '+2341234567890',
         'email' => 'john@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
         'type' => 'passenger',
     ]);
 
@@ -20,175 +160,53 @@ it('registers a new passenger account', function () {
             'user' => [
                 'first_name' => 'John',
                 'last_name' => 'Doe',
-                'email' => 'john@example.com',
                 'type' => 'passenger',
             ],
         ]);
 
     $this->assertDatabaseHas('users', [
-        'email' => 'john@example.com',
+        'phone' => '+2341234567890',
         'type' => 'passenger',
     ]);
 });
 
-it('registers a new driver account with a driver record', function () {
-    $response = $this->postJson('/api/v1/auth/register', [
+it('completes registration for a new driver with driver record', function () {
+    OtpCode::create([
+        'phone' => '+2349876543210',
+        'code' => hash('sha256', '123456'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+        'verified_at' => now(),
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/register/complete', [
+        'phone' => '+2349876543210',
         'first_name' => 'Jane',
         'last_name' => 'Driver',
-        'phone' => '+2349876543210',
-        'email' => 'jane@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
         'type' => 'driver',
     ]);
 
     $response->assertCreated()
         ->assertJson([
-            'user' => [
-                'type' => 'driver',
-            ],
+            'user' => ['type' => 'driver'],
         ]);
 
-    $user = User::where('email', 'jane@example.com')->first();
+    $user = User::where('phone', '+2349876543210')->first();
     expect($user->type)->toBe(UserType::Driver);
     expect($user->driver)->not->toBeNull();
     expect($user->driver->status->value)->toBe('pending_review');
 });
 
-it('rejects registration with duplicate email', function () {
-    User::factory()->passenger()->create(['email' => 'taken@example.com']);
-
-    $response = $this->postJson('/api/v1/auth/register', [
+it('rejects registration without phone verification', function () {
+    $response = $this->postJson('/api/v1/auth/register/complete', [
+        'phone' => '+2341234567890',
         'first_name' => 'John',
         'last_name' => 'Doe',
-        'phone' => '+2341234567890',
-        'email' => 'taken@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
         'type' => 'passenger',
     ]);
 
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors('email');
-});
-
-it('rejects registration with duplicate phone', function () {
-    User::factory()->passenger()->create(['phone' => '+2341234567890']);
-
-    $response = $this->postJson('/api/v1/auth/register', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'phone' => '+2341234567890',
-        'email' => 'new@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-        'type' => 'passenger',
-    ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors('phone');
-});
-
-it('rejects registration with weak password', function () {
-    $response = $this->postJson('/api/v1/auth/register', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'phone' => '+2341234567890',
-        'email' => 'john@example.com',
-        'password' => 'short',
-        'password_confirmation' => 'short',
-        'type' => 'passenger',
-    ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors('password');
-});
-
-it('logs in a passenger with valid credentials', function () {
-    User::factory()->passenger()->create([
-        'email' => 'passenger@test.com',
-        'password' => 'password123',
-    ]);
-
-    $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'passenger@test.com',
-        'password' => 'password123',
-        'type' => 'passenger',
-    ]);
-
-    $response->assertOk()
-        ->assertJsonStructure(['message', 'user', 'token'])
-        ->assertJson([
-            'user' => [
-                'email' => 'passenger@test.com',
-                'type' => 'passenger',
-            ],
-        ]);
-});
-
-it('logs in a driver with valid credentials', function () {
-    $user = User::factory()->driver()->create([
-        'email' => 'driver@test.com',
-        'password' => 'password123',
-    ]);
-    $user->driver()->create([
-        'status' => 'pending_review',
-    ]);
-
-    $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'driver@test.com',
-        'password' => 'password123',
-        'type' => 'driver',
-    ]);
-
-    $response->assertOk()
-        ->assertJsonStructure(['message', 'user', 'token']);
-});
-
-it('rejects login with wrong password', function () {
-    User::factory()->passenger()->create([
-        'email' => 'passenger@test.com',
-        'password' => 'password123',
-    ]);
-
-    $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'passenger@test.com',
-        'password' => 'wrongpassword',
-        'type' => 'passenger',
-    ]);
-
-    $response->assertUnauthorized()
-        ->assertJson(['message' => 'Invalid credentials.']);
-});
-
-it('rejects login with wrong user type', function () {
-    User::factory()->passenger()->create([
-        'email' => 'passenger@test.com',
-        'password' => 'password123',
-    ]);
-
-    $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'passenger@test.com',
-        'password' => 'password123',
-        'type' => 'driver',
-    ]);
-
-    $response->assertUnauthorized();
-});
-
-it('rejects login for deactivated user', function () {
-    User::factory()->passenger()->inactive()->create([
-        'email' => 'inactive@test.com',
-        'password' => 'password123',
-    ]);
-
-    $response = $this->postJson('/api/v1/auth/login', [
-        'email' => 'inactive@test.com',
-        'password' => 'password123',
-        'type' => 'passenger',
-    ]);
-
-    $response->assertForbidden();
+    $response->assertForbidden()
+        ->assertJson(['message' => 'Phone number not verified. Please verify your phone first.']);
 });
 
 it('returns current user via me endpoint', function () {

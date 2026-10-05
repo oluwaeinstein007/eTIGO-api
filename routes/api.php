@@ -2,13 +2,14 @@
 
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
+use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
-use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
@@ -46,13 +47,16 @@ Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFl
 
 /*
 |--------------------------------------------------------------------------
-| Auth — Passenger & Driver (email/password)
+| Auth — Passenger & Driver (phone OTP + social OAuth)
 |--------------------------------------------------------------------------
 */
-Route::prefix('auth')->middleware('throttle:5,1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/social-login', [SocialAuthController::class, 'login']);
+Route::prefix('auth')->group(function () {
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('/otp/send', [AuthController::class, 'sendOtp']);
+        Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+        Route::post('/register/complete', [AuthController::class, 'completeRegistration']);
+        Route::post('/social', [AuthController::class, 'socialAuth']);
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -67,6 +71,12 @@ Route::prefix('auth')->middleware('throttle:5,1')->group(function () {
 */
 Route::prefix('admin/auth')->middleware('throttle:5,1')->group(function () {
     Route::post('/login', [AdminAuthController::class, 'login']);
+
+    Route::get('/invite/verify/{token}', [AdminInvitationController::class, 'verifyToken']);
+    Route::post('/invite/accept', [AdminInvitationController::class, 'accept']);
+
+    Route::post('/forgot-password', [AdminInvitationController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AdminInvitationController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
@@ -169,5 +179,17 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
         Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
+    });
+
+    Route::middleware('admin.role:super_admin')->prefix('admins')->group(function () {
+        Route::get('/', [AdminManagementController::class, 'index']);
+        Route::get('/invitations', [AdminManagementController::class, 'invitations']);
+        Route::post('/invite', [AdminManagementController::class, 'invite']);
+        Route::post('/invitations/{invitation}/resend', [AdminManagementController::class, 'resendInvite']);
+        Route::delete('/invitations/{invitation}', [AdminManagementController::class, 'revokeInvite']);
+        Route::get('/{admin}', [AdminManagementController::class, 'show']);
+        Route::put('/{admin}', [AdminManagementController::class, 'update']);
+        Route::post('/{admin}/deactivate', [AdminManagementController::class, 'deactivate']);
+        Route::post('/{admin}/reactivate', [AdminManagementController::class, 'reactivate']);
     });
 });

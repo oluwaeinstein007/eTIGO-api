@@ -7,28 +7,46 @@
 
 ---
 
-## Authentication
+## Authentication — Passenger & Driver (Phone OTP + Social OAuth)
 
-### Register (Passenger & Driver)
+### Send OTP
 
 ```
-POST /auth/register
+POST /auth/otp/send
 ```
 
-| Field                 | Type   | Required | Description                          |
-|-----------------------|--------|----------|--------------------------------------|
-| first_name            | string | Yes      | First name                           |
-| last_name             | string | Yes      | Last name                            |
-| phone                 | string | Yes      | E.164 format (e.g. `+2341234567890`) |
-| email                 | string | Yes      | Unique email address                 |
-| password              | string | Yes      | Min 8 characters                     |
-| password_confirmation | string | Yes      | Must match password                  |
-| type                  | string | Yes      | `passenger` or `driver`              |
+| Field | Type   | Required | Description                          |
+|-------|--------|----------|--------------------------------------|
+| phone | string | Yes      | E.164 format (e.g. `+2341234567890`) |
 
-**Response 201:**
+**Response 200:**
 ```json
 {
-  "message": "Account created successfully.",
+  "message": "Verification code sent.",
+  "expires_at": "2026-10-05T12:05:00.000000Z"
+}
+```
+
+**Response 429:** `Please wait before requesting another code.` (60-second cooldown between requests)
+
+---
+
+### Verify OTP
+
+```
+POST /auth/otp/verify
+```
+
+| Field | Type   | Required | Description                          |
+|-------|--------|----------|--------------------------------------|
+| phone | string | Yes      | E.164 format (e.g. `+2341234567890`) |
+| code  | string | Yes      | 6-digit verification code            |
+
+**Response 200 (existing user — logged in):**
+```json
+{
+  "message": "Logged in successfully.",
+  "is_new_user": false,
   "user": {
     "id": 1,
     "first_name": "John",
@@ -43,32 +61,100 @@ POST /auth/register
 }
 ```
 
-Driver registration automatically creates a `Driver` record with `pending_review` status.
+**Response 200 (new user — needs registration):**
+```json
+{
+  "message": "Phone verified. Please complete registration.",
+  "is_new_user": true,
+  "phone": "+2341234567890"
+}
+```
+
+**Response 403:** `Your account has been deactivated. Contact support.`  
+**Response 422:** `Invalid verification code.` or `No active verification code found.`
 
 ---
 
-### Login (Passenger & Driver)
+### Complete Registration
 
 ```
-POST /auth/login
+POST /auth/register/complete
 ```
 
-| Field    | Type   | Required | Description             |
-|----------|--------|----------|-------------------------|
-| email    | string | Yes      | Registered email        |
-| password | string | Yes      | Account password        |
-| type     | string | Yes      | `passenger` or `driver` |
+Called after OTP verification when `is_new_user` is `true`. Phone must have been verified within the last 10 minutes.
 
-**Response 200:**
+| Field      | Type   | Required | Description                          |
+|------------|--------|----------|--------------------------------------|
+| phone      | string | Yes      | The verified phone number            |
+| first_name | string | Yes      | First name                           |
+| last_name  | string | Yes      | Last name                            |
+| email      | string | No       | Email address (unique if provided)   |
+| type       | string | Yes      | `passenger` or `driver`              |
+
+**Response 201:**
+```json
+{
+  "message": "Account created successfully.",
+  "user": {
+    "id": 1,
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone": "+2341234567890",
+    "email": "john@example.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-05T12:00:00.000000Z",
+    "is_active": true,
+    "created_at": "2026-10-05T12:00:30.000000Z"
+  },
+  "token": "1|abc123..."
+}
+```
+
+Driver registration automatically creates a `Driver` record with `pending_review` status.
+
+**Response 403:** `Phone number not verified. Please verify your phone first.`  
+**Response 409:** `An account with this phone number already exists.`
+
+---
+
+### Social Login / Register
+
+```
+POST /auth/social
+```
+
+The mobile app handles OAuth natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and sends the token to the backend for server-side verification.
+
+| Field    | Type   | Required | Description                              |
+|----------|--------|----------|------------------------------------------|
+| provider | string | Yes      | `google`, `apple`, or `facebook`         |
+| token    | string | Yes      | ID token (Google/Apple) or access token (Facebook) |
+| type     | string | Yes      | `passenger` or `driver`                  |
+
+**Response 200 (existing user — logged in):**
 ```json
 {
   "message": "Logged in successfully.",
+  "is_new_user": false,
   "user": { ... },
   "token": "2|def456..."
 }
 ```
 
-**Response 401:** `Invalid credentials.`  
+**Response 201 (new user — account created):**
+```json
+{
+  "message": "Account created successfully.",
+  "is_new_user": true,
+  "needs_profile_completion": false,
+  "user": { ... },
+  "token": "3|ghi789..."
+}
+```
+
+`needs_profile_completion` is `true` when the provider didn't return the user's name (common with Apple Sign In after first use). The client should prompt for the missing fields.
+
+**Response 401:** `Invalid social login token.`  
 **Response 403:** `Your account has been deactivated. Contact support.`
 
 ---
@@ -145,59 +231,6 @@ POST /admin/auth/logout
 GET /admin/auth/me
 ```
 **Auth required (admin).** Returns the authenticated admin's profile.
-
----
-
-### Social Login (Google & Apple)
-
-```
-POST /auth/social-login
-```
-
-Mobile-first flow: the mobile app handles the OAuth flow and sends the provider access token to this endpoint.
-
-| Field        | Type   | Required | Description                    |
-|--------------|--------|----------|--------------------------------|
-| provider     | string | Yes      | `google` or `apple`            |
-| access_token | string | Yes      | OAuth access token from provider |
-| type         | string | Yes      | `passenger` or `driver`        |
-
-**Response 201 (new user):**
-```json
-{
-  "message": "Account created successfully.",
-  "user": {
-    "id": 1,
-    "first_name": "John",
-    "last_name": "Doe",
-    "email": "john@example.com",
-    "type": "passenger",
-    "is_active": true,
-    "created_at": "2026-09-29T10:00:00.000000Z"
-  },
-  "token": "1|abc123...",
-  "is_new_user": true
-}
-```
-
-**Response 200 (existing user):**
-```json
-{
-  "message": "Logged in successfully.",
-  "user": { ... },
-  "token": "2|def456...",
-  "is_new_user": false
-}
-```
-
-**Response 409:** `User type mismatch. This account is registered as a different type.`
-**Response 403:** `Your account has been deactivated. Contact support.`
-**Response 422:** Invalid provider token or validation error.
-
-Notes:
-- If the provider email matches an existing user of the same type, the social account is linked automatically.
-- Driver registration via social login creates a `Driver` record with `pending_review` status.
-- The `phone` field is not required for social-login-only users.
 
 ---
 

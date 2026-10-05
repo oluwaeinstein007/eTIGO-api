@@ -15,6 +15,7 @@ class Driver extends Model
 
     protected $fillable = [
         'user_id',
+        'city_id',
         'status',
         'licence_number',
         'rejection_reason',
@@ -36,6 +37,11 @@ class Driver extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
     }
 
     public function documents(): HasMany

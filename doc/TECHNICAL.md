@@ -15,7 +15,7 @@ The E-tiGo backend is a Laravel 13 API application serving three client applicat
 | Database        | PostgreSQL                                |
 | Cache           | Redis (planned), Database (current)       |
 | Auth            | Laravel Sanctum (token-based)             |
-| Social Auth     | Laravel Socialite + socialiteproviders/apple |
+| Social Auth     | Client-side OAuth (Google, Apple, Facebook)  |
 | Testing         | Pest 5.x                                  |
 | Code Style      | Laravel Pint                              |
 | API Versioning  | URL prefix `/api/v1/`                     |
@@ -24,17 +24,45 @@ The E-tiGo backend is a Laravel 13 API application serving three client applicat
 
 ## Authentication Architecture
 
-### Email/Password Authentication (All User Types)
+### Phone OTP Authentication (Passenger & Driver)
 
-All user types authenticate using email and password credentials:
+Passengers and drivers authenticate using their phone number via WhatsApp OTP, following the industry-standard pattern used by Bolt, Uber, and InDrive.
 
-#### 1. Passenger & Driver Registration/Login
-- Self-registration via `POST /auth/register` with email, password, phone number, and user type
-- Login via `POST /auth/login` with email, password, and user type
-- Driver registration automatically creates a `Driver` record in `pending_review` status
-- Phone number is collected during registration (E.164 format) for ride-related communications
+#### Flow
 
-#### 2. Admin Login
+```
+1. User → POST /auth/otp/send { phone }
+2. Backend → generates 6-digit code, sends via WhatsApp Cloud API
+3. User → POST /auth/otp/verify { phone, code }
+4. Backend → Two outcomes:
+   a) Existing user → returns Sanctum token (logged in)
+   b) New user → returns is_new_user: true
+5. (New user only) → POST /auth/register/complete { phone, first_name, last_name, type }
+6. Backend → creates account, returns Sanctum token
+```
+
+#### OTP Security
+
+- **Code storage:** 6-digit codes are stored as SHA-256 hashes in the `otp_codes` table — plain codes are never persisted
+- **Atomic attempt tracking:** `DB::table()->increment()` ensures the attempt counter is race-condition safe
+- **Timing-safe comparison:** `hash_equals()` prevents timing side-channel attacks during verification
+- **5-minute expiry:** codes expire after 5 minutes
+- **60-second cooldown:** prevents OTP spam
+- **Max 5 attempts:** codes are invalidated after 5 failed verification attempts
+- **10-minute registration window:** after OTP verification, the user has 10 minutes to complete registration
+
+#### WhatsApp OTP Delivery
+
+OTP delivery uses the Meta WhatsApp Cloud API via pre-approved message templates. The `SmsGateway` contract (`App\Contracts\SmsGateway`) abstracts the delivery mechanism:
+
+- **Production:** `WhatsAppGateway` sends OTP via WhatsApp Cloud API (Graph API v21.0)
+- **Development:** `LogSmsGateway` logs the OTP to Laravel's log channel
+
+The gateway is auto-selected based on environment variables — if `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` are configured, WhatsApp is used; otherwise it falls back to logging.
+
+See `doc/whatsapp-otp-setup.md` for client setup instructions.
+
+#### Admin Login
 - Admin accounts are seeded or created by other admins (no self-registration)
 - Login via `POST /admin/auth/login` with email and password
 - Each admin has an `admin_role` that determines their access scope
@@ -48,32 +76,26 @@ All user types authenticate using email and password credentials:
 
 ### Ride-Start PIN Verification
 
-The `OtpService` provides 4-digit PIN generation for ride-start verification (PRD §9.1):
+The `OtpService` also provides 4-digit PIN generation for ride-start verification (PRD §9.1):
 - A PIN is generated when a ride is accepted and shared with the passenger
 - The driver must enter this PIN to confirm the ride has started
 - 30-minute expiry window
 - Maximum 3 verification attempts per PIN
 - Previous active PINs for the same ride are invalidated when a new one is generated
 
-#### Security Hardening
+### Social Login (Google, Apple & Facebook)
 
-- **PIN storage:** PINs are stored as SHA-256 hashes in the `otp_codes` table — plain codes are never persisted
-- **Atomic attempt tracking:** `DB::table()->increment()` ensures the attempt counter is race-condition safe
-- **Timing-safe comparison:** `hash_equals()` prevents timing side-channel attacks during verification
-- **Transaction wrapping:** PIN generation and invalidation of previous codes are wrapped in `DB::transaction()`
-
-This feature is optional but enabled by default. SMS delivery is abstracted behind the `SmsGateway` contract (`App\Contracts\SmsGateway`). The current implementation logs messages (`LogSmsGateway`). To integrate a real SMS provider, implement the interface and update the binding in `AppServiceProvider`.
-
-### Social Login (Google & Apple)
-
-Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI and obtains an access token, then sends it to `POST /auth/social-login`.
+Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and sends the ID token or access token to the backend for server-side verification.
 
 #### Flow
 
 ```
-1. Mobile app → Provider OAuth flow → receives access_token
-2. Mobile app → POST /auth/social-login { provider, access_token, type }
-3. Backend → Socialite::driver($provider)->stateless()->userFromToken($accessToken)
+1. Mobile app → Provider OAuth flow → receives token
+2. Mobile app → POST /auth/social { provider, token, type }
+3. Backend → verifies token server-side:
+   - Google: tokeninfo endpoint
+   - Apple: JWT decode + signature verification
+   - Facebook: debug_token + Graph API profile fetch
 4. Backend → Three possible outcomes:
    a) Existing social account → login
    b) Matching email+type but no social account → link social account to user
@@ -83,12 +105,10 @@ Mobile-first OAuth flow: the mobile app handles the provider's OAuth UI and obta
 
 #### Implementation Details
 
-- **`SocialProvider` enum** (`app/Enums/SocialProvider.php`): `google`, `apple`
+- **`SocialProvider` enum** (`app/Enums/SocialProvider.php`): `google`, `apple`, `facebook`
 - **`SocialAccount` model** (`app/Models/SocialAccount.php`): stores provider, provider_id, provider_token, provider_refresh_token per user
 - **`SocialAuthService`** (`app/Services/SocialAuthService.php`): core logic wrapped in `DB::transaction()`; validates user type match and active status
-- **`SocialAuthController`** (`app/Http/Controllers/Api/V1/Auth/SocialAuthController.php`): returns 201 for new users, 200 for existing
-- Google uses Socialite's built-in driver; Apple uses `socialiteproviders/apple` community package registered via `SocialiteWasCalled` event in `AppServiceProvider`
-- `stateless()` is required because the API has no session/cookie state
+- Social auth is handled within `AuthController@socialAuth` — a single endpoint for all providers
 - Users table `phone` column is nullable to support social-login-only signups
 
 ---
@@ -189,7 +209,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 | `drivers`                | Driver-specific data, KYC status                  |
 | `driver_documents`       | KYC document uploads                              |
 | `vehicles`               | Driver vehicle profiles                           |
-| `social_accounts`        | OAuth provider links (Google, Apple) per user      |
+| `social_accounts`        | OAuth provider links (Google, Apple, Facebook) per user |
 | `audit_logs`             | Immutable event log (polymorphic)                 |
 | `personal_access_tokens` | Sanctum API tokens                                |
 | `cities`                 | City definitions with GeoJSON boundaries           |
@@ -241,7 +261,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver', 'driver.approved'])
 ## Driver Onboarding Flow
 
 ```
-1. Driver registers via POST /auth/register → account created with Driver record (pending_review)
+1. Driver registers via OTP verification + POST /auth/register/complete → account created with Driver record (pending_review)
 2. Driver uploads KYC documents:
    - driving_licence
    - vehicle_registration
@@ -490,7 +510,7 @@ app/
 ├── Http/
 │   ├── Controllers/
 │   │   └── Api/V1/     # Versioned API controllers
-│   │       ├── Auth/       # AuthController, AdminAuthController, SocialAuthController
+│   │       ├── Auth/       # AuthController, AdminAuthController, AdminInvitationController
 │   │       ├── Admin/      # DriverManagementController, AdminCityController, AdminVehicleClassController, AdminCityVehicleClassController, AdminPricingController, AdminSurgeRuleController
 │   │       ├── Driver/     # OnboardingController
 │   │       ├── Passenger/  # ProfileController
@@ -527,9 +547,8 @@ php artisan test --compact
 
 Tests use PostgreSQL (configured in `phpunit.xml`) with `RefreshDatabase` trait. The suite covers:
 
-- **Auth/AuthTest** — Registration (passenger, driver), login, invalid credentials, wrong type, deactivated user, me endpoint, logout
+- **Auth/AuthTest** — OTP send/verify (existing/new user), invalid code, deactivated user, complete registration (passenger/driver), unverified phone, social auth, me endpoint, logout
 - **Auth/AdminAuthTest** — Admin login, invalid credentials, non-admin rejection, deactivated admin, me endpoint, logout
-- **Auth/SocialAuthTest** — Google/Apple social login: new passenger, new driver, existing user, email linking, type mismatch (409), deactivated (403), invalid provider (422), missing token (422)
 - **Driver/OnboardingTest** — Onboarding status, profile update, document upload/replace, vehicle registration, role enforcement
 - **Passenger/ProfileTest** — Profile read/update, role enforcement
 - **Admin/DriverManagementTest** — List/filter drivers, approve/reject, suspend/reactivate, role enforcement
@@ -556,21 +575,28 @@ DB_DATABASE=etigo-api
 # Redis (for driver locations, caching — future)
 REDIS_HOST=127.0.0.1
 
-# Social Login (Google)
+# WhatsApp Cloud API (OTP delivery)
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_OTP_TEMPLATE=otp_verification
+
+# Social OAuth
 GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=
-
-# Social Login (Apple)
 APPLE_CLIENT_ID=
-APPLE_CLIENT_SECRET=
-APPLE_REDIRECT_URI=
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
 
-# SMS Gateway (swap LogSmsGateway for real provider)
-# SMS_PROVIDER=twilio
-# TWILIO_SID=...
-# TWILIO_AUTH_TOKEN=...
-# TWILIO_FROM=...
+# Google Maps
+GOOGLE_MAPS_API_KEY=
+
+# Firebase (push notifications)
+FIREBASE_CREDENTIALS_PATH=
+FIREBASE_PROJECT_ID=
+
+# Flutterwave (payments)
+FLUTTERWAVE_SECRET_KEY=
+FLUTTERWAVE_PUBLIC_KEY=
+FLUTTERWAVE_ENCRYPTION_KEY=
 ```
 
 ---
@@ -599,9 +625,9 @@ This implementation covers the following PRD tasks:
 
 | Task ID      | Description                         | Status |
 |--------------|-------------------------------------|--------|
-| BE-AUTH-01   | Email/password auth service         | Done   |
+| BE-AUTH-01   | Phone OTP auth service (WhatsApp)   | Done   |
 | BE-AUTH-02   | Session/token management            | Done   |
-| BE-AUTH-14   | Social login (Google & Apple)       | Done   |
+| BE-AUTH-14   | Social login (Google, Apple, Facebook) | Done |
 | SETUP-05     | RBAC middleware + Safety Operator    | Done   |
 | SETUP-06     | Immutable audit log                 | Done   |
 | SETUP-08–34  | All Phase 1 database migrations     | Done   |
@@ -609,8 +635,8 @@ This implementation covers the following PRD tasks:
 | SETUP-45     | Global exception handler            | Done   |
 | SETUP-46     | Request logging middleware          | Done   |
 | SETUP-49     | Health check endpoint               | Done   |
-| PA-AUTH-01   | Passenger registration              | Done   |
-| PA-AUTH-02   | Passenger login + session           | Done   |
+| PA-AUTH-01   | Passenger OTP registration          | Done   |
+| PA-AUTH-02   | Passenger OTP login + session       | Done   |
 | PA-AUTH-03   | Session persistence + logout        | Done   |
 | DA-KYC-01   | Driver registration                 | Done   |
 | DA-KYC-02   | Document upload                     | Done   |

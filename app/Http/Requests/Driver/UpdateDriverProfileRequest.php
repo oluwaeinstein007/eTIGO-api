@@ -18,6 +18,7 @@ class UpdateDriverProfileRequest extends FormRequest
     {
         return [
             'licence_number' => ['sometimes', 'required', 'string', 'max:50'],
+            'city_id' => ['sometimes', 'required', 'integer', 'exists:cities,id'],
         ];
     }
 }
