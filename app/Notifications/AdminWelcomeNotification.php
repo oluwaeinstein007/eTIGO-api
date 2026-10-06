@@ -19,7 +19,9 @@ class AdminWelcomeNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $loginUrl = config('app.frontend_url').'/admin/login';
-        $role = str_replace('_', ' ', $notifiable->admin_role->value);
+        $role = $notifiable->admin_role
+            ? str_replace('_', ' ', $notifiable->admin_role->value)
+            : 'admin';
 
         return (new MailMessage)
             ->subject('Welcome to Etigo!')

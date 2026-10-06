@@ -43,13 +43,18 @@ class TestMailCommand extends Command
 
     private function getOrMakeUser(string $email): User
     {
-        return User::where('email', $email)->first()
+        $user = User::where('email', $email)->first()
             ?? tap(new User([
                 'first_name' => 'Test',
                 'last_name' => 'User',
                 'email' => $email,
-                'admin_role' => AdminRole::Operations,
             ]), fn ($u) => $u->exists = false);
+
+        if (! $user->admin_role) {
+            $user->admin_role = AdminRole::Operations;
+        }
+
+        return $user;
     }
 
     private function sendInvitation(string $email): void
