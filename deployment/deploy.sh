@@ -51,6 +51,6 @@ sudo supervisorctl restart etigo-worker:*
 
 echo "==> Cleaning old releases (keeping ${KEEP_RELEASES})..."
 cd "${RELEASES_DIR}"
-ls -1dt */ 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf
+ls -1dt */ 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | xargs -r sudo rm -rf
 
 echo "==> Deploy complete! Release: ${RELEASE}"
