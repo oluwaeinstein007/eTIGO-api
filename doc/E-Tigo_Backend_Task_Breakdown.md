@@ -77,7 +77,7 @@
 | SETUP-06 | `[x]` Provision PostgreSQL instance (staging + production) and configure connection pooling in `config/database.php` | B-02 | SETUP-04 | — |
 | SETUP-07 | `[x]` Create migration: `users` table — id, first_name, last_name, phone (unique E.164), email (unique), type (enum: passenger/driver/admin), admin_role (enum nullable), password, phone_verified_at, is_active, profile_photo_path, created_at, updated_at | B-02 | SETUP-06 | Shared table for all user types; role-specific data in separate tables |
 | SETUP-08 | `[x]` Create migration: `cities` table — id, name, slug (unique), boundary (GeoJSON polygon or point+radius), timezone, currency_code, is_active, created_at, updated_at | B-02 | SETUP-06 | Top-level scoping entity |
-| SETUP-09 | `[x]` Create migration: `vehicle_classes` table — id, name, display_name, capacity, icon_url, description, is_active, created_at, updated_at | B-02 | SETUP-06 | Platform-wide definitions |
+| SETUP-09 | `[x]` Create migration: `vehicle_classes` table — id, name, display_name, capacity, icon (slug: lite/comfort/xl), description, is_active, created_at, updated_at | B-02 | SETUP-06 | Platform-wide definitions; icon is a predefined slug, not a URL |
 | SETUP-10 | `[x]` Create migration: `city_vehicle_classes` pivot table — city_id (FK), vehicle_class_id (FK), is_active, unique constraint on (city_id, vehicle_class_id) | B-02 | SETUP-08, SETUP-09 | Controls which classes are available in which cities |
 | SETUP-11 | `[x]` Create migration: `drivers` table — id, user_id (FK unique), city_id (FK nullable), status (enum: onboarding/pending_review/approved/rejected/suspended), licence_number (nullable), rejection_reason (nullable), is_online (bool default false), approved_at (nullable), suspended_at (nullable), created_at, updated_at. Separate `vehicles` table for vehicle data. | B-02 | SETUP-07, SETUP-09 | Default status is `onboarding`; city_id links to cities table |
 | SETUP-12 | `[x]` Create migration: `driver_documents` table — id, driver_id (FK), type (enum: driving_licence/vehicle_registration/insurance_certificate/government_id), file_path, original_filename, mime_type, file_size, expires_at (date nullable), status (enum: pending/approved/rejected), rejection_reason (nullable), reviewed_by (FK nullable), reviewed_at (nullable), created_at, updated_at | B-02, NF-04 | SETUP-11 | 🔒 Files stored on S3; re-upload replaces previous; expires_at tracks document expiry |
@@ -198,7 +198,7 @@
 | BE-CITY-07 | `[x]` Create `AdminCityController@toggleStatus` — `PATCH /api/v1/admin/cities/{city}/status`: activate/deactivate; audit log | A-01 | BE-CITY-03 | — |
 | BE-CITY-08 | `[x]` Create `CityController@index` — `GET /api/v1/cities`: public endpoint listing active cities with boundaries | A-01 | BE-CITY-01 | Cacheable; invalidate on Admin update |
 | BE-CITY-09 | `[x]` Create `CityResource` and `VehicleClassResource` API resources | — | BE-CITY-01 | — |
-| BE-CITY-10 | `[x]` Create `AdminVehicleClassController@store` — `POST /api/v1/admin/vehicle-classes`: create vehicle class | A-03 | BE-CITY-02, SETUP-52 | — |
+| BE-CITY-10 | `[x]` Create `AdminVehicleClassController@store` — `POST /api/v1/admin/vehicle-classes`: create vehicle class with icon slug (lite/comfort/xl), optional is_active status, and optional city_ids for immediate city assignment | A-03 | BE-CITY-02, SETUP-52 | Aligned with admin dashboard design; cities attached in same transaction |
 | BE-CITY-11 | `[x]` Create `AdminVehicleClassController@index` — `GET /api/v1/admin/vehicle-classes`: list all vehicle classes | A-03 | BE-CITY-10 | Supports is_active filter |
 | BE-CITY-12 | `[x]` Create `AdminVehicleClassController@update` — `PUT /api/v1/admin/vehicle-classes/{vehicleClass}` | A-03 | BE-CITY-10 | — |
 | BE-CITY-13 | `[x]` Create `AdminCityVehicleClassController@update` — `PUT /api/v1/admin/cities/{city}/vehicle-classes`: enable/disable classes for a city | A-04 | BE-CITY-03, BE-CITY-10 | Accepts array of {vehicle_class_id, is_active}; uses sync |
@@ -469,14 +469,25 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-NOTIF-01 | `[ ]` Create `NotificationDispatchService` — centralised service accepting notification type, recipient, payload → route to push notification adapter + create in-app notification record | B-06 | SETUP-57, SETUP-33 | All features call this single service |
+| BE-NOTIF-01 | `[x]` Create `RideNotificationService` — handles push notifications for all ride state transitions via `PushNotificationGateway`; integrated into `RideStateMachine::transitionTo()` with try/catch so failures never break ride flow | B-06 | SETUP-57, SETUP-33 | Covers: ride_matched, driver_en_route, driver_arrived, ride_started, ride_completed, ride_cancelled, no_driver_found |
 | BE-NOTIF-02 | `[ ]` Define `NotificationType` enum: ride_matched, ride_cancelled, driver_arriving, ride_started, ride_completed, sos_check_in, sos_escalated, compliance_warning, promo_expiring, tier_upgrade, ev_reservation_ready, dispute_update, kyc_status_changed, scheduled_ride_reminder, lost_item_report | B-06 | BE-NOTIF-01 | — |
-| BE-NOTIF-03 | `[ ]` Create `Notification` Eloquent model | — | SETUP-33 | — |
-| BE-NOTIF-04 | `[ ]` Create `NotificationController@index` — `GET /api/v1/notifications`: list in-app notifications for authenticated user, paginated, newest first | B-06 | BE-NOTIF-03 | — |
-| BE-NOTIF-05 | `[ ]` Create `NotificationController@markRead` — `PATCH /api/v1/notifications/{notification}/read`: mark single notification as read | B-06 | BE-NOTIF-03 | — |
-| BE-NOTIF-06 | `[ ]` Create `NotificationController@markAllRead` — `POST /api/v1/notifications/read-all`: mark all notifications as read | B-06 | BE-NOTIF-03 | — |
-| BE-NOTIF-07 | `[ ]` Create `DeviceTokenController@store` — `POST /api/v1/device-tokens`: register device token for push | B-06 | SETUP-34 | — |
-| BE-NOTIF-08 | `[ ]` Create `DeviceTokenController@destroy` — `DELETE /api/v1/device-tokens/{token}`: deactivate a device token | B-06 | SETUP-34 | — |
+| BE-NOTIF-03 | `[x]` Create `Notification` Eloquent model | — | SETUP-33 | — |
+| BE-NOTIF-04 | `[x]` Create `NotificationController@index` — `GET /api/v1/notifications`: list in-app notifications for authenticated user, paginated, newest first | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-05 | `[x]` Create `NotificationController@markRead` — `PATCH /api/v1/notifications/{notification}/read`: mark single notification as read | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-06 | `[x]` Create `NotificationController@markAllRead` — `POST /api/v1/notifications/read-all`: mark all notifications as read | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-07 | `[x]` Create `DeviceTokenController@store` — `POST /api/v1/device-tokens`: register device token for push; uses updateOrCreate | B-06 | SETUP-34 | — |
+| BE-NOTIF-08 | `[x]` Create `DeviceTokenController@destroy` — `DELETE /api/v1/device-tokens`: deactivate a device token by token + platform | B-06 | SETUP-34 | — |
+
+### 15.2 Email Notifications
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-NOTIF-09 | `[x]` Configure Resend SMTP mail transport (`MAIL_SCHEME=smtps`, port 465); publish and customise Laravel mail views with Etigo branding (logo, name, footer) | B-06 | SETUP-04 | ⚠ `etigo.com` domain must be verified on Resend before production delivery |
+| BE-NOTIF-10 | `[x]` Create `AdminInvitationNotification` — queued email sent when super admin invites a new admin; includes accept-invite link with 48h-expiring token | B-06 | BE-AUTH-14 | — |
+| BE-NOTIF-11 | `[x]` Create `AdminPasswordResetNotification` — queued email with password reset link (60-min expiry); enumeration-safe (always returns success) | B-06 | BE-AUTH-15 | — |
+| BE-NOTIF-12 | `[x]` Create `AdminWelcomeNotification` — queued email sent when admin accepts invitation; includes dashboard login link and assigned role | B-06 | BE-AUTH-14 | — |
+| BE-NOTIF-13 | `[x]` Create `RideCompletedNotification` — queued receipt email to passenger on ride completion (if email on file); includes trip summary, fare breakdown, payment method | B-06 | BE-RIDE-09 | Wired into `RideService::completeRide()` |
+| BE-NOTIF-14 | `[x]` Create `TestMailCommand` (`mail:test`) — artisan command to test all email types: invitation, reset, welcome, receipt; sends synchronously bypassing queue | — | BE-NOTIF-09 | Dev/staging tool; accepts email and --type option |
 
 ---
 

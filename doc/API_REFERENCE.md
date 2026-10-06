@@ -1202,7 +1202,7 @@ POST /rides/estimate
         "name": "economy",
         "display_name": "Economy",
         "capacity": 4,
-        "icon_url": null
+        "icon": null
       },
       "fare_estimate": "6150.00",
       "distance_km": 10.0,
