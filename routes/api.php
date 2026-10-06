@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
+use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
@@ -13,8 +14,8 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
-use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
+use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
+use App\Http\Controllers\Api\V1\RideLocationController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -133,6 +135,7 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::get('/', [RideController::class, 'index']);
     Route::get('/{ride}', [RideController::class, 'show']);
     Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
+    Route::get('/{ride}/location', [RideLocationController::class, 'show']);
     Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
     Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');
     Route::post('/{ride}/complete', [RideController::class, 'complete'])->middleware('user.type:driver');
@@ -156,6 +159,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
     Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
+    Route::post('/location', [DriverLocationController::class, 'update']);
 
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);
     Route::post('/onboarding/submit', [OnboardingController::class, 'submitForReview']);
