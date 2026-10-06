@@ -15,7 +15,7 @@ class VehicleClass extends Model
         'name',
         'display_name',
         'capacity',
-        'icon_url',
+        'icon',
         'description',
         'is_active',
     ];

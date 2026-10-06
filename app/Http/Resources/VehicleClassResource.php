@@ -17,7 +17,7 @@ class VehicleClassResource extends JsonResource
             'name' => $this->name,
             'display_name' => $this->display_name,
             'capacity' => $this->capacity,
-            'icon_url' => $this->icon_url,
+            'icon' => $this->icon,
             'description' => $this->description,
             'is_active' => $this->is_active,
             'pivot' => $this->when($this->pivot !== null, fn () => [

@@ -21,7 +21,7 @@ class UpdateVehicleClassRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255', Rule::unique('vehicle_classes', 'name')->ignore($this->route('vehicleClass'))],
             'display_name' => ['sometimes', 'string', 'max:255'],
             'capacity' => ['sometimes', 'integer', 'min:1', 'max:20'],
-            'icon_url' => ['nullable', 'string', 'url', 'max:2048'],
+            'icon' => ['nullable', 'string', 'max:50', 'in:lite,comfort,xl'],
             'description' => ['nullable', 'string', 'max:1000'],
         ];
     }

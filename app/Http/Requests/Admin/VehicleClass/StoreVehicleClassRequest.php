@@ -20,8 +20,11 @@ class StoreVehicleClassRequest extends FormRequest
             'name' => ['required', 'string', 'max:255', 'unique:vehicle_classes,name'],
             'display_name' => ['required', 'string', 'max:255'],
             'capacity' => ['required', 'integer', 'min:1', 'max:20'],
-            'icon_url' => ['nullable', 'string', 'url', 'max:2048'],
+            'icon' => ['nullable', 'string', 'max:50', 'in:lite,comfort,xl'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'is_active' => ['sometimes', 'boolean'],
+            'city_ids' => ['sometimes', 'array'],
+            'city_ids.*' => ['integer', 'exists:cities,id'],
         ];
     }
 }

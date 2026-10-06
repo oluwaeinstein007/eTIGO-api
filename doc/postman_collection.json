@@ -2532,7 +2532,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"economy\",\n  \"display_name\": \"Economy\",\n  \"capacity\": 4,\n  \"description\": \"Affordable rides for everyday trips.\"\n}"
+              "raw": "{\n  \"name\": \"economy\",\n  \"display_name\": \"Economy\",\n  \"capacity\": 4,\n  \"icon\": \"lite\",\n  \"description\": \"Affordable rides for everyday trips.\",\n  \"is_active\": true,\n  \"city_ids\": [1, 2]\n}"
             },
             "url": {
               "raw": "{{base_url}}/admin/vehicle-classes",
@@ -2543,7 +2543,8 @@
                 "admin",
                 "vehicle-classes"
               ]
-            }
+            },
+            "description": "Create a new vehicle class.\n\n**icon** allowed values: `lite` (tiGO Lite), `comfort` (tiGO Comfort), `xl` (tiGO XL).\n\n**city_ids** is an optional array of city IDs to enable this class in upon creation."
           }
         },
         {
