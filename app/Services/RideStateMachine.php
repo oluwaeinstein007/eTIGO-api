@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 
 class RideStateMachine
 {
+    public function __construct(
+        private RideNotificationService $notificationService,
+    ) {}
     /**
      * @var array<string, list<RideStatus>>
      */
@@ -99,7 +102,17 @@ class RideStateMachine
                 'created_at' => now(),
             ]);
 
-            return $ride;
+            return ['ride' => $ride, 'from' => $fromState];
         });
+
+        $from = $result['from'] instanceof RideStatus ? $result['from'] : RideStatus::from($result['from']);
+
+        try {
+            $this->notificationService->notifyTransition($result['ride'], $from, $newStatus);
+        } catch (\Throwable) {
+            // Push notification failures must not break the ride flow
+        }
+
+        return $result['ride'];
     }
 }

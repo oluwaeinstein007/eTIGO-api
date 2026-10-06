@@ -130,6 +130,7 @@ After provisioning, update:
 The staging `.env` lives at `/var/www/etigo-api/shared/.env` and is symlinked into each release. Key settings:
 
 ```env
+APP_NAME=Etigo
 APP_ENV=staging
 APP_DEBUG=false
 DB_CONNECTION=pgsql
@@ -139,6 +140,16 @@ CACHE_STORE=redis
 QUEUE_CONNECTION=database
 REDIS_SCHEME=tcp
 
+# Mail — Resend SMTP
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=<your-resend-api-key>
+MAIL_FROM_ADDRESS="noreply@etigo.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
 # S3 — Driver document storage
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
@@ -146,6 +157,8 @@ AWS_DEFAULT_REGION=eu-west-1
 AWS_BUCKET=etigo-driver-documents
 AWS_USE_PATH_STYLE_ENDPOINT=false
 ```
+
+> **Important:** The `etigo.com` domain must be verified on [Resend](https://resend.com/domains) before emails will send in production. Add the DNS records (SPF, DKIM, DMARC) provided by Resend to your domain registrar.
 
 To update environment variables:
 

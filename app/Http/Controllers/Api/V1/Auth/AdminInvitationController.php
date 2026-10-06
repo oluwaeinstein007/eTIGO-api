@@ -12,6 +12,7 @@ use App\Models\AdminInvitation;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Notifications\AdminPasswordResetNotification;
+use App\Notifications\AdminWelcomeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -89,6 +90,8 @@ class AdminInvitationController extends Controller
         $token = $user->createToken('admin-auth', $abilities)->plainTextToken;
 
         AuditLog::record($user, 'admin_invitation_accepted');
+
+        $user->notify(new AdminWelcomeNotification);
 
         return response()->json([
             'message' => 'Account created successfully.',

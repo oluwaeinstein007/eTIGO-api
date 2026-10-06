@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\User;
+use App\Notifications\RideCompletedNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -182,6 +183,17 @@ class RideService
             );
 
             AuditLog::record($ride, 'ride_completed', $driver);
+
+            try {
+                $fareDetails = $this->calculateFinalFare($ride);
+                $passenger = $ride->passenger;
+
+                if ($passenger?->email) {
+                    $passenger->notify(new RideCompletedNotification($ride, $fareDetails));
+                }
+            } catch (\Throwable) {
+                // Receipt email failures must not break ride completion
+            }
 
             return $ride;
         });
