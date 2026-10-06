@@ -52,6 +52,46 @@ it('creates a vehicle class', function () {
     $this->assertDatabaseHas('audit_logs', ['event' => 'vehicle_class_created']);
 });
 
+it('creates a vehicle class with icon, status and city assignments', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $city = \App\Models\City::factory()->create();
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/admin/vehicle-classes', [
+            'name' => 'comfort',
+            'display_name' => 'Comfort',
+            'capacity' => 4,
+            'icon' => 'comfort',
+            'is_active' => false,
+            'city_ids' => [$city->id],
+        ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('vehicle_class.icon', 'comfort')
+        ->assertJsonPath('vehicle_class.is_active', false);
+
+    $this->assertDatabaseHas('vehicle_classes', ['name' => 'comfort', 'icon' => 'comfort', 'is_active' => false]);
+    $this->assertDatabaseHas('city_vehicle_classes', ['city_id' => $city->id]);
+});
+
+it('rejects invalid icon slug', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/admin/vehicle-classes', [
+            'name' => 'sedan',
+            'display_name' => 'Sedan',
+            'capacity' => 4,
+            'icon' => 'sedan',
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['icon']);
+});
+
 it('validates required fields when creating a vehicle class', function () {
     $admin = User::factory()->admin()->create();
     $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;

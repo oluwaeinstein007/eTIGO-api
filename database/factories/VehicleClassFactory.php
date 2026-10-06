@@ -22,7 +22,7 @@ class VehicleClassFactory extends Factory
             'name' => strtolower($name),
             'display_name' => $name,
             'capacity' => fake()->numberBetween(2, 7),
-            'icon_url' => null,
+            'icon' => null,
             'description' => fake()->sentence(),
             'is_active' => true,
         ];

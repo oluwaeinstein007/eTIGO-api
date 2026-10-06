@@ -654,6 +654,16 @@ FACEBOOK_APP_SECRET=
 # Google Maps
 GOOGLE_MAPS_API_KEY=
 
+# Mail (Resend SMTP)
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=<resend-api-key>
+MAIL_FROM_ADDRESS="noreply@etigo.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
 # Firebase (push notifications)
 FIREBASE_CREDENTIALS_PATH=
 FIREBASE_PROJECT_ID=
@@ -681,6 +691,43 @@ Run `php artisan db:seed` to create these accounts. The `AdminSeeder` includes a
 ## Rate Limiting
 
 Auth routes (`/auth/*` and `/admin/auth/*`) are rate-limited to **5 requests per minute** per IP via Laravel's `throttle:5,1` middleware. Exceeding the limit returns `429 Too Many Requests`.
+
+---
+
+## Notifications & Email
+
+### Push Notifications (FCM)
+
+Push notifications are sent via Firebase Cloud Messaging through the `PushNotificationGateway` contract. Two implementations exist:
+- **`FirebasePushGateway`** — production adapter using `kreait/firebase-php`; auto-deactivates invalid device tokens
+- **`LogPushGateway`** — dev/test adapter that logs notifications instead of sending
+
+`RideNotificationService` dispatches push notifications on every ride state transition, integrated into `RideStateMachine::transitionTo()`. Failures are caught silently so push issues never break the ride flow.
+
+| Event | Recipients | Push Type |
+|-------|-----------|-----------|
+| Driver matched | Passenger + Driver | `ride_matched` / `ride_assigned` |
+| Driver en route | Passenger | `driver_en_route` |
+| Driver arrived | Passenger | `driver_arrived` |
+| Ride started | Passenger | `ride_started` |
+| Ride completed | Passenger + Driver | `ride_completed` |
+| Ride cancelled | Other party | `ride_cancelled` |
+| No driver found | Passenger | `no_driver_found` |
+
+### Email Notifications
+
+Transactional emails are sent via Resend SMTP (`smtps://smtp.resend.com:465`). All email notifications implement `ShouldQueue` for async delivery.
+
+| Notification | Trigger | Recipient |
+|-------------|---------|-----------|
+| `AdminInvitationNotification` | Super admin invites new admin | Invitee email |
+| `AdminPasswordResetNotification` | Admin forgot password | Admin email |
+| `AdminWelcomeNotification` | Admin accepts invitation | New admin email |
+| `RideCompletedNotification` | Ride completed | Passenger (if email on file) |
+
+Email templates are customised in `resources/views/vendor/mail/` with Etigo branding (logo, colours, footer). Test emails can be sent via `php artisan mail:test {email} --type={invitation|reset|welcome|receipt|all}`.
+
+> **Note:** The `etigo.com` domain must be verified on [Resend](https://resend.com/domains) with SPF, DKIM, and DMARC DNS records before production emails will deliver from `noreply@etigo.com`.
 
 ---
 

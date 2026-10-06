@@ -142,7 +142,7 @@ class FareEstimationService
                     'name' => $vehicleClass->name,
                     'display_name' => $vehicleClass->display_name,
                     'capacity' => $vehicleClass->capacity,
-                    'icon_url' => $vehicleClass->icon_url,
+                    'icon' => $vehicleClass->icon,
                 ],
                 'fare_estimate' => number_format($finalFare, 2, '.', ''),
                 'distance_km' => $route['distance_km'],

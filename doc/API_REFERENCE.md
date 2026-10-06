@@ -967,7 +967,7 @@ Returns active vehicle classes available in a city. No authentication required. 
       "name": "economy",
       "display_name": "Economy",
       "capacity": 4,
-      "icon_url": null,
+      "icon": null,
       "description": "Affordable rides for everyday trips.",
       "is_active": true,
       "created_at": "2026-09-29T10:00:00.000000Z",
@@ -1086,13 +1086,23 @@ GET /admin/vehicle-classes
 ```
 POST /admin/vehicle-classes
 ```
-| Field        | Type    | Required | Description                          |
-|--------------|---------|----------|--------------------------------------|
-| name         | string  | Yes      | Unique internal name (e.g. `economy`) |
-| display_name | string  | Yes      | User-facing name (e.g. `Economy`)    |
-| capacity     | integer | Yes      | Passenger capacity (1–20)            |
-| icon_url     | string  | No       | URL to vehicle class icon            |
-| description  | string  | No       | Description text (max 1000 chars)    |
+| Field        | Type    | Required | Description                                  |
+|--------------|---------|----------|----------------------------------------------|
+| name         | string  | Yes      | Unique internal name (e.g. `economy`)        |
+| display_name | string  | Yes      | User-facing name (e.g. `Economy`)            |
+| capacity     | integer | Yes      | Passenger capacity (1–20)                    |
+| icon         | string  | No       | Icon slug — see **Icon Slugs** below         |
+| description  | string  | No       | Description text (max 1000 chars)            |
+| is_active    | boolean | No       | Active status (default: true)                |
+| city_ids     | array   | No       | Array of city IDs to enable this class in    |
+
+**Icon Slugs:**
+
+| Slug      | Display       |
+|-----------|---------------|
+| `lite`    | tiGO Lite     |
+| `comfort` | tiGO Comfort |
+| `xl`      | tiGO XL       |
 
 **Response 201:**
 ```json
@@ -1115,7 +1125,7 @@ GET /admin/vehicle-classes/{vehicle_class_id}
 ```
 PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
-Same fields as create, all optional (partial update supported).
+Same fields as create (except `city_ids`), all optional (partial update supported).
 
 ---
 
@@ -1192,7 +1202,7 @@ POST /rides/estimate
         "name": "economy",
         "display_name": "Economy",
         "capacity": 4,
-        "icon_url": null
+        "icon": null
       },
       "fare_estimate": "6150.00",
       "distance_km": 10.0,
@@ -2152,3 +2162,46 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `safety_concern`     | Safety concern                           |
 | `other`              | Other reason                             |
 | `system_timeout`     | System timeout                           |
+
+---
+
+## Push Notifications (FCM)
+
+Push notifications are sent automatically on ride state transitions. The mobile app must register a device token via `POST /device-tokens` to receive them.
+
+| Event              | Recipient  | Notification Type    | Description                                    |
+|--------------------|------------|----------------------|------------------------------------------------|
+| Driver matched     | Passenger  | `ride_matched`       | Driver found, includes driver name             |
+| Driver matched     | Driver     | `ride_assigned`      | New ride assigned, includes pickup address     |
+| Driver en route    | Passenger  | `driver_en_route`    | Driver is on the way to pickup                 |
+| Driver arrived     | Passenger  | `driver_arrived`     | Driver is waiting at pickup location           |
+| Ride started       | Passenger  | `ride_started`       | Trip has begun, includes destination           |
+| Ride completed     | Passenger  | `ride_completed`     | Trip finished, includes total fare             |
+| Ride completed     | Driver     | `ride_completed`     | Trip finished                                  |
+| Ride cancelled     | Other party| `ride_cancelled`     | Cancellation by passenger/driver/admin         |
+| No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
+
+**Payload format:**
+```json
+{
+  "title": "Driver Found!",
+  "body": "Your driver John is on the way.",
+  "data": {
+    "type": "ride_matched",
+    "ride_id": "42"
+  }
+}
+```
+
+---
+
+## Email Notifications
+
+Transactional emails sent via Resend SMTP. Emails are queued and sent asynchronously.
+
+| Email                 | Recipient | Trigger                          |
+|-----------------------|-----------|----------------------------------|
+| Admin Invitation      | Invitee   | `POST /admin/admins/invite`      |
+| Admin Password Reset  | Admin     | `POST /admin/auth/forgot-password` |
+| Admin Welcome         | Admin     | `POST /admin/auth/invite/accept` |
+| Ride Receipt          | Passenger | Ride completed (has email on file) |

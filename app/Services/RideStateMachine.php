@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 
 class RideStateMachine
 {
+    public function __construct(
+        private RideNotificationService $notificationService,
+    ) {}
     /**
      * @var array<string, list<RideStatus>>
      */
@@ -60,7 +63,9 @@ class RideStateMachine
         string $triggeredByType = 'system',
         ?array $metadata = null,
     ): Ride {
-        return DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata) {
+        $fromState = null;
+
+        $ride = DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata, &$fromState) {
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
 
             if (! $this->canTransitionTo($ride, $newStatus)) {
@@ -101,5 +106,15 @@ class RideStateMachine
 
             return $ride;
         });
+
+        $from = $fromState instanceof RideStatus ? $fromState : RideStatus::from($fromState);
+
+        try {
+            $this->notificationService->notifyTransition($ride, $from, $newStatus);
+        } catch (\Throwable) {
+            // Push notification failures must not break the ride flow
+        }
+
+        return $ride;
     }
 }

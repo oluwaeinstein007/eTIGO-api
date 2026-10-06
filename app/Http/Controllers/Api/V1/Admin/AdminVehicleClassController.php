@@ -40,8 +40,16 @@ class AdminVehicleClassController extends Controller
         $validated = $request->validated();
         $admin = $request->user();
 
-        $vehicleClass = DB::transaction(function () use ($validated, $admin) {
+        $cityIds = $validated['city_ids'] ?? [];
+        unset($validated['city_ids']);
+
+        $vehicleClass = DB::transaction(function () use ($validated, $admin, $cityIds) {
             $vehicleClass = VehicleClass::create($validated);
+
+            if (! empty($cityIds)) {
+                $syncData = array_fill_keys($cityIds, ['is_active' => true, 'sort_order' => 0]);
+                $vehicleClass->cities()->attach($syncData);
+            }
 
             AuditLog::record($vehicleClass, 'vehicle_class_created', $admin);
 
