@@ -11,10 +11,12 @@ use App\Http\Requests\Driver\UpdateVehicleRequest;
 use App\Http\Requests\Driver\UploadDocumentRequest;
 use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
+use App\Http\Resources\UserResource;
 use App\Http\Resources\VehicleResource;
 use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -218,6 +220,53 @@ class OnboardingController extends Controller
 
         return response()->json([
             'vehicle' => new VehicleResource($driver->vehicle->load('vehicleClass')),
+        ]);
+    }
+
+    public function updateProfilePhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'profile_photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+
+        if ($user->profile_photo_path) {
+            Storage::disk('s3')->delete($user->profile_photo_path);
+        }
+
+        $path = $request->file('profile_photo')
+            ->store("profile-photos/{$user->id}", 's3');
+
+        $user->update(['profile_photo_path' => $path]);
+
+        AuditLog::record($user, 'profile_photo_updated', $user);
+
+        return response()->json([
+            'message' => 'Profile photo updated successfully.',
+            'user' => new UserResource($user->fresh()),
+        ]);
+    }
+
+    public function deleteProfilePhoto(): JsonResponse
+    {
+        $user = request()->user();
+
+        if (! $user->profile_photo_path) {
+            return response()->json([
+                'message' => 'No profile photo to remove.',
+            ], 422);
+        }
+
+        Storage::disk('s3')->delete($user->profile_photo_path);
+
+        $user->update(['profile_photo_path' => null]);
+
+        AuditLog::record($user, 'profile_photo_removed', $user);
+
+        return response()->json([
+            'message' => 'Profile photo removed successfully.',
+            'user' => new UserResource($user->fresh()),
         ]);
     }
 

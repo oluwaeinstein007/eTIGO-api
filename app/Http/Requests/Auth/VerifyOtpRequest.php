@@ -19,6 +19,7 @@ class VerifyOtpRequest extends FormRequest
         return [
             'phone' => ['required', 'string', 'regex:/^\+[1-9]\d{6,14}$/'],
             'code' => ['required', 'string', 'size:6'],
+            'type' => ['required', 'string', 'in:passenger,driver'],
         ];
     }
 

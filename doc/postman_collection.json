@@ -38,7 +38,16 @@
                   ]
                 },
                 "description": "No auth required. Returns database and Redis connectivity status. 200 = healthy, 503 = degraded."
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Healthy",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"status\": \"healthy\",\n  \"services\": {\n    \"database\": \"connected\",\n    \"redis\": \"connected\"\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -236,7 +245,23 @@
                   ]
                 },
                 "description": "Sends a 6-digit OTP via WhatsApp. 60-second cooldown between requests. Code expires after 5 minutes.\n\n**Non-production:** OTP is always `123456` and SMS is skipped. Use this code in Verify OTP."
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — OTP Sent",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Verification code sent.\",\n  \"expires_at\": \"2026-10-06T14:05:00.000000Z\"\n}"
+                },
+                {
+                  "name": "429 — Cooldown Active",
+                  "status": "Too Many Requests",
+                  "code": 429,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Please wait before requesting another code.\"\n}"
+                }
+              ]
             },
             {
               "name": "Verify OTP (Existing User → Login)",
@@ -268,7 +293,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"phone\": \"+2341234567890\",\n  \"code\": \"123456\"\n}"
+                  "raw": "{\n  \"phone\": \"+2348100000001\",\n  \"code\": \"123456\",\n  \"type\": \"passenger\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/auth/otp/verify",
@@ -281,8 +306,38 @@
                     "verify"
                   ]
                 },
-                "description": "If user exists: returns token (logged in). If new user: returns is_new_user: true."
-              }
+                "description": "Requires `type` to identify which account to log into (a phone can have both a passenger and driver account). If user exists for that type: returns token. If new user: returns is_new_user: true."
+              },
+              "response": [
+                {
+                  "name": "200 — Existing User (Logged In)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"1|abc123def456ghi789jkl012mno345pqr678stu901\"\n}"
+                },
+                {
+                  "name": "200 — New User (Needs Registration)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Phone verified. Please complete registration.\",\n  \"is_new_user\": true,\n  \"phone\": \"+2341234567890\",\n  \"type\": \"passenger\"\n}"
+                },
+                {
+                  "name": "403 — Account Deactivated",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Your account has been deactivated. Contact support.\"\n}"
+                },
+                {
+                  "name": "422 — Invalid Code",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Invalid verification code.\"\n}"
+                }
+              ]
             },
             {
               "name": "Complete Registration (Passenger)",
@@ -327,8 +382,31 @@
                     "complete"
                   ]
                 },
-                "description": "Called after OTP verification when is_new_user is true. Phone must be verified within the last 10 minutes."
-              }
+                "description": "Called after OTP verification when is_new_user is true. Phone must be verified within the last 10 minutes. The same phone can register as both passenger and driver."
+              },
+              "response": [
+                {
+                  "name": "201 — Account Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Account created successfully.\",\n  \"user\": {\n    \"id\": 6,\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"+2341234567890\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:00:30.000000Z\"\n  },\n  \"token\": \"2|xyz789abc012def345ghi678jkl901mno234pqr567\"\n}"
+                },
+                {
+                  "name": "409 — Already Exists",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"A passenger account with this phone number already exists.\"\n}"
+                },
+                {
+                  "name": "403 — Phone Not Verified",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Phone number not verified. Please verify your phone first.\"\n}"
+                }
+              ]
             },
             {
               "name": "Complete Registration (Driver)",
@@ -373,8 +451,17 @@
                     "complete"
                   ]
                 },
-                "description": "Driver registration creates a Driver record with onboarding status. city_id is required for drivers."
-              }
+                "description": "Driver registration creates a Driver record with onboarding status. city_id is required for drivers. The same phone used for a passenger account can also register as a driver."
+              },
+              "response": [
+                {
+                  "name": "201 — Driver Account Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Account created successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Driver\",\n    \"phone\": \"+2349876543210\",\n    \"email\": null,\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:00:30.000000Z\"\n  },\n  \"token\": \"3|mno345pqr678stu901vwx234yza567bcd890efg123\"\n}"
+                }
+              ]
             },
             {
               "name": "Social Login (Google)",
@@ -418,8 +505,31 @@
                     "social"
                   ]
                 },
-                "description": "Send the ID token from Google Sign-In SDK. Creates account if new, logs in if existing."
-              }
+                "description": "Send the ID token from Google Sign-In SDK. Creates account if new, logs in if existing. The same Google account can be used for both passenger and driver accounts."
+              },
+              "response": [
+                {
+                  "name": "200 — Existing User (Logged In)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"4|social123def456ghi789jkl012mno345pqr678stu\"\n}"
+                },
+                {
+                  "name": "201 — New User Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Account created successfully.\",\n  \"is_new_user\": true,\n  \"needs_profile_completion\": false,\n  \"user\": {\n    \"id\": 8,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": null,\n    \"email\": \"ade@gmail.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:01:00.000000Z\"\n  },\n  \"token\": \"5|new123def456ghi789jkl012mno345pqr678stu901\"\n}"
+                },
+                {
+                  "name": "401 — Invalid Token",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Invalid social login token.\"\n}"
+                }
+              ]
             },
             {
               "name": "Social Login (Apple)",
@@ -512,6 +622,54 @@
               }
             },
             {
+              "name": "Social Login Redirect",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider\": \"google\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/auth/social/redirect",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "social",
+                    "redirect"
+                  ]
+                },
+                "description": "Returns the OAuth redirect URL for the given provider. The mobile app opens this URL in a WebView. After the user authorizes, the app captures the token from the callback and sends it to POST /auth/social.\n\nProviders: google, apple, facebook.\n\nNo auth required. Rate-limited to 5 requests/minute."
+              },
+              "response": [
+                {
+                  "name": "200 — Redirect URL",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"redirect_url\": \"https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&scope=openid+profile+email&response_type=code&state=...\",\n  \"provider\": \"google\"\n}"
+                },
+                {
+                  "name": "422 — Invalid Provider",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"The selected provider is invalid.\",\n  \"errors\": {\n    \"provider\": [\"The selected provider is invalid.\"]\n  }\n}"
+                }
+              ]
+            },
+            {
               "name": "Get Current User",
               "request": {
                 "method": "GET",
@@ -535,7 +693,16 @@
                     "me"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Current User",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
             },
             {
               "name": "Logout",
@@ -561,7 +728,16 @@
                     "logout"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Logged Out",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Logged out successfully.\"\n}"
+                }
+              ]
             }
           ]
         },
@@ -611,7 +787,23 @@
                     "login"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Admin Logged In",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"user\": {\n    \"id\": 12,\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
+                },
+                {
+                  "name": "401 — Invalid Credentials",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Invalid credentials.\"\n}"
+                }
+              ]
             },
             {
               "name": "Admin Me",
@@ -839,19 +1031,24 @@
                     "profile"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Profile",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
             },
             {
               "name": "Update Profile",
               "request": {
-                "method": "PUT",
+                "method": "POST",
                 "header": [
                   {
                     "key": "Accept",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Content-Type",
                     "value": "application/json"
                   },
                   {
@@ -860,8 +1057,30 @@
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Updated\",\n  \"email\": \"john@example.com\"\n}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "first_name",
+                      "value": "John",
+                      "type": "text"
+                    },
+                    {
+                      "key": "last_name",
+                      "value": "Updated",
+                      "type": "text"
+                    },
+                    {
+                      "key": "email",
+                      "value": "john@example.com",
+                      "type": "text"
+                    },
+                    {
+                      "key": "profile_photo",
+                      "type": "file",
+                      "src": "",
+                      "description": "Optional. JPG/JPEG/PNG, max 5 MB."
+                    }
+                  ]
                 },
                 "url": {
                   "raw": "{{base_url}}/passenger/profile",
@@ -872,8 +1091,62 @@
                     "passenger",
                     "profile"
                   ]
+                },
+                "description": "Uses POST with multipart/form-data to support file uploads. All fields are optional. Profile photo is stored on S3; uploading a new one replaces the old."
+              },
+              "response": [
+                {
+                  "name": "200 — Profile Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Profile updated successfully.\",\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": \"https://s3.amazonaws.com/etigo/profile-photos/1/abc123.jpg\",\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 }
-              }
+              ]
+            },
+            {
+              "name": "Delete Profile Photo",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/profile/photo",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "profile",
+                    "photo"
+                  ]
+                },
+                "description": "Removes the passenger's profile photo from S3. Returns 422 if no photo exists."
+              },
+              "response": [
+                {
+                  "name": "200 — Photo Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — No Photo",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"No profile photo to remove.\"\n}"
+                }
+              ]
             }
           ]
         },
@@ -1333,6 +1606,105 @@
                   ]
                 }
               }
+            },
+            {
+              "name": "Upload Profile Photo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "profile_photo",
+                      "type": "file",
+                      "src": "",
+                      "description": "Required. JPG/JPEG/PNG, max 5 MB."
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/profile/photo",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "profile",
+                    "photo"
+                  ]
+                },
+                "description": "Uploads or replaces the driver's profile photo on S3. Old photo is deleted automatically."
+              },
+              "response": [
+                {
+                  "name": "200 — Photo Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Profile photo updated successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": \"https://s3.amazonaws.com/etigo/profile-photos/7/def456.jpg\",\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Validation Error",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"The profile photo field is required.\",\n  \"errors\": {\n    \"profile_photo\": [\"The profile photo field is required.\"]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Profile Photo",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/profile/photo",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "profile",
+                    "photo"
+                  ]
+                },
+                "description": "Removes the driver's profile photo from S3. Returns 422 if no photo exists."
+              },
+              "response": [
+                {
+                  "name": "200 — Photo Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — No Photo",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"message\": \"No profile photo to remove.\"\n}"
+                }
+              ]
             },
             {
               "name": "Upload KYC Document",
