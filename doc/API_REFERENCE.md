@@ -59,6 +59,8 @@ Run `php artisan db:seed` to populate the database with the test data below.
 
 **Passengers & Drivers:** `POST /auth/otp/send` → `POST /auth/otp/verify` → (if new) `POST /auth/register/complete` → use bearer token
 
+**Social Login (Backend-Initiated):** `POST /auth/social/redirect` → user completes OAuth in browser/webview → app sends token to `POST /auth/social`
+
 **Admins:** `POST /admin/auth/login` with email & password → use bearer token
 
 ### Static OTP (Non-Production Only)
@@ -70,6 +72,16 @@ In **local**, **staging**, and **testing** environments, all OTP codes are set t
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
 This static OTP is **disabled in production** — production always generates random codes and sends via SMS.
+
+### Dual Account Support
+
+A single phone number or email can be associated with **both** a passenger account and a driver account — like Uber and Bolt. A user who registers as a passenger with `+234...` can also create a driver account with the same phone number. Each account type has its own auth token, profile, and lifecycle.
+
+**How it works:**
+- The `type` field (`passenger` or `driver`) is sent with every auth request (OTP verify, registration, social login) to identify which account the user is accessing.
+- The same phone/email produces separate User records — one per type.
+- Social accounts (Google, Apple, Facebook) can also be linked to both account types independently.
+- Uniqueness is enforced **per type**: two passengers cannot share the same phone, but a passenger and a driver can.
 
 ---
 
@@ -89,11 +101,16 @@ POST /auth/otp/send
 ```json
 {
   "message": "Verification code sent.",
-  "expires_at": "2026-10-05T12:05:00.000000Z"
+  "expires_at": "2026-10-06T14:05:00.000000Z"
 }
 ```
 
-**Response 429:** `Please wait before requesting another code.` (60-second cooldown between requests)
+**Response 429:**
+```json
+{
+  "message": "Please wait before requesting another code."
+}
+```
 
 ---
 
@@ -107,6 +124,7 @@ POST /auth/otp/verify
 |-------|--------|----------|--------------------------------------|
 | phone | string | Yes      | E.164 format (e.g. `+2341234567890`) |
 | code  | string | Yes      | 6-digit verification code            |
+| type  | string | Yes      | `passenger` or `driver`              |
 
 **Response 200 (existing user — logged in):**
 ```json
@@ -115,15 +133,17 @@ POST /auth/otp/verify
   "is_new_user": false,
   "user": {
     "id": 1,
-    "first_name": "John",
-    "last_name": "Doe",
-    "phone": "+2341234567890",
-    "email": "john@example.com",
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
     "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    "created_at": "2026-09-29T10:00:00.000000Z"
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
   },
-  "token": "1|abc123..."
+  "token": "1|abc123def456ghi789jkl012mno345pqr678stu901"
 }
 ```
 
@@ -132,12 +152,25 @@ POST /auth/otp/verify
 {
   "message": "Phone verified. Please complete registration.",
   "is_new_user": true,
-  "phone": "+2341234567890"
+  "phone": "+2341234567890",
+  "type": "passenger"
 }
 ```
 
-**Response 403:** `Your account has been deactivated. Contact support.`  
-**Response 422:** `Invalid verification code.` or `No active verification code found.`
+**Response 403:**
+```json
+{
+  "message": "Your account has been deactivated. Contact support."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Invalid verification code.",
+  "error_code": "VALIDATION_ERROR"
+}
+```
 
 ---
 
@@ -154,32 +187,100 @@ Called after OTP verification when `is_new_user` is `true`. Phone must have been
 | phone      | string | Yes      | The verified phone number            |
 | first_name | string | Yes      | First name                           |
 | last_name  | string | Yes      | Last name                            |
-| email      | string | No       | Email address (unique if provided)   |
+| email      | string | No       | Email address (unique per account type) |
 | type       | string | Yes      | `passenger` or `driver`              |
+| city_id    | integer| Conditional | Required for drivers. Must exist in cities table |
 
-**Response 201:**
+**Response 201 (passenger):**
 ```json
 {
   "message": "Account created successfully.",
   "user": {
-    "id": 1,
-    "first_name": "John",
-    "last_name": "Doe",
+    "id": 6,
+    "first_name": "Yusuf",
+    "last_name": "Ibrahim",
     "phone": "+2341234567890",
-    "email": "john@example.com",
+    "email": "yusuf@example.com",
     "type": "passenger",
-    "phone_verified_at": "2026-10-05T12:00:00.000000Z",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    "created_at": "2026-10-05T12:00:30.000000Z"
+    "profile_photo_url": null,
+    "created_at": "2026-10-06T14:00:30.000000Z"
   },
-  "token": "1|abc123..."
+  "token": "2|xyz789abc012def345ghi678jkl901mno234pqr567"
 }
 ```
 
-Driver registration automatically creates a `Driver` record with `onboarding` status. Drivers must provide `city_id` (required, must exist in cities table).
+**Response 201 (driver):**
+```json
+{
+  "message": "Account created successfully.",
+  "user": {
+    "id": 7,
+    "first_name": "Chinedu",
+    "last_name": "Obi",
+    "phone": "+2349087654321",
+    "email": null,
+    "type": "driver",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-06T14:00:30.000000Z"
+  },
+  "token": "3|mno345pqr678stu901vwx234yza567bcd890efg123"
+}
+```
 
-**Response 403:** `Phone number not verified. Please verify your phone first.`  
-**Response 409:** `An account with this phone number already exists.`
+Driver registration automatically creates a `Driver` record with `onboarding` status.
+
+**Response 403:**
+```json
+{
+  "message": "Phone number not verified. Please verify your phone first."
+}
+```
+
+**Response 409:**
+```json
+{
+  "message": "A passenger account with this phone number already exists."
+}
+```
+
+---
+
+### Social Login — Get Redirect URL (Backend-Initiated)
+
+```
+POST /auth/social/redirect
+```
+
+Returns the OAuth provider's authorization URL. The mobile app opens this URL in a webview or system browser. When the provider redirects back, the app extracts the token and sends it to `POST /auth/social`.
+
+This approach keeps OAuth credentials on the server — updating credentials (e.g. rotating a client secret) doesn't require a new app build.
+
+| Field    | Type   | Required | Description                              |
+|----------|--------|----------|------------------------------------------|
+| provider | string | Yes      | `google`, `apple`, or `facebook`         |
+
+**Response 200:**
+```json
+{
+  "redirect_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&scope=openid+profile+email&response_type=code&state=...",
+  "provider": "google"
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "The provider field is required.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "provider": ["The provider field is required."]
+  }
+}
+```
 
 ---
 
@@ -189,7 +290,9 @@ Driver registration automatically creates a `Driver` record with `onboarding` st
 POST /auth/social
 ```
 
-The mobile app handles OAuth natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and sends the token to the backend for server-side verification.
+The mobile app can either:
+1. Use the backend-initiated flow (recommended): call `POST /auth/social/redirect` first, then send the obtained token here.
+2. Handle OAuth natively (Google Sign-In SDK, Apple Sign In, Facebook SDK) and send the token directly.
 
 | Field    | Type   | Required | Description                              |
 |----------|--------|----------|------------------------------------------|
@@ -202,8 +305,19 @@ The mobile app handles OAuth natively (Google Sign-In SDK, Apple Sign In, Facebo
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
-  "user": { ... },
-  "token": "2|def456..."
+  "user": {
+    "id": 1,
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  },
+  "token": "4|abc123def456ghi789jkl012mno345pqr678stu901"
 }
 ```
 
@@ -213,15 +327,39 @@ The mobile app handles OAuth natively (Google Sign-In SDK, Apple Sign In, Facebo
   "message": "Account created successfully.",
   "is_new_user": true,
   "needs_profile_completion": false,
-  "user": { ... },
-  "token": "3|ghi789..."
+  "user": {
+    "id": 8,
+    "first_name": "Ada",
+    "last_name": "Nwosu",
+    "phone": null,
+    "email": "ada.nwosu@gmail.com",
+    "type": "passenger",
+    "phone_verified_at": null,
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-06T14:01:00.000000Z"
+  },
+  "token": "5|pqr678stu901vwx234yza567bcd890efg123hij456"
 }
 ```
 
 `needs_profile_completion` is `true` when the provider didn't return the user's name (common with Apple Sign In after first use). The client should prompt for the missing fields.
 
-**Response 401:** `Invalid social login token.`  
-**Response 403:** `Your account has been deactivated. Contact support.`
+**Response 401:**
+```json
+{
+  "message": "Invalid social login token."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Your account has been deactivated. Contact support."
+}
+```
+
+The same social account (e.g. Google) can be used with both a passenger and driver account independently.
 
 ---
 
@@ -231,6 +369,24 @@ The mobile app handles OAuth natively (Google Sign-In SDK, Apple Sign In, Facebo
 GET /auth/me
 ```
 **Auth required.** Returns the authenticated user's profile.
+
+**Response 200:**
+```json
+{
+  "user": {
+    "id": 1,
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/abc123.jpg",
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
 
 ---
 
@@ -270,17 +426,32 @@ POST /admin/auth/login
     "id": 1,
     "first_name": "Super",
     "last_name": "Admin",
+    "phone": null,
     "email": "admin@etigo.com",
     "type": "admin",
     "admin_role": "super_admin",
-    ...
+    "phone_verified_at": null,
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
   },
-  "token": "3|ghi789..."
+  "token": "6|ghi789jkl012mno345pqr678stu901vwx234yza567"
 }
 ```
 
-**Response 401:** `Invalid credentials.`  
-**Response 403:** `Account deactivated.`
+**Response 401:**
+```json
+{
+  "message": "Invalid credentials."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Your account has been deactivated. Contact a system administrator."
+}
+```
 
 ---
 
@@ -290,6 +461,13 @@ POST /admin/auth/logout
 ```
 **Auth required (admin).**
 
+**Response 200:**
+```json
+{
+  "message": "Logged out successfully."
+}
+```
+
 ---
 
 #### Get Current Admin
@@ -297,6 +475,155 @@ POST /admin/auth/logout
 GET /admin/auth/me
 ```
 **Auth required (admin).** Returns the authenticated admin's profile.
+
+**Response 200:**
+```json
+{
+  "user": {
+    "id": 1,
+    "first_name": "Super",
+    "last_name": "Admin",
+    "phone": null,
+    "email": "admin@etigo.com",
+    "type": "admin",
+    "admin_role": "super_admin",
+    "phone_verified_at": null,
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+#### Verify Invitation Token
+```
+GET /admin/auth/invite/verify/{token}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Valid invitation.",
+  "invitation": {
+    "email": "newadmin@etigo.com",
+    "admin_role": "operations",
+    "expires_at": "2026-10-08T14:00:00.000000Z"
+  }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Invalid invitation token."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "This invitation has already been accepted."
+}
+```
+
+---
+
+#### Accept Invitation
+```
+POST /admin/auth/invite/accept
+```
+
+| Field      | Type   | Required | Description              |
+|------------|--------|----------|--------------------------|
+| token      | string | Yes      | Invitation token         |
+| first_name | string | Yes      | First name               |
+| last_name  | string | Yes      | Last name                |
+| phone      | string | No       | Phone number             |
+| password   | string | Yes      | Min 8 chars, confirmed   |
+| password_confirmation | string | Yes | Must match password |
+
+**Response 201:**
+```json
+{
+  "message": "Account created successfully.",
+  "user": {
+    "id": 9,
+    "first_name": "Tobi",
+    "last_name": "Adeniyi",
+    "phone": "+2349012345678",
+    "email": "newadmin@etigo.com",
+    "type": "admin",
+    "admin_role": "operations",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-06T14:00:00.000000Z"
+  },
+  "token": "7|vwx234yza567bcd890efg123hij456klm789nop012"
+}
+```
+
+**Response 409:**
+```json
+{
+  "message": "A user with this email already exists."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Invalid, expired, or already accepted invitation."
+}
+```
+
+---
+
+#### Forgot Password
+```
+POST /admin/auth/forgot-password
+```
+
+| Field | Type   | Required | Description    |
+|-------|--------|----------|----------------|
+| email | string | Yes      | Admin email    |
+
+**Response 200:**
+```json
+{
+  "message": "If the email exists in our system, a password reset link has been sent."
+}
+```
+
+---
+
+#### Reset Password
+```
+POST /admin/auth/reset-password
+```
+
+| Field                  | Type   | Required | Description              |
+|------------------------|--------|----------|--------------------------|
+| email                  | string | Yes      | Admin email              |
+| token                  | string | Yes      | Reset token from email   |
+| password               | string | Yes      | New password (min 8)     |
+| password_confirmation  | string | Yes      | Must match password      |
+
+**Response 200:**
+```json
+{
+  "message": "Password has been reset successfully."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Invalid or expired reset token."
+}
+```
 
 ---
 
@@ -316,7 +643,7 @@ No authentication required. Returns database and Redis connectivity status.
     "database": true,
     "redis": true
   },
-  "timestamp": "2026-09-29T10:00:00.000000Z"
+  "timestamp": "2026-10-06T14:00:00.000000Z"
 }
 ```
 
@@ -328,7 +655,7 @@ No authentication required. Returns database and Redis connectivity status.
     "database": true,
     "redis": false
   },
-  "timestamp": "2026-09-29T10:00:00.000000Z"
+  "timestamp": "2026-10-06T14:00:00.000000Z"
 }
 ```
 
@@ -348,13 +675,15 @@ GET /passenger/profile
 {
   "user": {
     "id": 1,
-    "first_name": "John",
-    "last_name": "Doe",
-    "phone": "+2341234567890",
-    "email": "john@example.com",
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
     "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    ...
+    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/abc123.jpg",
+    "created_at": "2026-10-01T10:00:00.000000Z"
   }
 }
 ```
@@ -363,20 +692,77 @@ GET /passenger/profile
 
 ### Update Profile
 ```
-PUT /passenger/profile
+POST /passenger/profile
+Content-Type: multipart/form-data
 ```
 
-| Field      | Type   | Required | Description          |
-|------------|--------|----------|----------------------|
-| first_name | string | No       | Updated first name   |
-| last_name  | string | No       | Updated last name    |
-| email      | string | No       | Email (unique)       |
+| Field         | Type   | Required | Description                          |
+|---------------|--------|----------|--------------------------------------|
+| first_name    | string | No       | Updated first name                   |
+| last_name     | string | No       | Updated last name                    |
+| email         | string | No       | Email (unique)                       |
+| profile_photo | file   | No       | JPG or PNG. Max 5MB.                 |
 
 **Response 200:**
 ```json
 {
   "message": "Profile updated successfully.",
-  "user": { ... }
+  "user": {
+    "id": 1,
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade.updated@example.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/def456.jpg",
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "The profile photo field must be an image.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "profile_photo": ["The profile photo field must be an image."]
+  }
+}
+```
+
+---
+
+### Delete Profile Photo
+```
+DELETE /passenger/profile/photo
+```
+
+**Response 200:**
+```json
+{
+  "message": "Profile photo removed successfully.",
+  "user": {
+    "id": 1,
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-06T14:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "No profile photo to remove."
 }
 ```
 
@@ -396,17 +782,45 @@ GET /driver/onboarding/status
 {
   "driver": {
     "id": 1,
+    "user": {
+      "id": 7,
+      "first_name": "Bayo",
+      "last_name": "Akinola",
+      "phone": "+2348200000001",
+      "email": "bayo@demo.etigo.com",
+      "type": "driver",
+      "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "city": {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
     "status": "onboarding",
+    "kyc_status": "not_started",
+    "kyc_verified_at": null,
     "licence_number": null,
     "is_online": false,
+    "approved_at": null,
     "documents": [],
     "vehicle": null,
-    ...
+    "created_at": "2026-10-01T10:00:00.000000Z"
   },
   "onboarding_complete": false,
+  "can_submit": false,
   "missing_documents": ["driving_licence", "vehicle_registration", "insurance_certificate", "government_id"],
   "has_vehicle": false,
   "has_licence_number": false,
+  "has_city": true,
   "kyc_status": "not_started",
   "kyc_verified_at": null
 }
@@ -421,9 +835,93 @@ Documents with `rejected` status are excluded from the uploaded count — a reje
 PUT /driver/profile
 ```
 
-| Field          | Type   | Required | Description          |
-|----------------|--------|----------|----------------------|
-| licence_number | string | No       | Driving licence no.  |
+| Field          | Type    | Required | Description          |
+|----------------|---------|----------|----------------------|
+| licence_number | string  | No       | Driving licence no.  |
+| city_id        | integer | No       | Must exist in cities table |
+
+**Response 200:**
+```json
+{
+  "message": "Driver profile updated successfully.",
+  "driver": {
+    "id": 1,
+    "status": "onboarding",
+    "kyc_status": "not_started",
+    "kyc_verified_at": null,
+    "licence_number": "DL-12345678",
+    "is_online": false,
+    "approved_at": null,
+    "documents": [],
+    "vehicle": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Upload Profile Photo (Driver)
+```
+POST /driver/profile/photo
+Content-Type: multipart/form-data
+```
+
+| Field         | Type | Required | Description        |
+|---------------|------|----------|--------------------|
+| profile_photo | file | Yes      | JPG or PNG. Max 5MB. |
+
+**Response 200:**
+```json
+{
+  "message": "Profile photo updated successfully.",
+  "user": {
+    "id": 7,
+    "first_name": "Bayo",
+    "last_name": "Akinola",
+    "phone": "+2348200000001",
+    "email": "bayo@demo.etigo.com",
+    "type": "driver",
+    "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/7/ghi789.jpg",
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Delete Profile Photo (Driver)
+```
+DELETE /driver/profile/photo
+```
+
+**Response 200:**
+```json
+{
+  "message": "Profile photo removed successfully.",
+  "user": {
+    "id": 7,
+    "first_name": "Bayo",
+    "last_name": "Akinola",
+    "phone": "+2348200000001",
+    "email": "bayo@demo.etigo.com",
+    "type": "driver",
+    "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "No profile photo to remove."
+}
+```
 
 ---
 
@@ -448,8 +946,9 @@ Re-uploading a document of the same type replaces the existing one.
     "id": 1,
     "type": "driving_licence",
     "original_filename": "licence.pdf",
+    "expires_at": null,
     "status": "pending",
-    "created_at": "2026-09-29T10:00:00.000000Z"
+    "created_at": "2026-10-06T14:00:00.000000Z"
   }
 }
 ```
@@ -459,6 +958,32 @@ Re-uploading a document of the same type replaces the existing one.
 ### List Documents
 ```
 GET /driver/documents
+```
+
+**Response 200:**
+```json
+{
+  "documents": [
+    {
+      "id": 1,
+      "type": "driving_licence",
+      "original_filename": "licence.pdf",
+      "expires_at": null,
+      "status": "approved",
+      "reviewed_at": "2026-10-06T15:00:00.000000Z",
+      "created_at": "2026-10-06T14:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "type": "vehicle_registration",
+      "original_filename": "reg.jpg",
+      "expires_at": null,
+      "status": "pending",
+      "reviewed_at": null,
+      "created_at": "2026-10-06T14:02:00.000000Z"
+    }
+  ]
+}
 ```
 
 ---
@@ -487,13 +1012,20 @@ POST /driver/vehicle
     "colour": "White",
     "plate_number": "ABC-1234",
     "year": 2022,
+    "is_fleet": false,
+    "vehicle_class_id": null,
     "vehicle_class": null,
-    "vehicle_class_approved": false
+    "created_at": "2026-10-06T14:00:00.000000Z"
   }
 }
 ```
 
-**Response 409:** Vehicle already registered.
+**Response 409:**
+```json
+{
+  "message": "Vehicle already registered. Use the update endpoint."
+}
+```
 
 ---
 
@@ -501,13 +1033,131 @@ POST /driver/vehicle
 ```
 PUT /driver/vehicle
 ```
-Same fields as register, all optional (partial update supported). Resets vehicle class approval.
+Same fields as register, all optional (partial update supported). Resets vehicle class approval. If plate number changes, plate verification is re-dispatched.
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle updated successfully.",
+  "vehicle": {
+    "id": 1,
+    "make": "Toyota",
+    "model": "Camry",
+    "colour": "Black",
+    "plate_number": "ABC-1234",
+    "year": 2023,
+    "is_fleet": false,
+    "vehicle_class_id": 1,
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": null,
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "created_at": "2026-10-06T14:00:00.000000Z"
+  }
+}
+```
+
+**Response 200 (plate changed):**
+```json
+{
+  "message": "Vehicle updated successfully. Plate re-verification initiated.",
+  "vehicle": { "..." }
+}
+```
 
 ---
 
 ### Get Vehicle
 ```
 GET /driver/vehicle
+```
+
+**Response 200:**
+```json
+{
+  "vehicle": {
+    "id": 1,
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "ABC-1234",
+    "year": 2022,
+    "is_fleet": false,
+    "vehicle_class_id": 1,
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": null,
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "created_at": "2026-10-06T14:00:00.000000Z"
+  }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Vehicle not found."
+}
+```
+
+---
+
+### Submit for Review
+```
+POST /driver/onboarding/submit
+```
+
+Submits the driver application for admin review. Only valid when driver status is `onboarding` or `rejected` and all requirements are met (all documents uploaded, vehicle registered, licence number set, city selected).
+
+**Response 200:**
+```json
+{
+  "message": "Application submitted for review.",
+  "driver": {
+    "id": 1,
+    "status": "pending_review",
+    "kyc_status": "verified",
+    "kyc_verified_at": "2026-10-06T13:00:00.000000Z",
+    "licence_number": "DL-12345678",
+    "is_online": false,
+    "approved_at": null,
+    "documents": [ "..." ],
+    "vehicle": { "..." },
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422 (incomplete):**
+```json
+{
+  "message": "Cannot submit application. Please complete all required steps.",
+  "errors": [
+    "Missing documents: insurance_certificate, government_id",
+    "Licence number is required."
+  ]
+}
+```
+
+**Response 422 (wrong status):**
+```json
+{
+  "message": "Application can only be submitted from onboarding or rejected status."
+}
 ```
 
 ---
@@ -522,16 +1172,50 @@ Toggle driver online/offline status. No request body required.
 
 **Requirements:** Driver must be `approved`, have a registered vehicle with an assigned vehicle class, and not be `suspended`.
 
-**Response 200:**
+**Response 200 (went online):**
 ```json
 {
   "message": "You are now online.",
   "driver": {
     "id": 1,
-    "is_online": true,
     "status": "approved",
-    "...": "..."
+    "kyc_status": "verified",
+    "kyc_verified_at": "2026-10-06T13:00:00.000000Z",
+    "licence_number": "DL-12345678",
+    "is_online": true,
+    "approved_at": "2026-10-05T10:00:00.000000Z",
+    "vehicle": {
+      "id": 1,
+      "make": "Toyota",
+      "model": "Corolla",
+      "colour": "White",
+      "plate_number": "ABC-1234",
+      "year": 2022,
+      "is_fleet": false,
+      "vehicle_class_id": 1,
+      "vehicle_class": {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4,
+        "icon": null,
+        "description": "Affordable rides for everyday trips.",
+        "is_active": true,
+        "created_at": "2026-10-01T10:00:00.000000Z",
+        "updated_at": "2026-10-01T10:00:00.000000Z"
+      },
+      "created_at": "2026-10-06T14:00:00.000000Z"
+    },
+    "created_at": "2026-10-01T10:00:00.000000Z"
   }
+}
+```
+
+**Response 200 (went offline):**
+```json
+{
+  "message": "You are now offline.",
+  "driver": { "...": "(same structure, is_online: false)" }
 }
 ```
 
@@ -620,10 +1304,13 @@ POST /driver/kyc/verify-nin
   "verification": {
     "id": 1,
     "type": "nin",
+    "type_label": "National Identification Number",
     "status": "verified",
-    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "match_data": {},
     "failure_reason": null,
-    "created_at": "2026-10-05T10:00:00.000000Z"
+    "verified_at": "2026-10-06T14:00:00+00:00",
+    "expires_at": null,
+    "created_at": "2026-10-06T14:00:00+00:00"
   }
 }
 ```
@@ -635,15 +1322,23 @@ POST /driver/kyc/verify-nin
   "verification": {
     "id": 1,
     "type": "nin",
+    "type_label": "National Identification Number",
     "status": "failed",
-    "verified_at": null,
+    "match_data": {},
     "failure_reason": "Name mismatch",
-    "created_at": "2026-10-05T10:00:00.000000Z"
+    "verified_at": null,
+    "expires_at": null,
+    "created_at": "2026-10-06T14:00:00+00:00"
   }
 }
 ```
 
-**Response 409:** `"A NIN verification is already completed or in progress."` — duplicate prevention.
+**Response 409:**
+```json
+{
+  "message": "A NIN verification is already completed or in progress."
+}
+```
 
 ---
 
@@ -663,10 +1358,13 @@ POST /driver/kyc/verify-license
   "verification": {
     "id": 2,
     "type": "drivers_license",
+    "type_label": "Driver's License",
     "status": "verified",
-    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "match_data": {},
     "failure_reason": null,
-    "created_at": "2026-10-05T10:00:00.000000Z"
+    "verified_at": "2026-10-06T14:01:00+00:00",
+    "expires_at": null,
+    "created_at": "2026-10-06T14:01:00+00:00"
   }
 }
 ```
@@ -685,7 +1383,7 @@ POST /driver/kyc/verify-vehicle
 |--------------|--------|----------|-------------------------------|
 | plate_number | string | Yes      | Plate number (3–20 chars)     |
 
-Requires a registered vehicle. Returns 422 with `"Register a vehicle before verifying its plate."` if no vehicle exists.
+Requires a registered vehicle.
 
 **Response 200 (verified):**
 ```json
@@ -694,15 +1392,24 @@ Requires a registered vehicle. Returns 422 with `"Register a vehicle before veri
   "verification": {
     "id": 3,
     "type": "vehicle_plate",
+    "type_label": "Vehicle Plate Number",
     "status": "verified",
-    "verified_at": "2026-10-05T10:00:00.000000Z",
+    "match_data": {},
     "failure_reason": null,
-    "created_at": "2026-10-05T10:00:00.000000Z"
+    "verified_at": "2026-10-06T14:02:00+00:00",
+    "expires_at": null,
+    "created_at": "2026-10-06T14:02:00+00:00"
   }
 }
 ```
 
-**Response 422:** Verification failed or no vehicle registered.  
+**Response 422:**
+```json
+{
+  "message": "Register a vehicle before verifying its plate."
+}
+```
+
 **Response 409:** Already completed or in progress.
 
 **Auto-trigger:** Vehicle plate verification is automatically dispatched as a background job when:
@@ -726,14 +1433,17 @@ No request body. Creates a QoreID liveness session for the mobile SDK.
   "message": "Liveness session created. Use the SDK token in the mobile app.",
   "session_id": "etigo_kyc_1_1696500000",
   "sdk_token": "eyJhbGciOi...",
-  "expires_at": "2026-10-05T11:00:00.000000Z",
+  "expires_at": "2026-10-06T15:00:00.000000Z",
   "verification": {
     "id": 4,
     "type": "liveness",
+    "type_label": "Facial Liveness Check",
     "status": "processing",
-    "verified_at": null,
+    "match_data": {},
     "failure_reason": null,
-    "created_at": "2026-10-05T10:00:00.000000Z"
+    "verified_at": null,
+    "expires_at": "2026-10-06T15:00:00+00:00",
+    "created_at": "2026-10-06T14:00:00+00:00"
   }
 }
 ```
@@ -756,12 +1466,37 @@ Returns all KYC verifications for the authenticated driver, newest first.
 {
   "verifications": [
     {
+      "id": 3,
+      "type": "vehicle_plate",
+      "type_label": "Vehicle Plate Number",
+      "status": "verified",
+      "match_data": {},
+      "failure_reason": null,
+      "verified_at": "2026-10-06T14:02:00+00:00",
+      "expires_at": null,
+      "created_at": "2026-10-06T14:02:00+00:00"
+    },
+    {
+      "id": 2,
+      "type": "drivers_license",
+      "type_label": "Driver's License",
+      "status": "verified",
+      "match_data": {},
+      "failure_reason": null,
+      "verified_at": "2026-10-06T14:01:00+00:00",
+      "expires_at": null,
+      "created_at": "2026-10-06T14:01:00+00:00"
+    },
+    {
       "id": 1,
       "type": "nin",
+      "type_label": "National Identification Number",
       "status": "verified",
-      "verified_at": "2026-10-05T10:00:00.000000Z",
+      "match_data": {},
       "failure_reason": null,
-      "created_at": "2026-10-05T10:00:00.000000Z"
+      "verified_at": "2026-10-06T14:00:00+00:00",
+      "expires_at": null,
+      "created_at": "2026-10-06T14:00:00+00:00"
     }
   ]
 }
@@ -778,9 +1513,26 @@ POST /webhooks/qoreid
 
 Handled events: `verification_completed`, `step_verification_completed`, `identity`.
 
-**Response 200:** `{"message": "Webhook processed."}`  
-**Response 401:** Invalid signature.  
-**Response 400:** Missing session ID.
+**Response 200:**
+```json
+{
+  "message": "Webhook processed."
+}
+```
+
+**Response 401:**
+```json
+{
+  "message": "Invalid signature."
+}
+```
+
+**Response 400:**
+```json
+{
+  "message": "Missing session ID."
+}
+```
 
 ---
 
@@ -797,16 +1549,84 @@ GET /admin/drivers
 |-------------|--------|----------|------------------------------------------------------|
 | status      | string | No       | Filter: `onboarding`, `pending_review`, `approved`, `rejected`, `suspended` |
 | kyc_status  | string | No       | Filter: `not_started`, `in_progress`, `verified`, `failed`    |
+| search      | string | No       | Search by driver name, email, or phone               |
 
 **Response 200:**
 ```json
 {
-  "drivers": [ ... ],
+  "drivers": [
+    {
+      "id": 1,
+      "user": {
+        "id": 7,
+        "first_name": "Bayo",
+        "last_name": "Akinola",
+        "phone": "+2348200000001",
+        "email": "bayo@demo.etigo.com",
+        "type": "driver",
+        "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+        "is_active": true,
+        "profile_photo_url": null,
+        "created_at": "2026-10-01T10:00:00.000000Z"
+      },
+      "city": {
+        "id": 1,
+        "name": "Lagos",
+        "slug": "lagos",
+        "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+        "timezone": "Africa/Lagos",
+        "currency_code": "NGN",
+        "is_active": true,
+        "created_at": "2026-10-01T10:00:00.000000Z",
+        "updated_at": "2026-10-01T10:00:00.000000Z"
+      },
+      "status": "approved",
+      "kyc_status": "verified",
+      "kyc_verified_at": "2026-10-03T10:00:00.000000Z",
+      "licence_number": "DL-12345678",
+      "is_online": true,
+      "approved_at": "2026-10-04T10:00:00.000000Z",
+      "documents": [
+        {
+          "id": 1,
+          "type": "driving_licence",
+          "original_filename": "licence.pdf",
+          "expires_at": null,
+          "status": "approved",
+          "reviewed_at": "2026-10-04T10:00:00.000000Z",
+          "created_at": "2026-10-02T10:00:00.000000Z"
+        }
+      ],
+      "vehicle": {
+        "id": 1,
+        "make": "Toyota",
+        "model": "Corolla",
+        "colour": "White",
+        "plate_number": "ABC-1234",
+        "year": 2022,
+        "is_fleet": false,
+        "vehicle_class_id": 1,
+        "vehicle_class": {
+          "id": 1,
+          "name": "economy",
+          "display_name": "Economy",
+          "capacity": 4,
+          "icon": null,
+          "description": "Affordable rides for everyday trips.",
+          "is_active": true,
+          "created_at": "2026-10-01T10:00:00.000000Z",
+          "updated_at": "2026-10-01T10:00:00.000000Z"
+        },
+        "created_at": "2026-10-02T10:00:00.000000Z"
+      },
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    }
+  ],
   "meta": {
     "current_page": 1,
     "last_page": 1,
     "per_page": 20,
-    "total": 3
+    "total": 6
   }
 }
 ```
@@ -818,11 +1638,46 @@ GET /admin/drivers
 GET /admin/drivers/pending
 ```
 
+Same response structure as List All Drivers, filtered to `pending_review` status.
+
 ---
 
 ### Get Single Driver
 ```
 GET /admin/drivers/{driver_id}
+```
+
+**Response 200:**
+```json
+{
+  "driver": {
+    "id": 1,
+    "user": { "..." },
+    "city": { "..." },
+    "status": "approved",
+    "kyc_status": "verified",
+    "kyc_verified_at": "2026-10-03T10:00:00.000000Z",
+    "licence_number": "DL-12345678",
+    "is_online": true,
+    "approved_at": "2026-10-04T10:00:00.000000Z",
+    "documents": [ "..." ],
+    "vehicle": { "..." },
+    "kyc_verifications": [
+      {
+        "id": 1,
+        "type": "nin",
+        "type_label": "National Identification Number",
+        "status": "verified",
+        "match_data": {},
+        "failure_reason": null,
+        "verified_at": "2026-10-03T09:00:00+00:00",
+        "expires_at": null,
+        "created_at": "2026-10-03T09:00:00+00:00"
+      }
+    ],
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
 ```
 
 ---
@@ -837,7 +1692,73 @@ POST /admin/drivers/{driver_id}/review
 | action           | string | Yes                     | `approve` or `reject`|
 | rejection_reason | string | Yes (when rejecting)    | Reason for rejection |
 
-**Response 422:** `"Driver can only be reviewed when in pending review status."` — returned when the driver's status is not `pending_review`.
+**Response 200 (approved):**
+```json
+{
+  "message": "Driver approved successfully.",
+  "driver": {
+    "id": 1,
+    "status": "approved",
+    "approved_at": "2026-10-06T14:00:00.000000Z",
+    "...": "..."
+  }
+}
+```
+
+**Response 200 (rejected):**
+```json
+{
+  "message": "Driver rejected.",
+  "driver": {
+    "id": 1,
+    "status": "rejected",
+    "rejection_reason": "Blurry document photos. Please re-upload clear copies.",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Driver can only be reviewed when in pending review status."
+}
+```
+
+---
+
+### Review Document
+```
+POST /admin/drivers/{driver_id}/documents/{document_id}/review
+```
+
+| Field            | Type   | Required              | Description          |
+|------------------|--------|-----------------------|----------------------|
+| action           | string | Yes                   | `approve` or `reject` |
+| rejection_reason | string | Yes (when rejecting)  | Reason for rejection |
+
+**Response 200:**
+```json
+{
+  "message": "Document approved successfully.",
+  "document": {
+    "id": 1,
+    "type": "driving_licence",
+    "original_filename": "licence.pdf",
+    "expires_at": null,
+    "status": "approved",
+    "reviewed_at": "2026-10-06T14:00:00.000000Z",
+    "created_at": "2026-10-02T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only pending documents can be reviewed."
+}
+```
 
 ---
 
@@ -858,9 +1779,13 @@ No request body required.
     "id": 1,
     "make": "Toyota",
     "model": "Corolla",
+    "colour": "White",
     "plate_number": "FLEET-001",
+    "year": 2022,
     "is_fleet": true,
-    ...
+    "vehicle_class_id": 1,
+    "vehicle_class": null,
+    "created_at": "2026-10-02T10:00:00.000000Z"
   }
 }
 ```
@@ -869,11 +1794,27 @@ No request body required.
 ```json
 {
   "message": "Vehicle unmarked as fleet. Plate verification now required.",
-  "vehicle": { ... }
+  "vehicle": {
+    "id": 1,
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "FLEET-001",
+    "year": 2022,
+    "is_fleet": false,
+    "vehicle_class_id": 1,
+    "vehicle_class": null,
+    "created_at": "2026-10-02T10:00:00.000000Z"
+  }
 }
 ```
 
-**Response 422:** `"Driver has no registered vehicle."`
+**Response 422:**
+```json
+{
+  "message": "Driver has no registered vehicle."
+}
+```
 
 After toggling, the driver's `kyc_status` is automatically recalculated. If the vehicle is marked fleet and NIN + License are already verified, `kyc_status` becomes `verified` without plate verification.
 
@@ -887,7 +1828,25 @@ Force-sets driver offline and blocks them from accepting requests.
 
 No request body required.
 
-**Response 422:** `"Only approved drivers can be suspended."` — returned when the driver is not in `approved` status.
+**Response 200:**
+```json
+{
+  "message": "Driver suspended successfully.",
+  "driver": {
+    "id": 1,
+    "status": "suspended",
+    "is_online": false,
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only approved drivers can be suspended."
+}
+```
 
 ---
 
@@ -897,7 +1856,24 @@ POST /admin/drivers/{driver_id}/reactivate
 ```
 Restores driver to approved status.
 
-**Response 422:** `"Only suspended drivers can be reactivated."` — returned when the driver is not in `suspended` status.
+**Response 200:**
+```json
+{
+  "message": "Driver reactivated successfully.",
+  "driver": {
+    "id": 1,
+    "status": "approved",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only suspended drivers can be reactivated."
+}
+```
 
 ---
 
@@ -922,20 +1898,22 @@ GET /admin/passengers
   "passengers": [
     {
       "id": 1,
-      "first_name": "Oluwaseun",
-      "last_name": "Adebayo",
-      "phone": "+2341234567890",
-      "email": "oluwaseun@example.com",
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "phone": "+2348100000001",
+      "email": "ade@demo.etigo.com",
       "type": "passenger",
+      "phone_verified_at": "2026-10-01T10:00:00.000000Z",
       "is_active": true,
-      "created_at": "2026-09-29T10:00:00.000000Z"
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
     }
   ],
   "meta": {
     "current_page": 1,
     "last_page": 1,
     "per_page": 20,
-    "total": 1
+    "total": 5
   }
 }
 ```
@@ -953,9 +1931,15 @@ Returns passenger profile with ride statistics.
 {
   "passenger": {
     "id": 1,
-    "first_name": "Oluwaseun",
-    "last_name": "Adebayo",
-    "...": "..."
+    "first_name": "Ade",
+    "last_name": "Ogunleye",
+    "phone": "+2348100000001",
+    "email": "ade@demo.etigo.com",
+    "type": "passenger",
+    "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
   },
   "statistics": {
     "total_rides": 15,
@@ -965,7 +1949,12 @@ Returns passenger profile with ride statistics.
 }
 ```
 
-**Response 404:** Returned when the user is not a passenger.
+**Response 404:**
+```json
+{
+  "message": "User is not a passenger."
+}
+```
 
 ---
 
@@ -975,7 +1964,19 @@ POST /admin/passengers/{passenger_id}/suspend
 ```
 Suspends passenger account and revokes all active tokens. No request body required.
 
-**Response 422:** `"Passenger account is already suspended."` — returned when the account is already inactive.
+**Response 200:**
+```json
+{
+  "message": "Passenger suspended successfully."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Passenger account is already suspended."
+}
+```
 
 ---
 
@@ -985,7 +1986,289 @@ POST /admin/passengers/{passenger_id}/reactivate
 ```
 Reactivates a suspended passenger account. No request body required.
 
-**Response 422:** `"Passenger account is already active."` — returned when the account is already active.
+**Response 200:**
+```json
+{
+  "message": "Passenger reactivated successfully."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Passenger account is already active."
+}
+```
+
+---
+
+## Admin — Admin Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:super_admin`
+
+Only super admins can access these endpoints.
+
+### List Admins
+```
+GET /admin/admins
+```
+
+**Response 200:**
+```json
+{
+  "admins": [
+    {
+      "id": 1,
+      "first_name": "Super",
+      "last_name": "Admin",
+      "phone": null,
+      "email": "admin@etigo.com",
+      "type": "admin",
+      "admin_role": "super_admin",
+      "phone_verified_at": null,
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "first_name": "Ops",
+      "last_name": "Manager",
+      "phone": null,
+      "email": "ops@etigo.com",
+      "type": "admin",
+      "admin_role": "operations",
+      "phone_verified_at": null,
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "total": 4
+  }
+}
+```
+
+---
+
+### Get Admin
+```
+GET /admin/admins/{admin_id}
+```
+
+**Response 200:**
+```json
+{
+  "admin": {
+    "id": 2,
+    "first_name": "Ops",
+    "last_name": "Manager",
+    "phone": null,
+    "email": "ops@etigo.com",
+    "type": "admin",
+    "admin_role": "operations",
+    "phone_verified_at": null,
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "User is not an admin."
+}
+```
+
+---
+
+### Invite Admin
+```
+POST /admin/admins/invite
+```
+
+| Field      | Type   | Required | Description                                      |
+|------------|--------|----------|--------------------------------------------------|
+| email      | string | Yes      | Email for the invitation                         |
+| admin_role | string | Yes      | `operations`, `safety_operator`, or `support`    |
+
+**Response 201:**
+```json
+{
+  "message": "Invitation sent successfully.",
+  "invitation": {
+    "id": 1,
+    "email": "newadmin@etigo.com",
+    "admin_role": "operations",
+    "expires_at": "2026-10-08T14:00:00.000000Z"
+  }
+}
+```
+
+**Response 409:**
+```json
+{
+  "message": "A pending invitation already exists for this email."
+}
+```
+
+---
+
+### List Invitations
+```
+GET /admin/admins/invitations
+```
+
+**Response 200:**
+```json
+{
+  "invitations": [
+    {
+      "id": 1,
+      "email": "newadmin@etigo.com",
+      "admin_role": "operations",
+      "invited_by": 1,
+      "accepted_at": null,
+      "expires_at": "2026-10-08T14:00:00.000000Z",
+      "created_at": "2026-10-06T14:00:00.000000Z",
+      "inviter": {
+        "id": 1,
+        "first_name": "Super",
+        "last_name": "Admin"
+      }
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "total": 1
+  }
+}
+```
+
+---
+
+### Resend Invitation
+```
+POST /admin/admins/invitations/{invitation_id}/resend
+```
+
+**Response 200:**
+```json
+{
+  "message": "Invitation resent successfully."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "This invitation has already been accepted."
+}
+```
+
+---
+
+### Revoke Invitation
+```
+DELETE /admin/admins/invitations/{invitation_id}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Invitation revoked successfully."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "This invitation has already been accepted."
+}
+```
+
+---
+
+### Update Admin Role
+```
+PUT /admin/admins/{admin_id}
+```
+
+| Field      | Type   | Required | Description                                      |
+|------------|--------|----------|--------------------------------------------------|
+| admin_role | string | Yes      | `operations`, `safety_operator`, or `support`    |
+
+Cannot modify super admin accounts.
+
+**Response 200:**
+```json
+{
+  "message": "Admin updated successfully.",
+  "admin": {
+    "id": 2,
+    "first_name": "Ops",
+    "last_name": "Manager",
+    "phone": null,
+    "email": "ops@etigo.com",
+    "type": "admin",
+    "admin_role": "safety_operator",
+    "phone_verified_at": null,
+    "is_active": true,
+    "profile_photo_url": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Cannot modify a super admin account."
+}
+```
+
+---
+
+### Deactivate Admin
+```
+POST /admin/admins/{admin_id}/deactivate
+```
+
+Deactivates the admin account and revokes all tokens. Cannot deactivate super admins or yourself.
+
+**Response 200:**
+```json
+{
+  "message": "Admin deactivated successfully."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Cannot deactivate a super admin account."
+}
+```
+
+---
+
+### Reactivate Admin
+```
+POST /admin/admins/{admin_id}/reactivate
+```
+
+**Response 200:**
+```json
+{
+  "message": "Admin reactivated successfully."
+}
+```
 
 ---
 
@@ -1005,12 +2288,34 @@ Returns all active cities. No authentication required.
       "id": 1,
       "name": "Lagos",
       "slug": "lagos",
-      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 30 },
+      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
-      "created_at": "2026-09-29T10:00:00.000000Z",
-      "updated_at": "2026-09-29T10:00:00.000000Z"
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "name": "Abuja",
+      "slug": "abuja",
+      "boundary": { "type": "Point", "coordinates": [7.4951, 9.0579], "radius_km": 30 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    {
+      "id": 3,
+      "name": "Port Harcourt",
+      "slug": "port-harcourt",
+      "boundary": { "type": "Point", "coordinates": [7.0498, 4.8156], "radius_km": 20 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
     }
   ]
 }
@@ -1033,13 +2338,74 @@ Returns active vehicle classes available in a city. No authentication required. 
       "name": "economy",
       "display_name": "Economy",
       "capacity": 4,
-      "icon": null,
+      "icon": "lite",
       "description": "Affordable rides for everyday trips.",
       "is_active": true,
-      "created_at": "2026-09-29T10:00:00.000000Z",
-      "updated_at": "2026-09-29T10:00:00.000000Z"
+      "pivot": {
+        "is_active": true,
+        "sort_order": 0
+      },
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "name": "comfort",
+      "display_name": "Comfort",
+      "capacity": 4,
+      "icon": "comfort",
+      "description": "Premium comfort for a smoother ride.",
+      "is_active": true,
+      "pivot": {
+        "is_active": true,
+        "sort_order": 1
+      },
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
     }
   ]
+}
+```
+
+---
+
+## City Detection
+
+### Detect City by Location
+```
+GET /cities/detect
+```
+
+No authentication required. Detects which active city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
+
+| Query Param | Type   | Required | Description                           |
+|-------------|--------|----------|---------------------------------------|
+| lat         | number | Yes      | Latitude (-90 to 90)                  |
+| lng         | number | Yes      | Longitude (-180 to 180)               |
+
+**Response 200:**
+```json
+{
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-01T10:00:00.000000Z"
+  },
+  "resolved_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria"
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "No active city found for this location.",
+  "resolved_address": "123 Main Street, Unknown Town, Nigeria"
 }
 ```
 
@@ -1059,7 +2425,31 @@ GET /admin/cities
 | search      | string  | Filter by city name (partial)     |
 | per_page    | integer | Results per page (default: 20)    |
 
-**Response 200:** Paginated list of cities with `meta`.
+**Response 200:**
+```json
+{
+  "cities": [
+    {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "vehicle_classes": [ "..." ],
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 4
+  }
+}
+```
 
 ---
 
@@ -1078,7 +2468,17 @@ POST /admin/cities
 ```json
 {
   "message": "City created successfully.",
-  "city": { "id": 1, "name": "Lagos", "slug": "lagos", "..." : "..." }
+  "city": {
+    "id": 5,
+    "name": "Kano",
+    "slug": "kano",
+    "boundary": { "type": "Point", "coordinates": [8.5167, 12.0022], "radius_km": 25 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
 }
 ```
 
@@ -1090,6 +2490,40 @@ GET /admin/cities/{city_id}
 ```
 Returns city with loaded vehicle classes.
 
+**Response 200:**
+```json
+{
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "vehicle_classes": [
+      {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4,
+        "icon": "lite",
+        "description": "Affordable rides for everyday trips.",
+        "is_active": true,
+        "pivot": {
+          "is_active": true,
+          "sort_order": 0
+        },
+        "created_at": "2026-10-01T10:00:00.000000Z",
+        "updated_at": "2026-10-01T10:00:00.000000Z"
+      }
+    ],
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
 ---
 
 ### Update City
@@ -1098,6 +2532,24 @@ PUT /admin/cities/{city_id}
 ```
 Same fields as create, all optional (partial update supported). Slug auto-regenerated if name changes.
 
+**Response 200:**
+```json
+{
+  "message": "City updated successfully.",
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 45 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
+}
+```
+
 ---
 
 ### Toggle City Status
@@ -1105,6 +2557,20 @@ Same fields as create, all optional (partial update supported). Slug auto-regene
 PATCH /admin/cities/{city_id}/status
 ```
 Toggles `is_active` between true and false. Creates audit log entry.
+
+**Response 200:**
+```json
+{
+  "message": "City deactivated successfully.",
+  "city": {
+    "id": 4,
+    "name": "Ibadan",
+    "slug": "ibadan",
+    "is_active": false,
+    "...": "..."
+  }
+}
+```
 
 ---
 
@@ -1125,7 +2591,49 @@ Syncs the pivot table — entries not included are removed.
 ```json
 {
   "message": "City vehicle classes updated successfully.",
-  "city": { "id": 1, "name": "Lagos", "vehicle_classes": ["..."] }
+  "city": {
+    "id": 1,
+    "name": "Lagos",
+    "slug": "lagos",
+    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "timezone": "Africa/Lagos",
+    "currency_code": "NGN",
+    "is_active": true,
+    "vehicle_classes": [
+      {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4,
+        "icon": "lite",
+        "description": "Affordable rides for everyday trips.",
+        "is_active": true,
+        "pivot": {
+          "is_active": true,
+          "sort_order": 0
+        },
+        "created_at": "2026-10-01T10:00:00.000000Z",
+        "updated_at": "2026-10-01T10:00:00.000000Z"
+      },
+      {
+        "id": 2,
+        "name": "comfort",
+        "display_name": "Comfort",
+        "capacity": 4,
+        "icon": "comfort",
+        "description": "Premium comfort for a smoother ride.",
+        "is_active": true,
+        "pivot": {
+          "is_active": true,
+          "sort_order": 1
+        },
+        "created_at": "2026-10-01T10:00:00.000000Z",
+        "updated_at": "2026-10-01T10:00:00.000000Z"
+      }
+    ],
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
 }
 ```
 
@@ -1144,7 +2652,52 @@ GET /admin/vehicle-classes
 | is_active   | boolean | Filter by active/inactive status |
 | per_page    | integer | Results per page (default: 20)   |
 
-**Response 200:** Paginated list of vehicle classes with `meta`.
+**Response 200:**
+```json
+{
+  "vehicle_classes": [
+    {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": "lite",
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "enabled_cities": [
+        { "id": 1, "name": "Lagos" },
+        { "id": 2, "name": "Abuja" },
+        { "id": 3, "name": "Port Harcourt" }
+      ],
+      "drivers_count": 37,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "name": "comfort",
+      "display_name": "Comfort",
+      "capacity": 4,
+      "icon": "comfort",
+      "description": "Premium comfort for a smoother ride.",
+      "is_active": true,
+      "enabled_cities": [
+        { "id": 1, "name": "Lagos" },
+        { "id": 2, "name": "Abuja" }
+      ],
+      "drivers_count": 58,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 4
+  }
+}
+```
 
 ---
 
@@ -1174,7 +2727,17 @@ POST /admin/vehicle-classes
 ```json
 {
   "message": "Vehicle class created successfully.",
-  "vehicle_class": { "id": 1, "name": "economy", "display_name": "Economy", "..." : "..." }
+  "vehicle_class": {
+    "id": 5,
+    "name": "luxury",
+    "display_name": "Luxury",
+    "capacity": 4,
+    "icon": null,
+    "description": "Top-tier luxury experience.",
+    "is_active": true,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
 }
 ```
 
@@ -1185,6 +2748,29 @@ POST /admin/vehicle-classes
 GET /admin/vehicle-classes/{vehicle_class_id}
 ```
 
+**Response 200:**
+```json
+{
+  "vehicle_class": {
+    "id": 1,
+    "name": "economy",
+    "display_name": "Economy",
+    "capacity": 4,
+    "icon": "lite",
+    "description": "Affordable rides for everyday trips.",
+    "is_active": true,
+    "enabled_cities": [
+      { "id": 1, "name": "Lagos" },
+      { "id": 2, "name": "Abuja" },
+      { "id": 3, "name": "Port Harcourt" }
+    ],
+    "drivers_count": 37,
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
 ---
 
 ### Update Vehicle Class
@@ -1193,45 +2779,21 @@ PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
 Same fields as create (except `city_ids`), all optional (partial update supported).
 
----
-
-## City Detection
-
-### Detect City by Location
-```
-GET /cities/detect
-```
-
-No authentication required. Detects which active city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
-
-| Query Param | Type   | Required | Description                           |
-|-------------|--------|----------|---------------------------------------|
-| lat         | number | Yes      | Latitude (-90 to 90)                  |
-| lng         | number | Yes      | Longitude (-180 to 180)               |
-
 **Response 200:**
 ```json
 {
-  "city": {
+  "message": "Vehicle class updated successfully.",
+  "vehicle_class": {
     "id": 1,
-    "name": "Lagos",
-    "slug": "lagos",
-    "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 30 },
-    "timezone": "Africa/Lagos",
-    "currency_code": "NGN",
+    "name": "economy",
+    "display_name": "tiGO Lite",
+    "capacity": 4,
+    "icon": "lite",
+    "description": "Affordable rides for everyday trips.",
     "is_active": true,
-    "created_at": "2026-09-29T10:00:00.000000Z",
-    "updated_at": "2026-09-29T10:00:00.000000Z"
-  },
-  "resolved_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria"
-}
-```
-
-**Response 404:**
-```json
-{
-  "message": "No active city found for this location.",
-  "resolved_address": "123 Main Street, Unknown Town, Nigeria"
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
 }
 ```
 
@@ -1268,14 +2830,14 @@ POST /rides/estimate
         "name": "economy",
         "display_name": "Economy",
         "capacity": 4,
-        "icon": null
+        "icon": "lite"
       },
       "fare_estimate": "6150.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
       "currency": "NGN",
-      "pickup_address": "123 Wuse 2, Abuja, Nigeria",
-      "destination_address": "456 Garki, Abuja, Nigeria",
+      "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
+      "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
       "pricing_snapshot": {
         "pricing_config_id": 1,
         "version": 1,
@@ -1286,11 +2848,47 @@ POST /rides/estimate
         "waiting_time_rate": "50.00",
         "free_waiting_minutes": 5,
         "effective_from": "2026-09-30T00:00:00+00:00",
-        "captured_at": "2026-09-30T10:00:00+00:00"
+        "captured_at": "2026-10-06T14:00:00+00:00"
       },
       "waiting_time_policy": {
         "free_minutes": 5,
         "per_minute_rate": "50.00"
+      },
+      "surge": {
+        "active": false,
+        "multiplier": 1,
+        "rule_name": null
+      }
+    },
+    {
+      "vehicle_class": {
+        "id": 2,
+        "name": "comfort",
+        "display_name": "Comfort",
+        "capacity": 4,
+        "icon": "comfort"
+      },
+      "fare_estimate": "8500.00",
+      "distance_km": 10.0,
+      "duration_minutes": 25.0,
+      "currency": "NGN",
+      "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
+      "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
+      "pricing_snapshot": {
+        "pricing_config_id": 2,
+        "version": 1,
+        "base_fare": "800.00",
+        "per_km_rate": "350.00",
+        "per_minute_rate": "50.00",
+        "minimum_fare": "2000.00",
+        "waiting_time_rate": "60.00",
+        "free_waiting_minutes": 5,
+        "effective_from": "2026-09-30T00:00:00+00:00",
+        "captured_at": "2026-10-06T14:00:00+00:00"
+      },
+      "waiting_time_policy": {
+        "free_minutes": 5,
+        "per_minute_rate": "60.00"
       },
       "surge": {
         "active": true,
@@ -1298,12 +2896,19 @@ POST /rides/estimate
         "rule_name": "Morning Rush Hour"
       }
     }
-  ],
+  ]
+}
+```
+
+**Response 200 (with cross-city warning):**
+```json
+{
+  "estimates": [ "..." ],
   "warnings": [
     "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
   ],
   "cross_city": {
-    "destination_city_id": 2,
+    "destination_city_id": 1,
     "destination_city_name": "Lagos",
     "pickup_city_name": "Abuja",
     "warning": "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
@@ -1319,11 +2924,6 @@ The `surge` object is always included. When no surge is active, `active` is `fal
 |-------------|---------------------------------------------------|-------------------------------------------------------------------|
 | `warnings`  | Cross-city ride, destination outside service area, or distance > 100 km | Array of human-readable warning strings for the mobile app to display |
 | `cross_city`| Destination is in a different city or outside all service areas | Object with pickup/destination city details                        |
-
-**Warning scenarios:**
-- **Cross-city ride:** Destination is in a different E-tiGo service city. Pickup city pricing applies.
-- **Outside service area:** Destination is not in any active E-tiGo city. Pickup city pricing applies, but the driver may not find return trips.
-- **Long-distance ride:** Route exceeds 100 km. Fare is estimated and may vary.
 
 ---
 
@@ -1350,11 +2950,6 @@ Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verifi
 | destination_address| string  | Yes      | Human-readable destination address  |
 | payment_method     | string  | Yes      | `cash` or `card`                    |
 
-**Validation rules:**
-- City must be active
-- Pickup and destination cannot be identical coordinates
-- Vehicle class must be available and active in the city
-
 **Response 201:**
 ```json
 {
@@ -1368,30 +2963,85 @@ Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verifi
     "pickup": {
       "lat": "6.5244000",
       "lng": "3.3792000",
-      "address": "123 Test Street"
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
     },
     "destination": {
       "lat": "6.4541000",
       "lng": "3.3947000",
-      "address": "456 Dest Street"
+      "address": "456 Broad Street, Lagos Island, Lagos"
     },
     "status": "searching",
     "status_label": "Searching for Driver",
-    "pin_code": "7249",
-    "share_token": "abc123xyz...",
+    "share_token": "abc123xyz789def456ghi012jkl345mno",
     "fare_estimate_amount": "3750.00",
     "final_fare_amount": null,
     "fare_currency": "NGN",
     "payment_method": "cash",
     "payment_status": "pending",
-    "created_at": "2026-10-06T10:00:00.000000Z"
+    "cancellation_reason": null,
+    "city": {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+      "timezone": "Africa/Lagos",
+      "currency_code": "NGN",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": "lite",
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "passenger": {
+      "id": 1,
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "phone": "+2348100000001",
+      "email": "ade@demo.etigo.com",
+      "type": "passenger",
+      "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "driver": null,
+    "cancelled_by": null,
+    "matched_at": null,
+    "started_at": null,
+    "completed_at": null,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
   },
   "pin_code": "7249"
 }
 ```
 
-**Response 409:** `You already have an active ride. Please complete or cancel it first.`
-**Response 422:** Validation errors
+**Response 409:**
+```json
+{
+  "message": "You already have an active ride. Please complete or cancel it first."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "The city id field is required.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "city_id": ["The city id field is required."]
+  }
+}
+```
 
 ---
 
@@ -1415,16 +3065,47 @@ GET /rides
 {
   "rides": [
     {
-      "id": "...",
+      "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+      "city_id": 1,
+      "vehicle_class_id": 1,
+      "passenger_id": 1,
+      "driver_id": 7,
+      "pickup": {
+        "lat": "6.5244000",
+        "lng": "3.3792000",
+        "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+      },
+      "destination": {
+        "lat": "6.4541000",
+        "lng": "3.3947000",
+        "address": "456 Broad Street, Lagos Island, Lagos"
+      },
       "status": "completed",
       "status_label": "Completed",
-      "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
-      "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
+      "share_token": "abc123xyz789def456ghi012jkl345mno",
       "fare_estimate_amount": "3750.00",
       "final_fare_amount": "3900.00",
       "fare_currency": "NGN",
       "payment_method": "cash",
-      "created_at": "2026-10-06T10:00:00.000000Z"
+      "payment_status": "collected",
+      "cancellation_reason": null,
+      "city": {
+        "id": 1,
+        "name": "Lagos",
+        "slug": "lagos",
+        "...": "..."
+      },
+      "vehicle_class": {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "...": "..."
+      },
+      "matched_at": "2026-10-06T14:01:00.000000Z",
+      "started_at": "2026-10-06T14:05:00.000000Z",
+      "completed_at": "2026-10-06T14:30:00.000000Z",
+      "created_at": "2026-10-06T14:00:00.000000Z",
+      "updated_at": "2026-10-06T14:30:00.000000Z"
     }
   ],
   "meta": {
@@ -1449,28 +3130,120 @@ GET /rides/{ride}
 ```json
 {
   "ride": {
-    "id": "...",
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "passenger_id": 1,
+    "driver_id": 7,
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
     "status": "in_progress",
     "status_label": "In Progress",
-    "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
-    "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
-    "pricing_snapshot": { "..." },
+    "share_token": "abc123xyz789def456ghi012jkl345mno",
+    "fare_estimate_amount": "3750.00",
+    "final_fare_amount": null,
+    "fare_currency": "NGN",
+    "pricing_snapshot": {
+      "pricing_config_id": 1,
+      "version": 1,
+      "base_fare": "600.00",
+      "per_km_rate": "250.00",
+      "per_minute_rate": "40.00",
+      "minimum_fare": "1500.00",
+      "waiting_time_rate": "50.00",
+      "free_waiting_minutes": 5,
+      "effective_from": "2026-09-30T00:00:00+00:00",
+      "captured_at": "2026-10-06T14:00:00+00:00"
+    },
+    "payment_method": "cash",
+    "payment_status": "pending",
+    "cancellation_reason": null,
+    "city": { "...": "..." },
+    "vehicle_class": { "...": "..." },
+    "passenger": { "...": "..." },
+    "driver": {
+      "id": 7,
+      "first_name": "Bayo",
+      "last_name": "Akinola",
+      "phone": "+2348200000001",
+      "email": "bayo@demo.etigo.com",
+      "type": "driver",
+      "phone_verified_at": "2026-10-01T10:00:00.000000Z",
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "cancelled_by": null,
     "state_transitions": [
       {
         "id": 1,
         "from_state": "requested",
         "to_state": "searching",
         "triggered_by_type": "passenger",
-        "created_at": "2026-10-06T10:00:00.000000Z"
+        "triggered_by_id": 1,
+        "metadata": null,
+        "created_at": "2026-10-06T14:00:00.000000Z"
+      },
+      {
+        "id": 2,
+        "from_state": "searching",
+        "to_state": "matched",
+        "triggered_by_type": "system",
+        "triggered_by_id": null,
+        "metadata": null,
+        "created_at": "2026-10-06T14:01:00.000000Z"
+      },
+      {
+        "id": 3,
+        "from_state": "matched",
+        "to_state": "driver_en_route",
+        "triggered_by_type": "driver",
+        "triggered_by_id": 7,
+        "metadata": null,
+        "created_at": "2026-10-06T14:01:30.000000Z"
+      },
+      {
+        "id": 4,
+        "from_state": "driver_en_route",
+        "to_state": "driver_arrived",
+        "triggered_by_type": "driver",
+        "triggered_by_id": 7,
+        "metadata": null,
+        "created_at": "2026-10-06T14:04:00.000000Z"
+      },
+      {
+        "id": 5,
+        "from_state": "driver_arrived",
+        "to_state": "in_progress",
+        "triggered_by_type": "driver",
+        "triggered_by_id": 7,
+        "metadata": null,
+        "created_at": "2026-10-06T14:05:00.000000Z"
       }
     ],
-    "matched_at": "2026-10-06T10:01:00.000000Z",
-    "started_at": "2026-10-06T10:05:00.000000Z"
+    "matched_at": "2026-10-06T14:01:00.000000Z",
+    "started_at": "2026-10-06T14:05:00.000000Z",
+    "completed_at": null,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:05:00.000000Z"
   }
 }
 ```
 
-**Response 403:** `Unauthorized.`
+**Response 403:**
+```json
+{
+  "message": "Unauthorized."
+}
+```
 
 ---
 
@@ -1490,12 +3263,36 @@ POST /rides/{ride}/cancel
 ```json
 {
   "message": "Ride cancelled successfully.",
-  "ride": { "..." }
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "cancelled",
+    "status_label": "Cancelled",
+    "cancellation_reason": "changed_mind",
+    "cancelled_by": {
+      "id": 1,
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "...": "..."
+    },
+    "...": "..."
+  }
 }
 ```
 
-**Response 403:** `You are not authorized to cancel this ride.`
-**Response 422:** `This ride cannot be cancelled in its current state.`
+**Response 403:**
+```json
+{
+  "message": "You are not authorized to cancel this ride."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "This ride cannot be cancelled in its current state.",
+  "current_status": "in_progress"
+}
+```
 
 ---
 
@@ -1512,12 +3309,29 @@ Driver marks arrival at pickup location. Only valid when ride status is `driver_
 ```json
 {
   "message": "Driver arrival confirmed. Waiting for passenger PIN verification.",
-  "ride": { "..." }
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "driver_arrived",
+    "status_label": "Driver Arrived",
+    "...": "..."
+  }
 }
 ```
 
-**Response 403:** `You are not assigned to this ride.`
-**Response 422:** `Cannot mark arrival in current ride state.`
+**Response 403:**
+```json
+{
+  "message": "You are not assigned to this ride."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Cannot mark arrival in current ride state.",
+  "current_status": "matched"
+}
+```
 
 ---
 
@@ -1539,11 +3353,31 @@ Driver submits the 4-digit PIN received from the passenger. On success, the ride
 {
   "message": "PIN verified. Ride started.",
   "verified": true,
-  "ride": { "..." }
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "in_progress",
+    "status_label": "In Progress",
+    "started_at": "2026-10-06T14:05:00.000000Z",
+    "...": "..."
+  }
 }
 ```
 
-**Response 422:** `Invalid PIN code.` (or `Maximum PIN verification attempts exceeded.`)
+**Response 422 (wrong PIN):**
+```json
+{
+  "message": "Invalid PIN code.",
+  "verified": false
+}
+```
+
+**Response 422 (max attempts):**
+```json
+{
+  "message": "Maximum PIN verification attempts exceeded.",
+  "verified": false
+}
+```
 
 ---
 
@@ -1560,12 +3394,34 @@ Driver completes the ride. Only valid when ride status is `in_progress`. Dispatc
 ```json
 {
   "message": "Ride completed successfully.",
-  "ride": { "..." }
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "completed",
+    "status_label": "Completed",
+    "fare_estimate_amount": "3750.00",
+    "final_fare_amount": null,
+    "completed_at": "2026-10-06T14:30:00.000000Z",
+    "...": "..."
+  }
 }
 ```
 
-**Response 403:** `You are not assigned to this ride.`
-**Response 422:** `Only in-progress rides can be completed.`
+Note: `final_fare_amount` is initially `null` and populated asynchronously by the fare calculation job.
+
+**Response 403:**
+```json
+{
+  "message": "You are not assigned to this ride."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only in-progress rides can be completed.",
+  "current_status": "driver_arrived"
+}
+```
 
 ---
 
@@ -1580,19 +3436,51 @@ GET /rides/{ride}/share/{token}
 ```json
 {
   "ride": {
-    "id": "...",
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
     "status": "in_progress",
     "status_label": "In Progress",
-    "pickup": { "lat": "6.52", "lng": "3.37", "address": "..." },
-    "destination": { "lat": "6.45", "lng": "3.39", "address": "..." },
-    "vehicle_class": { "name": "economy", "display_name": "Economy" },
-    "driver": { "first_name": "John" }
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": "lite",
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
+    "driver": {
+      "first_name": "Bayo"
+    },
+    "started_at": "2026-10-06T14:05:00.000000Z"
   }
 }
 ```
 
-**Response 404:** `Invalid or expired share link.`
-**Response 410:** `This share link has expired.`
+**Response 404:**
+```json
+{
+  "message": "Invalid or expired share link."
+}
+```
+
+**Response 410:**
+```json
+{
+  "message": "This share link has expired."
+}
+```
 
 ---
 
@@ -1611,7 +3499,51 @@ GET /admin/pricing
 | current_only     | boolean | Only show currently effective configs          |
 | per_page         | integer | Results per page (default: 20)                 |
 
-**Response 200:** Paginated list of pricing configs with `meta`.
+**Response 200:**
+```json
+{
+  "pricing_configs": [
+    {
+      "id": 1,
+      "city_id": 1,
+      "vehicle_class_id": 1,
+      "base_fare": "600.00",
+      "per_km_rate": "250.00",
+      "per_minute_rate": "40.00",
+      "minimum_fare": "1500.00",
+      "waiting_time_rate": "50.00",
+      "free_waiting_minutes": 5,
+      "version": 1,
+      "effective_from": "2026-09-30T00:00:00.000000Z",
+      "city": {
+        "id": 1,
+        "name": "Lagos",
+        "slug": "lagos",
+        "...": "..."
+      },
+      "vehicle_class": {
+        "id": 1,
+        "name": "economy",
+        "display_name": "Economy",
+        "...": "..."
+      },
+      "created_by": {
+        "id": 1,
+        "first_name": "Super",
+        "last_name": "Admin",
+        "...": "..."
+      },
+      "created_at": "2026-09-30T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 12
+  }
+}
+```
 
 ---
 
@@ -1638,19 +3570,21 @@ Version is auto-incremented per city + vehicle class combination.
 {
   "message": "Pricing configuration created successfully.",
   "pricing_config": {
-    "id": 1,
+    "id": 13,
     "city_id": 1,
     "vehicle_class_id": 1,
-    "base_fare": 500.00,
-    "per_km_rate": 100.00,
-    "per_minute_rate": 20.00,
-    "minimum_fare": 700.00,
-    "waiting_time_rate": 15.00,
+    "base_fare": "700.00",
+    "per_km_rate": "280.00",
+    "per_minute_rate": "45.00",
+    "minimum_fare": "1600.00",
+    "waiting_time_rate": "55.00",
     "free_waiting_minutes": 5,
-    "version": 1,
-    "effective_from": "2026-10-01T00:00:00.000000Z",
-    "city": { "id": 1, "name": "Lagos" },
-    "vehicle_class": { "id": 1, "name": "economy" }
+    "version": 2,
+    "effective_from": "2026-11-01T00:00:00.000000Z",
+    "city": { "id": 1, "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": 1, "name": "economy", "...": "..." },
+    "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+    "created_at": "2026-10-06T14:00:00.000000Z"
   }
 }
 ```
@@ -1663,6 +3597,29 @@ GET /admin/pricing/{pricing_config_id}
 ```
 Returns a specific pricing config with city, vehicle class, and creator details.
 
+**Response 200:**
+```json
+{
+  "pricing_config": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "base_fare": "600.00",
+    "per_km_rate": "250.00",
+    "per_minute_rate": "40.00",
+    "minimum_fare": "1500.00",
+    "waiting_time_rate": "50.00",
+    "free_waiting_minutes": 5,
+    "version": 1,
+    "effective_from": "2026-09-30T00:00:00.000000Z",
+    "city": { "id": 1, "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": 1, "name": "economy", "...": "..." },
+    "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+    "created_at": "2026-09-30T10:00:00.000000Z"
+  }
+}
+```
+
 ---
 
 ### Get Current Pricing Config
@@ -1674,7 +3631,37 @@ GET /admin/pricing/current
 | city_id          | integer | Yes      | City ID              |
 | vehicle_class_id | integer | Yes      | Vehicle class ID     |
 
-Returns the currently effective pricing config for the given city + vehicle class. **Response 404** if none exists.
+Returns the currently effective pricing config for the given city + vehicle class.
+
+**Response 200:**
+```json
+{
+  "pricing_config": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "base_fare": "600.00",
+    "per_km_rate": "250.00",
+    "per_minute_rate": "40.00",
+    "minimum_fare": "1500.00",
+    "waiting_time_rate": "50.00",
+    "free_waiting_minutes": 5,
+    "version": 1,
+    "effective_from": "2026-09-30T00:00:00.000000Z",
+    "city": { "id": 1, "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": 1, "name": "economy", "...": "..." },
+    "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+    "created_at": "2026-09-30T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "No pricing configuration found for the specified city and vehicle class."
+}
+```
 
 ---
 
@@ -1703,7 +3690,40 @@ GET /admin/surge-rules
 | active_only      | boolean | Only show currently active rules    |
 | per_page         | integer | Results per page (default: 20)      |
 
-**Response 200:** Paginated list of surge rules with `meta`.
+**Response 200:**
+```json
+{
+  "surge_rules": [
+    {
+      "id": 1,
+      "city_id": 1,
+      "vehicle_class_id": null,
+      "name": "Morning Rush Hour",
+      "type": "time_based",
+      "multiplier": "1.50",
+      "conditions": {
+        "days_of_week": [1, 2, 3, 4, 5],
+        "start_time": "07:00",
+        "end_time": "09:00"
+      },
+      "priority": 5,
+      "is_active": true,
+      "effective_from": "2026-09-30T00:00:00.000000Z",
+      "effective_until": null,
+      "city": { "id": 1, "name": "Lagos", "...": "..." },
+      "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+      "created_at": "2026-09-30T10:00:00.000000Z",
+      "updated_at": "2026-09-30T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 3
+  }
+}
+```
 
 ---
 
@@ -1733,6 +3753,41 @@ POST /admin/surge-rules
 {
   "message": "Surge rule created successfully.",
   "surge_rule": {
+    "id": 4,
+    "city_id": 2,
+    "vehicle_class_id": null,
+    "name": "Evening Rush Hour",
+    "type": "time_based",
+    "multiplier": "1.30",
+    "conditions": {
+      "days_of_week": [1, 2, 3, 4, 5],
+      "start_time": "17:00",
+      "end_time": "19:30"
+    },
+    "priority": 5,
+    "is_active": true,
+    "effective_from": "2026-10-07T00:00:00.000000Z",
+    "effective_until": null,
+    "city": { "id": 2, "name": "Abuja", "...": "..." },
+    "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Get Surge Rule
+```
+GET /admin/surge-rules/{surge_rule_id}
+```
+Returns a specific surge rule with city, vehicle class, and creator details.
+
+**Response 200:**
+```json
+{
+  "surge_rule": {
     "id": 1,
     "city_id": 1,
     "vehicle_class_id": null,
@@ -1748,19 +3803,14 @@ POST /admin/surge-rules
     "is_active": true,
     "effective_from": "2026-09-30T00:00:00.000000Z",
     "effective_until": null,
-    "city": { "id": 1, "name": "Abuja" },
-    "created_at": "2026-09-30T10:00:00.000000Z"
+    "city": { "id": 1, "name": "Lagos", "...": "..." },
+    "vehicle_class": null,
+    "created_by": { "id": 1, "first_name": "Super", "last_name": "Admin", "...": "..." },
+    "created_at": "2026-09-30T10:00:00.000000Z",
+    "updated_at": "2026-09-30T10:00:00.000000Z"
   }
 }
 ```
-
----
-
-### Get Surge Rule
-```
-GET /admin/surge-rules/{surge_rule_id}
-```
-Returns a specific surge rule with city, vehicle class, and creator details.
 
 ---
 
@@ -1774,7 +3824,20 @@ Same fields as create, all optional (partial update). City and vehicle class can
 ```json
 {
   "message": "Surge rule updated successfully.",
-  "surge_rule": { ... }
+  "surge_rule": {
+    "id": 1,
+    "city_id": 1,
+    "vehicle_class_id": null,
+    "name": "Morning Rush Hour",
+    "type": "time_based",
+    "multiplier": "1.75",
+    "conditions": {
+      "days_of_week": [1, 2, 3, 4, 5],
+      "start_time": "06:30",
+      "end_time": "09:30"
+    },
+    "...": "..."
+  }
 }
 ```
 
@@ -1786,11 +3849,27 @@ PATCH /admin/surge-rules/{surge_rule_id}/status
 ```
 Toggles `is_active` between true and false. No request body required.
 
-**Response 200:**
+**Response 200 (activated):**
 ```json
 {
   "message": "Surge rule activated.",
-  "surge_rule": { ... }
+  "surge_rule": {
+    "id": 1,
+    "is_active": true,
+    "...": "..."
+  }
+}
+```
+
+**Response 200 (deactivated):**
+```json
+{
+  "message": "Surge rule deactivated.",
+  "surge_rule": {
+    "id": 1,
+    "is_active": false,
+    "...": "..."
+  }
 }
 ```
 
@@ -1814,7 +3893,22 @@ Returns the currently active surge multiplier for the given city (and optionally
     "active": true,
     "multiplier": 1.5,
     "rule_name": "Morning Rush Hour",
-    "rule": { ... }
+    "rule": {
+      "id": 1,
+      "city_id": 1,
+      "vehicle_class_id": null,
+      "name": "Morning Rush Hour",
+      "type": "time_based",
+      "multiplier": "1.50",
+      "conditions": {
+        "days_of_week": [1, 2, 3, 4, 5],
+        "start_time": "07:00",
+        "end_time": "09:00"
+      },
+      "priority": 5,
+      "is_active": true,
+      "...": "..."
+    }
   }
 }
 ```
@@ -1887,7 +3981,39 @@ GET /notifications
 ```
 Returns paginated notifications for the authenticated user, newest first. Default 20 per page.
 
-**Response 200:** Standard Laravel pagination envelope with `data`, `current_page`, `last_page`, `per_page`, `total`.
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "type": "ride_matched",
+      "title": "Driver Found!",
+      "body": "Your driver Bayo is on the way.",
+      "data": {
+        "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36"
+      },
+      "read_at": null,
+      "created_at": "2026-10-06T14:01:00.000000Z"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "type": "ride_completed",
+      "title": "Ride Complete",
+      "body": "Your trip has ended. Total fare: ₦3,900.",
+      "data": {
+        "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36"
+      },
+      "read_at": "2026-10-06T15:00:00.000000Z",
+      "created_at": "2026-10-06T14:30:00.000000Z"
+    }
+  ],
+  "current_page": 1,
+  "last_page": 1,
+  "per_page": 20,
+  "total": 2
+}
+```
 
 ---
 
@@ -1909,12 +4035,19 @@ GET /notifications/unread-count
 ```
 PATCH /notifications/{notification_id}/read
 ```
-Only the notification owner can mark it as read. **Response 403** if the notification belongs to another user.
+Only the notification owner can mark it as read.
 
 **Response 200:**
 ```json
 {
   "message": "Notification marked as read."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "This notification does not belong to you."
 }
 ```
 
@@ -1956,6 +4089,15 @@ Returns the authenticated user's saved payment methods, default method first.
       "is_default": true,
       "created_at": "2026-09-30T10:00:00.000000Z",
       "updated_at": "2026-09-30T10:00:00.000000Z"
+    },
+    {
+      "id": 2,
+      "user_id": 1,
+      "card_last_four": "5432",
+      "card_brand": "mastercard",
+      "is_default": false,
+      "created_at": "2026-10-02T10:00:00.000000Z",
+      "updated_at": "2026-10-02T10:00:00.000000Z"
     }
   ]
 }
@@ -1976,7 +4118,7 @@ POST /payments/initialize
 **Response 200:**
 ```json
 {
-  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/flwlnk-mock-abc123def456",
   "tx_ref": "ETIGO-ABCDEFGHIJKL"
 }
 ```
@@ -2001,18 +4143,37 @@ Verifies a payment transaction with the gateway. If successful and card details 
 }
 ```
 
+**Response 200 (failed):**
+```json
+{
+  "status": "failed",
+  "tx_ref": "ETIGO-ABCDEFGHIJKL",
+  "amount": 100.00,
+  "currency": "NGN",
+  "card_last_four": null,
+  "card_brand": null
+}
+```
+
 ---
 
 ### Set Default Payment Method
 ```
 PATCH /payment-methods/{payment_method_id}/default
 ```
-Sets the specified payment method as default. Only the owner can change it. **Response 403** if it belongs to another user.
+Sets the specified payment method as default. Only the owner can change it.
 
 **Response 200:**
 ```json
 {
   "message": "Default payment method updated."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "This payment method does not belong to you."
 }
 ```
 
@@ -2022,12 +4183,19 @@ Sets the specified payment method as default. Only the owner can change it. **Re
 ```
 DELETE /payment-methods/{payment_method_id}
 ```
-Only the owner can delete it. **Response 403** if it belongs to another user.
+Only the owner can delete it.
 
 **Response 200:**
 ```json
 {
   "message": "Payment method removed."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "This payment method does not belong to you."
 }
 ```
 
@@ -2041,8 +4209,26 @@ POST /webhooks/flutterwave
 ```
 **No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_ENCRYPTION_KEY`. Receives payment status updates from Flutterwave and updates the corresponding Payment record.
 
-**Response 401:** Invalid signature.  
-**Response 200:** `{"status": "ok"}` on success, `{"status": "ignored"}` if no transaction ID.
+**Response 200:**
+```json
+{
+  "status": "ok"
+}
+```
+
+**Response 200 (no transaction ID):**
+```json
+{
+  "status": "ignored"
+}
+```
+
+**Response 401:**
+```json
+{
+  "message": "Invalid signature."
+}
+```
 
 ---
 
@@ -2113,6 +4299,7 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 ### Driver Status
 | Value            | Description                              |
 |------------------|------------------------------------------|
+| `onboarding`     | New driver, completing onboarding steps  |
 | `pending_review` | Awaiting admin KYC review                |
 | `approved`       | KYC approved, can go online              |
 | `rejected`       | KYC rejected (reason provided)           |
@@ -2134,10 +4321,11 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `rejected` | Rejected (reason provided)         |
 
 ### Social Providers
-| Value    | Description                        |
-|----------|------------------------------------|
-| `google` | Google OAuth 2.0                   |
-| `apple`  | Apple Sign In                      |
+| Value      | Description                        |
+|------------|------------------------------------|
+| `google`   | Google OAuth 2.0                   |
+| `apple`    | Apple Sign In                      |
+| `facebook` | Facebook Login                     |
 
 ### Surge Types
 | Value          | Description                                      |
@@ -2251,10 +4439,10 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 ```json
 {
   "title": "Driver Found!",
-  "body": "Your driver John is on the way.",
+  "body": "Your driver Bayo is on the way.",
   "data": {
     "type": "ride_matched",
-    "ride_id": "42"
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36"
   }
 }
 ```
@@ -2263,7 +4451,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 
 ## Email Notifications
 
-Transactional emails sent via Resend SMTP. Emails are queued and sent asynchronously.
+Transactional emails sent via Resend HTTP API. Emails are queued and sent asynchronously.
 
 | Email                 | Recipient | Trigger                          |
 |-----------------------|-----------|----------------------------------|

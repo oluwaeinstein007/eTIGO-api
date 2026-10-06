@@ -66,6 +66,7 @@ it('logs in an existing user after OTP verification', function () {
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'phone' => '+2341234567890',
         'code' => $code,
+        'type' => 'passenger',
     ]);
 
     $response->assertOk()
@@ -91,6 +92,7 @@ it('returns is_new_user when phone is not registered', function () {
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'phone' => '+2349999999999',
         'code' => $code,
+        'type' => 'passenger',
     ]);
 
     $response->assertOk()
@@ -111,6 +113,7 @@ it('rejects OTP verification with wrong code', function () {
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'phone' => '+2341234567890',
         'code' => '000000',
+        'type' => 'passenger',
     ]);
 
     $response->assertUnprocessable()
@@ -133,6 +136,7 @@ it('rejects OTP verification for deactivated user', function () {
     $response = $this->postJson('/api/v1/auth/otp/verify', [
         'phone' => '+2341234567890',
         'code' => $code,
+        'type' => 'passenger',
     ]);
 
     $response->assertForbidden();

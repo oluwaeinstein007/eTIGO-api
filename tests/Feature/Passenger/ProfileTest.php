@@ -18,7 +18,7 @@ it('allows passenger to update their profile', function () {
     $token = $passenger->createToken('test', ['passenger'])->plainTextToken;
 
     $response = $this->withToken($token)
-        ->putJson('/api/v1/passenger/profile', [
+        ->postJson('/api/v1/passenger/profile', [
             'first_name' => 'Updated',
             'last_name' => 'Name',
         ]);

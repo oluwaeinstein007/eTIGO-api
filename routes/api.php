@@ -70,6 +70,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/otp/send', [AuthController::class, 'sendOtp']);
         Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
         Route::post('/register/complete', [AuthController::class, 'completeRegistration']);
+        Route::post('/social/redirect', [AuthController::class, 'socialRedirect']);
         Route::post('/social', [AuthController::class, 'socialAuth']);
     });
 
@@ -144,7 +145,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
 */
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
-    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile', [ProfileController::class, 'update']);
+    Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
 });
 
 /*
@@ -158,6 +160,8 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);
     Route::post('/onboarding/submit', [OnboardingController::class, 'submitForReview']);
     Route::put('/profile', [OnboardingController::class, 'updateProfile']);
+    Route::post('/profile/photo', [OnboardingController::class, 'updateProfilePhoto']);
+    Route::delete('/profile/photo', [OnboardingController::class, 'deleteProfilePhoto']);
 
     Route::post('/documents', [OnboardingController::class, 'uploadDocument']);
     Route::get('/documents', [OnboardingController::class, 'documents']);

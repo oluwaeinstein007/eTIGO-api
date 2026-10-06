@@ -10,6 +10,7 @@ use App\Http\Requests\Auth\CompleteRegistrationRequest;
 use App\Http\Requests\Auth\SendOtpRequest;
 use App\Http\Requests\Auth\SocialAuthRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
+use Illuminate\Http\Request;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
@@ -54,8 +55,10 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $userType = UserType::from($validated['type']);
+
         $user = User::where('phone', $validated['phone'])
-            ->whereIn('type', [UserType::Passenger, UserType::Driver])
+            ->where('type', $userType)
             ->first();
 
         if ($user) {
@@ -86,6 +89,7 @@ class AuthController extends Controller
             'message' => 'Phone verified. Please complete registration.',
             'is_new_user' => true,
             'phone' => $validated['phone'],
+            'type' => $userType->value,
         ]);
     }
 
@@ -93,10 +97,11 @@ class AuthController extends Controller
     {
         $validated = $request->validated();
         $phone = $validated['phone'];
+        $userType = UserType::from($validated['type']);
 
-        if (User::where('phone', $phone)->exists()) {
+        if (User::where('phone', $phone)->where('type', $userType)->exists()) {
             return response()->json([
-                'message' => 'An account with this phone number already exists.',
+                'message' => 'A '.$userType->value.' account with this phone number already exists.',
             ], 409);
         }
 
@@ -111,8 +116,6 @@ class AuthController extends Controller
                 'message' => 'Phone number not verified. Please verify your phone first.',
             ], 403);
         }
-
-        $userType = UserType::from($validated['type']);
 
         $user = User::create([
             'first_name' => $validated['first_name'],
@@ -145,6 +148,22 @@ class AuthController extends Controller
         ], 201);
     }
 
+    public function socialRedirect(Request $request): JsonResponse
+    {
+        $request->validate([
+            'provider' => ['required', 'string', 'in:google,apple,facebook'],
+        ]);
+
+        $provider = SocialProvider::from($request->input('provider'));
+
+        $redirectUrl = $this->socialAuthService->getRedirectUrl($provider);
+
+        return response()->json([
+            'redirect_url' => $redirectUrl,
+            'provider' => $provider->value,
+        ]);
+    }
+
     public function socialAuth(SocialAuthRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -161,16 +180,11 @@ class AuthController extends Controller
 
         $socialAccount = SocialAccount::where('provider', $provider->value)
             ->where('provider_id', $socialUser['id'])
+            ->whereHas('user', fn ($q) => $q->where('type', $userType))
             ->first();
 
         if ($socialAccount) {
             $user = $socialAccount->user;
-
-            if ($user->type !== $userType) {
-                return response()->json([
-                    'message' => 'This social account is linked to a different user type.',
-                ], 409);
-            }
 
             if (! $user->is_active) {
                 return response()->json([
@@ -224,14 +238,6 @@ class AuthController extends Controller
                     'user' => new UserResource($existingUser),
                     'token' => $token,
                 ]);
-            }
-
-            $otherTypeUser = User::where('email', $socialUser['email'])->first();
-
-            if ($otherTypeUser) {
-                return response()->json([
-                    'message' => 'An account with this email already exists under a different type.',
-                ], 409);
             }
         }
 

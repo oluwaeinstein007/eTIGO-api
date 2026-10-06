@@ -21,6 +21,7 @@ class UpdateProfileRequest extends FormRequest
             'first_name' => ['sometimes', 'required', 'string', 'max:100'],
             'last_name' => ['sometimes', 'required', 'string', 'max:100'],
             'email' => ['sometimes', 'nullable', 'email', Rule::unique('users')->ignore($this->user())],
+            'profile_photo' => ['sometimes', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
         ];
     }
 }

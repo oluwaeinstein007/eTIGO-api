@@ -20,6 +20,13 @@ class VehicleClassResource extends JsonResource
             'icon' => $this->icon,
             'description' => $this->description,
             'is_active' => $this->is_active,
+            'enabled_cities' => $this->when($this->relationLoaded('cities'), fn () =>
+                $this->cities->map(fn ($city) => [
+                    'id' => $city->id,
+                    'name' => $city->name,
+                ])
+            ),
+            'drivers_count' => $this->when(isset($this->drivers_count), $this->drivers_count),
             'pivot' => $this->when($this->pivot !== null, fn () => [
                 'is_active' => (bool) $this->pivot?->is_active,
                 'sort_order' => (int) ($this->pivot?->sort_order ?? 0),

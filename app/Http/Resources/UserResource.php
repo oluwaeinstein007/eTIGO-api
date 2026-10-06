@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class UserResource extends JsonResource
 {
@@ -22,7 +23,9 @@ class UserResource extends JsonResource
             'admin_role' => $this->when($this->isAdmin(), $this->admin_role),
             'phone_verified_at' => $this->phone_verified_at,
             'is_active' => $this->is_active,
-            'profile_photo_path' => $this->profile_photo_path,
+            'profile_photo_url' => $this->profile_photo_path
+                ? Storage::disk('s3')->url($this->profile_photo_path)
+                : null,
             'created_at' => $this->created_at,
         ];
     }
