@@ -68,8 +68,10 @@ class EtaService
     {
         $cacheKey = "ride_eta:{$ride->id}";
 
-        if (Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            return $cached;
         }
 
         $eta = $this->getEtaForRide($ride, $driverLat, $driverLng);
