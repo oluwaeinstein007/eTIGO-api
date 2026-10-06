@@ -30,8 +30,14 @@ class ProfileController extends Controller
                 Storage::disk('s3')->delete($user->profile_photo_path);
             }
 
-            $data['profile_photo_path'] = $request->file('profile_photo')
+            $path = $request->file('profile_photo')
                 ->store("profile-photos/{$user->id}", 's3');
+
+            if (! $path) {
+                return response()->json(['message' => 'File upload failed. Please try again.'], 503);
+            }
+
+            $data['profile_photo_path'] = $path;
         }
 
         $user->update($data);

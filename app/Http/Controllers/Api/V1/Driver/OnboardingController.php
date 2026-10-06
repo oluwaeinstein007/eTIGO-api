@@ -89,6 +89,10 @@ class OnboardingController extends Controller
         $file = $request->file('document');
         $path = $file->store("driver-documents/{$driver->id}", 's3');
 
+        if (! $path) {
+            return response()->json(['message' => 'File upload failed. Please try again.'], 503);
+        }
+
         $existing = $driver->documents()
             ->where('type', $request->validated('type'))
             ->whereIn('status', ['pending', 'approved'])
@@ -237,6 +241,10 @@ class OnboardingController extends Controller
 
         $path = $request->file('profile_photo')
             ->store("profile-photos/{$user->id}", 's3');
+
+        if (! $path) {
+            return response()->json(['message' => 'File upload failed. Please try again.'], 503);
+        }
 
         $user->update(['profile_photo_path' => $path]);
 
