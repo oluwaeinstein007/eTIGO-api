@@ -32,13 +32,11 @@ class DriverLocationController extends Controller
 
         $rateLimitKey = "driver_location:{$driver->id}";
 
-        if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+        if (RateLimiter::hit($rateLimitKey, 1) > 1) {
             return response()->json([
                 'message' => 'Location updates limited to once per second.',
             ], 429);
         }
-
-        RateLimiter::hit($rateLimitKey, 1);
 
         $lat = (float) $request->input('lat');
         $lng = (float) $request->input('lng');

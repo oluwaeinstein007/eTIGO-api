@@ -66,7 +66,7 @@ class EtaService
      */
     public function getThrottledEta(Ride $ride, float $driverLat, float $driverLng): ?array
     {
-        $cacheKey = "ride_eta:{$ride->id}";
+        $cacheKey = "ride_eta:{$ride->id}:{$ride->status->value}";
 
         $cached = Cache::get($cacheKey);
 

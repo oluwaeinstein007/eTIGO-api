@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ride;
+use App\Models\User;
 use App\Services\DriverLocationService;
 use App\Services\EtaService;
 use Illuminate\Http\JsonResponse;
@@ -42,7 +43,7 @@ class RideLocationController extends Controller
             ]);
         }
 
-        $eta = $this->etaService->getEtaForRide(
+        $eta = $this->etaService->getThrottledEta(
             $ride,
             $location['lat'],
             $location['lng'],
@@ -61,7 +62,7 @@ class RideLocationController extends Controller
         ]);
     }
 
-    private function canViewRideLocation($user, Ride $ride): bool
+    private function canViewRideLocation(User $user, Ride $ride): bool
     {
         if ($user->isAdmin()) {
             return true;
