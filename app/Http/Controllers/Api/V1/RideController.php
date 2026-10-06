@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\RideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class RideController extends Controller
 {
@@ -27,28 +28,36 @@ class RideController extends Controller
     {
         $user = $request->user();
 
-        $activeRide = Ride::where('passenger_id', $user->id)
-            ->whereIn('status', RideStatus::activeStatuses())
-            ->exists();
+        $result = DB::transaction(function () use ($user, $request) {
+            User::lockForUpdate()->find($user->id);
 
-        if ($activeRide) {
+            $activeRide = Ride::where('passenger_id', $user->id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($activeRide) {
+                return null;
+            }
+
+            return $this->rideService->createRide(
+                passenger: $user,
+                cityId: $request->integer('city_id'),
+                vehicleClassId: $request->integer('vehicle_class_id'),
+                pickupLat: (float) $request->input('pickup_lat'),
+                pickupLng: (float) $request->input('pickup_lng'),
+                pickupAddress: $request->input('pickup_address'),
+                destinationLat: (float) $request->input('destination_lat'),
+                destinationLng: (float) $request->input('destination_lng'),
+                destinationAddress: $request->input('destination_address'),
+                paymentMethod: PaymentMethod::from($request->input('payment_method')),
+            );
+        });
+
+        if (! $result) {
             return response()->json([
                 'message' => 'You already have an active ride. Please complete or cancel it first.',
             ], 409);
         }
-
-        $result = $this->rideService->createRide(
-            passenger: $user,
-            cityId: $request->integer('city_id'),
-            vehicleClassId: $request->integer('vehicle_class_id'),
-            pickupLat: (float) $request->input('pickup_lat'),
-            pickupLng: (float) $request->input('pickup_lng'),
-            pickupAddress: $request->input('pickup_address'),
-            destinationLat: (float) $request->input('destination_lat'),
-            destinationLng: (float) $request->input('destination_lng'),
-            destinationAddress: $request->input('destination_address'),
-            paymentMethod: PaymentMethod::from($request->input('payment_method')),
-        );
 
         $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger']);
 
@@ -141,6 +150,7 @@ class RideController extends Controller
             $ride,
             $user,
             $request->input('reason'),
+            $request->input('reason_details'),
         );
 
         $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser']);

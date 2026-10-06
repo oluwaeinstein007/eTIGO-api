@@ -1200,7 +1200,7 @@ Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verifi
 GET /rides
 ```
 
-**Auth required.** Passengers see their own rides, drivers see rides assigned to them. Supports filtering and pagination.
+**Auth required.** Passengers see their own rides, drivers see rides assigned to them, and admins see all rides. Supports filtering and pagination.
 
 | Query Param | Type    | Description                          |
 |-------------|---------|--------------------------------------|

@@ -76,7 +76,6 @@ class RideService
             ]);
 
             $pin = $this->pinService->generatePin($ride);
-            $ride->update(['pin_code' => $pin['pin_code']]);
 
             $this->stateMachine->transitionTo(
                 $ride,
@@ -95,15 +94,17 @@ class RideService
         Ride $ride,
         User $cancelledBy,
         ?string $reason = null,
+        ?string $reasonDetails = null,
     ): Ride {
         $previousStatus = $ride->status instanceof RideStatus
             ? $ride->status->value
             : $ride->status;
 
-        return DB::transaction(function () use ($ride, $cancelledBy, $reason, $previousStatus) {
+        return DB::transaction(function () use ($ride, $cancelledBy, $reason, $reasonDetails, $previousStatus) {
             $ride->update([
                 'cancelled_by' => $cancelledBy->id,
                 'cancellation_reason' => $reason,
+                'cancellation_details' => $reasonDetails,
             ]);
 
             $triggeredByType = match (true) {
@@ -214,9 +215,7 @@ class RideService
                 ->first();
 
             if ($arrivedTransition) {
-                $freeMinutes = $pricing->free_waiting_minutes ?? 5;
-                $totalWaiting = $arrivedTransition->created_at->diffInMinutes($ride->started_at);
-                $waitingMinutes = max(0, $totalWaiting - $freeMinutes);
+                $waitingMinutes = max(0, $arrivedTransition->created_at->diffInMinutes($ride->started_at));
             }
         }
 

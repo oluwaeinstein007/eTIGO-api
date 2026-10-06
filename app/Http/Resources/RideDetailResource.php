@@ -30,10 +30,6 @@ class RideDetailResource extends JsonResource
             ],
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
-            'pin_code' => $this->when(
-                $this->shouldShowPin($request),
-                $this->pin_code,
-            ),
             'share_token' => $this->share_token,
             'fare_estimate_amount' => $this->fare_estimate_amount,
             'final_fare_amount' => $this->final_fare_amount,
@@ -54,20 +50,5 @@ class RideDetailResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
-    }
-
-    private function shouldShowPin(Request $request): bool
-    {
-        $user = $request->user();
-
-        if (! $user) {
-            return false;
-        }
-
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        return $user->id === $this->passenger_id;
     }
 }

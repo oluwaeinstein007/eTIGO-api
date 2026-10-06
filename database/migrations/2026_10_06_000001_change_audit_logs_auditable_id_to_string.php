@@ -15,8 +15,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('audit_logs', function (Blueprint $table) {
-            $table->unsignedBigInteger('auditable_id')->change();
-        });
+        throw new RuntimeException(
+            'This migration cannot be reversed because UUID values in auditable_id cannot be converted to unsignedBigInteger.'
+        );
     }
 };

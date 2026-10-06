@@ -60,17 +60,19 @@ class RideStateMachine
         string $triggeredByType = 'system',
         ?array $metadata = null,
     ): Ride {
-        if (! $this->canTransitionTo($ride, $newStatus)) {
-            $current = $ride->status instanceof RideStatus
-                ? $ride->status->value
-                : $ride->status;
-
-            throw new \InvalidArgumentException(
-                "Invalid ride state transition from '{$current}' to '{$newStatus->value}'."
-            );
-        }
-
         return DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata) {
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            if (! $this->canTransitionTo($ride, $newStatus)) {
+                $current = $ride->status instanceof RideStatus
+                    ? $ride->status->value
+                    : $ride->status;
+
+                throw new \InvalidArgumentException(
+                    "Invalid ride state transition from '{$current}' to '{$newStatus->value}'."
+                );
+            }
+
             $fromState = $ride->status;
 
             $ride->status = $newStatus;

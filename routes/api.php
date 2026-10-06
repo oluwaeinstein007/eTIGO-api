@@ -55,7 +55,8 @@ Route::post('/webhooks/qoreid', [KycWebhookController::class, 'handle']);
 | Ride Share (public — no auth, validated by share token)
 |--------------------------------------------------------------------------
 */
-Route::get('/rides/{ride}/share/{token}', [RideShareController::class, 'show']);
+Route::get('/rides/{ride}/share/{token}', [RideShareController::class, 'show'])
+    ->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------
