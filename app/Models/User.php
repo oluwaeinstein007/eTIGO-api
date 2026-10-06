@@ -67,6 +67,11 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
+    public function rides(): HasMany
+    {
+        return $this->hasMany(Ride::class, 'passenger_id');
+    }
+
     public function isPassenger(): bool
     {
         return $this->type === UserType::Passenger;

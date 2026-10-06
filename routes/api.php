@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
+use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -151,6 +153,8 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
+
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);
     Route::post('/onboarding/submit', [OnboardingController::class, 'submitForReview']);
     Route::put('/profile', [OnboardingController::class, 'updateProfile']);
@@ -219,6 +223,13 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
         Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
+    });
+
+    Route::prefix('passengers')->group(function () {
+        Route::get('/', [AdminPassengerController::class, 'index']);
+        Route::get('/{passenger}', [AdminPassengerController::class, 'show']);
+        Route::post('/{passenger}/suspend', [AdminPassengerController::class, 'suspend']);
+        Route::post('/{passenger}/reactivate', [AdminPassengerController::class, 'reactivate']);
     });
 
     Route::middleware('admin.role:super_admin')->prefix('admins')->group(function () {
