@@ -90,7 +90,15 @@ class AppCacheService
     private function safeRemember(array $tags, string $key, int $ttl, callable $callback): mixed
     {
         try {
-            return Cache::tags($tags)->remember($key, $ttl, $callback);
+            $result = Cache::tags($tags)->remember($key, $ttl, $callback);
+
+            if ($result instanceof \__PHP_Incomplete_Class) {
+                Cache::tags($tags)->forget($key);
+
+                return $callback();
+            }
+
+            return $result;
         } catch (\Throwable $e) {
             Log::warning('Cache read failed, falling back to database.', [
                 'key' => $key,
