@@ -1922,7 +1922,8 @@
                     {
                       "key": "type",
                       "value": "driving_licence",
-                      "type": "text"
+                      "type": "text",
+                      "description": "Required. One of: driving_licence, vehicle_registration, insurance_certificate, government_id"
                     },
                     {
                       "key": "document",
