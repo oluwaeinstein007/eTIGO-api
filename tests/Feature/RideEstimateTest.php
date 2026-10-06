@@ -49,7 +49,7 @@ it('returns fare estimates for all vehicle classes in a city', function () {
         ->assertJsonStructure([
             'estimates' => [
                 '*' => [
-                    'vehicle_class' => ['id', 'name', 'display_name', 'capacity', 'icon_url'],
+                    'vehicle_class' => ['id', 'name', 'display_name', 'capacity', 'icon'],
                     'fare_estimate',
                     'distance_km',
                     'duration_minutes',
