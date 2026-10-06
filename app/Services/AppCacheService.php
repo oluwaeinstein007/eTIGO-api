@@ -7,6 +7,7 @@ use App\Models\PricingConfig;
 use App\Models\VehicleClass;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class AppCacheService
 {
@@ -19,7 +20,7 @@ class AppCacheService
      */
     public function activeCities(): Collection
     {
-        return Cache::tags(['cities'])->remember('cities:active', self::TTL_MEDIUM, function () {
+        return $this->safeRemember(['cities'], 'cities:active', self::TTL_MEDIUM, function () {
             return City::where('is_active', true)
                 ->orderBy('name')
                 ->get();
@@ -31,28 +32,22 @@ class AppCacheService
      */
     public function cityVehicleClasses(int $cityId): Collection
     {
-        return Cache::tags(['cities', 'vehicle_classes'])->remember(
-            "city:{$cityId}:vehicle_classes",
-            self::TTL_MEDIUM,
-            function () use ($cityId) {
-                return City::findOrFail($cityId)
-                    ->vehicleClasses()
-                    ->wherePivot('is_active', true)
-                    ->where('vehicle_classes.is_active', true)
-                    ->orderBy('city_vehicle_classes.sort_order')
-                    ->orderBy('vehicle_classes.name')
-                    ->get();
-            },
-        );
+        return $this->safeRemember(['cities', 'vehicle_classes'], "city:{$cityId}:vehicle_classes", self::TTL_MEDIUM, function () use ($cityId) {
+            return City::findOrFail($cityId)
+                ->vehicleClasses()
+                ->wherePivot('is_active', true)
+                ->where('vehicle_classes.is_active', true)
+                ->orderBy('city_vehicle_classes.sort_order')
+                ->orderBy('vehicle_classes.name')
+                ->get();
+        });
     }
 
     public function currentPricing(int $cityId, int $vehicleClassId): ?PricingConfig
     {
-        return Cache::tags(['pricing'])->remember(
-            "pricing:{$cityId}:{$vehicleClassId}:current",
-            self::TTL_SHORT,
-            fn () => PricingConfig::currentFor($cityId, $vehicleClassId),
-        );
+        return $this->safeRemember(['pricing'], "pricing:{$cityId}:{$vehicleClassId}:current", self::TTL_SHORT, function () use ($cityId, $vehicleClassId) {
+            return PricingConfig::currentFor($cityId, $vehicleClassId);
+        });
     }
 
     /**
@@ -60,28 +55,65 @@ class AppCacheService
      */
     public function vehicleClasses(): Collection
     {
-        return Cache::tags(['vehicle_classes'])->remember('vehicle_classes:all', self::TTL_MEDIUM, function () {
+        return $this->safeRemember(['vehicle_classes'], 'vehicle_classes:all', self::TTL_MEDIUM, function () {
             return VehicleClass::where('is_active', true)->get();
         });
     }
 
     public function invalidateCities(): void
     {
-        Cache::tags(['cities'])->flush();
+        $this->safeFlush(['cities']);
     }
 
     public function invalidateVehicleClasses(): void
     {
-        Cache::tags(['vehicle_classes'])->flush();
+        $this->safeFlush(['vehicle_classes']);
     }
 
     public function invalidatePricing(): void
     {
-        Cache::tags(['pricing'])->flush();
+        $this->safeFlush(['pricing']);
     }
 
     public function invalidateAll(): void
     {
-        Cache::tags(['cities', 'vehicle_classes', 'pricing'])->flush();
+        $this->safeFlush(['cities', 'vehicle_classes', 'pricing']);
+    }
+
+    /**
+     * @template T
+     *
+     * @param  list<string>  $tags
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    private function safeRemember(array $tags, string $key, int $ttl, callable $callback): mixed
+    {
+        try {
+            return Cache::tags($tags)->remember($key, $ttl, $callback);
+        } catch (\Throwable $e) {
+            Log::warning('Cache read failed, falling back to database.', [
+                'key' => $key,
+                'tags' => $tags,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $callback();
+        }
+    }
+
+    /**
+     * @param  list<string>  $tags
+     */
+    private function safeFlush(array $tags): void
+    {
+        try {
+            Cache::tags($tags)->flush();
+        } catch (\Throwable $e) {
+            Log::warning('Cache flush failed.', [
+                'tags' => $tags,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
