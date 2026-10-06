@@ -7,6 +7,72 @@
 
 ---
 
+## Quick Start
+
+### Seeded Test Accounts
+
+All seeded accounts use the password: **`Qwer!234`**
+
+Run `php artisan db:seed` to populate the database with the test data below.
+
+#### Admin Accounts (email/password login)
+
+| Email | Role | Description |
+|-------|------|-------------|
+| `admin@etigo.com` | Super Admin | Default super admin |
+| `ops@etigo.com` | Operations | Operations manager |
+| `safety@etigo.com` | Safety Operator | SOS/safety console |
+| `support@etigo.com` | Support | Customer support |
+
+#### Passenger Accounts (OTP login)
+
+| Phone | Email | Name |
+|-------|-------|------|
+| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |
+| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |
+| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |
+| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |
+| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |
+
+#### Driver Accounts (OTP login)
+
+| Phone | Email | Name | Status | Vehicle |
+|-------|-------|------|--------|---------|
+| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla — Economy |
+| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord — Comfort |
+| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class — Premium |
+| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander — SUV |
+| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra — Economy |
+| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |
+
+### Seeded Reference Data
+
+**Cities:** Lagos (active, 40km), Abuja (active, 30km), Port Harcourt (active, 20km), Ibadan (inactive, 20km)
+
+**Vehicle Classes:** Economy (4 pax), Comfort (4 pax), Premium (4 pax), SUV (6 pax)
+
+**Pricing:** Configured per city per vehicle class (base fare ₦600–₦1,200; per-km ₦250–₦500; 5 min free waiting)
+
+**Promo Codes:** `WELCOME50` (50% off, max ₦2,000), `RIDE500` (₦500 flat), `OFFPEAK20` (20% off-peak only)
+
+### Authentication Flow
+
+**Passengers & Drivers:** `POST /auth/otp/send` → `POST /auth/otp/verify` → (if new) `POST /auth/register/complete` → use bearer token
+
+**Admins:** `POST /admin/auth/login` with email & password → use bearer token
+
+### Static OTP (Non-Production Only)
+
+In **local**, **staging**, and **testing** environments, all OTP codes are set to **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This allows developers and testers to create and verify accounts freely without OTP costs or delivery delays.
+
+**How to use:**
+1. `POST /auth/otp/send` with any valid phone number → returns success immediately
+2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
+
+This static OTP is **disabled in production** — production always generates random codes and sends via SMS.
+
+---
+
 ## Authentication — Passenger & Driver (Phone OTP + Social OAuth)
 
 ### Send OTP

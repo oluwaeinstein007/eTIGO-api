@@ -15,6 +15,8 @@ class OtpService
 
     private const AUTH_MAX_ATTEMPTS = 5;
 
+    private const STATIC_OTP = '123456';
+
     private const PIN_LENGTH = 4;
 
     private const PIN_EXPIRY_MINUTES = 30;
@@ -48,7 +50,8 @@ class OtpService
             ->active()
             ->update(['expires_at' => now()]);
 
-        $plainCode = $this->generateCode(self::AUTH_OTP_LENGTH);
+        $useStaticOtp = ! app()->isProduction();
+        $plainCode = $useStaticOtp ? self::STATIC_OTP : $this->generateCode(self::AUTH_OTP_LENGTH);
 
         $otp = OtpCode::create([
             'phone' => $phone,
@@ -57,16 +60,18 @@ class OtpService
             'expires_at' => now()->addMinutes(self::AUTH_OTP_EXPIRY_MINUTES),
         ]);
 
-        $sent = $this->smsGateway->send($phone, $plainCode);
+        if (! $useStaticOtp) {
+            $sent = $this->smsGateway->send($phone, $plainCode);
 
-        if (! $sent) {
-            $otp->update(['expires_at' => now()]);
+            if (! $sent) {
+                $otp->update(['expires_at' => now()]);
 
-            return [
-                'sent' => false,
-                'error' => 'Failed to send verification code. Please try again.',
-                'expires_at' => null,
-            ];
+                return [
+                    'sent' => false,
+                    'error' => 'Failed to send verification code. Please try again.',
+                    'expires_at' => null,
+                ];
+            }
         }
 
         return [
