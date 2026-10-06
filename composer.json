@@ -15,6 +15,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
+        "resend/resend-laravel": "^1.6",
         "socialiteproviders/apple": "^6.1"
     },
     "require-dev": {
