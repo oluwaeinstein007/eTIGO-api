@@ -23,6 +23,9 @@ class UpdateVehicleClassRequest extends FormRequest
             'capacity' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'icon' => ['nullable', 'string', 'max:50', 'in:lite,comfort,xl'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'is_active' => ['sometimes', 'boolean'],
+            'city_ids' => ['sometimes', 'array'],
+            'city_ids.*' => ['integer', 'exists:cities,id'],
         ];
     }
 }

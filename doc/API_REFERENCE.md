@@ -1232,6 +1232,84 @@ Toggle driver online/offline status. No request body required.
 
 ---
 
+### Update Driver Location
+```
+POST /driver/location
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Send the driver's current GPS position. Rate-limited to 1 request per second per driver. Only accepted from online, approved drivers. The location is stored in Redis (GEOADD) and broadcast via WebSocket to the active ride channel (if any) and the admin rides channel.
+
+**Request body:**
+```json
+{
+  "lat": 9.0579,
+  "lng": 7.4951,
+  "heading": 45.0,
+  "speed": 30.0,
+  "timestamp": "2026-10-06T14:15:00Z"
+}
+```
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `lat` | float | Yes | Between -90 and 90 |
+| `lng` | float | Yes | Between -180 and 180 |
+| `heading` | float | No | Between 0 and 360 (degrees from north) |
+| `speed` | float | No | >= 0 (km/h) |
+| `timestamp` | string | No | Valid date/time |
+
+**Response 200:**
+```json
+{
+  "message": "Location updated.",
+  "eta": {
+    "distance_km": 3.2,
+    "duration_minutes": 8.0
+  }
+}
+```
+
+`eta` is `null` when the driver has no active ride. When present, ETA is throttled to recalculate every ~30 seconds to control maps API cost.
+
+**Response 403:**
+```json
+{
+  "message": "Only online, approved drivers can update location."
+}
+```
+
+**Response 429:**
+```json
+{
+  "message": "Location updates limited to once per second."
+}
+```
+
+**WebSocket broadcast:** Each location update dispatches a `driver.location.updated` event to:
+- `private-ride.{rideId}` — when the driver has an active ride (status: `driver_en_route`, `driver_arrived`, or `in_progress`)
+- `private-admin.rides` — always (for admin dashboard live tracking)
+
+**Broadcast payload:**
+```json
+{
+  "driver_id": 1,
+  "lat": 9.0579,
+  "lng": 7.4951,
+  "heading": 45.0,
+  "speed": 30.0,
+  "timestamp": 1728223200,
+  "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+  "eta": {
+    "distance_km": 3.2,
+    "duration_minutes": 8.0
+  }
+}
+```
+
+---
+
 ## Driver — KYC Verification
 
 All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -2670,6 +2748,7 @@ GET /admin/vehicle-classes
         { "id": 3, "name": "Port Harcourt" }
       ],
       "drivers_count": 37,
+      "active_rides_count": 184,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
@@ -2686,6 +2765,7 @@ GET /admin/vehicle-classes
         { "id": 2, "name": "Abuja" }
       ],
       "drivers_count": 58,
+      "active_rides_count": 92,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -2765,6 +2845,7 @@ GET /admin/vehicle-classes/{vehicle_class_id}
       { "id": 3, "name": "Port Harcourt" }
     ],
     "drivers_count": 37,
+    "active_rides_count": 184,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-01T10:00:00.000000Z"
   }
@@ -2777,7 +2858,17 @@ GET /admin/vehicle-classes/{vehicle_class_id}
 ```
 PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
-Same fields as create (except `city_ids`), all optional (partial update supported).
+| Field        | Type    | Required | Description                                                |
+|--------------|---------|----------|------------------------------------------------------------|
+| name         | string  | No       | Unique internal name (e.g. `economy`)                      |
+| display_name | string  | No       | User-facing name (e.g. `Economy`)                          |
+| capacity     | integer | No       | Passenger capacity (1–20)                                  |
+| icon         | string  | No       | Icon slug — see **Icon Slugs** above                       |
+| description  | string  | No       | Description text (max 1000 chars)                          |
+| is_active    | boolean | No       | Toggle active/inactive status globally                     |
+| city_ids     | array   | No       | Full set of city IDs to enable — replaces previous cities  |
+
+All fields are optional (partial update supported). Omitting `city_ids` leaves city assignments unchanged; passing it replaces the full set.
 
 **Response 200:**
 ```json
@@ -2790,7 +2881,13 @@ Same fields as create (except `city_ids`), all optional (partial update supporte
     "capacity": 4,
     "icon": "lite",
     "description": "Affordable rides for everyday trips.",
-    "is_active": true,
+    "is_active": false,
+    "enabled_cities": [
+      { "id": 1, "name": "Lagos" },
+      { "id": 2, "name": "Abuja" }
+    ],
+    "drivers_count": 37,
+    "active_rides_count": 184,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-06T14:00:00.000000Z"
   }
@@ -3420,6 +3517,60 @@ Note: `final_fare_amount` is initially `null` and populated asynchronously by th
 {
   "message": "Only in-progress rides can be completed.",
   "current_status": "driver_arrived"
+}
+```
+
+---
+
+### Ride Location (Polling Fallback)
+```
+GET /rides/{ride}/location
+```
+
+**Auth required.** Fallback polling endpoint for when WebSocket connection drops. Returns the driver's latest cached location from Redis and a computed ETA. Accessible by the ride's passenger, the assigned driver, or any admin.
+
+**Response 200 (driver location available):**
+```json
+{
+  "location": {
+    "lat": 9.0579,
+    "lng": 7.4951,
+    "heading": 45.0,
+    "speed": 30.0,
+    "timestamp": 1728223200
+  },
+  "eta": {
+    "distance_km": 3.2,
+    "duration_minutes": 8.0
+  },
+  "ride_status": "driver_en_route"
+}
+```
+
+ETA target: pickup location when status is `driver_en_route`/`matched`/`driver_arrived`, destination when `in_progress`.
+
+**Response 200 (no driver assigned):**
+```json
+{
+  "message": "No driver assigned to this ride.",
+  "location": null,
+  "eta": null
+}
+```
+
+**Response 200 (driver location unavailable):**
+```json
+{
+  "message": "Driver location unavailable.",
+  "location": null,
+  "eta": null
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Unauthorized."
 }
 ```
 
@@ -4459,3 +4610,63 @@ Transactional emails sent via Resend HTTP API. Emails are queued and sent asynch
 | Admin Password Reset  | Admin     | `POST /admin/auth/forgot-password` |
 | Admin Welcome         | Admin     | `POST /admin/auth/invite/accept` |
 | Ride Receipt          | Passenger | Ride completed (has email on file) |
+
+---
+
+## Real-Time Broadcasting (WebSocket)
+
+Real-time location tracking and ride updates are delivered via WebSocket using **Laravel Reverb**. The mobile app and admin dashboard connect to the Reverb WebSocket server and subscribe to private channels authenticated via Sanctum.
+
+### Server Setup
+
+Start the Reverb WebSocket server:
+```bash
+php artisan reverb:start
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BROADCAST_CONNECTION` | Broadcasting driver | `reverb` |
+| `REVERB_APP_ID` | Reverb application ID | `etigo` |
+| `REVERB_APP_KEY` | Reverb app key (used by client) | `etigo-key` |
+| `REVERB_APP_SECRET` | Reverb app secret | `etigo-secret` |
+| `REVERB_HOST` | WebSocket server host | `localhost` |
+| `REVERB_PORT` | WebSocket server port | `8080` |
+| `REVERB_SCHEME` | WebSocket scheme (http/https) | `http` |
+
+### Channel Authorization
+
+Private channels require authentication. The client must send an authorization request to `POST /broadcasting/auth` with a valid Sanctum bearer token.
+
+### Channels
+
+| Channel | Auth | Subscribers | Events |
+|---------|------|-------------|--------|
+| `private-ride.{rideId}` | Passenger or assigned driver | Ride participant | `driver.location.updated` |
+| `private-admin.rides` | Admin users only | Admin dashboard | `driver.location.updated` |
+
+### Events
+
+#### `driver.location.updated`
+
+Dispatched on every driver location update (max 1/second). Includes live GPS coordinates and ETA when an active ride exists.
+
+```json
+{
+  "driver_id": 1,
+  "lat": 9.0579,
+  "lng": 7.4951,
+  "heading": 45.0,
+  "speed": 30.0,
+  "timestamp": 1728223200,
+  "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+  "eta": {
+    "distance_km": 3.2,
+    "duration_minutes": 8.0
+  }
+}
+```
+
+`ride_id` and `eta` are `null` when the driver has no active ride (admin channel only in that case).

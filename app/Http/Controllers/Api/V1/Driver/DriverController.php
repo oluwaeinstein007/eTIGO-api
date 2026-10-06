@@ -5,11 +5,17 @@ namespace App\Http\Controllers\Api\V1\Driver;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
 use App\Models\AuditLog;
+use App\Services\DriverLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DriverController extends Controller
 {
+    public function __construct(
+        private DriverLocationService $locationService,
+    ) {}
+
     public function toggleOnline(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -45,6 +51,17 @@ class DriverController extends Controller
         }
 
         $driver->update(['is_online' => ! $driver->is_online]);
+
+        if (! $driver->is_online) {
+            try {
+                $this->locationService->removeDriver($driver->id);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to remove driver location from cache', [
+                    'driver_id' => $driver->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         AuditLog::record(
             $driver,

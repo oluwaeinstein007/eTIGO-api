@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RideStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -37,6 +38,16 @@ class VehicleClass extends Model
     public function drivers(): HasMany
     {
         return $this->hasMany(Vehicle::class);
+    }
+
+    public function rides(): HasMany
+    {
+        return $this->hasMany(Ride::class);
+    }
+
+    public function activeRides(): HasMany
+    {
+        return $this->rides()->whereIn('status', RideStatus::activeStatuses());
     }
 
     public function pricingConfigs(): HasMany

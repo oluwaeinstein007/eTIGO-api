@@ -44,7 +44,12 @@
                   "name": "200 — Healthy",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"status\": \"healthy\",\n  \"services\": {\n    \"database\": \"connected\",\n    \"redis\": \"connected\"\n  }\n}"
                 }
               ]
@@ -251,14 +256,24 @@
                   "name": "200 — OTP Sent",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Verification code sent.\",\n  \"expires_at\": \"2026-10-06T14:05:00.000000Z\"\n}"
                 },
                 {
                   "name": "429 — Cooldown Active",
                   "status": "Too Many Requests",
                   "code": 429,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Please wait before requesting another code.\"\n}"
                 }
               ]
@@ -313,28 +328,48 @@
                   "name": "200 — Existing User (Logged In)",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"1|abc123def456ghi789jkl012mno345pqr678stu901\"\n}"
                 },
                 {
                   "name": "200 — New User (Needs Registration)",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Phone verified. Please complete registration.\",\n  \"is_new_user\": true,\n  \"phone\": \"+2341234567890\",\n  \"type\": \"passenger\"\n}"
                 },
                 {
                   "name": "403 — Account Deactivated",
                   "status": "Forbidden",
                   "code": 403,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Your account has been deactivated. Contact support.\"\n}"
                 },
                 {
                   "name": "422 — Invalid Code",
                   "status": "Unprocessable Entity",
                   "code": 422,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Invalid verification code.\"\n}"
                 }
               ]
@@ -389,21 +424,36 @@
                   "name": "201 — Account Created",
                   "status": "Created",
                   "code": 201,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"user\": {\n    \"id\": 6,\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"+2341234567890\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:00:30.000000Z\"\n  },\n  \"token\": \"2|xyz789abc012def345ghi678jkl901mno234pqr567\"\n}"
                 },
                 {
                   "name": "409 — Already Exists",
                   "status": "Conflict",
                   "code": 409,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"A passenger account with this phone number already exists.\"\n}"
                 },
                 {
                   "name": "403 — Phone Not Verified",
                   "status": "Forbidden",
                   "code": 403,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Phone number not verified. Please verify your phone first.\"\n}"
                 }
               ]
@@ -458,7 +508,12 @@
                   "name": "201 — Driver Account Created",
                   "status": "Created",
                   "code": 201,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Driver\",\n    \"phone\": \"+2349876543210\",\n    \"email\": null,\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:00:30.000000Z\"\n  },\n  \"token\": \"3|mno345pqr678stu901vwx234yza567bcd890efg123\"\n}"
                 }
               ]
@@ -512,21 +567,36 @@
                   "name": "200 — Existing User (Logged In)",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"4|social123def456ghi789jkl012mno345pqr678stu\"\n}"
                 },
                 {
                   "name": "201 — New User Created",
                   "status": "Created",
                   "code": 201,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"is_new_user\": true,\n  \"needs_profile_completion\": false,\n  \"user\": {\n    \"id\": 8,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": null,\n    \"email\": \"ade@gmail.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:01:00.000000Z\"\n  },\n  \"token\": \"5|new123def456ghi789jkl012mno345pqr678stu901\"\n}"
                 },
                 {
                   "name": "401 — Invalid Token",
                   "status": "Unauthorized",
                   "code": 401,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Invalid social login token.\"\n}"
                 }
               ]
@@ -657,14 +727,24 @@
                   "name": "200 — Redirect URL",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"redirect_url\": \"https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&scope=openid+profile+email&response_type=code&state=...\",\n  \"provider\": \"google\"\n}"
                 },
                 {
                   "name": "422 — Invalid Provider",
                   "status": "Unprocessable Entity",
                   "code": 422,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"The selected provider is invalid.\",\n  \"errors\": {\n    \"provider\": [\"The selected provider is invalid.\"]\n  }\n}"
                 }
               ]
@@ -699,7 +779,12 @@
                   "name": "200 — Current User",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
@@ -734,7 +819,12 @@
                   "name": "200 — Logged Out",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Logged out successfully.\"\n}"
                 }
               ]
@@ -793,14 +883,24 @@
                   "name": "200 — Admin Logged In",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"user\": {\n    \"id\": 12,\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
                 },
                 {
                   "name": "401 — Invalid Credentials",
                   "status": "Unauthorized",
                   "code": 401,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Invalid credentials.\"\n}"
                 }
               ]
@@ -1037,7 +1137,12 @@
                   "name": "200 — Profile",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
@@ -1099,7 +1204,12 @@
                   "name": "200 — Profile Updated",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Profile updated successfully.\",\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": \"https://s3.amazonaws.com/etigo/profile-photos/1/abc123.jpg\",\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
@@ -1136,14 +1246,24 @@
                   "name": "200 — Photo Removed",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": 1,\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 — No Photo",
                   "status": "Unprocessable Entity",
                   "code": 422,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"No profile photo to remove.\"\n}"
                 }
               ]
@@ -1534,6 +1654,62 @@
                 },
                 "description": "Attempting to create a ride when the passenger already has an active ride returns 409."
               }
+            },
+            {
+              "name": "Get Ride Location",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "location"
+                  ]
+                },
+                "description": "Polling fallback for real-time driver location when WebSocket connection drops. Returns the driver's cached GPS position and ETA for an active ride.\n\n**Authorization:** Ride passenger, assigned driver, or admin.\n\n**Response includes:**\n- `location` — lat, lng, heading, speed, timestamp (null if driver has no cached position)\n- `eta` — distance_km and duration_minutes to pickup/destination (null if unavailable)\n- `ride_status` — current ride status\n\nPrefer WebSocket channel `private-ride.{rideId}` for real-time updates; use this endpoint as a fallback."
+              }
+            },
+            {
+              "name": "Get Ride Location (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "location"
+                  ]
+                },
+                "description": "Same as Get Ride Location but using driver token. The assigned driver can also poll the ride location endpoint."
+              }
             }
           ]
         }
@@ -1650,14 +1826,24 @@
                   "name": "200 — Photo Updated",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Profile photo updated successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": \"https://s3.amazonaws.com/etigo/profile-photos/7/def456.jpg\",\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 — Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"The profile photo field is required.\",\n  \"errors\": {\n    \"profile_photo\": [\"The profile photo field is required.\"]\n  }\n}"
                 }
               ]
@@ -1694,14 +1880,24 @@
                   "name": "200 — Photo Removed",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": 7,\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 — No Photo",
                   "status": "Unprocessable Entity",
                   "code": 422,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
                   "body": "{\n  \"message\": \"No profile photo to remove.\"\n}"
                 }
               ]
@@ -2276,6 +2472,151 @@
                   ]
                 },
                 "description": "Fails with 422 if driver is not approved, suspended, or has no vehicle with assigned class."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Driver — Location",
+          "item": [
+            {
+              "name": "Update Location",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lat\": 9.0579,\n  \"lng\": 7.4951,\n  \"heading\": 45.0,\n  \"speed\": 30.0\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "location"
+                  ]
+                },
+                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0–360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n\n**Rate Limit:** 429 if called more than once per second."
+              }
+            },
+            {
+              "name": "Update Location — Invalid Coordinates (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lat\": 100.0,\n  \"lng\": 200.0\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "location"
+                  ]
+                },
+                "description": "Demonstrates validation error when coordinates are out of range. Returns 422 with validation errors for lat and lng."
+              }
+            },
+            {
+              "name": "Update Location — Missing Fields (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "location"
+                  ]
+                },
+                "description": "Demonstrates validation error when required lat/lng fields are missing. Returns 422."
+              }
+            },
+            {
+              "name": "Update Location — Offline Driver (403)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"lat\": 9.0579,\n  \"lng\": 7.4951\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "location"
+                  ]
+                },
+                "description": "Returns 403 when driver is offline or not approved. Driver must be online and approved to send location updates."
               }
             }
           ]
@@ -3568,15 +3909,20 @@
                     "vehicle-classes"
                   ]
                 },
-                "description": "Supports query params: is_active (bool), per_page (int, default 20). Returns enabled_cities and drivers_count for each vehicle class."
+                "description": "Supports query params: is_active (bool), per_page (int, default 20). Returns enabled_cities, drivers_count, and active_rides_count for each vehicle class."
               },
               "response": [
                 {
                   "name": "200 — Vehicle Classes List",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
-                  "body": "{\n  \"vehicle_classes\": [\n    {\n      \"id\": 1,\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" },\n        { \"id\": 3, \"name\": \"Port Harcourt\" }\n      ],\n      \"drivers_count\": 37,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 4,\n      \"icon\": \"comfort\",\n      \"description\": \"Premium comfort for a smoother ride.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" }\n      ],\n      \"drivers_count\": 58,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 4\n  }\n}"
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle_classes\": [\n    {\n      \"id\": 1,\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" },\n        { \"id\": 3, \"name\": \"Port Harcourt\" }\n      ],\n      \"drivers_count\": 37,\n      \"active_rides_count\": 184,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 4,\n      \"icon\": \"comfort\",\n      \"description\": \"Premium comfort for a smoother ride.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" }\n      ],\n      \"drivers_count\": 58,\n      \"active_rides_count\": 92,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 4\n  }\n}"
                 }
               ]
             },
@@ -3646,8 +3992,13 @@
                   "name": "200 — Vehicle Class Details",
                   "status": "OK",
                   "code": 200,
-                  "header": [{"key": "Content-Type", "value": "application/json"}],
-                  "body": "{\n  \"vehicle_class\": {\n    \"id\": 1,\n    \"name\": \"economy\",\n    \"display_name\": \"Economy\",\n    \"capacity\": 4,\n    \"icon\": \"lite\",\n    \"description\": \"Affordable rides for everyday trips.\",\n    \"is_active\": true,\n    \"enabled_cities\": [\n      { \"id\": 1, \"name\": \"Lagos\" },\n      { \"id\": 2, \"name\": \"Abuja\" },\n      { \"id\": 3, \"name\": \"Port Harcourt\" }\n    ],\n    \"drivers_count\": 37,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle_class\": {\n    \"id\": 1,\n    \"name\": \"economy\",\n    \"display_name\": \"Economy\",\n    \"capacity\": 4,\n    \"icon\": \"lite\",\n    \"description\": \"Affordable rides for everyday trips.\",\n    \"is_active\": true,\n    \"enabled_cities\": [\n      { \"id\": 1, \"name\": \"Lagos\" },\n      { \"id\": 2, \"name\": \"Abuja\" },\n      { \"id\": 3, \"name\": \"Port Harcourt\" }\n    ],\n    \"drivers_count\": 37,\n    \"active_rides_count\": 184,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -3671,7 +4022,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"display_name\": \"Economy Plus\",\n  \"capacity\": 5\n}"
+                  "raw": "{\n  \"display_name\": \"Economy Plus\",\n  \"capacity\": 5,\n  \"is_active\": false,\n  \"city_ids\": [1, 2]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/vehicle-classes/1",
@@ -3684,8 +4035,22 @@
                     "1"
                   ]
                 },
-                "description": "Partial update supported."
-              }
+                "description": "Partial update supported. All fields are optional.\n\n**is_active** toggles the vehicle class on/off globally.\n\n**city_ids** replaces the full set of enabled cities — cities not in the array are removed, cities in the array are enabled. Omit the field entirely to leave city assignments unchanged."
+              },
+              "response": [
+                {
+                  "name": "200 — Vehicle Class Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle class updated successfully.\",\n  \"vehicle_class\": {\n    \"id\": 1,\n    \"name\": \"economy\",\n    \"display_name\": \"Economy Plus\",\n    \"capacity\": 5,\n    \"icon\": \"lite\",\n    \"description\": \"Affordable rides for everyday trips.\",\n    \"is_active\": false,\n    \"enabled_cities\": [\n      { \"id\": 1, \"name\": \"Lagos\" },\n      { \"id\": 2, \"name\": \"Abuja\" }\n    ],\n    \"drivers_count\": 37,\n    \"active_rides_count\": 12,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -4578,6 +4943,116 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Real-Time (WebSocket)",
+      "item": [
+        {
+          "name": "Authorize Channel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-ride.{{ride_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Authorize a private WebSocket channel subscription. Called automatically by the Pusher/Echo client library during channel subscription.\n\n**Channels:**\n- `private-ride.{rideId}` — Authorized for the ride's passenger or assigned driver\n- `private-admin.rides` — Authorized for admin users only\n\n**Events received on these channels:**\n- `driver.location.updated` — Real-time driver GPS (lat, lng, heading, speed, timestamp, ride_id, eta)\n\n**WebSocket Connection:**\nConnect to the Reverb WebSocket server using Laravel Echo or a Pusher-compatible client:\n- Host: `REVERB_HOST` (default: localhost)\n- Port: `REVERB_PORT` (default: 8080)\n- App Key: `REVERB_APP_KEY`\n- Auth endpoint: `POST /broadcasting/auth` with Bearer token"
+          }
+        },
+        {
+          "name": "Authorize Channel — Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-admin.rides\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Authorize subscription to the admin rides channel. Receives all `driver.location.updated` events across all active rides for the admin dashboard."
+          }
+        },
+        {
+          "name": "Authorize Channel — Unauthorized (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-admin.rides\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Demonstrates 403 when a non-admin user tries to subscribe to the admin rides channel."
+          }
         }
       ]
     },

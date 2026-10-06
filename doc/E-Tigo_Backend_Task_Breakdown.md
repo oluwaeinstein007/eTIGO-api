@@ -279,14 +279,14 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-LOC-01 | `[ ]` Create `DriverLocationController@update` — `POST /api/v1/drivers/location`: receive lat, lng, heading, speed, timestamp; store in Redis GEOADD; rate-limit to max 1/second | §8.3 | SETUP-41, SETUP-51 | Only accept from Online, Approved drivers |
-| BE-LOC-02 | `[ ]` Create `LocationUpdateFormRequest` — validate lat/lng bounds, heading (0-360), speed (>= 0), timestamp format | §8.3 | BE-LOC-01 | — |
-| BE-LOC-03 | `[ ]` Set up Laravel Broadcasting with WebSocket server (Laravel Reverb or Pusher) with JWT-authenticated channel subscriptions | B-04 | SETUP-43, SETUP-51 | — |
-| BE-LOC-04 | `[ ]` Define private broadcast channel `ride.{rideId}`: authorized for matched passenger and assigned driver only | B-04 | BE-LOC-03 | — |
-| BE-LOC-05 | `[ ]` Define private broadcast channel `admin.rides`: authorized for Admin users only; receives all active ride + driver location events | A-08 | BE-LOC-03 | — |
-| BE-LOC-06 | `[ ]` Create `DriverLocationUpdated` broadcastable event: publish driver location to ride channel and admin channel on each location update | B-04 | BE-LOC-04, BE-LOC-05 | ⏱ Target latency: server-publish to client-render (NF-03) |
-| BE-LOC-07 | `[ ]` Implement ETA recalculation service: on location update during active ride, recompute ETA via maps adapter; throttle to every ~30 seconds to control API cost | B-04 | BE-LOC-01, SETUP-59 | — |
-| BE-LOC-08 | `[ ]` Create `RideLocationController@show` — `GET /api/v1/rides/{ride}/location`: fallback polling endpoint when WS drops, returns latest driver location and ETA | B-04 | BE-LOC-01 | — |
+| BE-LOC-01 | `[x]` Create `DriverLocationController@update` — `POST /api/v1/driver/location`: receive lat, lng, heading, speed, timestamp; store in Redis GEOADD via `DriverLocationService`; rate-limit to max 1/second via `RateLimiter` | §8.3 | SETUP-41, SETUP-51 | Only accept from Online, Approved drivers; broadcasts `DriverLocationUpdated` event |
+| BE-LOC-02 | `[x]` Create `LocationUpdateRequest` FormRequest — validate lat/lng bounds (-90/90, -180/180), heading (0-360), speed (>= 0), timestamp (date format) | §8.3 | BE-LOC-01 | — |
+| BE-LOC-03 | `[x]` Set up Laravel Broadcasting with WebSocket server (Laravel Reverb) with Sanctum-authenticated channel subscriptions; installed `laravel/reverb`, published `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php` | B-04 | SETUP-43, SETUP-51 | Run `php artisan reverb:start` to start WebSocket server |
+| BE-LOC-04 | `[x]` Define private broadcast channel `ride.{rideId}`: authorized for matched passenger and assigned driver only | B-04 | BE-LOC-03 | — |
+| BE-LOC-05 | `[x]` Define private broadcast channel `admin.rides`: authorized for Admin users only; receives all active ride + driver location events | A-08 | BE-LOC-03 | — |
+| BE-LOC-06 | `[x]` Create `DriverLocationUpdated` broadcastable event (`ShouldBroadcastNow`): publish driver location to ride channel (when active ride) and admin channel on each location update; custom broadcast name `driver.location.updated` | B-04 | BE-LOC-04, BE-LOC-05 | ⏱ Target latency: server-publish to client-render (NF-03) |
+| BE-LOC-07 | `[x]` Create `EtaService` — on location update during active ride, recompute ETA via `MapsGateway`; throttled to every 30 seconds via cache to control API cost; returns distance_km + duration_minutes to pickup (en route) or destination (in progress) | B-04 | BE-LOC-01, SETUP-59 | — |
+| BE-LOC-08 | `[x]` Create `RideLocationController@show` — `GET /api/v1/rides/{ride}/location`: fallback polling endpoint when WS drops; returns latest driver location from Redis and ETA; scoped to ride participant or admin | B-04 | BE-LOC-01 | — |
 
 ---
 
