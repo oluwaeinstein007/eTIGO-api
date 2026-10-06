@@ -12,7 +12,7 @@ beforeEach(function () {
 });
 
 it('sends an OTP to a valid phone number', function () {
-    $this->smsGateway->shouldReceive('send')->once()->andReturn(true);
+    $this->smsGateway->shouldReceive('send')->never();
 
     $response = $this->postJson('/api/v1/auth/otp/send', [
         'phone' => '+2341234567890',
@@ -38,7 +38,7 @@ it('rejects OTP request with invalid phone format', function () {
 });
 
 it('rate limits OTP requests within cooldown period', function () {
-    $this->smsGateway->shouldReceive('send')->once()->andReturn(true);
+    $this->smsGateway->shouldReceive('send')->never();
 
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890']);
 

@@ -51,12 +51,16 @@ Passengers and drivers authenticate using their phone number via WhatsApp OTP, f
 - **Max 5 attempts:** codes are invalidated after 5 failed verification attempts
 - **10-minute registration window:** after OTP verification, the user has 10 minutes to complete registration
 
+#### Static OTP (Non-Production)
+
+In non-production environments (`local`, `staging`, `testing`), OTP codes are always **`123456`** and SMS delivery is skipped entirely. This allows developers and testers to create and verify accounts freely without OTP delivery costs or delays. The static code is hardcoded in `OtpService::STATIC_OTP` and is gated by `app()->isProduction()` — it cannot activate in production.
+
 #### WhatsApp OTP Delivery
 
 OTP delivery uses the Meta WhatsApp Cloud API via pre-approved message templates. The `SmsGateway` contract (`App\Contracts\SmsGateway`) abstracts the delivery mechanism:
 
 - **Production:** `WhatsAppGateway` sends OTP via WhatsApp Cloud API (Graph API v21.0)
-- **Development:** `LogSmsGateway` logs the OTP to Laravel's log channel
+- **Non-production:** Static OTP (`123456`) is used; SMS gateway is not called
 
 The gateway is auto-selected based on environment variables — if `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` are configured, WhatsApp is used; otherwise it falls back to logging.
 
