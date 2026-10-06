@@ -446,6 +446,42 @@ GET /driver/vehicle
 
 ---
 
+## Driver — Online Status
+
+### Toggle Online
+```
+POST /driver/toggle-online
+```
+Toggle driver online/offline status. No request body required.
+
+**Requirements:** Driver must be `approved`, have a registered vehicle with an assigned vehicle class, and not be `suspended`.
+
+**Response 200:**
+```json
+{
+  "message": "You are now online.",
+  "driver": {
+    "id": 1,
+    "is_online": true,
+    "status": "approved",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Cannot go online.",
+  "reasons": [
+    "Driver account is not approved.",
+    "No vehicle registered."
+  ]
+}
+```
+
+---
+
 ## Driver — KYC Verification
 
 All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -796,6 +832,94 @@ POST /admin/drivers/{driver_id}/reactivate
 Restores driver to approved status.
 
 **Response 422:** `"Only suspended drivers can be reactivated."` — returned when the driver is not in `suspended` status.
+
+---
+
+## Admin — Passenger Management
+
+All passenger management endpoints require `Authorization: Bearer {token}` from an admin user.
+
+### List Passengers
+```
+GET /admin/passengers
+```
+
+| Parameter | Type   | Required | Description                           |
+|-----------|--------|----------|---------------------------------------|
+| search    | string | No       | Search by name, email, or phone       |
+| is_active | bool   | No       | Filter by active/inactive status      |
+| page      | int    | No       | Pagination page number                |
+
+**Response 200:**
+```json
+{
+  "passengers": [
+    {
+      "id": 1,
+      "first_name": "Oluwaseun",
+      "last_name": "Adebayo",
+      "phone": "+2341234567890",
+      "email": "oluwaseun@example.com",
+      "type": "passenger",
+      "is_active": true,
+      "created_at": "2026-09-29T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
+---
+
+### Get Passenger
+```
+GET /admin/passengers/{passenger_id}
+```
+Returns passenger profile with ride statistics.
+
+**Response 200:**
+```json
+{
+  "passenger": {
+    "id": 1,
+    "first_name": "Oluwaseun",
+    "last_name": "Adebayo",
+    "...": "..."
+  },
+  "statistics": {
+    "total_rides": 15,
+    "completed_rides": 12,
+    "cancelled_rides": 3
+  }
+}
+```
+
+**Response 404:** Returned when the user is not a passenger.
+
+---
+
+### Suspend Passenger
+```
+POST /admin/passengers/{passenger_id}/suspend
+```
+Suspends passenger account and revokes all active tokens. No request body required.
+
+**Response 422:** `"Passenger account is already suspended."` — returned when the account is already inactive.
+
+---
+
+### Reactivate Passenger
+```
+POST /admin/passengers/{passenger_id}/reactivate
+```
+Reactivates a suspended passenger account. No request body required.
+
+**Response 422:** `"Passenger account is already active."` — returned when the account is already active.
 
 ---
 

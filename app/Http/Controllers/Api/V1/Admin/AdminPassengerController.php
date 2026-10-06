@@ -51,15 +51,17 @@ class AdminPassengerController extends Controller
         }
 
         $passenger->loadCount([
-            'notifications',
+            'rides',
+            'rides as completed_rides_count' => fn ($q) => $q->where('status', 'completed'),
+            'rides as cancelled_rides_count' => fn ($q) => $q->where('status', 'cancelled'),
         ]);
 
         return response()->json([
             'passenger' => new UserResource($passenger),
             'statistics' => [
-                'total_rides' => $passenger->rides()->count(),
-                'completed_rides' => $passenger->rides()->where('status', 'completed')->count(),
-                'cancelled_rides' => $passenger->rides()->where('status', 'cancelled')->count(),
+                'total_rides' => $passenger->rides_count,
+                'completed_rides' => $passenger->completed_rides_count,
+                'cancelled_rides' => $passenger->cancelled_rides_count,
             ],
         ]);
     }
