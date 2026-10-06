@@ -4947,6 +4947,116 @@
       ]
     },
     {
+      "name": "Real-Time (WebSocket)",
+      "item": [
+        {
+          "name": "Authorize Channel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-ride.{{ride_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Authorize a private WebSocket channel subscription. Called automatically by the Pusher/Echo client library during channel subscription.\n\n**Channels:**\n- `private-ride.{rideId}` — Authorized for the ride's passenger or assigned driver\n- `private-admin.rides` — Authorized for admin users only\n\n**Events received on these channels:**\n- `driver.location.updated` — Real-time driver GPS (lat, lng, heading, speed, timestamp, ride_id, eta)\n\n**WebSocket Connection:**\nConnect to the Reverb WebSocket server using Laravel Echo or a Pusher-compatible client:\n- Host: `REVERB_HOST` (default: localhost)\n- Port: `REVERB_PORT` (default: 8080)\n- App Key: `REVERB_APP_KEY`\n- Auth endpoint: `POST /broadcasting/auth` with Bearer token"
+          }
+        },
+        {
+          "name": "Authorize Channel — Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-admin.rides\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Authorize subscription to the admin rides channel. Receives all `driver.location.updated` events across all active rides for the admin dashboard."
+          }
+        },
+        {
+          "name": "Authorize Channel — Unauthorized (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{passenger_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"socket_id\": \"12345.67890\",\n  \"channel_name\": \"private-admin.rides\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url_root}}/broadcasting/auth",
+              "host": [
+                "{{base_url_root}}"
+              ],
+              "path": [
+                "broadcasting",
+                "auth"
+              ]
+            },
+            "description": "Demonstrates 403 when a non-admin user tries to subscribe to the admin rides channel."
+          }
+        }
+      ]
+    },
+    {
       "name": "Webhooks",
       "item": [
         {

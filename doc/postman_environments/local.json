@@ -73,6 +73,36 @@
         "value": "123456",
         "type": "default",
         "enabled": true
+      },
+      {
+        "key": "base_url_root",
+        "value": "http://localhost:8000",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "ride_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_host",
+        "value": "localhost",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_port",
+        "value": "8080",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_app_key",
+        "value": "etigo-key",
+        "type": "default",
+        "enabled": true
       }
     ]
   }
