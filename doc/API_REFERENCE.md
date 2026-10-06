@@ -2664,6 +2664,12 @@ GET /admin/vehicle-classes
       "icon": "lite",
       "description": "Affordable rides for everyday trips.",
       "is_active": true,
+      "enabled_cities": [
+        { "id": 1, "name": "Lagos" },
+        { "id": 2, "name": "Abuja" },
+        { "id": 3, "name": "Port Harcourt" }
+      ],
+      "drivers_count": 37,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
@@ -2675,6 +2681,11 @@ GET /admin/vehicle-classes
       "icon": "comfort",
       "description": "Premium comfort for a smoother ride.",
       "is_active": true,
+      "enabled_cities": [
+        { "id": 1, "name": "Lagos" },
+        { "id": 2, "name": "Abuja" }
+      ],
+      "drivers_count": 58,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -2748,6 +2759,12 @@ GET /admin/vehicle-classes/{vehicle_class_id}
     "icon": "lite",
     "description": "Affordable rides for everyday trips.",
     "is_active": true,
+    "enabled_cities": [
+      { "id": 1, "name": "Lagos" },
+      { "id": 2, "name": "Abuja" },
+      { "id": 3, "name": "Port Harcourt" }
+    ],
+    "drivers_count": 37,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-01T10:00:00.000000Z"
   }

@@ -16,7 +16,8 @@ class AdminVehicleClassController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = VehicleClass::query();
+        $query = VehicleClass::withCount('drivers')
+            ->with(['cities' => fn ($q) => $q->wherePivot('is_active', true)]);
 
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
@@ -64,6 +65,9 @@ class AdminVehicleClassController extends Controller
 
     public function show(VehicleClass $vehicleClass): JsonResponse
     {
+        $vehicleClass->loadCount('drivers')
+            ->load(['cities' => fn ($q) => $q->wherePivot('is_active', true)]);
+
         return response()->json([
             'vehicle_class' => new VehicleClassResource($vehicleClass),
         ]);

@@ -3568,8 +3568,17 @@
                     "vehicle-classes"
                   ]
                 },
-                "description": "Supports query params: is_active (bool), per_page (int, default 20)."
-              }
+                "description": "Supports query params: is_active (bool), per_page (int, default 20). Returns enabled_cities and drivers_count for each vehicle class."
+              },
+              "response": [
+                {
+                  "name": "200 — Vehicle Classes List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"vehicle_classes\": [\n    {\n      \"id\": 1,\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" },\n        { \"id\": 3, \"name\": \"Port Harcourt\" }\n      ],\n      \"drivers_count\": 37,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 4,\n      \"icon\": \"comfort\",\n      \"description\": \"Premium comfort for a smoother ride.\",\n      \"is_active\": true,\n      \"enabled_cities\": [\n        { \"id\": 1, \"name\": \"Lagos\" },\n        { \"id\": 2, \"name\": \"Abuja\" }\n      ],\n      \"drivers_count\": 58,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 4\n  }\n}"
+                }
+              ]
             },
             {
               "name": "Create Vehicle Class",
@@ -3631,7 +3640,16 @@
                     "1"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 — Vehicle Class Details",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{"key": "Content-Type", "value": "application/json"}],
+                  "body": "{\n  \"vehicle_class\": {\n    \"id\": 1,\n    \"name\": \"economy\",\n    \"display_name\": \"Economy\",\n    \"capacity\": 4,\n    \"icon\": \"lite\",\n    \"description\": \"Affordable rides for everyday trips.\",\n    \"is_active\": true,\n    \"enabled_cities\": [\n      { \"id\": 1, \"name\": \"Lagos\" },\n      { \"id\": 2, \"name\": \"Abuja\" },\n      { \"id\": 3, \"name\": \"Port Harcourt\" }\n    ],\n    \"drivers_count\": 37,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
             },
             {
               "name": "Update Vehicle Class",
