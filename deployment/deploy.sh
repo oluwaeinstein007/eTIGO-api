@@ -48,6 +48,7 @@ ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 echo "==> Restarting services..."
 sudo systemctl restart php8.4-fpm
 sudo supervisorctl restart etigo-worker:*
+sudo supervisorctl restart etigo-reverb 2>/dev/null || true
 
 echo "==> Cleaning old releases (keeping ${KEEP_RELEASES})..."
 cd "${RELEASES_DIR}"
