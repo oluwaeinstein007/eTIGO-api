@@ -1216,6 +1216,65 @@
       ]
     },
     {
+      "name": "Driver \u2014 Online Status",
+      "item": [
+        {
+          "name": "Toggle Online",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/toggle-online",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "toggle-online"
+              ]
+            },
+            "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure."
+          }
+        },
+        {
+          "name": "Toggle Online \u2014 Not Approved (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{driver_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/driver/toggle-online",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "driver",
+                "toggle-online"
+              ]
+            },
+            "description": "Fails with 422 if driver is not approved, suspended, or has no vehicle with assigned class."
+          }
+        }
+      ]
+    },
+    {
       "name": "\ud83d\udd10 Driver \u2014 KYC Verification",
       "description": "KYC identity verification endpoints for drivers. Uses QoreID for NIN, Driver's License, Vehicle Plate, and Liveness verification.\n\n**Required verifications for `verified` status:** NIN + Driver's License + Vehicle Plate.\n\n**Test values (FakeKycGateway):**\n- IDs starting with `000` \u2192 fail\n- All other IDs \u2192 pass\n- Liveness sessions with `fail` in session ID \u2192 fail",
       "item": [
@@ -1560,6 +1619,39 @@
                 "drivers"
               ]
             }
+          }
+        },
+        {
+          "name": "Search Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/drivers?search=john",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "drivers"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "john"
+                }
+              ]
+            },
+            "description": "Search drivers by name, email, or phone."
           }
         },
         {
@@ -1925,6 +2017,219 @@
               ]
             },
             "description": "**Auth required (admin).**\n\nToggles a driver's vehicle as fleet-owned (company vehicle). Fleet vehicles skip plate verification in the KYC flow.\n\nNo request body required.\n\n**Responses:**\n- `200` \u2014 Toggled successfully (message indicates new state)\n- `422` \u2014 Driver has no registered vehicle\n\n**Effect:** After toggling, the driver's `kyc_status` is recalculated. If marked fleet and NIN + License are verified, `kyc_status` becomes `verified` without plate verification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin \u2014 Passenger Management",
+      "item": [
+        {
+          "name": "List Passengers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers"
+              ]
+            },
+            "description": "List all passengers with pagination. Supports search (name/email/phone) and is_active filter."
+          }
+        },
+        {
+          "name": "List Passengers \u2014 Search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers?search=john",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "john"
+                }
+              ]
+            },
+            "description": "Search passengers by name, email, or phone."
+          }
+        },
+        {
+          "name": "List Passengers \u2014 Filter Active",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers?is_active=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers"
+              ],
+              "query": [
+                {
+                  "key": "is_active",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Filter passengers by active/inactive status."
+          }
+        },
+        {
+          "name": "Get Passenger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers",
+                "1"
+              ]
+            },
+            "description": "Get passenger profile with ride statistics (total, completed, cancelled rides)."
+          }
+        },
+        {
+          "name": "Suspend Passenger",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers/1/suspend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers",
+                "1",
+                "suspend"
+              ]
+            },
+            "description": "Suspend a passenger account. Revokes all active tokens. Returns 422 if already suspended."
+          }
+        },
+        {
+          "name": "Suspend \u2014 Already Suspended (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers/1/suspend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers",
+                "1",
+                "suspend"
+              ]
+            },
+            "description": "Fails with 422 if passenger is already suspended."
+          }
+        },
+        {
+          "name": "Reactivate Passenger",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/passengers/1/reactivate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "passengers",
+                "1",
+                "reactivate"
+              ]
+            },
+            "description": "Reactivate a suspended passenger account. Returns 422 if already active."
           }
         }
       ]
