@@ -2748,6 +2748,7 @@ GET /admin/vehicle-classes
         { "id": 3, "name": "Port Harcourt" }
       ],
       "drivers_count": 37,
+      "active_rides_count": 184,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
@@ -2764,6 +2765,7 @@ GET /admin/vehicle-classes
         { "id": 2, "name": "Abuja" }
       ],
       "drivers_count": 58,
+      "active_rides_count": 92,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -2843,6 +2845,7 @@ GET /admin/vehicle-classes/{vehicle_class_id}
       { "id": 3, "name": "Port Harcourt" }
     ],
     "drivers_count": 37,
+    "active_rides_count": 184,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-01T10:00:00.000000Z"
   }
@@ -2855,7 +2858,17 @@ GET /admin/vehicle-classes/{vehicle_class_id}
 ```
 PUT /admin/vehicle-classes/{vehicle_class_id}
 ```
-Same fields as create (except `city_ids`), all optional (partial update supported).
+| Field        | Type    | Required | Description                                                |
+|--------------|---------|----------|------------------------------------------------------------|
+| name         | string  | No       | Unique internal name (e.g. `economy`)                      |
+| display_name | string  | No       | User-facing name (e.g. `Economy`)                          |
+| capacity     | integer | No       | Passenger capacity (1–20)                                  |
+| icon         | string  | No       | Icon slug — see **Icon Slugs** above                       |
+| description  | string  | No       | Description text (max 1000 chars)                          |
+| is_active    | boolean | No       | Toggle active/inactive status globally                     |
+| city_ids     | array   | No       | Full set of city IDs to enable — replaces previous cities  |
+
+All fields are optional (partial update supported). Omitting `city_ids` leaves city assignments unchanged; passing it replaces the full set.
 
 **Response 200:**
 ```json
@@ -2868,7 +2881,13 @@ Same fields as create (except `city_ids`), all optional (partial update supporte
     "capacity": 4,
     "icon": "lite",
     "description": "Affordable rides for everyday trips.",
-    "is_active": true,
+    "is_active": false,
+    "enabled_cities": [
+      { "id": 1, "name": "Lagos" },
+      { "id": 2, "name": "Abuja" }
+    ],
+    "drivers_count": 37,
+    "active_rides_count": 184,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-06T14:00:00.000000Z"
   }

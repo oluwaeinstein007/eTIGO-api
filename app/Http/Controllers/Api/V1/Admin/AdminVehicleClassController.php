@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\VehicleClass\UpdateVehicleClassRequest;
 use App\Http\Resources\VehicleClassResource;
 use App\Models\AuditLog;
 use App\Models\VehicleClass;
+use App\Services\AppCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class AdminVehicleClassController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = VehicleClass::withCount('drivers')
+        $query = VehicleClass::withCount(['drivers', 'activeRides'])
             ->with(['cities' => fn ($q) => $q->wherePivot('is_active', true)]);
 
         if ($request->has('is_active')) {
@@ -65,7 +66,7 @@ class AdminVehicleClassController extends Controller
 
     public function show(VehicleClass $vehicleClass): JsonResponse
     {
-        $vehicleClass->loadCount('drivers')
+        $vehicleClass->loadCount(['drivers', 'activeRides'])
             ->load(['cities' => fn ($q) => $q->wherePivot('is_active', true)]);
 
         return response()->json([
@@ -77,17 +78,33 @@ class AdminVehicleClassController extends Controller
     {
         $validated = $request->validated();
         $admin = $request->user();
+        $cityIds = $validated['city_ids'] ?? null;
+        unset($validated['city_ids']);
+
         $oldValues = $vehicleClass->only(array_keys($validated));
 
-        DB::transaction(function () use ($vehicleClass, $validated, $admin, $oldValues) {
+        DB::transaction(function () use ($vehicleClass, $validated, $admin, $oldValues, $cityIds) {
             $vehicleClass->update($validated);
+
+            if ($cityIds !== null) {
+                $syncData = array_fill_keys($cityIds, ['is_active' => true, 'sort_order' => 0]);
+                $vehicleClass->cities()->sync($syncData);
+            }
 
             AuditLog::record($vehicleClass, 'vehicle_class_updated', $admin, $oldValues, $vehicleClass->only(array_keys($oldValues)));
         });
 
+        if ($cityIds !== null) {
+            app(AppCacheService::class)->invalidateVehicleClasses();
+        }
+
+        $vehicleClass = $vehicleClass->fresh();
+        $vehicleClass->loadCount(['drivers', 'activeRides'])
+            ->load(['cities' => fn ($q) => $q->wherePivot('is_active', true)]);
+
         return response()->json([
             'message' => 'Vehicle class updated successfully.',
-            'vehicle_class' => new VehicleClassResource($vehicleClass->fresh()),
+            'vehicle_class' => new VehicleClassResource($vehicleClass),
         ]);
     }
 }
