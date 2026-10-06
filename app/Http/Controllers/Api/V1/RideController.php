@@ -1,0 +1,284 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Enums\PaymentMethod;
+use App\Enums\RideStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Ride\CancelRideRequest;
+use App\Http\Requests\Ride\StoreRideRequest;
+use App\Http\Requests\Ride\VerifyPinRequest;
+use App\Http\Resources\RideDetailResource;
+use App\Http\Resources\RideResource;
+use App\Jobs\FinalFareCalculationJob;
+use App\Models\Ride;
+use App\Models\User;
+use App\Services\RideService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class RideController extends Controller
+{
+    public function __construct(
+        private RideService $rideService,
+    ) {}
+
+    public function store(StoreRideRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $result = DB::transaction(function () use ($user, $request) {
+            User::lockForUpdate()->find($user->id);
+
+            $activeRide = Ride::where('passenger_id', $user->id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($activeRide) {
+                return null;
+            }
+
+            return $this->rideService->createRide(
+                passenger: $user,
+                cityId: $request->integer('city_id'),
+                vehicleClassId: $request->integer('vehicle_class_id'),
+                pickupLat: (float) $request->input('pickup_lat'),
+                pickupLng: (float) $request->input('pickup_lng'),
+                pickupAddress: $request->input('pickup_address'),
+                destinationLat: (float) $request->input('destination_lat'),
+                destinationLng: (float) $request->input('destination_lng'),
+                destinationAddress: $request->input('destination_address'),
+                paymentMethod: PaymentMethod::from($request->input('payment_method')),
+            );
+        });
+
+        if (! $result) {
+            return response()->json([
+                'message' => 'You already have an active ride. Please complete or cancel it first.',
+            ], 409);
+        }
+
+        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger']);
+
+        return response()->json([
+            'message' => 'Ride created successfully.',
+            'ride' => new RideResource($ride),
+            'pin_code' => $result['pin_code'],
+        ], 201);
+    }
+
+    public function show(Request $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $this->canViewRide($user, $ride)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions', 'cancelledByUser']);
+
+        return response()->json([
+            'ride' => new RideDetailResource($ride),
+        ]);
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $query = Ride::query();
+
+        if ($user->isPassenger()) {
+            $query->where('passenger_id', $user->id);
+        } elseif ($user->isDriver()) {
+            $query->where('driver_id', $user->driver?->user_id ?? $user->id);
+        }
+
+        if ($request->has('status')) {
+            $status = RideStatus::tryFrom($request->input('status'));
+            if ($status) {
+                $query->where('status', $status);
+            }
+        }
+
+        if ($request->has('city_id')) {
+            $query->where('city_id', $request->integer('city_id'));
+        }
+
+        if ($request->has('from_date')) {
+            $query->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+
+        if ($request->has('to_date')) {
+            $query->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
+        $perPage = min($request->integer('per_page', 15), 50);
+
+        $rides = $query->with(['city', 'vehicleClass'])
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return response()->json([
+            'rides' => RideResource::collection($rides),
+            'meta' => [
+                'current_page' => $rides->currentPage(),
+                'last_page' => $rides->lastPage(),
+                'per_page' => $rides->perPage(),
+                'total' => $rides->total(),
+            ],
+        ]);
+    }
+
+    public function cancel(CancelRideRequest $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $this->canCancelRide($user, $ride)) {
+            return response()->json(['message' => 'You are not authorized to cancel this ride.'], 403);
+        }
+
+        if (! $ride->isCancellable()) {
+            return response()->json([
+                'message' => 'This ride cannot be cancelled in its current state.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $ride = $this->rideService->cancelRide(
+            $ride,
+            $user,
+            $request->input('reason'),
+            $request->input('reason_details'),
+        );
+
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser']);
+
+        return response()->json([
+            'message' => 'Ride cancelled successfully.',
+            'ride' => new RideResource($ride),
+        ]);
+    }
+
+    public function driverArrived(Request $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver || ! $ride->isAssignedToDriver($user->id)) {
+            return response()->json(['message' => 'You are not assigned to this ride.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::DriverEnRoute) {
+            return response()->json([
+                'message' => 'Cannot mark arrival in current ride state.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $ride = $this->rideService->driverArrived($ride, $user);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver']);
+
+        return response()->json([
+            'message' => 'Driver arrival confirmed. Waiting for passenger PIN verification.',
+            'ride' => new RideResource($ride),
+        ]);
+    }
+
+    public function verifyPin(VerifyPinRequest $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver || ! $ride->isAssignedToDriver($user->id)) {
+            return response()->json(['message' => 'You are not assigned to this ride.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::DriverArrived) {
+            return response()->json([
+                'message' => 'PIN verification is only available when driver has arrived.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $result = $this->rideService->verifyPinAndStart($ride, $user, $request->input('pin_code'));
+
+        if (! $result['success']) {
+            return response()->json([
+                'message' => $result['error'],
+                'verified' => false,
+            ], 422);
+        }
+
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+
+        return response()->json([
+            'message' => 'PIN verified. Ride started.',
+            'verified' => true,
+            'ride' => new RideResource($result['ride']),
+        ]);
+    }
+
+    public function complete(Request $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver || ! $ride->isAssignedToDriver($user->id)) {
+            return response()->json(['message' => 'You are not assigned to this ride.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::InProgress) {
+            return response()->json([
+                'message' => 'Only in-progress rides can be completed.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $ride = $this->rideService->completeRide($ride, $user);
+
+        FinalFareCalculationJob::dispatch($ride->id);
+
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver']);
+
+        return response()->json([
+            'message' => 'Ride completed successfully.',
+            'ride' => new RideResource($ride),
+        ]);
+    }
+
+    private function canViewRide(User $user, Ride $ride): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->isPassenger() && $ride->passenger_id === $user->id) {
+            return true;
+        }
+
+        if ($user->isDriver() && $ride->driver_id === $user->id) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function canCancelRide(User $user, Ride $ride): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->isPassenger() && $ride->passenger_id === $user->id) {
+            return true;
+        }
+
+        if ($user->isDriver() && $ride->driver_id === $user->id) {
+            return true;
+        }
+
+        return false;
+    }
+}

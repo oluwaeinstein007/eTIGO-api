@@ -32,6 +32,16 @@ class DriverManagementController extends Controller
             $query->where('kyc_status', $request->input('kyc_status'));
         }
 
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('first_name', 'ilike', "%{$search}%")
+                    ->orWhere('last_name', 'ilike', "%{$search}%")
+                    ->orWhere('email', 'ilike', "%{$search}%")
+                    ->orWhere('phone', 'ilike', "%{$search}%");
+            });
+        }
+
         $drivers = $query->latest()->paginate(20);
 
         return response()->json([

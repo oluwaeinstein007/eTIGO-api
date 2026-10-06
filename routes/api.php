@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
+use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -20,7 +22,9 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
+use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,6 +51,14 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
 Route::post('/webhooks/qoreid', [KycWebhookController::class, 'handle']);
+
+/*
+|--------------------------------------------------------------------------
+| Ride Share (public — no auth, validated by share token)
+|--------------------------------------------------------------------------
+*/
+Route::get('/rides/{ride}/share/{token}', [RideShareController::class, 'show'])
+    ->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------
@@ -112,6 +124,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| Ride Routes (authenticated — any role, scoped inside controller)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
+    Route::post('/', [RideController::class, 'store'])->middleware('user.type:passenger');
+    Route::get('/', [RideController::class, 'index']);
+    Route::get('/{ride}', [RideController::class, 'show']);
+    Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
+    Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
+    Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');
+    Route::post('/{ride}/complete', [RideController::class, 'complete'])->middleware('user.type:driver');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Passenger Routes
 |--------------------------------------------------------------------------
 */
@@ -126,6 +153,8 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
+
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);
     Route::post('/onboarding/submit', [OnboardingController::class, 'submitForReview']);
     Route::put('/profile', [OnboardingController::class, 'updateProfile']);
@@ -194,6 +223,13 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
         Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
+    });
+
+    Route::prefix('passengers')->group(function () {
+        Route::get('/', [AdminPassengerController::class, 'index']);
+        Route::get('/{passenger}', [AdminPassengerController::class, 'show']);
+        Route::post('/{passenger}/suspend', [AdminPassengerController::class, 'suspend']);
+        Route::post('/{passenger}/reactivate', [AdminPassengerController::class, 'reactivate']);
     });
 
     Route::middleware('admin.role:super_admin')->prefix('admins')->group(function () {
