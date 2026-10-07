@@ -10,16 +10,17 @@ use App\Http\Requests\Auth\CompleteRegistrationRequest;
 use App\Http\Requests\Auth\SendOtpRequest;
 use App\Http\Requests\Auth\SocialAuthRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
-use Illuminate\Http\Request;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\OtpCode;
 use App\Models\SocialAccount;
+use App\Models\SocialAuthCode;
 use App\Models\User;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
@@ -152,11 +153,17 @@ class AuthController extends Controller
     {
         $request->validate([
             'provider' => ['required', 'string', 'in:google,apple,facebook'],
+            'type' => ['required', 'string', 'in:passenger,driver'],
+            'state' => ['required', 'string', 'min:16', 'max:128'],
         ]);
 
         $provider = SocialProvider::from($request->input('provider'));
 
-        $redirectUrl = $this->socialAuthService->getRedirectUrl($provider);
+        $redirectUrl = $this->socialAuthService->getRedirectUrl(
+            $provider,
+            $request->input('type'),
+            $request->input('state'),
+        );
 
         return response()->json([
             'redirect_url' => $redirectUrl,
@@ -289,6 +296,123 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Logged out successfully.',
         ]);
+    }
+
+    public function socialExchange(Request $request): JsonResponse
+    {
+        $request->validate([
+            'code' => ['required', 'string', 'size:64'],
+        ]);
+
+        $authCode = SocialAuthCode::where('code', $request->input('code'))->first();
+
+        if (! $authCode || $authCode->isUsed() || $authCode->isExpired()) {
+            return response()->json([
+                'message' => 'Invalid or expired authorization code.',
+            ], 401);
+        }
+
+        $authCode->markUsed();
+
+        $provider = SocialProvider::from($authCode->provider);
+        $userType = UserType::from($authCode->user_type);
+
+        $socialAccount = SocialAccount::where('provider', $provider->value)
+            ->where('provider_id', $authCode->provider_id)
+            ->whereHas('user', fn ($q) => $q->where('type', $userType))
+            ->first();
+
+        if ($socialAccount) {
+            $user = $socialAccount->user;
+
+            if (! $user->is_active) {
+                return response()->json([
+                    'message' => 'Your account has been deactivated. Contact support.',
+                ], 403);
+            }
+
+            AuditLog::record($user, 'logged_in');
+
+            $token = $user->createToken(
+                $user->type->value.'-auth',
+                [$user->type->value],
+            )->plainTextToken;
+
+            return response()->json([
+                'message' => 'Logged in successfully.',
+                'is_new_user' => false,
+                'user' => new UserResource($user),
+                'token' => $token,
+            ]);
+        }
+
+        if ($authCode->email) {
+            $existingUser = User::where('email', $authCode->email)
+                ->where('type', $userType)
+                ->first();
+
+            if ($existingUser) {
+                if (! $existingUser->is_active) {
+                    return response()->json([
+                        'message' => 'Your account has been deactivated. Contact support.',
+                    ], 403);
+                }
+
+                SocialAccount::create([
+                    'user_id' => $existingUser->id,
+                    'provider' => $provider->value,
+                    'provider_id' => $authCode->provider_id,
+                ]);
+
+                AuditLog::record($existingUser, 'logged_in');
+
+                $token = $existingUser->createToken(
+                    $existingUser->type->value.'-auth',
+                    [$existingUser->type->value],
+                )->plainTextToken;
+
+                return response()->json([
+                    'message' => 'Logged in successfully.',
+                    'is_new_user' => false,
+                    'user' => new UserResource($existingUser),
+                    'token' => $token,
+                ]);
+            }
+        }
+
+        $user = User::create([
+            'first_name' => $authCode->first_name ?? '',
+            'last_name' => $authCode->last_name ?? '',
+            'email' => $authCode->email,
+            'type' => $userType,
+        ]);
+
+        SocialAccount::create([
+            'user_id' => $user->id,
+            'provider' => $provider->value,
+            'provider_id' => $authCode->provider_id,
+        ]);
+
+        if ($userType === UserType::Driver) {
+            Driver::create([
+                'user_id' => $user->id,
+                'status' => DriverStatus::Onboarding,
+            ]);
+        }
+
+        AuditLog::record($user, 'registered');
+
+        $token = $user->createToken(
+            $userType->value.'-auth',
+            [$userType->value],
+        )->plainTextToken;
+
+        return response()->json([
+            'message' => 'Account created successfully.',
+            'is_new_user' => true,
+            'user' => new UserResource($user),
+            'token' => $token,
+        ], 201);
     }
 
     public function me(): JsonResponse

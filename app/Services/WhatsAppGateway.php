@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\SmsGateway;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,7 +36,7 @@ class WhatsAppGateway implements SmsGateway
                         ],
                     ],
                 ]);
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        } catch (ConnectionException $e) {
             Log::error('WhatsApp connection failed', [
                 'phone' => $phone,
                 'error' => $e->getMessage(),

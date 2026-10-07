@@ -4,8 +4,8 @@ use App\Contracts\MapsGateway;
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Events\RideRequestDispatched;
 use App\Jobs\DispatchRideRequestJob;
-use App\Jobs\DriverResponseTimeoutJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
 use App\Models\Driver;
@@ -14,7 +14,6 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
-use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use Illuminate\Support\Facades\Queue;
 
@@ -175,7 +174,7 @@ it('rejects rejection from a driver not dispatched to the ride', function () {
     $ride = createSearchingRide($this);
 
     $matchingService = app(DriverMatchingService::class);
-    $matchingService->setDispatchedDriver($ride, $d['user']->id + 999);
+    $matchingService->setDispatchedDriver($ride, '00000000-0000-0000-0000-000000000999');
 
     $response = $this->withToken($d['token'])
         ->postJson("/api/v1/rides/{$ride->id}/reject");
@@ -298,8 +297,9 @@ it('allows admin to assign a driver to a ride in Requested status', function () 
 // === WEBSOCKET EVENT ===
 
 it('broadcasts RideRequestDispatched on the correct private channel', function () {
-    $event = new \App\Events\RideRequestDispatched(
-        driverUserId: 42,
+    $driverUuid = '00000000-0000-0000-0000-000000000042';
+    $event = new RideRequestDispatched(
+        driverUserId: $driverUuid,
         rideId: 'ride-uuid-123',
         pickupAddress: '123 Pickup St',
         destinationAddress: '456 Dest Ave',
@@ -315,7 +315,7 @@ it('broadcasts RideRequestDispatched on the correct private channel', function (
 
     $channels = $event->broadcastOn();
     expect($channels)->toHaveCount(1);
-    expect($channels[0]->name)->toBe('private-driver.42');
+    expect($channels[0]->name)->toBe("private-driver.{$driverUuid}");
 
     expect($event->broadcastAs())->toBe('ride.request.dispatched');
 
@@ -335,11 +335,12 @@ it('tracks rejected and dispatched driver state correctly', function () {
     $ride = createSearchingRide($this);
     $service = app(DriverMatchingService::class);
 
-    $service->setDispatchedDriver($ride, 42);
-    expect($service->getDispatchedDriverId($ride))->toBe(42);
+    $driverUuid = '00000000-0000-0000-0000-000000000042';
+    $service->setDispatchedDriver($ride, $driverUuid);
+    expect($service->getDispatchedDriverId($ride))->toBe($driverUuid);
 
-    $service->markDriverRejected($ride, 42);
-    expect($service->getRejectedDriverIds($ride))->toContain(42);
+    $service->markDriverRejected($ride, $driverUuid);
+    expect($service->getRejectedDriverIds($ride))->toContain($driverUuid);
 
     $service->clearDispatchedDriver($ride);
     expect($service->getDispatchedDriverId($ride))->toBeNull();

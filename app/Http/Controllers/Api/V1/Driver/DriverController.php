@@ -38,6 +38,10 @@ class DriverController extends Controller
                 $reasons[] = 'Driver account is suspended.';
             }
 
+            if (! $driver->isKycVerified()) {
+                $reasons[] = 'KYC verification is not complete.';
+            }
+
             if (! $driver->vehicle) {
                 $reasons[] = 'No vehicle registered.';
             } elseif (! $driver->vehicle->vehicle_class_id) {

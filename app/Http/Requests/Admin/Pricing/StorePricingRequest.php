@@ -17,8 +17,8 @@ class StorePricingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city_id' => ['required', 'integer', 'exists:cities,id'],
-            'vehicle_class_id' => ['required', 'integer', 'exists:vehicle_classes,id'],
+            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'vehicle_class_id' => ['required', 'uuid', 'exists:vehicle_classes,id'],
             'base_fare' => ['required', 'numeric', 'min:0'],
             'per_km_rate' => ['required', 'numeric', 'min:0'],
             'per_minute_rate' => ['required', 'numeric', 'min:0'],

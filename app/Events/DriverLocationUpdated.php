@@ -17,7 +17,7 @@ class DriverLocationUpdated implements ShouldBroadcastNow
      * @param  array{distance_km: float, duration_minutes: float}|null  $eta
      */
     public function __construct(
-        public int $driverId,
+        public string $driverId,
         public array $location,
         public ?string $rideId = null,
         public ?array $eta = null,

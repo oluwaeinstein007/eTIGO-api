@@ -31,8 +31,8 @@ class RideService
      */
     public function createRide(
         User $passenger,
-        int $cityId,
-        int $vehicleClassId,
+        string $cityId,
+        string $vehicleClassId,
         float $pickupLat,
         float $pickupLng,
         string $pickupAddress,

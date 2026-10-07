@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Enums\AdminRole;
+use App\Enums\PaymentMethod;
 use App\Models\AdminInvitation;
+use App\Models\Ride;
 use App\Models\User;
 use App\Notifications\AdminInvitationNotification;
 use App\Notifications\AdminPasswordResetNotification;
@@ -97,7 +99,7 @@ class TestMailCommand extends Command
 
     private function sendReceipt(string $email): void
     {
-        $ride = \App\Models\Ride::latest()->first();
+        $ride = Ride::latest()->first();
 
         if (! $ride) {
             $this->warn('No rides in DB — sending receipt with mock data.');
@@ -115,11 +117,11 @@ class TestMailCommand extends Command
                 ],
             ];
 
-            $ride = new \App\Models\Ride([
+            $ride = new Ride([
                 'pickup_address' => '123 Lekki Phase 1, Lagos',
                 'destination_address' => '45 Victoria Island, Lagos',
                 'fare_currency' => 'NGN',
-                'payment_method' => \App\Enums\PaymentMethod::Card,
+                'payment_method' => PaymentMethod::Card,
             ]);
         } else {
             $fareDetails = [

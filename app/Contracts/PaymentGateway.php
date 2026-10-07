@@ -7,7 +7,7 @@ interface PaymentGateway
     /**
      * @return array{customer_id: string, customer_code: string}
      */
-    public function createCustomer(int $userId): array;
+    public function createCustomer(string $userId): array;
 
     /**
      * @param  array{tx_ref: string, amount: float, currency: string, redirect_url: string, customer_email: string, customer_name: string}  $data

@@ -30,7 +30,7 @@ class AppCacheService
     /**
      * @return Collection<int, VehicleClass>
      */
-    public function cityVehicleClasses(int $cityId): Collection
+    public function cityVehicleClasses(string $cityId): Collection
     {
         return $this->safeRemember(['cities', 'vehicle_classes'], "city:{$cityId}:vehicle_classes", self::TTL_MEDIUM, function () use ($cityId) {
             return City::findOrFail($cityId)
@@ -43,7 +43,7 @@ class AppCacheService
         });
     }
 
-    public function currentPricing(int $cityId, int $vehicleClassId): ?PricingConfig
+    public function currentPricing(string $cityId, string $vehicleClassId): ?PricingConfig
     {
         return $this->safeRemember(['pricing'], "pricing:{$cityId}:{$vehicleClassId}:current", self::TTL_SHORT, function () use ($cityId, $vehicleClassId) {
             return PricingConfig::currentFor($cityId, $vehicleClassId);

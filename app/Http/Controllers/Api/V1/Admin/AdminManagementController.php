@@ -197,4 +197,26 @@ class AdminManagementController extends Controller
 
         return response()->json(['message' => 'Admin reactivated successfully.']);
     }
+
+    public function destroy(User $admin): JsonResponse
+    {
+        if (! $admin->isAdmin()) {
+            return response()->json(['message' => 'User is not an admin.'], 404);
+        }
+
+        if ($admin->admin_role === AdminRole::SuperAdmin) {
+            return response()->json(['message' => 'Cannot delete a super admin account.'], 403);
+        }
+
+        if ($admin->id === request()->user()->id) {
+            return response()->json(['message' => 'You cannot delete your own account.'], 403);
+        }
+
+        AuditLog::record($admin, 'admin_deleted', request()->user());
+
+        $admin->tokens()->delete();
+        $admin->delete();
+
+        return response()->json(['message' => 'Admin deleted successfully.']);
+    }
 }

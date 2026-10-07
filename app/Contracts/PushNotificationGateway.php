@@ -7,7 +7,7 @@ interface PushNotificationGateway
     /**
      * @param  array{title: string, body: string, data?: array<string, mixed>}  $notification
      */
-    public function sendToUser(int $userId, array $notification): void;
+    public function sendToUser(string $userId, array $notification): void;
 
     /**
      * @param  array{title: string, body: string, data?: array<string, mixed>}  $payload

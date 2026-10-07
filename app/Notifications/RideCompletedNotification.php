@@ -42,7 +42,7 @@ class RideCompletedNotification extends Notification implements ShouldQueue
             ->line("Waiting charge: {$currency} ".number_format($breakdown['waiting_charge'], 2))
             ->line("**Total: {$currency} ".number_format($this->fareDetails['final_fare'], 2).'**')
             ->line('---')
-            ->line("Payment method: ".str_replace('_', ' ', $this->ride->payment_method->value))
+            ->line('Payment method: '.str_replace('_', ' ', $this->ride->payment_method->value))
             ->salutation('Safe travels!');
     }
 }

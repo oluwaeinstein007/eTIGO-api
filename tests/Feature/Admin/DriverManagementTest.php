@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DriverStatus;
+use App\Enums\KycStatus;
 use App\Models\Driver;
 use App\Models\User;
 
@@ -49,7 +50,10 @@ it('allows admin to approve a driver', function () {
     $admin = User::factory()->admin()->create();
     $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
 
-    $driver = Driver::factory()->create();
+    $driver = Driver::factory()->create([
+        'kyc_status' => KycStatus::Verified,
+        'kyc_verified_at' => now(),
+    ]);
 
     $response = $this->withToken($token)
         ->postJson("/api/v1/admin/drivers/{$driver->id}/review", [

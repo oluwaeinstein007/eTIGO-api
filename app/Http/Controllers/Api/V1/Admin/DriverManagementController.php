@@ -77,6 +77,13 @@ class DriverManagementController extends Controller
         $oldStatus = $driver->status;
 
         if ($validated['action'] === 'approve') {
+            if (! $driver->isKycVerified()) {
+                return response()->json([
+                    'message' => 'Cannot approve driver. KYC verification is not complete.',
+                    'kyc_status' => $driver->kyc_status,
+                ], 422);
+            }
+
             DB::transaction(function () use ($driver, $admin, $oldStatus) {
                 $driver->update([
                     'status' => DriverStatus::Approved,

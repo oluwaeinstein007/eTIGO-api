@@ -19,11 +19,11 @@ class AdminSurgeRuleController extends Controller
         $query = SurgeRule::with(['city', 'vehicleClass', 'createdByAdmin']);
 
         if ($request->filled('city_id')) {
-            $query->where('city_id', $request->integer('city_id'));
+            $query->where('city_id', $request->input('city_id'));
         }
 
         if ($request->filled('vehicle_class_id')) {
-            $query->where('vehicle_class_id', $request->integer('vehicle_class_id'));
+            $query->where('vehicle_class_id', $request->input('vehicle_class_id'));
         }
 
         if ($request->boolean('active_only')) {
@@ -116,13 +116,13 @@ class AdminSurgeRuleController extends Controller
     public function currentMultiplier(Request $request, SurgePricingService $surgePricingService): JsonResponse
     {
         $request->validate([
-            'city_id' => ['required', 'integer', 'exists:cities,id'],
-            'vehicle_class_id' => ['nullable', 'integer', 'exists:vehicle_classes,id'],
+            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'vehicle_class_id' => ['nullable', 'uuid', 'exists:vehicle_classes,id'],
         ]);
 
         $surge = $surgePricingService->getCurrentMultiplier(
-            $request->integer('city_id'),
-            $request->filled('vehicle_class_id') ? $request->integer('vehicle_class_id') : null,
+            $request->input('city_id'),
+            $request->input('vehicle_class_id'),
         );
 
         return response()->json([

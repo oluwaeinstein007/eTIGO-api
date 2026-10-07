@@ -21,7 +21,7 @@ class AssignRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'driver_id' => ['required', 'integer', 'exists:users,id'],
+            'driver_id' => ['required', 'uuid', 'exists:users,id'],
         ];
     }
 
@@ -29,7 +29,7 @@ class AssignRideRequest extends FormRequest
     {
         return [
             function ($validator) {
-                $driverId = $this->integer('driver_id');
+                $driverId = $this->input('driver_id');
                 $driver = Driver::with('vehicle')->where('user_id', $driverId)->first();
 
                 if (! $driver) {

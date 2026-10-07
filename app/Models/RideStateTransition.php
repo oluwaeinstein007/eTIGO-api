@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Enums\RideStatus;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RideStateTransition extends Model
 {
+    use HasUuids;
+
     public $timestamps = false;
 
     protected $fillable = [

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DriverStatus;
 use App\Enums\KycStatus;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Driver extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'user_id',
@@ -87,6 +88,7 @@ class Driver extends Model
     public function canGoOnline(): bool
     {
         return $this->isApproved()
+            && $this->isKycVerified()
             && $this->vehicle !== null
             && $this->vehicle->vehicle_class_id !== null;
     }

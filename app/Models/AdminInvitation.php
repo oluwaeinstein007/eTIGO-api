@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Enums\AdminRole;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AdminInvitation extends Model
 {
+    use HasUuids;
+
     protected $fillable = [
         'email',
         'admin_role',

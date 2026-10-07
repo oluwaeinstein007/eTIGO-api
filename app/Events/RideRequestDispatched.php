@@ -13,7 +13,7 @@ class RideRequestDispatched implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets;
 
     public function __construct(
-        public int $driverUserId,
+        public string $driverUserId,
         public string $rideId,
         public string $pickupAddress,
         public string $destinationAddress,
