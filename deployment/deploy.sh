@@ -42,6 +42,9 @@ php artisan event:cache
 echo "==> Linking storage to public..."
 php artisan storage:link
 
+echo "==> Ensuring storage permissions..."
+chmod -R 775 "${SHARED_DIR}/storage"
+
 echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 
