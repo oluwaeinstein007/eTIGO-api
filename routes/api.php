@@ -76,6 +76,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/register/complete', [AuthController::class, 'completeRegistration']);
         Route::post('/social/redirect', [AuthController::class, 'socialRedirect']);
         Route::post('/social', [AuthController::class, 'socialAuth']);
+        Route::post('/social/exchange', [AuthController::class, 'socialExchange']);
     });
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -259,5 +260,6 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{admin}', [AdminManagementController::class, 'update']);
         Route::post('/{admin}/deactivate', [AdminManagementController::class, 'deactivate']);
         Route::post('/{admin}/reactivate', [AdminManagementController::class, 'reactivate']);
+        Route::delete('/{admin}', [AdminManagementController::class, 'destroy']);
     });
 });

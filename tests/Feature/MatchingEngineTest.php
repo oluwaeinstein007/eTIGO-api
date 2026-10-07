@@ -4,6 +4,7 @@ use App\Contracts\MapsGateway;
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Events\RideRequestDispatched;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
@@ -168,6 +169,19 @@ it('allows a driver to reject a ride and re-dispatches', function () {
     expect($rejected)->toContain($d['user']->id);
 });
 
+it('rejects rejection from a driver not dispatched to the ride', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+
+    $matchingService = app(DriverMatchingService::class);
+    $matchingService->setDispatchedDriver($ride, '00000000-0000-0000-0000-000000000999');
+
+    $response = $this->withToken($d['token'])
+        ->postJson("/api/v1/rides/{$ride->id}/reject");
+
+    $response->assertForbidden();
+});
+
 // === ADMIN MANUAL ASSIGN ===
 
 it('allows admin to manually assign a driver to a ride', function () {
@@ -246,18 +260,87 @@ it('rejects admin assign when driver already has an active ride', function () {
     $response->assertUnprocessable();
 });
 
+it('allows admin to assign a driver to a ride in Requested status', function () {
+    $admin = User::factory()->admin()->create();
+    $adminToken = $admin->createToken('auth', ['admin'])->plainTextToken;
+
+    $d = createOnlineDriver($this);
+    $ride = Ride::factory()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'passenger_id' => $this->passenger->id,
+        'status' => RideStatus::Requested,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+        'pickup_address' => '123 Test Street',
+        'destination_lat' => 6.4541,
+        'destination_lng' => 3.3947,
+        'destination_address' => '456 Dest Street',
+        'fare_estimate_amount' => 3650.00,
+        'fare_currency' => 'NGN',
+        'payment_method' => 'cash',
+    ]);
+
+    $response = $this->withToken($adminToken)
+        ->postJson("/api/v1/admin/rides/{$ride->id}/assign", [
+            'driver_id' => $d['user']->id,
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('message', 'Driver assigned successfully.');
+
+    $ride->refresh();
+    expect($ride->status)->toBe(RideStatus::DriverEnRoute);
+    expect($ride->driver_id)->toBe($d['user']->id);
+});
+
+// === WEBSOCKET EVENT ===
+
+it('broadcasts RideRequestDispatched on the correct private channel', function () {
+    $driverUuid = '00000000-0000-0000-0000-000000000042';
+    $event = new RideRequestDispatched(
+        driverUserId: $driverUuid,
+        rideId: 'ride-uuid-123',
+        pickupAddress: '123 Pickup St',
+        destinationAddress: '456 Dest Ave',
+        pickupLat: 6.5244,
+        pickupLng: 3.3792,
+        destinationLat: 6.4541,
+        destinationLng: 3.3947,
+        fareEstimate: 3650.0,
+        currency: 'NGN',
+        vehicleClassName: 'Economy',
+        responseTimeoutSeconds: 20,
+    );
+
+    $channels = $event->broadcastOn();
+    expect($channels)->toHaveCount(1);
+    expect($channels[0]->name)->toBe("private-driver.{$driverUuid}");
+
+    expect($event->broadcastAs())->toBe('ride.request.dispatched');
+
+    $payload = $event->broadcastWith();
+    expect($payload)->toHaveKeys([
+        'ride_id', 'pickup_address', 'destination_address',
+        'pickup_lat', 'pickup_lng', 'destination_lat', 'destination_lng',
+        'fare_estimate', 'currency', 'vehicle_class', 'response_timeout_seconds',
+    ]);
+    expect($payload['ride_id'])->toBe('ride-uuid-123');
+    expect($payload['response_timeout_seconds'])->toBe(20);
+});
+
 // === MATCHING SERVICE UNIT ===
 
 it('tracks rejected and dispatched driver state correctly', function () {
     $ride = createSearchingRide($this);
     $service = app(DriverMatchingService::class);
 
-    $driverId = '00000000-0000-4000-8000-000000000042';
-    $service->setDispatchedDriver($ride, $driverId);
-    expect($service->getDispatchedDriverId($ride))->toBe($driverId);
+    $driverUuid = '00000000-0000-0000-0000-000000000042';
+    $service->setDispatchedDriver($ride, $driverUuid);
+    expect($service->getDispatchedDriverId($ride))->toBe($driverUuid);
 
-    $service->markDriverRejected($ride, $driverId);
-    expect($service->getRejectedDriverIds($ride))->toContain($driverId);
+    $service->markDriverRejected($ride, $driverUuid);
+    expect($service->getRejectedDriverIds($ride))->toContain($driverUuid);
 
     $service->clearDispatchedDriver($ride);
     expect($service->getDispatchedDriverId($ride))->toBeNull();

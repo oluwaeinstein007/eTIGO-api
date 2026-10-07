@@ -40,7 +40,7 @@ class RideFactory extends Factory
             'fare_estimate_amount' => fake()->randomFloat(2, 1500, 25000),
             'fare_currency' => 'NGN',
             'pricing_snapshot' => [
-                'pricing_config_id' => null,
+                'pricing_config_id' => Str::uuid()->toString(),
                 'version' => 1,
                 'base_fare' => '600.00',
                 'per_km_rate' => '250.00',

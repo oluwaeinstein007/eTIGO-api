@@ -9,8 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PricingConfig extends Model
 {
-    use HasFactory;
-    use HasUuids;
+    use HasFactory, HasUuids;
 
     public $timestamps = false;
 

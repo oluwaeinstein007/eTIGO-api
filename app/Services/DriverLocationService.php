@@ -46,7 +46,7 @@ class DriverLocationService
     }
 
     /**
-     * @return array<int, array{driver_id: string, distance_km: float}>
+     * @return array<int, array{driver_id: int, distance_km: float}>
      */
     public function findNearbyDrivers(float $lat, float $lng, float $radiusKm, int $limit = 20): array
     {
@@ -62,7 +62,7 @@ class DriverLocationService
         }
 
         return array_map(fn ($result) => [
-            'driver_id' => (string) $result[0],
+            'driver_id' => $result[0],
             'distance_km' => (float) $result[1],
         ], $results);
     }

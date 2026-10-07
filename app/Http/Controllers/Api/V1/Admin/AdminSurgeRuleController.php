@@ -122,7 +122,7 @@ class AdminSurgeRuleController extends Controller
 
         $surge = $surgePricingService->getCurrentMultiplier(
             $request->input('city_id'),
-            $request->filled('vehicle_class_id') ? $request->input('vehicle_class_id') : null,
+            $request->input('vehicle_class_id'),
         );
 
         return response()->json([

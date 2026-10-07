@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SurgeRule extends Model
 {
     /** @use HasFactory<SurgeRuleFactory> */
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     use HasUuids;
 

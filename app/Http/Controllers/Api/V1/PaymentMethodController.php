@@ -53,7 +53,7 @@ class PaymentMethodController extends Controller
         $cacheKey = $txRef ? "payment_tx_ref:{$txRef}" : null;
         $ownerUserId = $cacheKey ? Cache::get($cacheKey) : null;
 
-        if (! $ownerUserId || (string) $ownerUserId !== (string) $request->user()->id) {
+        if (! $ownerUserId || $ownerUserId !== $request->user()->id) {
             abort(403, 'Transaction does not belong to this user.');
         }
 
