@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payments', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
             $table->decimal('amount', 10, 2);

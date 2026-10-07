@@ -9,15 +9,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('disputes', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
-            $table->foreignId('reported_by_user_id')->constrained('users');
+            $table->foreignUuid('reported_by_user_id')->constrained('users');
             $table->string('category');
             $table->text('description');
             $table->string('status')->default('open');
             $table->text('resolution_notes')->nullable();
-            $table->foreignId('resolved_by_admin_id')->nullable()->constrained('users');
+            $table->foreignUuid('resolved_by_admin_id')->nullable()->constrained('users');
             $table->timestamp('resolved_at')->nullable();
             $table->timestamps();
 

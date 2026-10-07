@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('gamification_profiles', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('user_id')->unique()->constrained()->cascadeOnDelete();
             $table->decimal('total_carbon_score', 12, 2)->default(0);
             $table->unsignedInteger('total_ranking_points')->default(0);
             $table->unsignedTinyInteger('current_tier')->default(1);

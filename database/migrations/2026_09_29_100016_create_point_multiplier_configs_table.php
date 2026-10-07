@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('point_multiplier_configs', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('condition_type');
             $table->decimal('multiplier_value', 5, 2);
             $table->boolean('is_stackable')->default(false);

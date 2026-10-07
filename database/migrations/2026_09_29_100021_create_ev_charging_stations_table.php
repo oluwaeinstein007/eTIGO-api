@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('ev_charging_stations', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('name');
-            $table->foreignId('city_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('city_id')->constrained()->cascadeOnDelete();
             $table->decimal('lat', 10, 7);
             $table->decimal('lng', 10, 7);
             $table->string('address');

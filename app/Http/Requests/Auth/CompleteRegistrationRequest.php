@@ -26,7 +26,7 @@ class CompleteRegistrationRequest extends FormRequest
                 Rule::unique('users', 'email')->where('type', $this->input('type')),
             ],
             'type' => ['required', 'string', 'in:passenger,driver'],
-            'city_id' => ['required_if:type,driver', 'nullable', 'integer', 'exists:cities,id'],
+            'city_id' => ['required_if:type,driver', 'nullable', 'uuid', 'exists:cities,id'],
             'profile_photo' => ['sometimes', 'required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
         ];
     }

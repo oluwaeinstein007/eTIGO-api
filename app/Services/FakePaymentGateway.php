@@ -11,7 +11,7 @@ class FakePaymentGateway implements PaymentGateway
     /**
      * @return array{customer_id: string, customer_code: string}
      */
-    public function createCustomer(int $userId): array
+    public function createCustomer(string $userId): array
     {
         $user = User::findOrFail($userId);
 

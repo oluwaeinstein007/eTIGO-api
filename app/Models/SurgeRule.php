@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SurgeType;
 use Database\Factories\SurgeRuleFactory;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ class SurgeRule extends Model
 {
     /** @use HasFactory<SurgeRuleFactory> */
     use HasFactory;
+
+    use HasUuids;
 
     protected $fillable = [
         'city_id',
@@ -65,12 +68,12 @@ class SurgeRule extends Model
             });
     }
 
-    public function scopeForCity($query, int $cityId)
+    public function scopeForCity($query, string $cityId)
     {
         return $query->where('city_id', $cityId);
     }
 
-    public function scopeForVehicleClass($query, ?int $vehicleClassId)
+    public function scopeForVehicleClass($query, ?string $vehicleClassId)
     {
         return $query->where(function ($q) use ($vehicleClassId) {
             $q->whereNull('vehicle_class_id');

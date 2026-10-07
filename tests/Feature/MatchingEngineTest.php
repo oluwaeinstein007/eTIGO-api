@@ -5,7 +5,6 @@ use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\DispatchRideRequestJob;
-use App\Jobs\DriverResponseTimeoutJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
 use App\Models\Driver;
@@ -14,7 +13,6 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
-use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use Illuminate\Support\Facades\Queue;
 
@@ -254,11 +252,12 @@ it('tracks rejected and dispatched driver state correctly', function () {
     $ride = createSearchingRide($this);
     $service = app(DriverMatchingService::class);
 
-    $service->setDispatchedDriver($ride, 42);
-    expect($service->getDispatchedDriverId($ride))->toBe(42);
+    $driverId = '00000000-0000-4000-8000-000000000042';
+    $service->setDispatchedDriver($ride, $driverId);
+    expect($service->getDispatchedDriverId($ride))->toBe($driverId);
 
-    $service->markDriverRejected($ride, 42);
-    expect($service->getRejectedDriverIds($ride))->toContain(42);
+    $service->markDriverRejected($ride, $driverId);
+    expect($service->getRejectedDriverIds($ride))->toContain($driverId);
 
     $service->clearDispatchedDriver($ride);
     expect($service->getDispatchedDriverId($ride))->toBeNull();

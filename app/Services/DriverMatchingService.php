@@ -21,7 +21,7 @@ class DriverMatchingService
     ) {}
 
     /**
-     * @return array<int, array{driver_id: int, user_id: int, distance_km: float}>
+     * @return array<int, array{driver_id: string, user_id: string, distance_km: float}>
      */
     public function findEligibleDrivers(Ride $ride, float $radiusKm): array
     {
@@ -71,7 +71,7 @@ class DriverMatchingService
         return $results;
     }
 
-    public function markDriverRejected(Ride $ride, int $driverUserId): void
+    public function markDriverRejected(Ride $ride, string $driverUserId): void
     {
         $key = sprintf(self::REJECTED_DRIVERS_KEY, $ride->id);
         $rejected = Cache::get($key, []);
@@ -79,7 +79,7 @@ class DriverMatchingService
         Cache::put($key, array_unique($rejected), config('matching.matching_timeout', 180));
     }
 
-    public function setDispatchedDriver(Ride $ride, int $driverUserId): void
+    public function setDispatchedDriver(Ride $ride, string $driverUserId): void
     {
         $key = sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id);
         Cache::put($key, $driverUserId, config('matching.driver_response_timeout', 30) + 5);
@@ -90,13 +90,13 @@ class DriverMatchingService
         Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
     }
 
-    public function getDispatchedDriverId(Ride $ride): ?int
+    public function getDispatchedDriverId(Ride $ride): ?string
     {
         return Cache::get(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
     }
 
     /**
-     * @return list<int>
+     * @return list<string>
      */
     public function getRejectedDriverIds(Ride $ride): array
     {

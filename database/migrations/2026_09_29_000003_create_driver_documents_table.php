@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('driver_documents', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('driver_id')->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('driver_id')->constrained()->cascadeOnDelete();
             $table->string('type');
             $table->string('file_path');
             $table->string('original_filename');
@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('file_size');
             $table->string('status')->default('pending');
             $table->text('rejection_reason')->nullable();
-            $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('reviewed_at')->nullable();
             $table->timestamps();
 

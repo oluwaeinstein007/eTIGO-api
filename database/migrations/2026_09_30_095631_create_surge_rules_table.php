@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('surge_rules', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('city_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('vehicle_class_id')->nullable()->constrained()->nullOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('city_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('vehicle_class_id')->nullable()->constrained()->nullOnDelete();
             $table->string('name');
             $table->string('type');
             $table->decimal('multiplier', 3, 2);
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamp('effective_from');
             $table->timestamp('effective_until')->nullable();
-            $table->foreignId('created_by_admin_id')->constrained('users');
+            $table->foreignUuid('created_by_admin_id')->constrained('users');
             $table->timestamps();
         });
     }

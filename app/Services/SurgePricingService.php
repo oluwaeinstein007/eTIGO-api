@@ -12,7 +12,7 @@ class SurgePricingService
     /**
      * @return array{multiplier: float, rule: SurgeRule|null}
      */
-    public function getCurrentMultiplier(int $cityId, ?int $vehicleClassId = null): array
+    public function getCurrentMultiplier(string $cityId, ?string $vehicleClassId = null): array
     {
         $rules = SurgeRule::with('city')
             ->active()
@@ -109,7 +109,7 @@ class SurgePricingService
         return $currentRatio >= $minRatio;
     }
 
-    protected function calculateDemandSupplyRatio(int $cityId, ?int $vehicleClassId): float
+    protected function calculateDemandSupplyRatio(string $cityId, ?string $vehicleClassId): float
     {
         // TODO: Implement with real ride request and driver availability data.
         // Return 0.0 so demand-based rules don't fire until wired to real metrics.
@@ -119,7 +119,7 @@ class SurgePricingService
     /**
      * @return array<int|null, array{multiplier: float, rule: SurgeRule|null}>
      */
-    public function getMultipliersForCity(int $cityId, array $vehicleClassIds): array
+    public function getMultipliersForCity(string $cityId, array $vehicleClassIds): array
     {
         $allRules = SurgeRule::with('city')
             ->active()

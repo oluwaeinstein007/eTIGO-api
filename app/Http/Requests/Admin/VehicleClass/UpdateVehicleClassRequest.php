@@ -25,7 +25,7 @@ class UpdateVehicleClassRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
             'city_ids' => ['sometimes', 'array'],
-            'city_ids.*' => ['integer', 'exists:cities,id'],
+            'city_ids.*' => ['uuid', 'exists:cities,id'],
         ];
     }
 }

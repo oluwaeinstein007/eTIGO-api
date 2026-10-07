@@ -9,17 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('offline_trip_flags', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
-            $table->foreignId('driver_id')->constrained('users');
-            $table->foreignId('passenger_id')->nullable()->constrained('users');
+            $table->foreignUuid('driver_id')->constrained('users');
+            $table->foreignUuid('passenger_id')->nullable()->constrained('users');
             $table->jsonb('detection_data')->nullable();
             $table->unsignedTinyInteger('sanction_tier');
             $table->string('sanction_action');
             $table->boolean('is_disputed')->default(false);
             $table->text('dispute_notes')->nullable();
-            $table->foreignId('dispute_resolved_by_admin_id')->nullable()->constrained('users');
+            $table->foreignUuid('dispute_resolved_by_admin_id')->nullable()->constrained('users');
             $table->string('dispute_outcome')->nullable();
             $table->timestamp('flagged_at');
             $table->timestamp('resolved_at')->nullable();

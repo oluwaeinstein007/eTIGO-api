@@ -20,7 +20,7 @@ class DriverResponseTimeoutJob implements ShouldQueue
 
     public function __construct(
         public readonly string $rideId,
-        public readonly int $driverUserId,
+        public readonly string $driverUserId,
     ) {}
 
     public function handle(DriverMatchingService $matchingService): void

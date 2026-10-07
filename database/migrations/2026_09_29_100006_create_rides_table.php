@@ -10,10 +10,10 @@ return new class extends Migration
     {
         Schema::create('rides', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('city_id')->constrained();
-            $table->foreignId('vehicle_class_id')->constrained();
-            $table->foreignId('passenger_id')->constrained('users');
-            $table->foreignId('driver_id')->nullable()->constrained('users');
+            $table->foreignUuid('city_id')->constrained();
+            $table->foreignUuid('vehicle_class_id')->constrained();
+            $table->foreignUuid('passenger_id')->constrained('users');
+            $table->foreignUuid('driver_id')->nullable()->constrained('users');
             $table->decimal('pickup_lat', 10, 7);
             $table->decimal('pickup_lng', 10, 7);
             $table->string('pickup_address');
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->jsonb('pricing_snapshot')->nullable();
             $table->string('payment_method');
             $table->string('payment_status')->default('pending');
-            $table->foreignId('cancelled_by')->nullable()->constrained('users');
+            $table->foreignUuid('cancelled_by')->nullable()->constrained('users');
             $table->text('cancellation_reason')->nullable();
             $table->timestamp('matched_at')->nullable();
             $table->timestamp('started_at')->nullable();

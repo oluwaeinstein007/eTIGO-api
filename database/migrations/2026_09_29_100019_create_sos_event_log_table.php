@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sos_event_log', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('incident_id')->constrained('sos_incidents')->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('incident_id')->constrained('sos_incidents')->cascadeOnDelete();
             $table->string('event_type');
-            $table->unsignedBigInteger('actor_id')->nullable();
+            $table->uuid('actor_id')->nullable();
             $table->jsonb('metadata')->nullable();
             $table->timestamp('created_at')->useCurrent();
 

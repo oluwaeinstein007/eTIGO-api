@@ -4,6 +4,7 @@ use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('returns completed trip count and average rating for the authenticated driver', function () {
     $driver = Driver::factory()->create();
@@ -18,6 +19,7 @@ it('returns completed trip count and average rating for the authenticated driver
 
     foreach ($completedRides as $index => $ride) {
         DB::table('ratings')->insert([
+            'id' => (string) Str::uuid(),
             'ride_id' => $ride->id,
             'rated_by_user_id' => $ride->passenger_id,
             'rated_user_id' => $driver->user_id,
@@ -26,6 +28,7 @@ it('returns completed trip count and average rating for the authenticated driver
         ]);
     }
     DB::table('ratings')->insert([
+        'id' => (string) Str::uuid(),
         'ride_id' => $completedRides[0]->id,
         'rated_by_user_id' => $driver->user_id,
         'rated_user_id' => $completedRides[0]->passenger_id,

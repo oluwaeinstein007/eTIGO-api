@@ -4,11 +4,14 @@ namespace App\Models;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DriverDocument extends Model
 {
+    use HasUuids;
+
     protected $fillable = [
         'driver_id',
         'type',

@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('city_vehicle_classes', function (Blueprint $table) {
-            $table->foreignId('city_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('vehicle_class_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('city_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('vehicle_class_id')->constrained()->cascadeOnDelete();
             $table->boolean('is_active')->default(true);
 
             $table->unique(['city_id', 'vehicle_class_id']);

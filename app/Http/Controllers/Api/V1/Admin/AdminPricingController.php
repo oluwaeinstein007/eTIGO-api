@@ -18,11 +18,11 @@ class AdminPricingController extends Controller
         $query = PricingConfig::with(['city', 'vehicleClass', 'createdByAdmin']);
 
         if ($request->filled('city_id')) {
-            $query->where('city_id', $request->integer('city_id'));
+            $query->where('city_id', $request->input('city_id'));
         }
 
         if ($request->filled('vehicle_class_id')) {
-            $query->where('vehicle_class_id', $request->integer('vehicle_class_id'));
+            $query->where('vehicle_class_id', $request->input('vehicle_class_id'));
         }
 
         if ($request->boolean('current_only')) {
@@ -95,13 +95,13 @@ class AdminPricingController extends Controller
     public function current(Request $request): JsonResponse
     {
         $request->validate([
-            'city_id' => ['required', 'integer', 'exists:cities,id'],
-            'vehicle_class_id' => ['required', 'integer', 'exists:vehicle_classes,id'],
+            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'vehicle_class_id' => ['required', 'uuid', 'exists:vehicle_classes,id'],
         ]);
 
         $config = PricingConfig::currentFor(
-            $request->integer('city_id'),
-            $request->integer('vehicle_class_id'),
+            $request->input('city_id'),
+            $request->input('vehicle_class_id'),
         );
 
         if (! $config) {

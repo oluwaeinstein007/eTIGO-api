@@ -34,7 +34,7 @@ return new class extends Migration
         Schema::table('vehicles', function (Blueprint $table) {
             $table->string('vehicle_class')->nullable();
             $table->boolean('vehicle_class_approved')->default(false);
-            $table->foreignId('class_approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('class_approved_by')->nullable()->constrained('users')->nullOnDelete();
         });
     }
 };

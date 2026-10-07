@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tier_configs', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->unsignedTinyInteger('tier_level')->unique();
             $table->string('tier_name');
             $table->unsignedInteger('min_points_required');

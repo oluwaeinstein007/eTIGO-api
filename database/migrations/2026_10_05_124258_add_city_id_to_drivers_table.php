@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('drivers', function (Blueprint $table) {
-            $table->foreignId('city_id')->nullable()->after('user_id')->constrained('cities')->nullOnDelete();
+            $table->foreignUuid('city_id')->nullable()->after('user_id')->constrained('cities')->nullOnDelete();
         });
     }
 

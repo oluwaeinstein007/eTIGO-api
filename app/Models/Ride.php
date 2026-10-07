@@ -127,7 +127,7 @@ class Ride extends Model
         return $this->passenger_id === $user->id;
     }
 
-    public function isAssignedToDriver(int $driverId): bool
+    public function isAssignedToDriver(string $driverId): bool
     {
         return $this->driver_id === $driverId;
     }

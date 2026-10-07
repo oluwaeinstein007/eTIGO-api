@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('trip_carbon_scores', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
             $table->decimal('distance_km', 10, 2);
             $table->decimal('baseline_emission', 10, 4);
             $table->decimal('vehicle_emission', 10, 4);

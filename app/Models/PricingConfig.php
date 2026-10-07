@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PricingConfig extends Model
 {
     use HasFactory;
+    use HasUuids;
 
     public $timestamps = false;
 
@@ -64,13 +66,13 @@ class PricingConfig extends Model
             ->orderByDesc('version');
     }
 
-    public function scopeForCityAndClass($query, int $cityId, int $vehicleClassId)
+    public function scopeForCityAndClass($query, string $cityId, string $vehicleClassId)
     {
         return $query->where('city_id', $cityId)
             ->where('vehicle_class_id', $vehicleClassId);
     }
 
-    public static function currentFor(int $cityId, int $vehicleClassId): ?static
+    public static function currentFor(string $cityId, string $vehicleClassId): ?static
     {
         return static::forCityAndClass($cityId, $vehicleClassId)
             ->effective()
