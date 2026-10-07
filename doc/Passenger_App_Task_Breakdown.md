@@ -32,15 +32,17 @@
 6. [Promo / Discount](#6-promo--discount)
 7. [SOS Emergency](#7-sos-emergency)
 
+8. [Wallet & Payments](#8-wallet--payments)
+
 ### Phase 2
 
-8. [Scheduled Rides](#8-phase-2--scheduled-rides)
-9. [Third-Party Booking](#9-phase-2--third-party-booking)
-10. [Lost & Found](#10-phase-2--lost--found)
+9. [Scheduled Rides](#9-phase-2--scheduled-rides)
+10. [Third-Party Booking](#10-phase-2--third-party-booking)
+11. [Lost & Found](#11-phase-2--lost--found)
 
 ### Tracking
 
-11. [Open Questions](#11-open-questions)
+12. [Open Questions](#12-open-questions)
 
 ---
 
@@ -158,7 +160,32 @@
 
 ---
 
-## 8. Phase 2 — Scheduled Rides
+## 8. Wallet & Payments
+
+**PRD refs:** P-15, P-16
+**Design note:** Closed-loop wallet — top-up, pay for rides, receive refunds. No withdrawal, no peer-to-peer transfers.
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-PW-01 | `[ ]` Build wallet home screen: current balance display, "Add Money" CTA button, recent transactions list (last 5); hide/show balance toggle; pull-to-refresh | P-15 | 📡 BE-WAL-01, BE-WAL-02 | Entry point accessible from home screen balance chip and profile/settings |
+| FE-PW-02 | `[ ]` Build balance chip widget: compact wallet balance display on home screen or profile; tap navigates to wallet home | P-15 | 📡 BE-WAL-01 | Shows "Set up wallet" if no wallet exists |
+| FE-PW-03 | `[ ]` Build top-up amount entry screen: preset quick-pick amounts (₦1,000 / ₦2,000 / ₦5,000 / ₦10,000), custom amount input; validate against min/max/daily limits from backend config; "Continue" CTA | P-15 | 📡 BE-WAL-03 | Show remaining daily limit; disable amounts that would exceed max balance |
+| FE-PW-04 | `[ ]` Build Paystack checkout integration: launch Paystack SDK or in-app WebView with authorization_url from backend; handle success, failure, and user-cancelled callbacks | P-15 | 📡 BE-WAL-03 | 🔒 Card data handled entirely by Paystack SDK — never touches app |
+| FE-PW-05 | `[ ]` Build top-up pending state: loading indicator while awaiting webhook confirmation; poll verify endpoint (`GET /wallet/topup/{ref}/verify`) as fallback; auto-dismiss after timeout | P-15 | 📡 BE-WAL-05 | — |
+| FE-PW-06 | `[ ]` Build top-up result screens: success (animated confirmation, new balance, "Done" CTA), failed (error message, "Try Again" CTA), abandoned (return to amount entry) | P-15 | 📡 BE-WAL-05 | — |
+| FE-PW-07 | `[ ]` Build transaction history screen: paginated list with type icons (top-up ↑, ride payment ↓, refund ↑, tip ↓) and status badges (success/pending/failed); filter by credits/debits/all; date grouping | P-15 | 📡 BE-WAL-02 | — |
+| FE-PW-08 | `[ ]` Build transaction detail screen: amount, type, status, reference ID, date/time, linked ride (if applicable, tap to view ride detail); receipt-style layout | P-15 | 📡 BE-WAL-02 | Refund entries clearly labelled with original ride reference |
+| FE-PW-09 | `[ ]` Extend payment method selector in booking flow: add "Wallet" option alongside Cash and Card; show current wallet balance next to option; disable if insufficient balance | P-15 | 📡 BE-WAL-01 | Remember last-used payment method; default to user preference |
+| FE-PW-10 | `[ ]` Build wallet hold messaging: when wallet selected, show "₦X will be reserved for this ride" on booking confirmation screen; display hold amount during active ride | P-15 | 📡 BE-WAL-09 | — |
+| FE-PW-11 | `[ ]` Build insufficient balance handling: inline "Add ₦X to continue" shortcut that launches top-up flow and returns to booking on success; "Use another payment method" fallback option | P-15 | 📡 BE-WAL-01 | Show shortfall amount clearly |
+| FE-PW-12 | `[ ]` Build mid-ride shortfall handling: if final fare exceeds hold (route change, waiting time), display notification explaining additional charge; show updated wallet balance | P-15 | 📡 BE-WAL-12 | — |
+| FE-PW-13 | `[ ]` Extend trip completion screen: show wallet deduction line item in fare breakdown; display cancellation fee (if applicable) as wallet deduction; show refund notice with "Refunded to Wallet" label | P-16 | 📡 BE-RIDE-09 | Integrate with existing trip completion flow (FE-PIR-07) |
+| FE-PW-14 | `[ ]` Build wallet push notification handlers: top-up success, top-up failed, ride wallet payment, wallet refund; tap navigates to relevant screen (wallet home or transaction detail) | P-15 | 📡 BE-WADM-27 | — |
+| FE-PW-15 | `[ ]` Handle loading, empty, and error states across all wallet screens: skeleton loaders, empty state illustrations, retry buttons on network failure, graceful degradation | P-15 | — | — |
+
+---
+
+## 9. Phase 2 — Scheduled Rides
 
 **PRD refs:** P-20, P-21, P-22
 
@@ -172,7 +199,7 @@
 
 ---
 
-## 9. Phase 2 — Third-Party Booking
+## 10. Phase 2 — Third-Party Booking
 
 **PRD refs:** P-23, P-24
 
@@ -184,7 +211,7 @@
 
 ---
 
-## 10. Phase 2 — Lost & Found
+## 11. Phase 2 — Lost & Found
 
 **PRD refs:** P-25, P-26
 
@@ -196,7 +223,7 @@
 
 ---
 
-## 11. Open Questions
+## 12. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -207,6 +234,9 @@
 | OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-PG-06 | `[ ]` Unresolved |
 | OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
 | OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[ ]` Unresolved |
+| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[ ]` Unresolved |
+| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[ ]` Unresolved |
+| OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[ ]` Unresolved |
 
 ---
 
@@ -214,9 +244,9 @@
 
 | Section | Tasks |
 |---------|-------|
-| Phase 1 | 55 |
+| Phase 1 | 70 |
 | Phase 2 | 11 |
-| **Total** | **66** |
+| **Total** | **81** |
 
 ---
 

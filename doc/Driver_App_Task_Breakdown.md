@@ -31,13 +31,15 @@
 4. [Anti-Offline Trip Notices](#4-anti-offline-trip-notices)
 5. [EV Charging](#5-ev-charging)
 
+6. [Earnings Ledger & Payouts](#6-earnings-ledger--payouts)
+
 ### Phase 2
 
-6. [Scheduling & Vehicle](#6-phase-2--scheduling--vehicle)
+7. [Scheduling & Vehicle](#7-phase-2--scheduling--vehicle)
 
 ### Tracking
 
-7. [Open Questions](#7-open-questions)
+8. [Open Questions](#8-open-questions)
 
 ---
 
@@ -121,7 +123,52 @@
 
 ---
 
-## 6. Phase 2 — Scheduling & Vehicle
+## 6. Earnings Ledger & Payouts
+
+**PRD refs:** D-10, D-11
+**Design note:** Not a wallet — drivers see earnings from completed rides (net of commission) and request payouts to bank accounts.
+
+### 6.1 Earnings Dashboard
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-DEL-01 | `[ ]` Build earnings home screen: pending balance, available balance, total paid out; today / this week / this month summary cards; pull-to-refresh | D-10 | 📡 BE-EARN-06 | Replaces basic earnings total from FE-DE-01; richer breakdown |
+| FE-DEL-02 | `[ ]` Build per-ride earnings breakdown: fare amount, commission rate, commission deducted, net earnings, payment type tag (wallet/card/cash), tip (if any); accessible from trip history | D-10 | 📡 BE-EARN-07 | Link from existing ride history (FE-DE-03) to earnings line |
+| FE-DEL-03 | `[ ]` Build earnings chart: daily/weekly bar chart of net earnings over time; toggle between gross fare and net earnings views | D-10 | 📡 BE-EARN-06 | Enhances existing FE-DE-02 with commission visibility |
+
+### 6.2 Ledger History
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-DEL-04 | `[ ]` Build ledger history screen: paginated entries showing ride earnings, adjustments, clawbacks, and payouts with type icons and status badges | D-11 | 📡 BE-EARN-08 | Filter by date range and entry type |
+| FE-DEL-05 | `[ ]` Build ledger entry detail screen: full entry details with reference ID, date/time, amount, type, linked ride (if applicable) | D-11 | 📡 BE-EARN-08 | — |
+
+### 6.3 Bank Account Setup
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-DEL-06 | `[ ]` Build bank account setup screen: bank selector (from Paystack bank list), account number input (10 digits), "Verify" button; display resolved account name for confirmation | D-10 | 📡 BE-EARN-09 | 🔒 Re-authentication or OTP required before saving |
+| FE-DEL-07 | `[ ]` Build bank account display: show saved bank name, masked account number, account holder name; "Change" button with safeguard (re-auth confirmation) | D-10 | 📡 BE-EARN-11 | — |
+
+### 6.4 Payout Requests
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-DEL-08 | `[ ]` Build payout request screen: display available balance and minimum payout amount; amount input (pre-filled with available balance); bank account summary; "Request Payout" CTA with confirmation step | D-10 | 📡 BE-EARN-12 | Disable if below minimum or no verified bank account |
+| FE-DEL-09 | `[ ]` Build payout history screen: list of payout requests with status badges (requested/approved/processing/paid/failed); tap for detail | D-10 | 📡 BE-EARN-14 | — |
+| FE-DEL-10 | `[ ]` Build payout detail screen: amount, status timeline, bank account used, failure reason (if failed) with retry guidance | D-10 | 📡 BE-EARN-14 | — |
+
+### 6.5 Cash-Ride Commission & Notifications
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-DEL-11 | `[ ]` Build cash-ride commission indicator: show commission owed on cash rides; negative balance warning on earnings dashboard; block or warn on new ride acceptance above configurable threshold | D-10 | 📡 BE-EARN-05 | ⚠ OQ-29: Cash-ride commission policy TBD |
+| FE-DEL-12 | `[ ]` Build earnings push notification handlers: earnings credited, payout approved, payout paid, payout failed; tap navigates to relevant screen | D-10 | 📡 BE-WADM-27 | — |
+| FE-DEL-13 | `[ ]` Handle loading, empty, and error states across all earnings screens: skeleton loaders, empty state illustrations, retry buttons on network failure | D-10 | — | — |
+
+---
+
+## 7. Phase 2 — Scheduling & Vehicle
 
 **PRD refs:** D-14, D-15, D-16
 
@@ -134,7 +181,7 @@
 
 ---
 
-## 7. Open Questions
+## 8. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
