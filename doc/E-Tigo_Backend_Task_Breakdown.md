@@ -296,16 +296,16 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-MATCH-01 | `[ ]` Create `DriverMatchingService` — query Redis GEORADIUS for Online, Approved drivers of the requested vehicle class within initial radius of pickup point; sort by distance | §8.6 | SETUP-41, BE-RIDE-03 | ⚠ Open: Initial radius value — Engineering proposes, PM confirms |
-| BE-MATCH-02 | `[ ]` Create `DispatchRideRequestJob` — push ride request to best candidate driver via WS broadcast + push notification with pickup location, estimated fare, response countdown | D-06 | BE-MATCH-01, BE-LOC-03, SETUP-57 | — |
-| BE-MATCH-03 | `[ ]` Create `RideRequestDispatched` broadcastable event for driver channel | D-06 | BE-MATCH-02 | — |
-| BE-MATCH-04 | `[ ]` Create `RideController@accept` — `POST /api/v1/rides/{ride}/accept`: driver accepts; transition to Matched → Driver_En_Route; reject concurrent acceptances atomically (row lock) | D-07 | BE-MATCH-02, BE-RIDE-02 | First-accept wins |
-| BE-MATCH-05 | `[ ]` Create `RideController@reject` — `POST /api/v1/rides/{ride}/reject`: driver rejects; mark as rejected for this ride; dispatch to next candidate | D-07 | BE-MATCH-02 | — |
-| BE-MATCH-06 | `[ ]` Create `DriverResponseTimeoutJob` — delayed job; if driver hasn't responded within the window, treat as rejection and re-dispatch | D-07 | BE-MATCH-02 | ⚠ Open: Response window duration — confirm with PM |
-| BE-MATCH-07 | `[ ]` Implement radius expansion logic: after exhausting candidates in current radius, expand in configurable steps and re-dispatch | §8.6 | BE-MATCH-01 | ⚠ Open: Expansion step sizes and max radius |
-| BE-MATCH-08 | `[ ]` Create `MatchingTimeoutJob` — if no match after all expansion steps within timeout, transition to No_Driver_Found, notify passenger | P-09 | BE-MATCH-07, BE-RIDE-02 | Log no-match events for Admin reporting |
-| BE-MATCH-09 | `[ ]` Create `AdminRideController@assign` — `POST /api/v1/admin/rides/{ride}/assign`: Admin manually assigns an online driver; uses same state machine transitions | A-15 | BE-MATCH-04, SETUP-52 | Not a parallel path — plugs into shared state machine |
-| BE-MATCH-10 | `[ ]` Create `AssignRideFormRequest` — validate driver_id is online, approved, correct vehicle class, not on another active ride | A-15 | BE-MATCH-09 | — |
+| BE-MATCH-01 | `[x]` Create `DriverMatchingService` — query Redis GEOSEARCH for Online, Approved drivers of the requested vehicle class within initial radius of pickup point; sort by distance; configurable via `config/matching.php` (initial 3km, step 2km, max 15km) | §8.6 | SETUP-41, BE-RIDE-03 | Initial radius: 3km; expansion: +2km steps; max: 15km |
+| BE-MATCH-02 | `[x]` Create `DispatchRideRequestJob` — push ride request to best candidate driver via WS broadcast + push notification with pickup location, estimated fare, response countdown; auto-dispatched on ride creation | D-06 | BE-MATCH-01, BE-LOC-03, SETUP-57 | — |
+| BE-MATCH-03 | `[x]` Create `RideRequestDispatched` broadcastable event for driver channel (`driver.{driverUserId}`) | D-06 | BE-MATCH-02 | — |
+| BE-MATCH-04 | `[x]` Create `RideController@accept` — `POST /api/v1/rides/{ride}/accept`: driver accepts; transition to Matched → Driver_En_Route; reject concurrent acceptances atomically (row lock) | D-07 | BE-MATCH-02, BE-RIDE-02 | First-accept wins via `lockForUpdate()` |
+| BE-MATCH-05 | `[x]` Create `RideController@reject` — `POST /api/v1/rides/{ride}/reject`: driver rejects; mark as rejected for this ride; dispatch to next candidate | D-07 | BE-MATCH-02 | — |
+| BE-MATCH-06 | `[x]` Create `DriverResponseTimeoutJob` — delayed job (20s default, configurable via `MATCHING_DRIVER_RESPONSE_TIMEOUT`); if driver hasn't responded within the window, treat as rejection and re-dispatch | D-07 | BE-MATCH-02 | Response window: 20s (industry standard; configurable) |
+| BE-MATCH-07 | `[x]` Implement radius expansion logic in `DriverMatchingService::calculateCurrentRadius()`: after exhausting candidates in current radius, expand by `radius_step_km` and re-dispatch; all values configurable via `config/matching.php` | §8.6 | BE-MATCH-01 | Step: 2km; max: 15km |
+| BE-MATCH-08 | `[x]` Create `MatchingTimeoutJob` — dispatched with delay on ride creation (180s default, configurable); if no match after timeout, transition to No_Driver_Found, notify passenger | P-09 | BE-MATCH-07, BE-RIDE-02 | Log no-match events for Admin reporting |
+| BE-MATCH-09 | `[x]` Create `AdminRideController@assign` — `POST /api/v1/admin/rides/{ride}/assign`: Admin manually assigns an online driver; uses same state machine transitions | A-15 | BE-MATCH-04, SETUP-52 | Not a parallel path — plugs into shared state machine |
+| BE-MATCH-10 | `[x]` Create `AssignRideRequest` — validate driver_id is online, approved, correct vehicle class, not on another active ride | A-15 | BE-MATCH-09 | — |
 
 ---
 

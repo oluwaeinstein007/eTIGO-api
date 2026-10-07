@@ -6,6 +6,8 @@ use App\Contracts\MapsGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Jobs\DispatchRideRequestJob;
+use App\Jobs\MatchingTimeoutJob;
 use App\Models\AuditLog;
 use App\Models\PricingConfig;
 use App\Models\Ride;
@@ -21,6 +23,7 @@ class RideService
         private RidePinService $pinService,
         private FareEstimationService $fareEstimationService,
         private MapsGateway $mapsGateway,
+        private DriverMatchingService $matchingService,
     ) {}
 
     /**
@@ -51,7 +54,7 @@ class RideService
             $pricing->city->currency_code ?? 'NGN',
         );
 
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $passenger, $cityId, $vehicleClassId,
             $pickupLat, $pickupLng, $pickupAddress,
             $destinationLat, $destinationLng, $destinationAddress,
@@ -89,6 +92,15 @@ class RideService
 
             return ['ride' => $ride->fresh(), 'pin_code' => $pin['pin_code']];
         });
+
+        DispatchRideRequestJob::dispatch($result['ride']->id)->afterCommit();
+
+        $timeout = config('matching.matching_timeout', 180);
+        MatchingTimeoutJob::dispatch($result['ride']->id)
+            ->delay(now()->addSeconds($timeout))
+            ->afterCommit();
+
+        return $result;
     }
 
     public function cancelRide(
@@ -127,6 +139,95 @@ class RideService
                 'cancelled_by_type' => $triggeredByType,
                 'previous_status' => $previousStatus,
             ]);
+
+            $this->matchingService->cleanupRideCache($ride);
+
+            return $ride->fresh();
+        });
+    }
+
+    /**
+     * @return array{success: bool, ride: Ride, error: ?string}
+     */
+    public function acceptRide(Ride $ride, User $driver): array
+    {
+        $ride = DB::transaction(function () use ($ride, $driver) {
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            if ($ride->status !== RideStatus::Searching) {
+                return null;
+            }
+
+            $ride->driver_id = $driver->id;
+            $ride->save();
+
+            $this->stateMachine->transitionTo(
+                $ride,
+                RideStatus::Matched,
+                $driver,
+                'driver',
+            );
+
+            $this->stateMachine->transitionTo(
+                $ride,
+                RideStatus::DriverEnRoute,
+                $driver,
+                'driver',
+            );
+
+            AuditLog::record($ride, 'ride_accepted', $driver);
+
+            return $ride->fresh();
+        });
+
+        if (! $ride) {
+            return ['success' => false, 'ride' => new Ride, 'error' => 'Ride is no longer available.'];
+        }
+
+        $this->matchingService->cleanupRideCache($ride);
+
+        return ['success' => true, 'ride' => $ride, 'error' => null];
+    }
+
+    public function rejectRide(Ride $ride, User $driver): void
+    {
+        $this->matchingService->markDriverRejected($ride, $driver->id);
+        $this->matchingService->clearDispatchedDriver($ride);
+
+        AuditLog::record($ride, 'ride_rejected', $driver);
+
+        DispatchRideRequestJob::dispatch($ride->id);
+    }
+
+    public function adminAssignDriver(Ride $ride, User $driver, User $admin): Ride
+    {
+        return DB::transaction(function () use ($ride, $driver, $admin) {
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            $ride->driver_id = $driver->id;
+            $ride->save();
+
+            $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
+
+            if ($ride->status === RideStatus::Requested) {
+                $this->stateMachine->transitionTo($ride, RideStatus::Searching, $admin, 'admin', $meta);
+            }
+
+            $this->stateMachine->transitionTo($ride, RideStatus::Matched, $admin, 'admin', $meta);
+
+            $this->stateMachine->transitionTo(
+                $ride,
+                RideStatus::DriverEnRoute,
+                $admin,
+                'admin',
+                $meta,
+            );
+
+            AuditLog::record($ride, 'ride_manually_assigned', $admin, null, [
+                'driver_user_id' => $driver->id,
+            ]);
+
+            $this->matchingService->cleanupRideCache($ride);
 
             return $ride->fresh();
         });

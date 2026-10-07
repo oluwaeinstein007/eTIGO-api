@@ -13,6 +13,7 @@ use App\Http\Resources\RideResource;
 use App\Jobs\FinalFareCalculationJob;
 use App\Models\Ride;
 use App\Models\User;
+use App\Services\DriverMatchingService;
 use App\Services\RideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class RideController extends Controller
 {
     public function __construct(
         private RideService $rideService,
+        private DriverMatchingService $matchingService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -245,6 +247,69 @@ class RideController extends Controller
         return response()->json([
             'message' => 'Ride completed successfully.',
             'ride' => new RideResource($ride),
+        ]);
+    }
+
+    public function accept(Request $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::Searching) {
+            return response()->json([
+                'message' => 'This ride is no longer available for acceptance.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $dispatched = $this->matchingService->getDispatchedDriverId($ride);
+        if ($dispatched !== $user->id) {
+            return response()->json([
+                'message' => 'This ride was not dispatched to you.',
+            ], 403);
+        }
+
+        $result = $this->rideService->acceptRide($ride, $user);
+
+        if (! $result['success']) {
+            return response()->json(['message' => $result['error']], 409);
+        }
+
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+
+        return response()->json([
+            'message' => 'Ride accepted.',
+            'ride' => new RideResource($result['ride']),
+        ]);
+    }
+
+    public function reject(Request $request, Ride $ride): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::Searching) {
+            return response()->json([
+                'message' => 'This ride is no longer available.',
+            ], 422);
+        }
+
+        if ($this->matchingService->getDispatchedDriverId($ride) !== $user->id) {
+            return response()->json(['message' => 'This ride was not dispatched to you.'], 403);
+        }
+
+        $this->rideService->rejectRide($ride, $user);
+
+        return response()->json([
+            'message' => 'Ride request rejected. It will be dispatched to another driver.',
         ]);
     }
 

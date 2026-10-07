@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
@@ -139,6 +140,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
     Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');
     Route::post('/{ride}/complete', [RideController::class, 'complete'])->middleware('user.type:driver');
+    Route::post('/{ride}/accept', [RideController::class, 'accept'])->middleware('user.type:driver');
+    Route::post('/{ride}/reject', [RideController::class, 'reject'])->middleware('user.type:driver');
 });
 
 /*
@@ -231,6 +234,10 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{surgeRule}', [AdminSurgeRuleController::class, 'show']);
         Route::put('/{surgeRule}', [AdminSurgeRuleController::class, 'update']);
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
+    });
+
+    Route::prefix('rides')->group(function () {
+        Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
     });
 
     Route::prefix('passengers')->group(function () {

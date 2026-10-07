@@ -72,6 +72,11 @@ class User extends Authenticatable
         return $this->hasMany(Ride::class, 'passenger_id');
     }
 
+    public function driverRides(): HasMany
+    {
+        return $this->hasMany(Ride::class, 'driver_id');
+    }
+
     public function isPassenger(): bool
     {
         return $this->type === UserType::Passenger;

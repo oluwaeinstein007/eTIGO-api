@@ -15,6 +15,8 @@ use App\Models\VehicleClass;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
+    Queue::fake();
+
     $this->passenger = User::factory()->create(['type' => UserType::Passenger]);
     $this->passengerToken = $this->passenger->createToken('auth', ['passenger'])->plainTextToken;
 
