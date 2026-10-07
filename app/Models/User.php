@@ -32,8 +32,6 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
-    use HasUuids;
-
     protected function casts(): array
     {
         return [

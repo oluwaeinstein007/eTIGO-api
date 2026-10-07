@@ -349,6 +349,22 @@ it('tracks rejected and dispatched driver state correctly', function () {
     expect($service->getRejectedDriverIds($ride))->toBeEmpty();
 });
 
+it('expands search radius using dedicated counter', function () {
+    $ride = createSearchingRide($this);
+    $service = app(DriverMatchingService::class);
+
+    $initialRadius = $service->calculateCurrentRadius($ride);
+    expect($initialRadius)->toBe(3.0);
+
+    $service->expandRadius($ride);
+    expect($service->calculateCurrentRadius($ride))->toBe(5.0);
+
+    $service->expandRadius($ride);
+    expect($service->calculateCurrentRadius($ride))->toBe(7.0);
+
+    expect($service->hasReachedMaxRadius($ride))->toBeFalse();
+});
+
 // === CONFIG ===
 
 it('has sensible matching config defaults', function () {

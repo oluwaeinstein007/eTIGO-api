@@ -14,8 +14,6 @@ class SurgeRule extends Model
     /** @use HasFactory<SurgeRuleFactory> */
     use HasFactory, HasUuids;
 
-    use HasUuids;
-
     protected $fillable = [
         'city_id',
         'vehicle_class_id',
