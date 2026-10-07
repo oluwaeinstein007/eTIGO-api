@@ -1,7 +1,6 @@
 <?php
 
 use App\Contracts\MapsGateway;
-use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\FinalFareCalculationJob;
@@ -12,6 +11,8 @@ use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Models\VehicleClass;
+use App\Services\RidePinService;
+use App\Services\RideStateMachine;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -266,7 +267,7 @@ it('verifies PIN and starts ride', function () {
         'driver_id' => $this->driverUser->id,
     ]);
 
-    $pin = app(\App\Services\RidePinService::class)->generatePin($ride);
+    $pin = app(RidePinService::class)->generatePin($ride);
 
     $response = $this->withToken($this->driverToken)
         ->postJson("/api/v1/rides/{$ride->id}/verify-pin", [
@@ -286,7 +287,7 @@ it('rejects invalid PIN', function () {
         'driver_id' => $this->driverUser->id,
     ]);
 
-    app(\App\Services\RidePinService::class)->generatePin($ride);
+    app(RidePinService::class)->generatePin($ride);
 
     $response = $this->withToken($this->driverToken)
         ->postJson("/api/v1/rides/{$ride->id}/verify-pin", [
@@ -477,7 +478,7 @@ it('records state transition audit trail', function () {
         'status' => RideStatus::Requested,
     ]);
 
-    $stateMachine = app(\App\Services\RideStateMachine::class);
+    $stateMachine = app(RideStateMachine::class);
     $stateMachine->transitionTo($ride, RideStatus::Searching, $this->passenger, 'passenger');
 
     $transitions = RideStateTransition::where('ride_id', $ride->id)->get();
@@ -495,10 +496,10 @@ it('rejects invalid state transitions', function () {
         'vehicle_class_id' => $this->vehicleClass->id,
     ]);
 
-    $stateMachine = app(\App\Services\RideStateMachine::class);
+    $stateMachine = app(RideStateMachine::class);
 
     expect(fn () => $stateMachine->transitionTo($ride, RideStatus::InProgress))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('prevents skipping states in the ride lifecycle', function () {
@@ -509,8 +510,8 @@ it('prevents skipping states in the ride lifecycle', function () {
         'status' => RideStatus::Requested,
     ]);
 
-    $stateMachine = app(\App\Services\RideStateMachine::class);
+    $stateMachine = app(RideStateMachine::class);
 
     expect(fn () => $stateMachine->transitionTo($ride, RideStatus::InProgress))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });

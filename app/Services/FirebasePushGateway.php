@@ -18,7 +18,7 @@ class FirebasePushGateway implements PushNotificationGateway
     /**
      * @param  array{title: string, body: string, data?: array<string, mixed>}  $notification
      */
-    public function sendToUser(int $userId, array $notification): void
+    public function sendToUser(string $userId, array $notification): void
     {
         $tokens = DeviceToken::where('user_id', $userId)
             ->where('is_active', true)

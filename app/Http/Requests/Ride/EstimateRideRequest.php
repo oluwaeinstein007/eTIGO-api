@@ -19,7 +19,7 @@ class EstimateRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city_id' => ['required', 'integer', 'exists:cities,id'],
+            'city_id' => ['required', 'uuid', 'exists:cities,id'],
             'pickup_lat' => ['required', 'numeric', 'between:-90,90'],
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
             'destination_lat' => ['required', 'numeric', 'between:-90,90'],
@@ -35,7 +35,7 @@ class EstimateRideRequest extends FormRequest
                     return;
                 }
 
-                $city = City::find($this->integer('city_id'));
+                $city = City::find($this->input('city_id'));
 
                 if ($city && ! $city->is_active) {
                     $validator->errors()->add('city_id', 'This city is not currently active.');

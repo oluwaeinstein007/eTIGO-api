@@ -22,8 +22,8 @@ class StoreRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city_id' => ['required', 'integer', 'exists:cities,id'],
-            'vehicle_class_id' => ['required', 'integer', 'exists:vehicle_classes,id'],
+            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'vehicle_class_id' => ['required', 'uuid', 'exists:vehicle_classes,id'],
             'pickup_lat' => ['required', 'numeric', 'between:-90,90'],
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
             'pickup_address' => ['required', 'string', 'max:500'],

@@ -8,10 +8,16 @@ use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthService
 {
-    public function getRedirectUrl(SocialProvider $provider): string
+    public function getRedirectUrl(SocialProvider $provider, string $userType, string $state): string
     {
+        $oauthState = base64_encode(json_encode([
+            'type' => $userType,
+            'state' => $state,
+        ]));
+
         return Socialite::driver($provider->value)
             ->stateless()
+            ->with(['state' => $oauthState])
             ->redirect()
             ->getTargetUrl();
     }

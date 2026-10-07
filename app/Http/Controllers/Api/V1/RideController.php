@@ -43,8 +43,8 @@ class RideController extends Controller
 
             return $this->rideService->createRide(
                 passenger: $user,
-                cityId: $request->integer('city_id'),
-                vehicleClassId: $request->integer('vehicle_class_id'),
+                cityId: $request->input('city_id'),
+                vehicleClassId: $request->input('vehicle_class_id'),
                 pickupLat: (float) $request->input('pickup_lat'),
                 pickupLng: (float) $request->input('pickup_lng'),
                 pickupAddress: $request->input('pickup_address'),
@@ -105,7 +105,7 @@ class RideController extends Controller
         }
 
         if ($request->has('city_id')) {
-            $query->where('city_id', $request->integer('city_id'));
+            $query->where('city_id', $request->input('city_id'));
         }
 
         if ($request->has('from_date')) {

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Broadcast;
 |
 */
 
-Broadcast::channel('App.Models.User.{id}', function (User $user, int $id): bool {
+Broadcast::channel('App.Models.User.{id}', function (User $user, string $id): bool {
     return $user->id === $id;
 });
 
@@ -33,6 +33,6 @@ Broadcast::channel('admin.rides', function (User $user): bool {
     return $user->isAdmin();
 });
 
-Broadcast::channel('driver.{driverUserId}', function (User $user, int $driverUserId): bool {
+Broadcast::channel('driver.{driverUserId}', function (User $user, string $driverUserId): bool {
     return $user->id === $driverUserId && $user->isDriver();
 });

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\DriverStatus;
+use App\Enums\KycStatus;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -32,6 +33,8 @@ class DriverFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => DriverStatus::Approved,
             'approved_at' => now(),
+            'kyc_status' => KycStatus::Verified,
+            'kyc_verified_at' => now(),
         ]);
     }
 
