@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -34,20 +35,22 @@ test('broadcast authentication rejects requests without a Sanctum token', functi
 });
 
 test('a driver can authorize its private driver channel', function () {
-    Sanctum::actingAs(User::factory()->driver()->make()->forceFill(['id' => 1]));
+    $driver = User::factory()->driver()->make()->forceFill(['id' => (string) Str::uuid()]);
+    Sanctum::actingAs($driver);
 
     $this->postJson('/broadcasting/auth', [
         'socket_id' => '12345.67890',
-        'channel_name' => 'private-driver.1',
+        'channel_name' => "private-driver.{$driver->id}",
     ])->assertOk()
         ->assertJsonStructure(['auth']);
 });
 
 test('a passenger cannot authorize a private driver channel', function () {
-    Sanctum::actingAs(User::factory()->passenger()->make()->forceFill(['id' => 1]));
+    $passenger = User::factory()->passenger()->make()->forceFill(['id' => (string) Str::uuid()]);
+    Sanctum::actingAs($passenger);
 
     $this->postJson('/broadcasting/auth', [
         'socket_id' => '12345.67890',
-        'channel_name' => 'private-driver.1',
+        'channel_name' => "private-driver.{$passenger->id}",
     ])->assertForbidden();
 });

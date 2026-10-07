@@ -7,6 +7,7 @@ use App\Enums\RideStatus;
 use App\Models\Driver;
 use App\Models\Ride;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class DriverMatchingService
 {
@@ -31,6 +32,15 @@ class DriverMatchingService
             $radiusKm,
             config('matching.max_candidates_per_search', 20),
         );
+
+        if (empty($nearby)) {
+            return [];
+        }
+
+        $nearby = array_values(array_filter(
+            $nearby,
+            fn (array $driver): bool => Str::isUuid($driver['driver_id']),
+        ));
 
         if (empty($nearby)) {
             return [];

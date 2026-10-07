@@ -33,6 +33,6 @@ Broadcast::channel('admin.rides', function (User $user): bool {
     return $user->isAdmin();
 });
 
-Broadcast::channel('driver.{driverUserId}', function (User $user, int $driverUserId): bool {
+Broadcast::channel('driver.{driverUserId}', function (User $user, string $driverUserId): bool {
     return $user->id === $driverUserId && $user->isDriver();
 });

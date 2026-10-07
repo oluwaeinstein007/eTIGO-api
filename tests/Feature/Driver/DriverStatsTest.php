@@ -12,7 +12,10 @@ it('returns completed trip count and average rating for the authenticated driver
     $completedRides = Ride::factory()
         ->count(2)
         ->completed()
-        ->sequence(fn () => ['driver_id' => $driver->user_id])
+        ->sequence(fn ($sequence) => [
+            'driver_id' => $driver->user_id,
+            'final_fare_amount' => ($sequence->index + 1) * 100,
+        ])
         ->create();
     Ride::factory()->inProgress()->create(['driver_id' => $driver->user_id]);
     Ride::factory()->completed()->create(['driver_id' => $otherDriver->user_id]);
@@ -41,7 +44,9 @@ it('returns completed trip count and average rating for the authenticated driver
 
     $response->assertOk()->assertJsonPath('stats.completed_trips', 2)
         ->assertJsonPath('stats.average_rating', 4.5)
-        ->assertJsonPath('stats.ratings_count', 2);
+        ->assertJsonPath('stats.ratings_count', 2)
+        ->assertJsonPath('stats.earnings_this_week', 300)
+        ->assertJsonPath('stats.earnings_currency', 'NGN');
 });
 
 it('returns null average rating when the driver has no ratings', function () {
@@ -52,7 +57,9 @@ it('returns null average rating when the driver has no ratings', function () {
 
     $response->assertOk()->assertJsonPath('stats.completed_trips', 0)
         ->assertJsonPath('stats.average_rating', null)
-        ->assertJsonPath('stats.ratings_count', 0);
+        ->assertJsonPath('stats.ratings_count', 0)
+        ->assertJsonPath('stats.earnings_this_week', 0)
+        ->assertJsonPath('stats.earnings_currency', 'NGN');
 });
 
 it('requires authentication to view driver stats', function () {

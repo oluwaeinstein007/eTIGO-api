@@ -30,6 +30,14 @@ services:
       retries: 10
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
 volumes:
   etigo_postgres_data:
   etigo_redis_data:

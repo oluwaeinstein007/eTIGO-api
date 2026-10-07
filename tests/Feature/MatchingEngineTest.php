@@ -13,6 +13,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use Illuminate\Support\Facades\Queue;
 
@@ -264,6 +265,26 @@ it('tracks rejected and dispatched driver state correctly', function () {
 
     $service->cleanupRideCache($ride);
     expect($service->getRejectedDriverIds($ride))->toBeEmpty();
+});
+
+it('ignores stale non-UUID driver locations while matching a ride', function () {
+    $driver = createOnlineDriver($this)['driver'];
+    $ride = createSearchingRide($this);
+
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('findNearbyDrivers')
+        ->once()
+        ->andReturn([
+            ['driver_id' => 'driver-1', 'distance_km' => 1.0],
+            ['driver_id' => $driver->id, 'distance_km' => 2.0],
+        ]);
+
+    $matchingService = new DriverMatchingService($locationService);
+
+    $eligibleDrivers = $matchingService->findEligibleDrivers($ride, 15.0);
+
+    expect($eligibleDrivers)->toHaveCount(1)
+        ->and($eligibleDrivers[0]['driver_id'])->toBe($driver->id);
 });
 
 // === CONFIG ===

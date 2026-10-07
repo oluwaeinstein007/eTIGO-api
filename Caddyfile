@@ -1,0 +1,5 @@
+:8088 {
+    @reverb path /app/*
+    reverse_proxy @reverb host.docker.internal:8080
+    reverse_proxy host.docker.internal:8000
+}
