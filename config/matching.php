@@ -29,7 +29,7 @@ return [
     | How long a driver has to accept or reject before auto-rejection.
     |
     */
-    'driver_response_timeout' => (int) env('MATCHING_DRIVER_RESPONSE_TIMEOUT', 30),
+    'driver_response_timeout' => (int) env('MATCHING_DRIVER_RESPONSE_TIMEOUT', 20),
 
     /*
     |--------------------------------------------------------------------------

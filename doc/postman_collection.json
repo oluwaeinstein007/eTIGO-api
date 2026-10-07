@@ -2624,8 +2624,124 @@
         },
         {
           "name": "Ride Actions",
-          "description": "Driver-side ride lifecycle actions: arriving at pickup, verifying passenger PIN, and completing rides.",
+          "description": "Driver-side ride lifecycle actions: accepting/rejecting dispatched ride requests, arriving at pickup, verifying passenger PIN, and completing rides.",
           "item": [
+            {
+              "name": "Accept Ride Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/accept",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "accept"
+                  ]
+                },
+                "description": "Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching` and the ride was dispatched to this specific driver.\n\nOn acceptance, the ride transitions through `matched` → `driver_en_route` atomically. Uses row-level locking for first-accept-wins concurrency safety.\n\n**Response 200:**\n```json\n{\n  \"message\": \"Ride accepted.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"status\": \"driver_en_route\",\n    \"driver_id\": 2,\n    \"...\": \"...\"\n  }\n}\n```\n\n**Response 403:** `This ride was not dispatched to you.`\n**Response 409:** `Ride is no longer available.` (another driver already accepted)\n**Response 422:** `This ride is no longer available for acceptance.`"
+              },
+              "response": [
+                {
+                  "name": "Accept Ride — Success (200)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride accepted.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"city_id\": 1,\n    \"vehicle_class_id\": 1,\n    \"passenger_id\": 1,\n    \"driver_id\": 2,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"driver_en_route\",\n    \"status_label\": \"Driver En Route\",\n    \"share_token\": \"abc123xyz789def456ghi012jkl345mno\",\n    \"fare_estimate_amount\": \"3750.00\",\n    \"final_fare_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"matched_at\": \"2026-10-06T14:01:15.000000Z\",\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"updated_at\": \"2026-10-06T14:01:15.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Accept Ride — Not Dispatched (403)",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This ride was not dispatched to you.\"\n}"
+                },
+                {
+                  "name": "Accept Ride — Already Taken (409)",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride is no longer available.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reject Ride Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/reject",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "reject"
+                  ]
+                },
+                "description": "Driver rejects a dispatched ride request. The driver is added to the rejected list for this ride and the matching engine automatically re-dispatches to the next nearest eligible driver. No request body required.\n\n**Response 200:**\n```json\n{\n  \"message\": \"Ride request rejected. It will be dispatched to another driver.\"\n}\n```"
+              },
+              "response": [
+                {
+                  "name": "Reject Ride — Success (200)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride request rejected. It will be dispatched to another driver.\"\n}"
+                }
+              ]
+            },
             {
               "name": "Driver Arrived",
               "request": {
@@ -4531,6 +4647,87 @@
                 },
                 "description": "Admin-only. Returns the currently active surge multiplier for a city (and optionally vehicle class). Returns multiplier 1.0 if no rules match."
               }
+            }
+          ]
+        },
+        {
+          "name": "Admin — Ride Management",
+          "description": "Admin ride operations: manual driver assignment for support escalations and edge cases where automated matching fails.",
+          "item": [
+            {
+              "name": "Manually Assign Driver",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"driver_id\": 2\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/rides/{{ride_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "rides",
+                    "{{ride_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Manually assigns an online driver to a ride. The ride must be in `searching` or `requested` state.\n\n**Validation rules:**\n- Driver must exist and have a driver profile\n- Driver must be `approved` status\n- Driver must be online (`is_online = true`)\n- Driver's vehicle class must match the ride's vehicle class\n- Driver must not have another active ride\n\n**Response 200:**\n```json\n{\n  \"message\": \"Driver assigned successfully.\",\n  \"ride\": { \"...\" }\n}\n```\n\n**Response 422:** Validation errors for driver eligibility.\n**Response 404:** `Driver not found.`"
+              },
+              "response": [
+                {
+                  "name": "Assign Driver — Success (200)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver assigned successfully.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"city_id\": 1,\n    \"vehicle_class_id\": 1,\n    \"passenger_id\": 1,\n    \"driver_id\": 2,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"driver_en_route\",\n    \"status_label\": \"Driver En Route\",\n    \"fare_estimate_amount\": \"3750.00\",\n    \"fare_currency\": \"NGN\",\n    \"payment_method\": \"cash\",\n    \"matched_at\": \"2026-10-06T14:05:00.000000Z\",\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Assign Driver — Validation Error (422)",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The driver id field is invalid.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"driver_id\": [\n      \"Driver must be online.\",\n      \"Driver vehicle class does not match the ride request.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "Assign Driver — Not Assignable (422)",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This ride cannot be assigned in its current state.\",\n  \"current_status\": \"in_progress\"\n}"
+                }
+              ]
             }
           ]
         }

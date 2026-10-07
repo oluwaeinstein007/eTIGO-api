@@ -3035,6 +3035,8 @@ POST /rides
 
 Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
 
+On creation, the **matching engine** is automatically triggered: `DispatchRideRequestJob` searches for nearby eligible drivers via Redis GEOSEARCH and dispatches the ride to the nearest candidate. A `MatchingTimeoutJob` is also scheduled as a safety net (default 180s). See [Matching Engine — How It Works](#matching-engine--how-it-works) for details.
+
 | Field              | Type    | Required | Description                         |
 |--------------------|---------|----------|-------------------------------------|
 | city_id            | integer | Yes      | Must exist and be active            |
@@ -3522,6 +3524,193 @@ Note: `final_fare_amount` is initially `null` and populated asynchronously by th
 
 ---
 
+### Accept Ride
+```
+POST /rides/{ride}/accept
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching` and the ride was dispatched to this specific driver. Uses row-level locking (`SELECT FOR UPDATE`) to prevent concurrent acceptances — first-accept-wins.
+
+On acceptance, the ride transitions through `matched` → `driver_en_route` atomically. The matching engine cache (rejected drivers, dispatch state) is cleaned up.
+
+**Response 200:**
+```json
+{
+  "message": "Ride accepted.",
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "passenger_id": 1,
+    "driver_id": 2,
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "status": "driver_en_route",
+    "status_label": "Driver En Route",
+    "share_token": "abc123xyz789def456ghi012jkl345mno",
+    "fare_estimate_amount": "3750.00",
+    "final_fare_amount": null,
+    "fare_currency": "NGN",
+    "payment_method": "cash",
+    "payment_status": "pending",
+    "cancellation_reason": null,
+    "city": {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "...": "..."
+    },
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "...": "..."
+    },
+    "passenger": {
+      "id": 1,
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "phone": "+2348100000001",
+      "email": "ade@demo.etigo.com",
+      "...": "..."
+    },
+    "driver": {
+      "id": 2,
+      "first_name": "Chidi",
+      "last_name": "Okonkwo",
+      "phone": "+2348100000002",
+      "email": "chidi@demo.etigo.com",
+      "...": "..."
+    },
+    "cancelled_by": null,
+    "matched_at": "2026-10-06T14:01:15.000000Z",
+    "started_at": null,
+    "completed_at": null,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:01:15.000000Z"
+  }
+}
+```
+
+**Response 403 (not dispatched to this driver):**
+```json
+{
+  "message": "This ride was not dispatched to you."
+}
+```
+
+**Response 403 (no driver profile):**
+```json
+{
+  "message": "Driver profile not found."
+}
+```
+
+**Response 409 (concurrent acceptance — another driver already accepted):**
+```json
+{
+  "message": "Ride is no longer available."
+}
+```
+
+**Response 422 (ride no longer searching):**
+```json
+{
+  "message": "This ride is no longer available for acceptance.",
+  "current_status": "cancelled"
+}
+```
+
+---
+
+### Reject Ride
+```
+POST /rides/{ride}/reject
+```
+
+**Auth required. Middleware:** `user.type:driver`
+
+Driver rejects a dispatched ride request. The driver is added to the rejected list for this ride and the matching engine automatically re-dispatches to the next nearest eligible driver. No request body required.
+
+**Response 200:**
+```json
+{
+  "message": "Ride request rejected. It will be dispatched to another driver."
+}
+```
+
+**Response 403 (no driver profile):**
+```json
+{
+  "message": "Driver profile not found."
+}
+```
+
+**Response 422 (ride no longer searching):**
+```json
+{
+  "message": "This ride is no longer available."
+}
+```
+
+---
+
+### Matching Engine — How It Works
+
+When a ride is created (`POST /rides`), the system automatically:
+
+1. **Dispatches** `DispatchRideRequestJob` — searches for the nearest eligible driver via Redis GEOSEARCH within the initial radius (default 3km)
+2. **Broadcasts** `RideRequestDispatched` event on `driver.{userId}` WebSocket channel + sends push notification to the selected driver
+3. **Sets timeout** — `DriverResponseTimeoutJob` fires after the response window (default 20s). If the driver hasn't responded, it's treated as a rejection and the ride re-dispatches to the next candidate
+4. **Expands radius** — if no candidates found in current radius, expands by `radius_step_km` (default 2km) up to `max_radius_km` (default 15km)
+5. **Final timeout** — `MatchingTimeoutJob` transitions to `no_driver_found` after `matching_timeout` (default 180s) if no match is found
+
+**Eligibility criteria** — a driver must be:
+- Online (`is_online = true`)
+- Approved (`status = approved`)
+- Have a vehicle matching the requested vehicle class
+- Not already on another active ride
+- Not have previously rejected this specific ride
+
+**WebSocket event — `ride.request.dispatched`** on channel `driver.{userId}`:
+```json
+{
+  "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+  "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+  "destination_address": "456 Broad Street, Lagos Island, Lagos",
+  "pickup_lat": 6.5244,
+  "pickup_lng": 3.3792,
+  "destination_lat": 6.4541,
+  "destination_lng": 3.3947,
+  "fare_estimate": 3750.00,
+  "currency": "NGN",
+  "vehicle_class": "Economy",
+  "response_timeout_seconds": 20
+}
+```
+
+**Configuration** (via environment variables):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MATCHING_INITIAL_RADIUS_KM` | `3.0` | Starting search radius |
+| `MATCHING_RADIUS_STEP_KM` | `2.0` | Expansion per failed dispatch round |
+| `MATCHING_MAX_RADIUS_KM` | `15.0` | Maximum search radius |
+| `MATCHING_DRIVER_RESPONSE_TIMEOUT` | `20` | Seconds before auto-reject |
+| `MATCHING_TIMEOUT` | `180` | Overall matching deadline (seconds) |
+
+---
+
 ### Ride Location (Polling Fallback)
 ```
 GET /rides/{ride}/location
@@ -3630,6 +3819,119 @@ GET /rides/{ride}/share/{token}
 ```json
 {
   "message": "This share link has expired."
+}
+```
+
+---
+
+## Admin — Ride Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### Manually Assign Driver to Ride
+```
+POST /admin/rides/{ride}/assign
+```
+
+Manually assigns an online driver to a ride. The ride must be in `searching` or `requested` state. The driver must meet all eligibility criteria. This bypasses the automated matching engine — useful for support escalations or edge cases where automated matching fails.
+
+| Field     | Type    | Required | Description                           |
+|-----------|---------|----------|---------------------------------------|
+| driver_id | integer | Yes      | User ID of the driver to assign       |
+
+**Validation rules (checked server-side):**
+- Driver must exist and have a driver profile
+- Driver must be `approved` status
+- Driver must be online (`is_online = true`)
+- Driver's vehicle class must match the ride's vehicle class
+- Driver must not have another active ride
+
+**Response 200:**
+```json
+{
+  "message": "Driver assigned successfully.",
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "city_id": 1,
+    "vehicle_class_id": 1,
+    "passenger_id": 1,
+    "driver_id": 2,
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "status": "driver_en_route",
+    "status_label": "Driver En Route",
+    "share_token": "abc123xyz789def456ghi012jkl345mno",
+    "fare_estimate_amount": "3750.00",
+    "final_fare_amount": null,
+    "fare_currency": "NGN",
+    "payment_method": "cash",
+    "payment_status": "pending",
+    "cancellation_reason": null,
+    "city": {
+      "id": 1,
+      "name": "Lagos",
+      "slug": "lagos",
+      "...": "..."
+    },
+    "vehicle_class": {
+      "id": 1,
+      "name": "economy",
+      "display_name": "Economy",
+      "...": "..."
+    },
+    "passenger": {
+      "id": 1,
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "...": "..."
+    },
+    "driver": {
+      "id": 2,
+      "first_name": "Chidi",
+      "last_name": "Okonkwo",
+      "...": "..."
+    },
+    "cancelled_by": null,
+    "matched_at": "2026-10-06T14:05:00.000000Z",
+    "started_at": null,
+    "completed_at": null,
+    "created_at": "2026-10-06T14:00:00.000000Z",
+    "updated_at": "2026-10-06T14:05:00.000000Z"
+  }
+}
+```
+
+**Response 404 (driver not found):**
+```json
+{
+  "message": "Driver not found."
+}
+```
+
+**Response 422 (ride not assignable):**
+```json
+{
+  "message": "This ride cannot be assigned in its current state.",
+  "current_status": "in_progress"
+}
+```
+
+**Response 422 (validation failures):**
+```json
+{
+  "message": "The driver id field is invalid.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "driver_id": ["Driver must be online.", "Driver vehicle class does not match the ride request."]
+  }
 }
 ```
 

@@ -272,6 +272,6 @@ it('tracks rejected and dispatched driver state correctly', function () {
 it('has sensible matching config defaults', function () {
     expect(config('matching.initial_radius_km'))->toBe(3.0);
     expect(config('matching.max_radius_km'))->toBe(15.0);
-    expect(config('matching.driver_response_timeout'))->toBe(30);
+    expect(config('matching.driver_response_timeout'))->toBe(20);
     expect(config('matching.matching_timeout'))->toBe(180);
 });
