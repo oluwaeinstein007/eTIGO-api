@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('vehicle_classes', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('name')->unique();
             $table->string('display_name');
             $table->unsignedTinyInteger('capacity');

@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('vehicles', function (Blueprint $table) {
-            $table->foreignId('vehicle_class_id')->nullable()->after('vehicle_class')->constrained('vehicle_classes')->nullOnDelete();
+            $table->foreignUuid('vehicle_class_id')->nullable()->after('vehicle_class')->constrained('vehicle_classes')->nullOnDelete();
         });
     }
 

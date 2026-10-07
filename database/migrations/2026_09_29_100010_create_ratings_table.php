@@ -9,11 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('ratings', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
-            $table->foreignId('rated_by_user_id')->constrained('users');
-            $table->foreignId('rated_user_id')->constrained('users');
+            $table->foreignUuid('rated_by_user_id')->constrained('users');
+            $table->foreignUuid('rated_user_id')->constrained('users');
             $table->unsignedTinyInteger('score');
             $table->text('comment')->nullable();
             $table->timestamp('created_at')->useCurrent();

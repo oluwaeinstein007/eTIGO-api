@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('audit_logs', function (Blueprint $table) {
-            $table->string('auditable_id')->change();
+            $table->uuid('auditable_id')->change();
         });
     }
 

@@ -85,7 +85,7 @@ return new class extends Migration
         DB::statement(
             "UPDATE personal_access_tokens SET new_tokenable_id = users.new_id
              FROM users
-             WHERE personal_access_tokens.tokenable_id = users.id::bigint
+             WHERE personal_access_tokens.tokenable_id::text = users.id::text
              AND personal_access_tokens.tokenable_type = 'App\\Models\\User'",
         );
 

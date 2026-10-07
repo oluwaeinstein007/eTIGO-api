@@ -167,7 +167,7 @@ class FareEstimationService
     }
 
     /**
-     * @return array{destination_city_id: int|null, destination_city_name: string|null, pickup_city_name: string, warning: string}|null
+     * @return array{destination_city_id: string|null, destination_city_name: string|null, pickup_city_name: string, warning: string}|null
      */
     private function detectCrossCity(string $pickupCityId, float $destinationLat, float $destinationLng): ?array
     {

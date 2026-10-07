@@ -21,7 +21,7 @@ class DriverMatchingService
     ) {}
 
     /**
-     * @return array<int, array{driver_id: int, user_id: int, distance_km: float}>
+     * @return array<int, array{driver_id: string, user_id: string, distance_km: float}>
      */
     public function findEligibleDrivers(Ride $ride, float $radiusKm): array
     {

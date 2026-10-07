@@ -7,6 +7,7 @@ use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
+use App\Models\PersonalAccessToken;
 use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
@@ -20,6 +21,7 @@ use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
+use Laravel\Sanctum\Sanctum;
 use SocialiteProviders\Apple\AppleExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
@@ -43,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
     }
 

@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('promo_redemptions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('promo_code_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('promo_code_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
             $table->decimal('discount_amount', 10, 2);

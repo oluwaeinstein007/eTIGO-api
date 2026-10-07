@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('vehicles', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('driver_id')->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('driver_id')->constrained()->cascadeOnDelete();
             $table->string('make');
             $table->string('model');
             $table->string('colour');
@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('year')->nullable();
             $table->string('vehicle_class')->nullable();
             $table->boolean('vehicle_class_approved')->default(false);
-            $table->foreignId('class_approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('class_approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->index('driver_id');

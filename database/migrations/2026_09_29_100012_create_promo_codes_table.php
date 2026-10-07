@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('promo_codes', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('code')->unique();
             $table->string('discount_type');
             $table->decimal('discount_value', 10, 2);

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UserType;
 use App\Models\City;
 use App\Models\Driver;
@@ -359,6 +360,7 @@ class DemoSeeder extends Seeder
 
         foreach ($promos as $promo) {
             DB::table('promo_codes')->insert($promo + [
+                'id' => (string) Str::uuid(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -403,43 +405,43 @@ class DemoSeeder extends Seeder
             [
                 'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
                 'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[0],
-                'status' => 'completed', 'fare' => 3500.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 3500.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(7), 'started' => now()->subDays(7)->addMinutes(5), 'completed' => now()->subDays(7)->addMinutes(35),
             ],
             [
                 'passenger' => $passengers['ngozi'], 'driver' => $drivers['kemi'],
                 'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[1],
-                'status' => 'completed', 'fare' => 5200.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 5200.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(5), 'started' => now()->subDays(5)->addMinutes(8), 'completed' => now()->subDays(5)->addMinutes(50),
             ],
             [
                 'passenger' => $passengers['emeka'], 'driver' => $drivers['segun'],
                 'city' => $abuja, 'class' => $premiumClass, 'route' => $abujaRoutes[0],
-                'status' => 'completed', 'fare' => 8500.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 8500.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(3), 'started' => now()->subDays(3)->addMinutes(4), 'completed' => now()->subDays(3)->addMinutes(40),
             ],
             [
                 'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
                 'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[2],
-                'status' => 'completed', 'fare' => 2800.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 2800.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(2), 'started' => now()->subDays(2)->addMinutes(6), 'completed' => now()->subDays(2)->addMinutes(25),
             ],
             [
                 'passenger' => $passengers['funmi'], 'driver' => $drivers['kemi'],
                 'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[3],
-                'status' => 'completed', 'fare' => 4100.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 4100.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(1), 'started' => now()->subDays(1)->addMinutes(7), 'completed' => now()->subDays(1)->addMinutes(30),
             ],
             [
                 'passenger' => $passengers['chidi'], 'driver' => $drivers['segun'],
                 'city' => $abuja, 'class' => $premiumClass, 'route' => $abujaRoutes[1],
-                'status' => 'completed', 'fare' => 6000.00, 'payment_status' => 'paid',
+                'status' => 'completed', 'fare' => 6000.00, 'payment_status' => PaymentStatus::Settled->value,
                 'created' => now()->subDays(1), 'started' => now()->subDays(1)->addMinutes(3), 'completed' => now()->subDays(1)->addMinutes(20),
             ],
             [
                 'passenger' => $passengers['ngozi'], 'driver' => $drivers['bayo'],
                 'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[4],
-                'status' => 'cancelled', 'fare' => null, 'payment_status' => 'cancelled',
+                'status' => 'cancelled', 'fare' => null, 'payment_status' => PaymentStatus::Pending->value,
                 'created' => now()->subDays(4), 'started' => null, 'completed' => null,
                 'cancelled_by' => $passengers['ngozi']->id, 'cancellation_reason' => 'Driver was taking too long to arrive.',
             ],
@@ -546,6 +548,7 @@ class DemoSeeder extends Seeder
 
         foreach ($transitions as $t) {
             DB::table('ride_state_transitions')->insert([
+                'id' => (string) Str::uuid(),
                 'ride_id' => $ride->id,
                 'from_state' => $t['from'],
                 'to_state' => $t['to'],
@@ -572,6 +575,7 @@ class DemoSeeder extends Seeder
             }
 
             DB::table('ratings')->insert([
+                'id' => (string) Str::uuid(),
                 'ride_id' => $ride->id,
                 'rated_by_user_id' => $ride->passenger_id,
                 'rated_user_id' => $ride->driver_id,
@@ -589,6 +593,7 @@ class DemoSeeder extends Seeder
 
             if (rand(1, 10) <= 7) {
                 DB::table('ratings')->insert([
+                    'id' => (string) Str::uuid(),
                     'ride_id' => $ride->id,
                     'rated_by_user_id' => $ride->driver_id,
                     'rated_user_id' => $ride->passenger_id,
@@ -638,6 +643,7 @@ class DemoSeeder extends Seeder
 
         foreach ($disputes as $d) {
             DB::table('disputes')->insert([
+                'id' => (string) Str::uuid(),
                 'ride_id' => $d['ride']->id,
                 'reported_by_user_id' => $d['ride']->passenger_id,
                 'category' => $d['category'],

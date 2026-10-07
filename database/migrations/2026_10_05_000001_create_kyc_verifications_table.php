@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('kyc_verifications', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('driver_id')->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
+            $table->foreignUuid('driver_id')->constrained()->cascadeOnDelete();
             $table->string('type');
             $table->text('id_number')->nullable();
             $table->string('provider_reference')->nullable();

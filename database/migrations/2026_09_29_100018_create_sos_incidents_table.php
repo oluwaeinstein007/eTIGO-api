@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sos_incidents', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->uuid('ride_id');
             $table->foreign('ride_id')->references('id')->on('rides')->cascadeOnDelete();
-            $table->foreignId('triggered_by_user_id')->constrained('users');
+            $table->foreignUuid('triggered_by_user_id')->constrained('users');
             $table->string('trigger_type');
             $table->string('status')->default('triggered');
             $table->decimal('gps_lat', 10, 7);
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->timestamp('check_in_sent_at')->nullable();
             $table->timestamp('check_in_acknowledged_at')->nullable();
             $table->timestamp('escalated_at')->nullable();
-            $table->foreignId('operator_id')->nullable()->constrained('users');
+            $table->foreignUuid('operator_id')->nullable()->constrained('users');
             $table->text('operator_notes')->nullable();
             $table->timestamp('resolved_at')->nullable();
             $table->timestamp('created_at')->useCurrent();

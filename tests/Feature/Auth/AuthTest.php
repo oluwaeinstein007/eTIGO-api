@@ -5,6 +5,8 @@ use App\Enums\UserType;
 use App\Models\City;
 use App\Models\OtpCode;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     $this->smsGateway = Mockery::mock(SmsGateway::class);
@@ -176,6 +178,8 @@ it('completes registration for a new passenger after OTP verification', function
 });
 
 it('completes registration for a new driver with driver record', function () {
+    Storage::fake(config('filesystems.uploads'));
+
     OtpCode::create([
         'phone' => '+2349876543210',
         'code' => hash('sha256', '123456'),
@@ -186,23 +190,26 @@ it('completes registration for a new driver with driver record', function () {
 
     $city = City::factory()->create();
 
-    $response = $this->postJson('/api/v1/auth/register/complete', [
+    $response = $this->post('/api/v1/auth/register/complete', [
         'phone' => '+2349876543210',
         'first_name' => 'Jane',
         'last_name' => 'Driver',
         'type' => 'driver',
         'city_id' => $city->id,
+        'profile_photo' => UploadedFile::fake()->image('profile.jpg'),
     ]);
 
     $response->assertCreated()
         ->assertJson([
             'user' => ['type' => 'driver'],
-        ]);
+        ])
+        ->assertJsonStructure(['user' => ['profile_photo_url']]);
 
     $user = User::where('phone', '+2349876543210')->first();
     expect($user->type)->toBe(UserType::Driver);
     expect($user->driver)->not->toBeNull();
     expect($user->driver->status->value)->toBe('onboarding');
+    Storage::disk(config('filesystems.uploads'))->assertExists($user->profile_photo_path);
 });
 
 it('rejects registration without phone verification', function () {

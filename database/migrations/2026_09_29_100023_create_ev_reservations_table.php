@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('ev_reservations', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('stall_id')->nullable()->constrained('ev_charging_stalls');
-            $table->foreignId('station_id')->constrained('ev_charging_stations')->cascadeOnDelete();
-            $table->foreignId('driver_id')->constrained('users');
+            $table->uuid('id')->primary();
+            $table->foreignUuid('stall_id')->nullable()->constrained('ev_charging_stalls');
+            $table->foreignUuid('station_id')->constrained('ev_charging_stations')->cascadeOnDelete();
+            $table->foreignUuid('driver_id')->constrained('users');
             $table->string('status')->default('reserved');
             $table->unsignedInteger('queue_position')->nullable();
             $table->timestamp('estimated_available_at')->nullable();

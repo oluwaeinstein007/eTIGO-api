@@ -127,6 +127,20 @@ class AuthController extends Controller
             'phone_verified_at' => now(),
         ]);
 
+        if ($request->hasFile('profile_photo')) {
+            $path = $request->file('profile_photo')
+                ->store("profile-photos/{$user->id}", config('filesystems.uploads'));
+
+            if (! $path) {
+                $user->delete();
+
+                return response()->json(['message' => 'File upload failed. Please try again.'], 503);
+            }
+
+            $user->update(['profile_photo_path' => $path]);
+            $user->refresh();
+        }
+
         if ($userType === UserType::Driver) {
             Driver::create([
                 'user_id' => $user->id,
