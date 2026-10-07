@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
+use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -161,6 +162,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::get('/stats', [DriverStatsController::class, 'show']);
     Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
     Route::post('/location', [DriverLocationController::class, 'update']);
 
