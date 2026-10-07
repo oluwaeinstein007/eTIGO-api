@@ -302,6 +302,10 @@ class RideController extends Controller
             ], 422);
         }
 
+        if ($this->matchingService->getDispatchedDriverId($ride) !== $user->id) {
+            return response()->json(['message' => 'This ride was not dispatched to you.'], 403);
+        }
+
         $this->rideService->rejectRide($ride, $user);
 
         return response()->json([

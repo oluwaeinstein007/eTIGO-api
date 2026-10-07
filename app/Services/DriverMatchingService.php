@@ -14,6 +14,8 @@ class DriverMatchingService
 
     private const DISPATCHED_DRIVER_KEY = 'ride:%s:dispatched_to';
 
+    private const RADIUS_STEP_KEY = 'ride:%s:radius_step';
+
     public function __construct(
         private DriverLocationService $locationService,
     ) {}
@@ -37,14 +39,14 @@ class DriverMatchingService
         $rejectedIds = $this->getRejectedDriverIds($ride);
         $dispatchedTo = $this->getDispatchedDriverId($ride);
 
-        $nearbyDriverIds = array_column($nearby, 'driver_id');
+        $nearbyDriverModelIds = array_column($nearby, 'driver_id');
         $distanceMap = [];
         foreach ($nearby as $entry) {
             $distanceMap[$entry['driver_id']] = $entry['distance_km'];
         }
 
         $eligible = Driver::with('vehicle')
-            ->whereIn('user_id', $nearbyDriverIds)
+            ->whereIn('id', $nearbyDriverModelIds)
             ->where('status', DriverStatus::Approved)
             ->where('is_online', true)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
@@ -63,7 +65,7 @@ class DriverMatchingService
         $results = $eligible->map(fn (Driver $driver) => [
             'driver_id' => $driver->id,
             'user_id' => $driver->user_id,
-            'distance_km' => $distanceMap[$driver->user_id] ?? 999,
+            'distance_km' => $distanceMap[$driver->id] ?? 999,
         ])->sortBy('distance_km')->values()->all();
 
         return $results;
@@ -101,16 +103,23 @@ class DriverMatchingService
         return Cache::get(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id), []);
     }
 
+    public function expandRadius(Ride $ride): void
+    {
+        $key = sprintf(self::RADIUS_STEP_KEY, $ride->id);
+        $current = Cache::get($key, 0);
+        Cache::put($key, $current + 1, config('matching.matching_timeout', 180));
+    }
+
     public function cleanupRideCache(Ride $ride): void
     {
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
         Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
     }
 
     public function calculateCurrentRadius(Ride $ride): float
     {
-        $rejected = $this->getRejectedDriverIds($ride);
-        $step = count($rejected);
+        $step = Cache::get(sprintf(self::RADIUS_STEP_KEY, $ride->id), 0);
 
         $initial = config('matching.initial_radius_km', 3.0);
         $stepSize = config('matching.radius_step_km', 2.0);

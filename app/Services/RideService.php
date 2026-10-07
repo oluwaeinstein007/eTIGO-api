@@ -93,11 +93,12 @@ class RideService
             return ['ride' => $ride->fresh(), 'pin_code' => $pin['pin_code']];
         });
 
-        DispatchRideRequestJob::dispatch($result['ride']->id);
+        DispatchRideRequestJob::dispatch($result['ride']->id)->afterCommit();
 
         $timeout = config('matching.matching_timeout', 180);
         MatchingTimeoutJob::dispatch($result['ride']->id)
-            ->delay(now()->addSeconds($timeout));
+            ->delay(now()->addSeconds($timeout))
+            ->afterCommit();
 
         return $result;
     }
@@ -206,19 +207,20 @@ class RideService
             $ride->driver_id = $driver->id;
             $ride->save();
 
-            if ($ride->status === RideStatus::Searching) {
-                $this->stateMachine->transitionTo($ride, RideStatus::Matched, $admin, 'admin', [
-                    'assigned_driver_id' => $driver->id,
-                    'manual_assignment' => true,
-                ]);
+            $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
+
+            if ($ride->status === RideStatus::Requested) {
+                $this->stateMachine->transitionTo($ride, RideStatus::Searching, $admin, 'admin', $meta);
             }
+
+            $this->stateMachine->transitionTo($ride, RideStatus::Matched, $admin, 'admin', $meta);
 
             $this->stateMachine->transitionTo(
                 $ride,
                 RideStatus::DriverEnRoute,
                 $admin,
                 'admin',
-                ['manual_assignment' => true],
+                $meta,
             );
 
             AuditLog::record($ride, 'ride_manually_assigned', $admin, null, [

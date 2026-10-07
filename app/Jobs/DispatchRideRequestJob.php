@@ -44,7 +44,7 @@ class DispatchRideRequestJob implements ShouldQueue
                 return;
             }
 
-            $matchingService->markDriverRejected($ride, 0);
+            $matchingService->expandRadius($ride);
             self::dispatch($this->rideId)->delay(now()->addSeconds(2));
 
             return;
