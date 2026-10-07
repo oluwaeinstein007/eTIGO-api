@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Enums\DriverStatus;
-use App\Http\Resources\KycVerificationResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

@@ -461,7 +461,7 @@ it('admin can toggle fleet status on a vehicle', function () {
         'year' => 2022,
     ]);
 
-    $admin = \App\Models\User::factory()->admin()->create();
+    $admin = User::factory()->admin()->create();
     $adminToken = $admin->createToken('test', ['admin'])->plainTextToken;
 
     $response = $this->withToken($adminToken)

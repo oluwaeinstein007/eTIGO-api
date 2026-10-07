@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Contracts\PushNotificationGateway;
 use App\Enums\RideStatus;
 use App\Models\Ride;
-use App\Notifications\RideCompletedNotification;
 
 class RideNotificationService
 {
@@ -101,7 +100,7 @@ class RideNotificationService
         if ($ride->cancelled_by !== $ride->passenger_id) {
             $this->pushGateway->sendToUser($ride->passenger_id, [
                 'title' => 'Ride Cancelled',
-                'body' => "{$cancellerName} cancelled the ride." . ($ride->cancellation_reason ? " Reason: {$ride->cancellation_reason}" : ''),
+                'body' => "{$cancellerName} cancelled the ride.".($ride->cancellation_reason ? " Reason: {$ride->cancellation_reason}" : ''),
                 'data' => ['type' => 'ride_cancelled', 'ride_id' => (string) $ride->id],
             ]);
         }

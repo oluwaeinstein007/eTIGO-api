@@ -63,9 +63,8 @@ jobs:
       - name: Prepare environment
         run: |
           cp .env.example .env
-          sed -i 's/DB_DATABASE=etigo_api/DB_DATABASE=etigo_api_test/' .env
-          sed -i 's/DB_USERNAME=root/DB_USERNAME=root/' .env
-          sed -i 's/DB_PASSWORD=$/DB_PASSWORD=password/' .env
+          sed -i '/^DB_DATABASE=/c\DB_DATABASE=etigo_api_test' .env
+          sed -i '/^DB_USERNAME=/c\DB_USERNAME=root' .env
           sed -i '/^DB_PASSWORD=/c\DB_PASSWORD=password' .env
           sed -i 's/REDIS_SCHEME=tls/REDIS_SCHEME=tcp/' .env
           sed -i 's/REDIS_PASSWORD=null/REDIS_PASSWORD=/' .env

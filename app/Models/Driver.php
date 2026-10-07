@@ -13,8 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Driver extends Model
 {
-    use HasFactory;
-    use HasUuids;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'user_id',
@@ -89,6 +88,7 @@ class Driver extends Model
     public function canGoOnline(): bool
     {
         return $this->isApproved()
+            && $this->isKycVerified()
             && $this->vehicle !== null
             && $this->vehicle->vehicle_class_id !== null;
     }

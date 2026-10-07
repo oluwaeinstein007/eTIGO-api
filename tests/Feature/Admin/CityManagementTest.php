@@ -187,7 +187,7 @@ it('validates vehicle class ids when updating city vehicle classes', function ()
     $response = $this->withToken($token)
         ->putJson("/api/v1/admin/cities/{$city->id}/vehicle-classes", [
             'vehicle_classes' => [
-                ['vehicle_class_id' => 9999, 'is_active' => true],
+                ['vehicle_class_id' => '00000000-0000-0000-0000-000000009999', 'is_active' => true],
             ],
         ]);
 

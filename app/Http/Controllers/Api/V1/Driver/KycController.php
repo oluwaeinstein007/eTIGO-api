@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\KycVerificationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\VerifyDriversLicenseRequest;
 use App\Http\Requests\Driver\VerifyNinRequest;
@@ -131,6 +132,13 @@ class KycController extends Controller
             $verification = $this->kycService->createLivenessSession($driver);
 
             AuditLog::record($verification, 'kyc_liveness_session_created', request()->user());
+
+            if ($verification->status === KycVerificationStatus::Failed) {
+                return response()->json([
+                    'message' => $verification->failure_reason ?? 'Liveness session creation failed.',
+                    'verification' => new KycVerificationResource($verification),
+                ], 422);
+            }
 
             $sdkToken = $verification->match_data['sdk_token'] ?? null;
 

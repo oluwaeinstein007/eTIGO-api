@@ -28,29 +28,31 @@ beforeEach(function () {
 });
 
 test('broadcast authentication rejects requests without a Sanctum token', function () {
+    $uuid = Str::uuid()->toString();
     $this->postJson('/broadcasting/auth', [
         'socket_id' => '12345.67890',
-        'channel_name' => 'private-driver.1',
+        'channel_name' => "private-driver.{$uuid}",
     ])->assertUnauthorized();
 });
 
 test('a driver can authorize its private driver channel', function () {
-    $driver = User::factory()->driver()->make()->forceFill(['id' => (string) Str::uuid()]);
-    Sanctum::actingAs($driver);
+    $uuid = Str::uuid()->toString();
+    Sanctum::actingAs(User::factory()->driver()->make()->forceFill(['id' => $uuid]));
 
     $this->postJson('/broadcasting/auth', [
         'socket_id' => '12345.67890',
-        'channel_name' => "private-driver.{$driver->id}",
+        'channel_name' => "private-driver.{$uuid}",
     ])->assertOk()
         ->assertJsonStructure(['auth']);
 });
 
 test('a passenger cannot authorize a private driver channel', function () {
-    $passenger = User::factory()->passenger()->make()->forceFill(['id' => (string) Str::uuid()]);
-    Sanctum::actingAs($passenger);
+    $driverUuid = Str::uuid()->toString();
+    $passengerUuid = Str::uuid()->toString();
+    Sanctum::actingAs(User::factory()->passenger()->make()->forceFill(['id' => $passengerUuid]));
 
     $this->postJson('/broadcasting/auth', [
         'socket_id' => '12345.67890',
-        'channel_name' => "private-driver.{$passenger->id}",
+        'channel_name' => "private-driver.{$driverUuid}",
     ])->assertForbidden();
 });

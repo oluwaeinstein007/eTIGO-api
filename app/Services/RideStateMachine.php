@@ -13,6 +13,7 @@ class RideStateMachine
     public function __construct(
         private RideNotificationService $notificationService,
     ) {}
+
     /**
      * @var array<string, list<RideStatus>>
      */

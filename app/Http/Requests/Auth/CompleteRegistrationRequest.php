@@ -27,7 +27,6 @@ class CompleteRegistrationRequest extends FormRequest
             ],
             'type' => ['required', 'string', 'in:passenger,driver'],
             'city_id' => ['required_if:type,driver', 'nullable', 'uuid', 'exists:cities,id'],
-            'profile_photo' => ['sometimes', 'required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
         ];
     }
 

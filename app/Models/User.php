@@ -30,9 +30,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
-
-    use HasUuids;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     protected function casts(): array
     {
