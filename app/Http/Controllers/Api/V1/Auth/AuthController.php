@@ -10,7 +10,6 @@ use App\Http\Requests\Auth\CompleteRegistrationRequest;
 use App\Http\Requests\Auth\SendOtpRequest;
 use App\Http\Requests\Auth\SocialAuthRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
-use Illuminate\Http\Request;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
@@ -20,6 +19,7 @@ use App\Models\User;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
@@ -125,6 +125,20 @@ class AuthController extends Controller
             'type' => $userType,
             'phone_verified_at' => now(),
         ]);
+
+        if ($request->hasFile('profile_photo')) {
+            $path = $request->file('profile_photo')
+                ->store("profile-photos/{$user->id}", config('filesystems.uploads'));
+
+            if (! $path) {
+                $user->delete();
+
+                return response()->json(['message' => 'File upload failed. Please try again.'], 503);
+            }
+
+            $user->update(['profile_photo_path' => $path]);
+            $user->refresh();
+        }
 
         if ($userType === UserType::Driver) {
             Driver::create([
