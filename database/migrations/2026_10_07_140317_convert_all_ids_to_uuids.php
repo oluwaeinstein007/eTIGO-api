@@ -62,14 +62,17 @@ return new class extends Migration
 
         foreach ($foreignKeys as [$childTable, $fkCol, $parentTable, $nullable]) {
             $newCol = "new_{$fkCol}";
-            $nullStr = $nullable ? '' : ' NOT NULL';
 
-            DB::statement("ALTER TABLE {$childTable} ADD COLUMN {$newCol} UUID{$nullStr}");
+            DB::statement("ALTER TABLE {$childTable} ADD COLUMN {$newCol} UUID");
             DB::statement(
                 "UPDATE {$childTable} SET {$newCol} = {$parentTable}.new_id
                  FROM {$parentTable}
                  WHERE {$childTable}.{$fkCol} = {$parentTable}.id",
             );
+
+            if (! $nullable) {
+                DB::statement("ALTER TABLE {$childTable} ALTER COLUMN {$newCol} SET NOT NULL");
+            }
         }
 
         // ride_state_transitions.triggered_by_id is not constrained but needs type change
