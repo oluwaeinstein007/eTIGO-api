@@ -87,7 +87,7 @@ class OnboardingController extends Controller
         }
 
         $file = $request->file('document');
-        $path = $file->store("driver-documents/{$driver->id}", 's3');
+        $path = $file->store("driver-documents/{$driver->id}", config('filesystems.uploads'));
 
         if (! $path) {
             return response()->json(['message' => 'File upload failed. Please try again.'], 503);
@@ -116,13 +116,13 @@ class OnboardingController extends Controller
                 ]);
             });
         } catch (\Throwable $e) {
-            Storage::disk('s3')->delete($path);
+            Storage::disk(config('filesystems.uploads'))->delete($path);
 
             throw $e;
         }
 
         if ($oldFilePath) {
-            Storage::disk('s3')->delete($oldFilePath);
+            Storage::disk(config('filesystems.uploads'))->delete($oldFilePath);
         }
 
         AuditLog::record($document, 'document_uploaded', $user);
@@ -236,11 +236,11 @@ class OnboardingController extends Controller
         $user = $request->user();
 
         if ($user->profile_photo_path) {
-            Storage::disk('s3')->delete($user->profile_photo_path);
+            Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
         }
 
         $path = $request->file('profile_photo')
-            ->store("profile-photos/{$user->id}", 's3');
+            ->store("profile-photos/{$user->id}", config('filesystems.uploads'));
 
         if (! $path) {
             return response()->json(['message' => 'File upload failed. Please try again.'], 503);
@@ -266,7 +266,7 @@ class OnboardingController extends Controller
             ], 422);
         }
 
-        Storage::disk('s3')->delete($user->profile_photo_path);
+        Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
 
         $user->update(['profile_photo_path' => null]);
 

@@ -27,11 +27,11 @@ class ProfileController extends Controller
 
         if ($request->hasFile('profile_photo')) {
             if ($user->profile_photo_path) {
-                Storage::disk('s3')->delete($user->profile_photo_path);
+                Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
             }
 
             $path = $request->file('profile_photo')
-                ->store("profile-photos/{$user->id}", 's3');
+                ->store("profile-photos/{$user->id}", config('filesystems.uploads'));
 
             if (! $path) {
                 return response()->json(['message' => 'File upload failed. Please try again.'], 503);
@@ -60,7 +60,7 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        Storage::disk('s3')->delete($user->profile_photo_path);
+        Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
 
         $user->update(['profile_photo_path' => null]);
 

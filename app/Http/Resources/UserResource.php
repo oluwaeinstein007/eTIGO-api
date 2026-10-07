@@ -24,7 +24,7 @@ class UserResource extends JsonResource
             'phone_verified_at' => $this->phone_verified_at,
             'is_active' => $this->is_active,
             'profile_photo_url' => $this->profile_photo_path
-                ? Storage::disk('s3')->url($this->profile_photo_path)
+                ? Storage::disk(config('filesystems.uploads'))->url($this->profile_photo_path)
                 : null,
             'created_at' => $this->created_at,
         ];
