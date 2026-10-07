@@ -13,6 +13,7 @@ use App\Http\Resources\RideResource;
 use App\Jobs\FinalFareCalculationJob;
 use App\Models\Ride;
 use App\Models\User;
+use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\RideService;
 use Illuminate\Http\JsonResponse;
@@ -21,9 +22,14 @@ use Illuminate\Support\Facades\DB;
 
 class RideController extends Controller
 {
+    private const int ARRIVAL_RADIUS_METERS = 150;
+
+    private const int DRIVER_LOCATION_MAX_AGE_SECONDS = 120;
+
     public function __construct(
         private RideService $rideService,
         private DriverMatchingService $matchingService,
+        private DriverLocationService $locationService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -179,13 +185,49 @@ class RideController extends Controller
             ], 422);
         }
 
+        $location = $this->locationService->getDriverLocation((string) $driver->id);
+        if ($location === null || $location['timestamp'] < now()->subSeconds(self::DRIVER_LOCATION_MAX_AGE_SECONDS)->timestamp) {
+            return response()->json([
+                'message' => 'We could not confirm your recent location. Wait for your location to update, then try again.',
+            ], 422);
+        }
+
+        $distanceFromPickup = $this->distanceInMeters(
+            $location['lat'],
+            $location['lng'],
+            (float) $ride->pickup_lat,
+            (float) $ride->pickup_lng,
+        );
+        if ($distanceFromPickup > self::ARRIVAL_RADIUS_METERS) {
+            return response()->json([
+                'message' => 'Move closer to the pickup location before marking arrival.',
+            ], 422);
+        }
+
         $ride = $this->rideService->driverArrived($ride, $user);
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions']);
 
         return response()->json([
             'message' => 'Driver arrival confirmed. Waiting for passenger PIN verification.',
-            'ride' => new RideResource($ride),
+            'ride' => new RideDetailResource($ride),
         ]);
+    }
+
+    private function distanceInMeters(
+        float $firstLatitude,
+        float $firstLongitude,
+        float $secondLatitude,
+        float $secondLongitude,
+    ): float {
+        $earthRadiusMeters = 6_371_000;
+        $latitudeDelta = deg2rad($secondLatitude - $firstLatitude);
+        $longitudeDelta = deg2rad($secondLongitude - $firstLongitude);
+        $a = sin($latitudeDelta / 2) ** 2
+            + cos(deg2rad($firstLatitude))
+            * cos(deg2rad($secondLatitude))
+            * sin($longitudeDelta / 2) ** 2;
+
+        return $earthRadiusMeters * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     public function verifyPin(VerifyPinRequest $request, Ride $ride): JsonResponse

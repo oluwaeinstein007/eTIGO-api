@@ -11,6 +11,7 @@ use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Models\VehicleClass;
+use App\Services\DriverLocationService;
 use App\Services\RidePinService;
 use App\Services\RideStateMachine;
 use Illuminate\Support\Facades\Queue;
@@ -225,18 +226,107 @@ it('rejects cancellation of in-progress ride', function () {
 // === DRIVER ARRIVED ===
 
 it('allows driver to mark arrival', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->with((string) $this->driver->id)
+        ->andReturn([
+            'lat' => 6.5244,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
     $ride = Ride::factory()->driverEnRoute()->create([
         'passenger_id' => $this->passenger->id,
         'city_id' => $this->city->id,
         'vehicle_class_id' => $this->vehicleClass->id,
         'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
     ]);
 
     $response = $this->withToken($this->driverToken)
         ->postJson("/api/v1/rides/{$ride->id}/driver-arrived");
 
     $response->assertOk()
-        ->assertJsonPath('ride.status', 'driver_arrived');
+        ->assertJsonPath('ride.status', 'driver_arrived')
+        ->assertJsonPath('ride.state_transitions.0.to_state', 'driver_arrived')
+        ->assertJsonStructure([
+            'ride' => [
+                'state_transitions' => [
+                    '*' => ['created_at'],
+                ],
+            ],
+        ]);
+});
+
+it('rejects arrival when the driver location is stale', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->andReturn([
+            'lat' => 6.5244,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->subMinutes(3)->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
+    $ride = Ride::factory()->driverEnRoute()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+    ]);
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/rides/{$ride->id}/driver-arrived")
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'message',
+            'We could not confirm your recent location. Wait for your location to update, then try again.',
+        );
+
+    expect($ride->fresh()->status)->toBe(RideStatus::DriverEnRoute);
+});
+
+it('rejects arrival when the driver is outside the pickup radius', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->andReturn([
+            'lat' => 6.5344,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
+    $ride = Ride::factory()->driverEnRoute()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+    ]);
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/rides/{$ride->id}/driver-arrived")
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'message',
+            'Move closer to the pickup location before marking arrival.',
+        );
+
+    expect($ride->fresh()->status)->toBe(RideStatus::DriverEnRoute);
 });
 
 it('rejects arrival by unassigned driver', function () {
