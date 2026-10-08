@@ -71,6 +71,8 @@ class DemoSeeder extends Seeder
             [
                 'name' => 'Lagos',
                 'slug' => 'lagos',
+                'state' => 'Lagos',
+                'region' => 'South-West',
                 'timezone' => 'Africa/Lagos',
                 'currency_code' => 'NGN',
                 'is_active' => true,
@@ -83,6 +85,8 @@ class DemoSeeder extends Seeder
             [
                 'name' => 'Abuja',
                 'slug' => 'abuja',
+                'state' => 'FCT',
+                'region' => 'North-Central',
                 'timezone' => 'Africa/Lagos',
                 'currency_code' => 'NGN',
                 'is_active' => true,
@@ -95,6 +99,8 @@ class DemoSeeder extends Seeder
             [
                 'name' => 'Port Harcourt',
                 'slug' => 'port-harcourt',
+                'state' => 'Rivers',
+                'region' => 'South-South',
                 'timezone' => 'Africa/Lagos',
                 'currency_code' => 'NGN',
                 'is_active' => true,
@@ -107,6 +113,8 @@ class DemoSeeder extends Seeder
             [
                 'name' => 'Ibadan',
                 'slug' => 'ibadan',
+                'state' => 'Oyo',
+                'region' => 'South-West',
                 'timezone' => 'Africa/Lagos',
                 'currency_code' => 'NGN',
                 'is_active' => false,

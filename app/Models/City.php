@@ -15,7 +15,10 @@ class City extends Model
     protected $fillable = [
         'name',
         'slug',
+        'state',
+        'region',
         'boundary',
+        'area_sq_km',
         'timezone',
         'currency_code',
         'is_active',
@@ -25,8 +28,35 @@ class City extends Model
     {
         return [
             'boundary' => 'array',
+            'area_sq_km' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    public static function calculateAreaFromPolygon(array $coordinates): float
+    {
+        $points = $coordinates[0] ?? [];
+        if (count($points) < 3) {
+            return 0;
+        }
+
+        $earthRadiusKm = 6371;
+        $area = 0;
+        $n = count($points);
+
+        for ($i = 0; $i < $n; $i++) {
+            $j = ($i + 1) % $n;
+            $lng1 = deg2rad($points[$i][0]);
+            $lat1 = deg2rad($points[$i][1]);
+            $lng2 = deg2rad($points[$j][0]);
+            $lat2 = deg2rad($points[$j][1]);
+
+            $area += ($lng2 - $lng1) * (2 + sin($lat1) + sin($lat2));
+        }
+
+        $area = abs($area) * $earthRadiusKm * $earthRadiusKm / 2;
+
+        return round($area, 2);
     }
 
     public function vehicleClasses(): BelongsToMany

@@ -59,8 +59,8 @@ return [
         'redirect' => '',
     ],
 
-    'google_maps' => [
-        'api_key' => env('GOOGLE_MAPS_API_KEY'),
+    'mapbox' => [
+        'access_token' => env('MAPBOX_ACCESS_TOKEN'),
     ],
 
     'demo_earnings_driver_user_id' => env('DEMO_EARNINGS_DRIVER_USER_ID'),
