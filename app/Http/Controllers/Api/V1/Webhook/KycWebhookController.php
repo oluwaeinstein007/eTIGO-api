@@ -17,6 +17,10 @@ class KycWebhookController extends Controller
 
     public function handle(Request $request): JsonResponse
     {
+        if ($request->isMethod('get')) {
+            return response()->json(['message' => 'Webhook endpoint active.']);
+        }
+
         $signature = $request->header('X-QoreID-Signature');
         $payload = $request->all();
 

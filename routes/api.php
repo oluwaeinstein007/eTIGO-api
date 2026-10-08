@@ -59,7 +59,7 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 |--------------------------------------------------------------------------
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
-Route::post('/webhooks/qoreid', [KycWebhookController::class, 'handle']);
+Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
