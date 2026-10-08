@@ -4938,6 +4938,229 @@ POST /webhooks/flutterwave
 
 ---
 
+## Ratings
+
+### Submit Rating
+
+`POST /api/v1/rides/{ride}/rating`
+
+Submit a 1–5 star rating for a completed ride. Passengers rate drivers and drivers rate passengers. Each participant can submit one rating per ride.
+
+**Auth:** Bearer token (passenger or driver)
+
+**Request Body:**
+
+| Field     | Type    | Required | Rules              |
+|-----------|---------|----------|--------------------|
+| `score`   | integer | Yes      | 1–5                |
+| `comment` | string  | No       | Max 1000 characters |
+
+**Example Request:**
+```json
+{
+  "score": 5,
+  "comment": "Great ride, very smooth!"
+}
+```
+
+**Response: `201 Created`**
+```json
+{
+  "message": "Rating submitted successfully.",
+  "rating": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
+    "score": 5,
+    "comment": "Great ride, very smooth!",
+    "rated_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "rated_user": { "id": "...", "first_name": "Jane", "last_name": "Smith" },
+    "created_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Ride not completed, user not a participant, or already rated
+
+---
+
+## Disputes
+
+### File a Dispute
+
+`POST /api/v1/rides/{ride}/dispute`
+
+File a dispute for a completed ride. Both passengers and drivers can file disputes. Each participant can submit one dispute per ride.
+
+**Auth:** Bearer token (passenger or driver)
+
+**Request Body:**
+
+| Field         | Type   | Required | Rules                                  |
+|---------------|--------|----------|----------------------------------------|
+| `category`    | string | Yes      | One of `DisputeCategory` enum values   |
+| `description` | string | Yes      | 10–2000 characters                     |
+
+**Example Request:**
+```json
+{
+  "category": "fare_dispute",
+  "description": "The fare charged was significantly higher than the estimated fare shown before the ride."
+}
+```
+
+**Response: `201 Created`**
+```json
+{
+  "message": "Dispute filed successfully.",
+  "dispute": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e38",
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "The fare charged was significantly higher than the estimated fare shown before the ride.",
+    "status": "open",
+    "status_label": "Open",
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_at": null,
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Ride not completed, user not a participant, already disputed, or invalid category
+
+---
+
+## Admin — Dispute Management
+
+### List Disputes
+
+`GET /api/v1/admin/disputes`
+
+List all disputes with optional filters and pagination.
+
+**Auth:** Bearer token (admin)
+
+**Query Parameters:**
+
+| Parameter  | Type   | Description                          |
+|------------|--------|--------------------------------------|
+| `status`   | string | Filter by dispute status             |
+| `category` | string | Filter by dispute category           |
+| `from`     | date   | Filter disputes created on or after  |
+| `to`       | date   | Filter disputes created on or before |
+| `per_page` | int    | Items per page (default: 15)         |
+
+**Response: `200 OK`**
+```json
+{
+  "disputes": [
+    {
+      "id": "...",
+      "ride_id": "...",
+      "category": "fare_dispute",
+      "category_label": "Fare Dispute",
+      "description": "...",
+      "status": "open",
+      "status_label": "Open",
+      "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+      "ride": { "id": "...", "status": "completed" },
+      "resolved_at": null,
+      "created_at": "2026-10-09T12:00:00.000000Z",
+      "updated_at": "2026-10-09T12:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+### Show Dispute Detail
+
+`GET /api/v1/admin/disputes/{dispute}`
+
+Return full dispute details including ride, passenger, driver, vehicle class, city, and payment information.
+
+**Auth:** Bearer token (admin)
+
+**Response: `200 OK`**
+```json
+{
+  "dispute": {
+    "id": "...",
+    "ride_id": "...",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "...",
+    "status": "open",
+    "status_label": "Open",
+    "reported_by": { "..." },
+    "ride": {
+      "id": "...",
+      "status": "completed",
+      "passenger": { "..." },
+      "driver": { "..." },
+      "vehicle_class": { "..." },
+      "city": { "..." },
+      "payment": { "..." }
+    },
+    "resolved_at": null,
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+### Resolve Dispute
+
+`POST /api/v1/admin/disputes/{dispute}/resolve`
+
+Resolve or dismiss a dispute. Creates an audit log entry.
+
+**Auth:** Bearer token (admin)
+
+**Request Body:**
+
+| Field              | Type   | Required | Rules                           |
+|--------------------|--------|----------|---------------------------------|
+| `status`           | string | Yes      | `resolved` or `dismissed`       |
+| `resolution_notes` | string | Yes      | 10–2000 characters              |
+
+**Example Request:**
+```json
+{
+  "status": "resolved",
+  "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account."
+}
+```
+
+**Response: `200 OK`**
+```json
+{
+  "message": "Dispute resolved successfully.",
+  "dispute": {
+    "id": "...",
+    "status": "resolved",
+    "status_label": "Resolved",
+    "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account.",
+    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User" },
+    "resolved_at": "2026-10-09T14:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Dispute already resolved/dismissed, or missing resolution notes
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:
@@ -5104,6 +5327,26 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `failed`             | Payment failed                           |
 | `pending_collection` | Cash payment awaiting driver collection  |
 | `collected`          | Cash payment collected by driver         |
+
+### Dispute Category
+| Value                | Description                              |
+|----------------------|------------------------------------------|
+| `fare_dispute`       | Dispute about fare amount                |
+| `driver_behaviour`   | Issue with driver conduct                |
+| `route_deviation`    | Driver took an unexpected route          |
+| `vehicle_condition`  | Vehicle was in poor condition            |
+| `safety_concern`     | Safety-related concern                   |
+| `payment_issue`      | Problem with payment processing          |
+| `item_left_behind`   | Item left in the vehicle                 |
+| `other`              | Other issue                              |
+
+### Dispute Status
+| Value          | Description                              |
+|----------------|------------------------------------------|
+| `open`         | Newly filed, awaiting review             |
+| `under_review` | Being reviewed by admin                  |
+| `resolved`     | Resolved by admin                        |
+| `dismissed`    | Dismissed by admin                       |
 
 ### Cancellation Reason
 | Value                | Description                              |

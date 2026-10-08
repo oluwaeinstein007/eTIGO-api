@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
@@ -29,9 +30,11 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideController;
+use App\Http\Controllers\Api\V1\RideDisputeController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
 use App\Http\Controllers\Api\V1\RideLocationController;
 use App\Http\Controllers\Api\V1\RidePaymentController;
+use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
@@ -157,6 +160,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/{ride}/confirm-cash', [RidePaymentController::class, 'confirmCash'])->middleware('user.type:driver');
     Route::post('/{ride}/tip', [RideTipController::class, 'store'])->middleware('user.type:passenger');
     Route::get('/{ride}/receipt', [RideReceiptController::class, 'show']);
+    Route::post('/{ride}/rating', [RideRatingController::class, 'store']);
+    Route::post('/{ride}/dispute', [RideDisputeController::class, 'store']);
 });
 
 /*
@@ -256,6 +261,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::prefix('rides')->group(function () {
         Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
+    });
+
+    Route::prefix('disputes')->group(function () {
+        Route::get('/', [AdminDisputeController::class, 'index']);
+        Route::get('/{dispute}', [AdminDisputeController::class, 'show']);
+        Route::post('/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
     });
 
     Route::prefix('passengers')->group(function () {

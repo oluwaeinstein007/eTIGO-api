@@ -103,6 +103,18 @@ class User extends Authenticatable
         return $this->isAdmin() && $this->admin_role === $role;
     }
 
+    public function ratingsReceived(): HasMany
+    {
+        return $this->hasMany(Rating::class, 'rated_user_id');
+    }
+
+    public function averageRating(): ?float
+    {
+        $avg = $this->ratingsReceived()->avg('score');
+
+        return $avg !== null ? round((float) $avg, 2) : null;
+    }
+
     public function hasPhoneVerified(): bool
     {
         return $this->phone_verified_at !== null;
