@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin\City;
 
+use App\Support\NigerianStates;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCityRequest extends FormRequest
 {
@@ -18,8 +20,7 @@ class StoreCityRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255', 'unique:cities,name'],
-            'state' => ['required', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'max:255'],
+            'state' => ['required', 'string', Rule::in(NigerianStates::names())],
             'boundary' => ['nullable', 'array'],
             'boundary.type' => ['required_with:boundary', 'string', 'in:Point,Polygon'],
             'boundary.coordinates' => ['required_with:boundary', 'array'],

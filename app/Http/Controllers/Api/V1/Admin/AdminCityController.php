@@ -9,6 +9,7 @@ use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Services\AppCacheService;
+use App\Support\NigerianStates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +62,7 @@ class AdminCityController extends Controller
         $vehicleClassIds = $validated['vehicle_class_ids'] ?? [];
         unset($validated['vehicle_class_ids']);
 
+        $validated['region'] = NigerianStates::regionFor($validated['state']);
         $validated['timezone'] ??= 'Africa/Lagos';
         $validated['currency_code'] ??= 'NGN';
 
@@ -126,6 +128,10 @@ class AdminCityController extends Controller
                     $slug .= '-'.City::where('slug', 'like', $slug.'%')->count();
                 }
                 $validated['slug'] = $slug;
+            }
+
+            if (isset($validated['state'])) {
+                $validated['region'] = NigerianStates::regionFor($validated['state']);
             }
 
             if (isset($validated['boundary']) && ($validated['boundary']['type'] ?? '') === 'Polygon') {

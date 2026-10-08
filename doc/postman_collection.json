@@ -6031,7 +6031,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Kano\",\n  \"state\": \"Kano\",\n  \"region\": \"North-West\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      8.5167,\n      12.0022\n    ],\n    \"radius_km\": 25\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\"\n  ]\n}"
+                  "raw": "{\n  \"name\": \"Kano\",\n  \"state\": \"Kano\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      8.5167,\n      12.0022\n    ],\n    \"radius_km\": 25\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\"\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities",
@@ -6153,7 +6153,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"region\": \"North-Central\",\n  \"timezone\": \"Africa/Lagos\",\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
+                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"timezone\": \"Africa/Lagos\",\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities/:cityId",

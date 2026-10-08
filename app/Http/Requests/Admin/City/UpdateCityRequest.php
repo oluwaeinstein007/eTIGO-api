@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\City;
 
+use App\Support\NigerianStates;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,8 +20,7 @@ class UpdateCityRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:255', Rule::unique('cities', 'name')->ignore($this->route('city'))],
-            'state' => ['sometimes', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'max:255'],
+            'state' => ['sometimes', 'string', Rule::in(NigerianStates::names())],
             'boundary' => ['nullable', 'array'],
             'boundary.type' => ['required_with:boundary', 'string', 'in:Point,Polygon'],
             'boundary.coordinates' => ['required_with:boundary', 'array'],

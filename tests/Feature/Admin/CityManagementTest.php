@@ -42,7 +42,6 @@ it('creates a city', function () {
         ->postJson('/api/v1/admin/cities', [
             'name' => 'Lagos',
             'state' => 'Lagos',
-            'region' => 'South-West',
             'boundary' => [
                 'type' => 'Point',
                 'coordinates' => [3.3792, 6.5244],
@@ -59,7 +58,7 @@ it('creates a city', function () {
         ->assertJsonPath('city.region', 'South-West')
         ->assertJsonCount(1, 'city.vehicle_classes');
 
-    $this->assertDatabaseHas('cities', ['name' => 'Lagos', 'slug' => 'lagos', 'state' => 'Lagos']);
+    $this->assertDatabaseHas('cities', ['name' => 'Lagos', 'slug' => 'lagos', 'state' => 'Lagos', 'region' => 'South-West']);
     $this->assertDatabaseHas('audit_logs', ['event' => 'city_created']);
 });
 
