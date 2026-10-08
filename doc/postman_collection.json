@@ -73,8 +73,23 @@
                     "lookup",
                     "states"
                   ]
+                },
+                "description": "No auth required. Returns all 37 Nigerian states (36 states + FCT) with their codes and regions.\n\nUse this to populate the state dropdown in the Add/Edit City form. Each state includes its geopolitical region, so the frontend can show region as a read-only field when a state is selected."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 States List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"states\": [\n    {\n      \"code\": \"AB\",\n      \"name\": \"Abia\",\n      \"region\": \"South-East\"\n    },\n    {\n      \"code\": \"LA\",\n      \"name\": \"Lagos\",\n      \"region\": \"South-West\"\n    },\n    {\n      \"code\": \"KN\",\n      \"name\": \"Kano\",\n      \"region\": \"North-West\"\n    },\n    \"... (37 total)\"\n  ]\n}"
                 }
-              }
+              ]
             },
             {
               "name": "List Geopolitical Regions",
@@ -90,8 +105,23 @@
                     "lookup",
                     "regions"
                   ]
+                },
+                "description": "No auth required. Returns the 6 Nigerian geopolitical zones with their member states.\n\nUseful for filtering cities by region in the admin panel."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Regions List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"regions\": [\n    {\n      \"name\": \"South-West\",\n      \"states\": [\n        \"Ekiti\",\n        \"Lagos\",\n        \"Ogun\",\n        \"Ondo\",\n        \"Osun\",\n        \"Oyo\"\n      ]\n    },\n    {\n      \"name\": \"North-Central\",\n      \"states\": [\n        \"Benue\",\n        \"FCT\",\n        \"Kogi\",\n        \"Kwara\",\n        \"Nasarawa\",\n        \"Niger\",\n        \"Plateau\"\n      ]\n    },\n    \"... (6 total)\"\n  ]\n}"
                 }
-              }
+              ]
             }
           ]
         },
@@ -228,7 +258,7 @@
                     }
                   ]
                 },
-                "description": "No auth required. Detects the active city for given coordinates using reverse geocoding and boundary matching. Returns 404 if no matching city."
+                "description": "No auth required. Detects the active city for given coordinates.\n\n**Detection flow:**\n1. Reverse-geocode coordinates via Mapbox to get city name\n2. Match name against active cities in database\n3. If no name match, fall back to boundary matching:\n   - Point: haversine distance <= radius_km\n   - Polygon: ray-casting point-in-polygon algorithm\n4. If multiple boundaries match (overlap), returns the smallest (most specific) city\n\n**Overlap resolution:** when a coordinate falls inside multiple boundaries, the city with the smallest area wins. This lets you define a large metro-wide fallback zone with precise inner zones.\n\n**Both boundary types supported:** Point+radius and Polygon can coexist in the same deployment.\n\nReturns 404 if no active city matches."
               },
               "response": [
                 {
@@ -241,7 +271,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\"\n  }\n}"
+                  "body": "{\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"slug\": \"lagos\",\n    \"state\": \"Lagos\",\n    \"region\": \"South-West\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true\n  },\n  \"resolved_address\": \"Ikeja, Lagos, Nigeria\"\n}"
                 },
                 {
                   "name": "404 \u2014 No City Found",
@@ -253,7 +283,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"No active city found for the given coordinates.\"\n}"
+                  "body": "{\n  \"message\": \"No active city found for this location.\"\n}"
                 }
               ]
             },
@@ -6043,7 +6073,7 @@
                     "cities"
                   ]
                 },
-                "description": "Creates a city. Slug is auto-generated from name. Boundary is optional GeoJSON."
+                "description": "Creates a new city/service area.\n\n**Required fields:** name, state\n**Optional fields:** boundary, vehicle_class_ids, timezone, currency_code\n\n**Auto-derived by backend:**\n- region \u2014 derived from state (e.g. Lagos \u2192 South-West)\n- slug \u2014 generated from name, auto-suffixed if duplicate\n- area_sq_km \u2014 calculated from Polygon boundary coordinates\n- is_active \u2014 defaults to true\n- timezone \u2014 defaults to Africa/Lagos if not sent\n- currency_code \u2014 defaults to NGN if not sent\n\n**Boundary types:**\n- Point + radius_km: circular service area (simpler setup)\n- Polygon: custom shape with coordinates array (admin draws on map)\n\n**State validation:** must be one of the 36 Nigerian states or FCT. Use GET /lookup/states to populate the dropdown.\n\n**Vehicle classes:** pass an array of UUIDs from GET /admin/vehicle-classes. They are synced (replaces any existing associations)."
               },
               "response": [
                 {
@@ -6056,7 +6086,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"City created successfully.\",\n  \"city\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-012345678901\",\n    \"name\": \"Lagos\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true\n  }\n}"
+                  "body": "{\n  \"message\": \"City created successfully.\",\n  \"city\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-012345678901\",\n    \"name\": \"Kano\",\n    \"slug\": \"kano\",\n    \"state\": \"Kano\",\n    \"region\": \"North-West\",\n    \"boundary\": {\n      \"type\": \"Point\",\n      \"coordinates\": [\n        8.5167,\n        12.0022\n      ],\n      \"radius_km\": 25\n    },\n    \"area_sq_km\": null,\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"vehicle_classes\": [\n      {\n        \"id\": \"...\",\n        \"name\": \"Economy\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Comfort\",\n        \"is_active\": true\n      }\n    ],\n    \"created_at\": \"2026-10-08T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-08T12:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -6153,7 +6183,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"timezone\": \"Africa/Lagos\",\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
+                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          7.4,\n          9.1\n        ],\n        [\n          7.55,\n          9.1\n        ],\n        [\n          7.55,\n          8.95\n        ],\n        [\n          7.4,\n          8.95\n        ],\n        [\n          7.4,\n          9.1\n        ]\n      ]\n    ]\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities/:cityId",
@@ -6173,7 +6203,7 @@
                     }
                   ]
                 },
-                "description": "Partial update supported. Slug auto-regenerated if name changes."
+                "description": "Partial update \u2014 only send the fields you want to change.\n\n**Auto-derived on update:**\n- region \u2014 re-derived if state changes\n- slug \u2014 regenerated if name changes (auto-suffixed if duplicate)\n- area_sq_km \u2014 recalculated if boundary changes to Polygon\n\n**vehicle_class_ids:** if sent, replaces the entire set (sync). Omit the field to keep existing vehicle classes unchanged.\n\n**Boundary:** can be changed from Point to Polygon or vice versa at any time."
               },
               "response": [
                 {
@@ -6186,7 +6216,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Abuja\",\n    \"timezone\": \"Africa/Lagos\"\n  }\n}"
+                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Abuja\",\n    \"slug\": \"abuja\",\n    \"state\": \"FCT\",\n    \"region\": \"North-Central\",\n    \"boundary\": {\n      \"type\": \"Polygon\",\n      \"coordinates\": [\n        [\n          \"...\"\n        ]\n      ]\n    },\n    \"area_sq_km\": \"142.50\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"vehicle_classes\": [\n      {\n        \"id\": \"...\",\n        \"name\": \"Economy\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Comfort\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Premium\",\n        \"is_active\": true\n      }\n    ],\n    \"created_at\": \"2026-10-08T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-08T14:30:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 Not Found",
