@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
+use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
@@ -138,6 +139,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/', [RideController::class, 'store'])->middleware('user.type:passenger');
     Route::get('/', [RideController::class, 'index']);
     Route::get('/{ride}', [RideController::class, 'show']);
+    Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
+        ->middleware(['user.type:passenger', 'throttle:3,1']);
     Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
     Route::get('/{ride}/location', [RideLocationController::class, 'show']);
     Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
@@ -166,6 +169,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
     Route::get('/stats', [DriverStatsController::class, 'show']);
+    Route::get('/earnings', [DriverEarningsController::class, 'show']);
     Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
     Route::post('/location', [DriverLocationController::class, 'update']);
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\RideStatus;
+use App\Events\RideNoDriverFound;
 use App\Events\RideStatusUpdated;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
@@ -27,7 +28,7 @@ class RideStateMachine
         'in_progress' => [RideStatus::Completed],
         'completed' => [],
         'cancelled' => [],
-        'no_driver_found' => [],
+        'no_driver_found' => [RideStatus::Searching],
     ];
 
     public function canTransitionTo(Ride $ride, RideStatus $newStatus): bool
@@ -132,6 +133,18 @@ class RideStateMachine
             ));
         } catch (\Throwable) {
             // Reverb failures must not roll back a committed ride transition.
+        }
+
+        if ($newStatus === RideStatus::NoDriverFound) {
+            try {
+                event(new RideNoDriverFound(
+                    rideId: (string) $ride->id,
+                    passengerId: (string) $ride->passenger_id,
+                    occurredAt: $occurredAt->toISOString(),
+                ));
+            } catch (\Throwable) {
+                // Reverb failures must not roll back a committed ride transition.
+            }
         }
 
         return $ride;

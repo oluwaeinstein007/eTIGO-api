@@ -169,6 +169,30 @@ class RideController extends Controller
         ]);
     }
 
+    public function rebroadcast(Request $request, Ride $ride): JsonResponse
+    {
+        $passenger = $request->user();
+
+        if (! $passenger->isPassenger() || ! $ride->belongsToPassenger($passenger)) {
+            return response()->json(['message' => 'You are not authorized to retry this ride.'], 403);
+        }
+
+        if ($ride->status !== RideStatus::NoDriverFound) {
+            return response()->json([
+                'message' => 'This ride can only be retried after no driver was found.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $ride = $this->rideService->rebroadcastRide($ride, $passenger);
+        $ride->load(['city', 'vehicleClass', 'passenger']);
+
+        return response()->json([
+            'message' => 'Ride request sent again.',
+            'ride' => new RideResource($ride),
+        ]);
+    }
+
     public function driverArrived(Request $request, Ride $ride): JsonResponse
     {
         $user = $request->user();
