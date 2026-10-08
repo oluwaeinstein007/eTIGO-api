@@ -8,6 +8,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
+use App\Jobs\ProcessPaymentJob;
 use App\Models\AuditLog;
 use App\Models\PricingConfig;
 use App\Models\Ride;
@@ -323,7 +324,7 @@ class RideService
 
     public function completeRide(Ride $ride, User $driver): Ride
     {
-        return DB::transaction(function () use ($ride, $driver) {
+        $ride = DB::transaction(function () use ($ride, $driver) {
             $ride = $this->stateMachine->transitionTo(
                 $ride,
                 RideStatus::Completed,
@@ -346,6 +347,10 @@ class RideService
 
             return $ride;
         });
+
+        ProcessPaymentJob::dispatch($ride->id)->afterCommit();
+
+        return $ride;
     }
 
     /**

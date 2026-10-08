@@ -29,6 +29,9 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideController;
+use App\Http\Controllers\Api\V1\RidePaymentController;
+use App\Http\Controllers\Api\V1\RideReceiptController;
+use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
 use App\Http\Controllers\Api\V1\RideLocationController;
 use App\Http\Controllers\Api\V1\RideShareController;
@@ -151,6 +154,9 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/{ride}/complete', [RideController::class, 'complete'])->middleware('user.type:driver');
     Route::post('/{ride}/accept', [RideController::class, 'accept'])->middleware('user.type:driver');
     Route::post('/{ride}/reject', [RideController::class, 'reject'])->middleware('user.type:driver');
+    Route::post('/{ride}/confirm-cash', [RidePaymentController::class, 'confirmCash'])->middleware('user.type:driver');
+    Route::post('/{ride}/tip', [RideTipController::class, 'store'])->middleware('user.type:passenger');
+    Route::get('/{ride}/receipt', [RideReceiptController::class, 'show']);
 });
 
 /*

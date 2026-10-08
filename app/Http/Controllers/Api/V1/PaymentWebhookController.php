@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Contracts\PaymentGateway;
+use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
@@ -44,9 +45,15 @@ class PaymentWebhookController extends Controller
 
         if ($payment) {
             $payment->update([
-                'status' => $verification['status'] === 'successful' ? 'captured' : 'failed',
-                'failure_reason' => $verification['status'] !== 'successful' ? "Gateway status: {$verification['status']}" : null,
+                'status' => $verification['status'] === 'successful'
+                    ? PaymentStatus::Captured
+                    : PaymentStatus::Failed,
+                'failure_reason' => $verification['status'] !== 'successful'
+                    ? "Gateway status: {$verification['status']}"
+                    : null,
             ]);
+
+            $payment->ride?->update(['payment_status' => $payment->fresh()->status]);
         }
 
         return response()->json(['status' => 'ok']);
