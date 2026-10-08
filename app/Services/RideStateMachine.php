@@ -19,7 +19,7 @@ class RideStateMachine
     /**
      * @var array<string, list<RideStatus>>
      */
-    private const array TRANSITIONS = [
+    private const TRANSITIONS = [
         'requested' => [RideStatus::Searching, RideStatus::Cancelled],
         'searching' => [RideStatus::Matched, RideStatus::NoDriverFound, RideStatus::Cancelled],
         'matched' => [RideStatus::DriverEnRoute, RideStatus::Cancelled],
@@ -66,7 +66,9 @@ class RideStateMachine
         string $triggeredByType = 'system',
         ?array $metadata = null,
     ): Ride {
+        /** @var RideStatus $fromState */
         $fromState = null;
+        /** @var \Illuminate\Support\Carbon $occurredAt */
         $occurredAt = null;
 
         $ride = DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata, &$fromState, &$occurredAt) {

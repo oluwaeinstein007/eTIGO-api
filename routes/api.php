@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
@@ -46,6 +47,8 @@ Route::get('/health', HealthController::class);
 | Public — Cities & Vehicle Classes
 |--------------------------------------------------------------------------
 */
+Route::get('/lookup/states', [LookupController::class, 'states']);
+Route::get('/lookup/regions', [LookupController::class, 'regions']);
 Route::get('/cities', [CityController::class, 'index']);
 Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);

@@ -51,22 +51,71 @@ class CityDetectionService
 
     private function findCityByBoundary(float $lat, float $lng): ?City
     {
-        return City::where('is_active', true)
+        $candidates = [];
+
+        $cities = City::where('is_active', true)
             ->whereNotNull('boundary')
-            ->get()
-            ->first(function (City $city) use ($lat, $lng) {
-                $boundary = $city->boundary;
+            ->get();
 
-                if (! $boundary || ($boundary['type'] ?? '') !== 'Point') {
-                    return false;
-                }
+        foreach ($cities as $city) {
+            $boundary = $city->boundary;
+            if (! $boundary) {
+                continue;
+            }
 
+            $type = $boundary['type'] ?? '';
+
+            if ($type === 'Point') {
                 $centerLng = $boundary['coordinates'][0] ?? 0;
                 $centerLat = $boundary['coordinates'][1] ?? 0;
                 $radiusKm = $boundary['radius_km'] ?? 30;
 
-                return $this->haversineDistance($lat, $lng, $centerLat, $centerLng) <= $radiusKm;
-            });
+                if ($this->haversineDistance($lat, $lng, $centerLat, $centerLng) <= $radiusKm) {
+                    $area = M_PI * $radiusKm * $radiusKm;
+                    $candidates[] = ['city' => $city, 'area' => $area];
+                }
+            } elseif ($type === 'Polygon') {
+                $coordinates = $boundary['coordinates'] ?? [];
+                if (! empty($coordinates) && $this->pointInPolygon($lat, $lng, $coordinates[0])) {
+                    $area = $city->area_sq_km ?? City::calculateAreaFromPolygon($coordinates);
+                    $candidates[] = ['city' => $city, 'area' => $area];
+                }
+            }
+        }
+
+        if (empty($candidates)) {
+            return null;
+        }
+
+        // When overlapping boundaries match, return the smallest (most specific) city
+        usort($candidates, fn ($a, $b) => $a['area'] <=> $b['area']);
+
+        return $candidates[0]['city'];
+    }
+
+    /**
+     * Ray-casting algorithm for point-in-polygon detection.
+     *
+     * @param  array<int, array{0: float, 1: float}>  $polygon  GeoJSON ring: [[lng, lat], ...]
+     */
+    private function pointInPolygon(float $lat, float $lng, array $polygon): bool
+    {
+        $n = count($polygon);
+        $inside = false;
+
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i][1]; // lat
+            $yi = $polygon[$i][0]; // lng
+            $xj = $polygon[$j][1];
+            $yj = $polygon[$j][0];
+
+            if (($yi > $lng) !== ($yj > $lng)
+                && $lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi) {
+                $inside = ! $inside;
+            }
+        }
+
+        return $inside;
     }
 
     public function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float

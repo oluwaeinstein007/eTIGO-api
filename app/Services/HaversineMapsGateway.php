@@ -40,7 +40,7 @@ class HaversineMapsGateway implements MapsGateway
      */
     public function geocode(string $address): array
     {
-        throw new \RuntimeException('Geocoding is not available with the Haversine fallback gateway. Configure Google Maps.');
+        throw new \RuntimeException('Geocoding is not available with the Haversine fallback gateway. Configure Mapbox.');
     }
 
     /**

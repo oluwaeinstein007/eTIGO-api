@@ -12,8 +12,8 @@ use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
-use App\Services\GoogleMapsGateway;
 use App\Services\HaversineMapsGateway;
+use App\Services\MapboxGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\QoreIdKycGateway;
@@ -52,10 +52,10 @@ class AppServiceProvider extends ServiceProvider
     private function registerMapsGateway(): void
     {
         $this->app->bind(MapsGateway::class, function () {
-            $apiKey = config('services.google_maps.api_key');
+            $accessToken = config('services.mapbox.access_token');
 
-            if ($apiKey) {
-                return new GoogleMapsGateway($apiKey);
+            if ($accessToken) {
+                return new MapboxGateway($accessToken);
             }
 
             return new HaversineMapsGateway;

@@ -15,7 +15,10 @@ class City extends Model
     protected $fillable = [
         'name',
         'slug',
+        'state',
+        'region',
         'boundary',
+        'area_sq_km',
         'timezone',
         'currency_code',
         'is_active',
@@ -25,8 +28,44 @@ class City extends Model
     {
         return [
             'boundary' => 'array',
+            'area_sq_km' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    public static function calculateAreaFromPolygon(array $coordinates): float
+    {
+        $exteriorRing = $coordinates[0] ?? [];
+        $area = self::calculateRingArea($exteriorRing);
+
+        for ($i = 1, $ringCount = count($coordinates); $i < $ringCount; $i++) {
+            $area -= self::calculateRingArea($coordinates[$i]);
+        }
+
+        return round(max($area, 0), 2);
+    }
+
+    private static function calculateRingArea(array $points): float
+    {
+        if (count($points) < 3) {
+            return 0;
+        }
+
+        $earthRadiusKm = 6371;
+        $sum = 0;
+        $n = count($points);
+
+        for ($i = 0; $i < $n; $i++) {
+            $j = ($i + 1) % $n;
+            $lng1 = deg2rad($points[$i][0]);
+            $lat1 = deg2rad($points[$i][1]);
+            $lng2 = deg2rad($points[$j][0]);
+            $lat2 = deg2rad($points[$j][1]);
+
+            $sum += ($lng2 - $lng1) * (2 + sin($lat1) + sin($lat2));
+        }
+
+        return abs($sum) * $earthRadiusKm * $earthRadiusKm / 2;
     }
 
     public function vehicleClasses(): BelongsToMany

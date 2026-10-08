@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo — Local** or **E-tiGo — Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max ₦2,000) | Active | 1 use per user |\n| `RIDE500` | ₦500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | — |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP → Verify OTP → (if new user) Complete Registration → Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password → Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone → returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` → logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely \u2014 no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -41,7 +41,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Healthy",
+                  "name": "200 \u2014 Healthy",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -57,7 +57,76 @@
           ]
         },
         {
-          "name": "Public — Cities",
+          "name": "Lookups",
+          "item": [
+            {
+              "name": "List Nigerian States",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lookup/states",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lookup",
+                    "states"
+                  ]
+                },
+                "description": "No auth required. Returns all 37 Nigerian states (36 states + FCT) with their codes and regions.\n\nUse this to populate the state dropdown in the Add/Edit City form. Each state includes its geopolitical region, so the frontend can show region as a read-only field when a state is selected."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 States List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"states\": [\n    {\n      \"code\": \"AB\",\n      \"name\": \"Abia\",\n      \"region\": \"South-East\"\n    },\n    {\n      \"code\": \"LA\",\n      \"name\": \"Lagos\",\n      \"region\": \"South-West\"\n    },\n    {\n      \"code\": \"KN\",\n      \"name\": \"Kano\",\n      \"region\": \"North-West\"\n    },\n    \"... (37 total)\"\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Geopolitical Regions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lookup/regions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lookup",
+                    "regions"
+                  ]
+                },
+                "description": "No auth required. Returns the 6 Nigerian geopolitical zones with their member states.\n\nUseful for filtering cities by region in the admin panel."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Regions List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"regions\": [\n    {\n      \"name\": \"South-West\",\n      \"states\": [\n        \"Ekiti\",\n        \"Lagos\",\n        \"Ogun\",\n        \"Ondo\",\n        \"Osun\",\n        \"Oyo\"\n      ]\n    },\n    {\n      \"name\": \"North-Central\",\n      \"states\": [\n        \"Benue\",\n        \"FCT\",\n        \"Kogi\",\n        \"Kwara\",\n        \"Nasarawa\",\n        \"Niger\",\n        \"Plateau\"\n      ]\n    },\n    \"... (6 total)\"\n  ]\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Public \u2014 Cities",
           "item": [
             {
               "name": "List Active Cities",
@@ -82,7 +151,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Active Cities",
+                  "name": "200 \u2014 Active Cities",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -127,7 +196,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Classes",
+                  "name": "200 \u2014 Vehicle Classes",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -139,7 +208,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"is_active\": true\n    },\n    {\n      \"id\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 4,\n      \"icon\": \"comfort\",\n      \"is_active\": true\n    }\n  ]\n}"
                 },
                 {
-                  "name": "404 — City Not Found",
+                  "name": "404 \u2014 City Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -189,11 +258,11 @@
                     }
                   ]
                 },
-                "description": "No auth required. Detects the active city for given coordinates using reverse geocoding and boundary matching. Returns 404 if no matching city."
+                "description": "No auth required. Detects the active city for given coordinates.\n\n**Detection flow:**\n1. Reverse-geocode coordinates via Mapbox to get city name\n2. Match name against active cities in database\n3. If no name match, fall back to boundary matching:\n   - Point: haversine distance <= radius_km\n   - Polygon: ray-casting point-in-polygon algorithm\n4. If multiple boundaries match (overlap), returns the smallest (most specific) city\n\n**Overlap resolution:** when a coordinate falls inside multiple boundaries, the city with the smallest area wins. This lets you define a large metro-wide fallback zone with precise inner zones.\n\n**Both boundary types supported:** Point+radius and Polygon can coexist in the same deployment.\n\nReturns 404 if no active city matches."
               },
               "response": [
                 {
-                  "name": "200 — City Detected",
+                  "name": "200 \u2014 City Detected",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -202,10 +271,10 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\"\n  }\n}"
+                  "body": "{\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"slug\": \"lagos\",\n    \"state\": \"Lagos\",\n    \"region\": \"South-West\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true\n  },\n  \"resolved_address\": \"Ikeja, Lagos, Nigeria\"\n}"
                 },
                 {
-                  "name": "404 — No City Found",
+                  "name": "404 \u2014 No City Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -214,12 +283,12 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"No active city found for the given coordinates.\"\n}"
+                  "body": "{\n  \"message\": \"No active city found for this location.\"\n}"
                 }
               ]
             },
             {
-              "name": "Detect City — Invalid Coordinates (422)",
+              "name": "Detect City \u2014 Invalid Coordinates (422)",
               "request": {
                 "method": "GET",
                 "header": [
@@ -248,11 +317,11 @@
                     }
                   ]
                 },
-                "description": "Expected: 422 — coordinates out of range."
+                "description": "Expected: 422 \u2014 coordinates out of range."
               },
               "response": [
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -297,7 +366,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Info",
+                  "name": "200 \u2014 Ride Info",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -309,7 +378,7 @@
                   "body": "{\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"in_progress\",\n    \"pickup_address\": \"Wuse 2, Abuja\",\n    \"destination_address\": \"Garki, Abuja\",\n    \"driver\": {\n      \"first_name\": \"Bayo\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"ABC-1234\"\n      }\n    },\n    \"current_location\": {\n      \"lat\": 9.06,\n      \"lng\": 7.49\n    }\n  }\n}"
                 },
                 {
-                  "name": "410 — Link Expired",
+                  "name": "410 \u2014 Link Expired",
                   "status": "Gone",
                   "code": 410,
                   "header": [
@@ -331,7 +400,7 @@
       "name": "Authentication",
       "item": [
         {
-          "name": "Auth — Passenger & Driver (OTP + Social)",
+          "name": "Auth \u2014 Passenger & Driver (OTP + Social)",
           "item": [
             {
               "name": "Send OTP",
@@ -366,7 +435,7 @@
               },
               "response": [
                 {
-                  "name": "200 — OTP Sent",
+                  "name": "200 \u2014 OTP Sent",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -378,7 +447,7 @@
                   "body": "{\n  \"message\": \"Verification code sent.\",\n  \"expires_at\": \"2026-10-06T14:05:00.000000Z\"\n}"
                 },
                 {
-                  "name": "429 — Cooldown Active",
+                  "name": "429 \u2014 Cooldown Active",
                   "status": "Too Many Requests",
                   "code": 429,
                   "header": [
@@ -392,7 +461,7 @@
               ]
             },
             {
-              "name": "Verify OTP (Existing User → Login)",
+              "name": "Verify OTP (Existing User \u2192 Login)",
               "event": [
                 {
                   "listen": "test",
@@ -438,7 +507,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Existing User (Logged In)",
+                  "name": "200 \u2014 Existing User (Logged In)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -450,7 +519,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"1|abc123def456ghi789jkl012mno345pqr678stu901\"\n}"
                 },
                 {
-                  "name": "200 — New User (Needs Registration)",
+                  "name": "200 \u2014 New User (Needs Registration)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -462,7 +531,7 @@
                   "body": "{\n  \"message\": \"Phone verified. Please complete registration.\",\n  \"is_new_user\": true,\n  \"phone\": \"+2341234567890\",\n  \"type\": \"passenger\"\n}"
                 },
                 {
-                  "name": "403 — Account Deactivated",
+                  "name": "403 \u2014 Account Deactivated",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -474,7 +543,7 @@
                   "body": "{\n  \"message\": \"Your account has been deactivated. Contact support.\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Code",
+                  "name": "422 \u2014 Invalid Code",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -534,7 +603,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Account Created",
+                  "name": "201 \u2014 Account Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -546,7 +615,7 @@
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"user\": {\n    \"id\": \"3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b2c3d\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"+2341234567890\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:00:30.000000Z\"\n  },\n  \"token\": \"2|xyz789abc012def345ghi678jkl901mno234pqr567\"\n}"
                 },
                 {
-                  "name": "409 — Already Exists",
+                  "name": "409 \u2014 Already Exists",
                   "status": "Conflict",
                   "code": 409,
                   "header": [
@@ -558,7 +627,7 @@
                   "body": "{\n  \"message\": \"A passenger account with this phone number already exists.\"\n}"
                 },
                 {
-                  "name": "403 — Phone Not Verified",
+                  "name": "403 \u2014 Phone Not Verified",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -618,7 +687,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Driver Account Created",
+                  "name": "201 \u2014 Driver Account Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -677,7 +746,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Existing User (Logged In)",
+                  "name": "200 \u2014 Existing User (Logged In)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -689,7 +758,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"4|social123def456ghi789jkl012mno345pqr678stu\"\n}"
                 },
                 {
-                  "name": "201 — New User Created",
+                  "name": "201 \u2014 New User Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -701,7 +770,7 @@
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"is_new_user\": true,\n  \"needs_profile_completion\": false,\n  \"user\": {\n    \"id\": \"1c0d9e8f-7a6b-5c4d-3e2f-1a0b2c3d4e5f\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": null,\n    \"email\": \"ade@gmail.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-06T14:01:00.000000Z\"\n  },\n  \"token\": \"5|new123def456ghi789jkl012mno345pqr678stu901\"\n}"
                 },
                 {
-                  "name": "401 — Invalid Token",
+                  "name": "401 \u2014 Invalid Token",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -760,7 +829,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Logged In",
+                  "name": "200 \u2014 Logged In",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -772,7 +841,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"5|apple123def456...\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Token",
+                  "name": "422 \u2014 Invalid Token",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -831,7 +900,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Logged In",
+                  "name": "200 \u2014 Logged In",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -843,7 +912,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"6|fb123def456...\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Token",
+                  "name": "422 \u2014 Invalid Token",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -885,11 +954,11 @@
                     "redirect"
                   ]
                 },
-                "description": "Returns the OAuth redirect URL for the given provider. The mobile app opens this URL in a system browser (not a WebView). After the user authorizes, the backend redirects to the app deep link: `etigo-{type}:///auth/callback?code=...&state=...`.\n\nThe app then calls `POST /auth/social/exchange` with the received `code` to get the session token.\n\n**Parameters:**\n- `provider` — One of: `google`, `apple`, `facebook`\n- `type` — Must be `passenger` or `driver`. Determines the deep link scheme for the callback.\n- `state` — A random CSRF-protection string (min 16 characters) that the app generates and verifies on callback.\n\nNo auth required. Rate-limited to 5 requests/minute."
+                "description": "Returns the OAuth redirect URL for the given provider. The mobile app opens this URL in a system browser (not a WebView). After the user authorizes, the backend redirects to the app deep link: `etigo-{type}:///auth/callback?code=...&state=...`.\n\nThe app then calls `POST /auth/social/exchange` with the received `code` to get the session token.\n\n**Parameters:**\n- `provider` \u2014 One of: `google`, `apple`, `facebook`\n- `type` \u2014 Must be `passenger` or `driver`. Determines the deep link scheme for the callback.\n- `state` \u2014 A random CSRF-protection string (min 16 characters) that the app generates and verifies on callback.\n\nNo auth required. Rate-limited to 5 requests/minute."
               },
               "response": [
                 {
-                  "name": "200 — Redirect URL",
+                  "name": "200 \u2014 Redirect URL",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -901,7 +970,7 @@
                   "body": "{\n  \"redirect_url\": \"https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&scope=openid+profile+email&response_type=code&state=...\",\n  \"provider\": \"google\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Provider",
+                  "name": "422 \u2014 Invalid Provider",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -915,7 +984,7 @@
               ]
             },
             {
-              "name": "Social Auth — Exchange Code",
+              "name": "Social Auth \u2014 Exchange Code",
               "request": {
                 "method": "POST",
                 "header": [
@@ -947,7 +1016,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Existing User Login",
+                  "name": "200 \u2014 Existing User Login",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -959,7 +1028,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": null,\n    \"type\": \"passenger\"\n  },\n  \"token\": \"1|abc123...\"\n}"
                 },
                 {
-                  "name": "201 — New User Created",
+                  "name": "201 \u2014 New User Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -971,7 +1040,7 @@
                   "body": "{\n  \"message\": \"Account created successfully.\",\n  \"is_new_user\": true,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@gmail.com\",\n    \"phone\": null,\n    \"type\": \"passenger\"\n  },\n  \"token\": \"1|abc123...\"\n}"
                 },
                 {
-                  "name": "401 — Invalid Code",
+                  "name": "401 \u2014 Invalid Code",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -1012,7 +1081,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Current User",
+                  "name": "200 \u2014 Current User",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1053,7 +1122,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Logged Out",
+                  "name": "200 \u2014 Logged Out",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1069,7 +1138,7 @@
           ]
         },
         {
-          "name": "Auth — Admin",
+          "name": "Auth \u2014 Admin",
           "item": [
             {
               "name": "Admin Login",
@@ -1118,7 +1187,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Logged In",
+                  "name": "200 \u2014 Admin Logged In",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1130,7 +1199,7 @@
                   "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"user\": {\n    \"id\": \"7a6b5c4d-3e2f-1a0b-2c3d-4e5f6a7b8c9d\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
                 },
                 {
-                  "name": "401 — Invalid Credentials",
+                  "name": "401 \u2014 Invalid Credentials",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -1172,7 +1241,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Profile",
+                  "name": "200 \u2014 Admin Profile",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1184,7 +1253,7 @@
                   "body": "{\n  \"user\": {\n    \"id\": \"7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f\",\n    \"first_name\": \"Admin\",\n    \"last_name\": \"User\",\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"is_active\": true\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -1226,7 +1295,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Logged Out",
+                  "name": "200 \u2014 Logged Out",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1238,7 +1307,7 @@
                   "body": "{\n  \"message\": \"Logged out successfully.\"\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -1284,7 +1353,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Reset Link Sent",
+                  "name": "200 \u2014 Reset Link Sent",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1330,7 +1399,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Password Reset",
+                  "name": "200 \u2014 Password Reset",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1342,7 +1411,7 @@
                   "body": "{\n  \"message\": \"Password has been reset successfully.\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Token",
+                  "name": "422 \u2014 Invalid Token",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1382,7 +1451,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Valid Token",
+                  "name": "200 \u2014 Valid Token",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1394,7 +1463,7 @@
                   "body": "{\n  \"invitation\": {\n    \"email\": \"new-ops@etigo.com\",\n    \"admin_role\": \"operations\",\n    \"expires_at\": \"2026-10-13T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Invalid Token",
+                  "name": "404 \u2014 Invalid Token",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -1455,7 +1524,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Account Created",
+                  "name": "201 \u2014 Account Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -1467,7 +1536,7 @@
                   "body": "{\n  \"message\": \"Admin account created successfully.\",\n  \"user\": {\n    \"id\": \"7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f\",\n    \"first_name\": \"New\",\n    \"last_name\": \"Admin\",\n    \"email\": \"new-ops@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"operations\"\n  },\n  \"token\": \"7|invite123...\"\n}"
                 },
                 {
-                  "name": "422 — Invalid Token",
+                  "name": "422 \u2014 Invalid Token",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1519,7 +1588,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Profile",
+                  "name": "200 \u2014 Profile",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1586,7 +1655,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Profile Updated",
+                  "name": "200 \u2014 Profile Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1628,7 +1697,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Photo Removed",
+                  "name": "200 \u2014 Photo Removed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1640,7 +1709,7 @@
                   "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"john@example.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — No Photo",
+                  "name": "422 \u2014 No Photo",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1690,11 +1759,11 @@
                     "estimate"
                   ]
                 },
-                "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Google Maps for distance/duration. Includes surge pricing multiplier when active. Detects cross-city rides and returns warnings. City must be active."
+                "description": "Authenticated. Returns fare estimates for all active vehicle classes in the specified city. Uses Mapbox for distance/duration. Includes surge pricing multiplier when active. Detects cross-city rides and returns warnings. City must be active."
               },
               "response": [
                 {
-                  "name": "200 — Fare Estimates",
+                  "name": "200 \u2014 Fare Estimates",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1706,7 +1775,7 @@
                   "body": "{\n  \"estimates\": [\n    {\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"estimated_fare\": 2500.0,\n      \"estimated_duration_minutes\": 25,\n      \"estimated_distance_km\": 12.5,\n      \"surge_multiplier\": 1.0\n    },\n    {\n      \"vehicle_class\": {\n        \"id\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\n        \"name\": \"comfort\",\n        \"display_name\": \"Comfort\"\n      },\n      \"estimated_fare\": 3500.0,\n      \"estimated_duration_minutes\": 25,\n      \"estimated_distance_km\": 12.5,\n      \"surge_multiplier\": 1.0\n    }\n  ],\n  \"city\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"name\": \"Abuja\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1720,7 +1789,7 @@
               ]
             },
             {
-              "name": "Get Fare Estimates — Cross-City Ride",
+              "name": "Get Fare Estimates \u2014 Cross-City Ride",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1755,7 +1824,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Cross-City Ride",
+                  "name": "422 \u2014 Cross-City Ride",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1769,7 +1838,7 @@
               ]
             },
             {
-              "name": "Get Fare Estimates — Same Pickup/Destination (422)",
+              "name": "Get Fare Estimates \u2014 Same Pickup/Destination (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1804,7 +1873,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Same Location",
+                  "name": "422 \u2014 Same Location",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1818,7 +1887,7 @@
               ]
             },
             {
-              "name": "Get Fare Estimates — Validation Errors (422)",
+              "name": "Get Fare Estimates \u2014 Validation Errors (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1853,7 +1922,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Validation Errors",
+                  "name": "422 \u2014 Validation Errors",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1902,11 +1971,11 @@
                     "rides"
                   ]
                 },
-                "description": "Passenger creates a new ride. Returns ride details with a 4-digit PIN for driver verification. Status transitions: requested → searching. Only one active ride per passenger."
+                "description": "Passenger creates a new ride. Returns ride details with a 4-digit PIN for driver verification. Status transitions: requested \u2192 searching. Only one active ride per passenger."
               },
               "response": [
                 {
-                  "name": "201 — Ride Created",
+                  "name": "201 \u2014 Ride Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -1918,7 +1987,7 @@
                   "body": "{\n  \"message\": \"Ride requested successfully.\",\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"pending\",\n    \"pickup_address\": \"Wuse 2, Abuja\",\n    \"destination_address\": \"Garki, Abuja\",\n    \"estimated_fare\": 2500.0,\n    \"payment_method\": \"cash\",\n    \"pin\": \"1234\",\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -1962,7 +2031,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Rides List",
+                  "name": "200 \u2014 Rides List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -1974,7 +2043,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\",\n      \"pickup_address\": \"Wuse 2, Abuja\",\n      \"destination_address\": \"Garki, Abuja\",\n      \"final_fare\": 2650.0,\n      \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -1988,7 +2057,7 @@
               ]
             },
             {
-              "name": "List Rides — Filter by Status",
+              "name": "List Rides \u2014 Filter by Status",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2024,7 +2093,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Filtered Rides",
+                  "name": "200 \u2014 Filtered Rides",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2069,7 +2138,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Details",
+                  "name": "200 \u2014 Ride Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2081,7 +2150,7 @@
                   "body": "{\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"in_progress\",\n    \"pickup_lat\": 9.0579,\n    \"pickup_lng\": 7.4951,\n    \"pickup_address\": \"Wuse 2, Abuja\",\n    \"destination_lat\": 9.0765,\n    \"destination_lng\": 7.3986,\n    \"destination_address\": \"Garki, Abuja\",\n    \"estimated_fare\": 2500.0,\n    \"payment_method\": \"cash\",\n    \"driver\": {\n      \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user\": {\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\"\n      },\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"ABC-1234\"\n      }\n    },\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Ride Not Found",
+                  "name": "404 \u2014 Ride Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -2131,7 +2200,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Cancelled",
+                  "name": "200 \u2014 Ride Cancelled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2143,7 +2212,7 @@
                   "body": "{\n  \"message\": \"Ride cancelled successfully.\",\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"cancelled\",\n    \"cancellation_reason\": \"changed_mind\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Cannot Cancel",
+                  "name": "422 \u2014 Cannot Cancel",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2157,7 +2226,7 @@
               ]
             },
             {
-              "name": "Cancel Ride — Already Completed (422)",
+              "name": "Cancel Ride \u2014 Already Completed (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2193,7 +2262,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Already Completed",
+                  "name": "422 \u2014 Already Completed",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2207,7 +2276,7 @@
               ]
             },
             {
-              "name": "Create Ride — Duplicate Active (409)",
+              "name": "Create Ride \u2014 Duplicate Active (409)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2241,7 +2310,7 @@
               },
               "response": [
                 {
-                  "name": "409 — Active Ride Exists",
+                  "name": "409 \u2014 Active Ride Exists",
                   "status": "Conflict",
                   "code": 409,
                   "header": [
@@ -2279,11 +2348,11 @@
                     "location"
                   ]
                 },
-                "description": "Polling fallback for real-time driver location when WebSocket connection drops. Returns the driver's cached GPS position and ETA for an active ride.\n\n**Authorization:** Ride passenger, assigned driver, or admin.\n\n**Response includes:**\n- `location` — lat, lng, heading, speed, timestamp (null if driver has no cached position)\n- `eta` — distance_km and duration_minutes to pickup/destination (null if unavailable)\n- `ride_status` — current ride status\n\nPrefer WebSocket channel `private-ride.{rideId}` for real-time updates; use this endpoint as a fallback."
+                "description": "Polling fallback for real-time driver location when WebSocket connection drops. Returns the driver's cached GPS position and ETA for an active ride.\n\n**Authorization:** Ride passenger, assigned driver, or admin.\n\n**Response includes:**\n- `location` \u2014 lat, lng, heading, speed, timestamp (null if driver has no cached position)\n- `eta` \u2014 distance_km and duration_minutes to pickup/destination (null if unavailable)\n- `ride_status` \u2014 current ride status\n\nPrefer WebSocket channel `private-ride.{rideId}` for real-time updates; use this endpoint as a fallback."
               },
               "response": [
                 {
-                  "name": "200 — Ride Location",
+                  "name": "200 \u2014 Ride Location",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2295,7 +2364,7 @@
                   "body": "{\n  \"location\": {\n    \"lat\": 9.06,\n    \"lng\": 7.49,\n    \"heading\": 180.0,\n    \"updated_at\": \"2026-10-06T14:15:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Location Not Available",
+                  "name": "404 \u2014 Location Not Available",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -2337,7 +2406,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Location",
+                  "name": "200 \u2014 Ride Location",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2349,7 +2418,7 @@
                   "body": "{\n  \"location\": {\n    \"lat\": 9.06,\n    \"lng\": 7.49,\n    \"heading\": 180.0,\n    \"updated_at\": \"2026-10-06T14:15:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "403 — Not Your Ride",
+                  "name": "403 \u2014 Not Your Ride",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -2371,7 +2440,7 @@
       "name": "Driver",
       "item": [
         {
-          "name": "Driver — Onboarding",
+          "name": "Driver \u2014 Onboarding",
           "item": [
             {
               "name": "Onboarding Status",
@@ -2402,7 +2471,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Onboarding Status",
+                  "name": "200 \u2014 Onboarding Status",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2414,7 +2483,7 @@
                   "body": "{\n  \"status\": \"in_progress\",\n  \"steps\": {\n    \"profile\": true,\n    \"documents\": false,\n    \"vehicle\": true,\n    \"submitted\": false\n  },\n  \"missing\": [\n    \"documents\"\n  ]\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -2463,7 +2532,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Profile Updated",
+                  "name": "200 \u2014 Profile Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2475,7 +2544,7 @@
                   "body": "{\n  \"message\": \"Profile updated successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"licence_number\": \"AB123CDE\",\n    \"city\": {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"name\": \"Abuja\"\n    }\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2528,7 +2597,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Photo Updated",
+                  "name": "200 \u2014 Photo Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2540,7 +2609,7 @@
                   "body": "{\n  \"message\": \"Profile photo updated successfully.\",\n  \"user\": {\n    \"id\": \"2a1c0d9e-8f7a-6b5c-4d3e-2f1a0b2c3d4e\",\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": \"https://s3.amazonaws.com/etigo/profile-photos/7/def456.jpg\",\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2582,7 +2651,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Photo Removed",
+                  "name": "200 \u2014 Photo Removed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2594,7 +2663,7 @@
                   "body": "{\n  \"message\": \"Profile photo removed successfully.\",\n  \"user\": {\n    \"id\": \"2a1c0d9e-8f7a-6b5c-4d3e-2f1a0b2c3d4e\",\n    \"first_name\": \"Bayo\",\n    \"last_name\": \"Akinola\",\n    \"phone\": \"+2348200000001\",\n    \"email\": \"bayo@demo.etigo.com\",\n    \"type\": \"driver\",\n    \"phone_verified_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — No Photo",
+                  "name": "422 \u2014 No Photo",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2657,7 +2726,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Document Uploaded",
+                  "name": "201 \u2014 Document Uploaded",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -2669,7 +2738,7 @@
                   "body": "{\n  \"message\": \"Document uploaded successfully.\",\n  \"document\": {\n    \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n    \"type\": \"drivers_licence\",\n    \"status\": \"pending\",\n    \"uploaded_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2710,7 +2779,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Documents List",
+                  "name": "200 \u2014 Documents List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2759,7 +2828,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Vehicle Registered",
+                  "name": "201 \u2014 Vehicle Registered",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -2771,7 +2840,7 @@
                   "body": "{\n  \"message\": \"Vehicle registered successfully.\",\n  \"vehicle\": {\n    \"id\": \"b8c9d0e1-f2a3-4567-bcde-678901234567\",\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"ABC-1234\",\n    \"year\": 2022,\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\"\n    }\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2820,7 +2889,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Updated",
+                  "name": "200 \u2014 Vehicle Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2832,7 +2901,7 @@
                   "body": "{\n  \"message\": \"Vehicle updated successfully.\",\n  \"vehicle\": {\n    \"id\": \"b8c9d0e1-f2a3-4567-bcde-678901234567\",\n    \"make\": \"Honda\",\n    \"model\": \"Civic\",\n    \"colour\": \"Black\",\n    \"plate_number\": \"XYZ-9999\",\n    \"year\": 2023,\n    \"vehicle_class\": {\n      \"id\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\"\n    }\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2873,7 +2942,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Details",
+                  "name": "200 \u2014 Vehicle Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2885,7 +2954,7 @@
                   "body": "{\n  \"vehicle\": {\n    \"id\": \"b8c9d0e1-f2a3-4567-bcde-678901234567\",\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"ABC-1234\",\n    \"year\": 2022,\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\"\n    }\n  }\n}"
                 },
                 {
-                  "name": "404 — No Vehicle",
+                  "name": "404 \u2014 No Vehicle",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -2927,7 +2996,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Submitted",
+                  "name": "200 \u2014 Submitted",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2939,7 +3008,7 @@
                   "body": "{\n  \"message\": \"Your application has been submitted for review.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"pending_review\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Incomplete",
+                  "name": "422 \u2014 Incomplete",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -2955,8 +3024,8 @@
           ]
         },
         {
-          "name": "🔐 Driver — KYC Verification",
-          "description": "KYC identity verification endpoints for drivers. Uses QoreID for NIN, Driver's License, Vehicle Plate, and Liveness verification.\n\n**Required verifications for `verified` status:** NIN + Driver's License + Vehicle Plate.\n\n**Test values (FakeKycGateway):**\n- IDs starting with `000` → fail\n- All other IDs → pass\n- Liveness sessions with `fail` in session ID → fail",
+          "name": "\ud83d\udd10 Driver \u2014 KYC Verification",
+          "description": "KYC identity verification endpoints for drivers. Uses QoreID for NIN, Driver's License, Vehicle Plate, and Liveness verification.\n\n**Required verifications for `verified` status:** NIN + Driver's License + Vehicle Plate.\n\n**Test values (FakeKycGateway):**\n- IDs starting with `000` \u2192 fail\n- All other IDs \u2192 pass\n- Liveness sessions with `fail` in session ID \u2192 fail",
           "item": [
             {
               "name": "KYC Status",
@@ -2993,7 +3062,7 @@
               },
               "response": [
                 {
-                  "name": "200 — KYC Status",
+                  "name": "200 \u2014 KYC Status",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3005,7 +3074,7 @@
                   "body": "{\n  \"kyc_status\": \"partially_verified\",\n  \"verifications\": {\n    \"nin\": {\n      \"status\": \"verified\",\n      \"verified_at\": \"2026-10-06T14:00:00.000000Z\"\n    },\n    \"drivers_licence\": {\n      \"status\": \"pending\"\n    },\n    \"vehicle_plate\": {\n      \"status\": \"not_started\"\n    },\n    \"liveness\": {\n      \"status\": \"not_started\"\n    }\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -3057,11 +3126,11 @@
                     "verify-nin"
                   ]
                 },
-                "description": "**Auth required (driver).**\n\nSubmits a NIN for verification against QoreID. Name matching is performed against the driver's registered name.\n\n**Required fields:**\n- `nin_number` — string, exactly 11 digits\n\n**Responses:**\n- `200` — NIN verified successfully\n- `422` — Verification failed (name mismatch, invalid NIN)\n- `409` — Already verified or in progress\n\n**Test:** Use `00012345678` to trigger a failure."
+                "description": "**Auth required (driver).**\n\nSubmits a NIN for verification against QoreID. Name matching is performed against the driver's registered name.\n\n**Required fields:**\n- `nin_number` \u2014 string, exactly 11 digits\n\n**Responses:**\n- `200` \u2014 NIN verified successfully\n- `422` \u2014 Verification failed (name mismatch, invalid NIN)\n- `409` \u2014 Already verified or in progress\n\n**Test:** Use `00012345678` to trigger a failure."
               },
               "response": [
                 {
-                  "name": "200 — NIN Verified",
+                  "name": "200 \u2014 NIN Verified",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3073,7 +3142,7 @@
                   "body": "{\n  \"message\": \"NIN verification successful.\",\n  \"verification\": {\n    \"type\": \"nin\",\n    \"status\": \"verified\",\n    \"verified_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Verification Failed",
+                  "name": "422 \u2014 Verification Failed",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3087,7 +3156,7 @@
               ]
             },
             {
-              "name": "Verify NIN — Failure (000 prefix)",
+              "name": "Verify NIN \u2014 Failure (000 prefix)",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -3129,7 +3198,7 @@
               },
               "response": [
                 {
-                  "name": "422 — NIN Verification Failed",
+                  "name": "422 \u2014 NIN Verification Failed",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3143,7 +3212,7 @@
               ]
             },
             {
-              "name": "⛔ Verify NIN — Validation (422)",
+              "name": "\u26d4 Verify NIN \u2014 Validation (422)",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -3181,11 +3250,11 @@
                     "verify-nin"
                   ]
                 },
-                "description": "**Auth required (driver).**\n\nDemonstrates NIN validation error — must be exactly 11 digits.\n\n**Expected response:** `422` with validation errors."
+                "description": "**Auth required (driver).**\n\nDemonstrates NIN validation error \u2014 must be exactly 11 digits.\n\n**Expected response:** `422` with validation errors."
               },
               "response": [
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3237,11 +3306,11 @@
                     "verify-license"
                   ]
                 },
-                "description": "**Auth required (driver).**\n\nSubmits a driver's license number for verification.\n\n**Required fields:**\n- `license_number` — string, 6–20 characters\n\n**Responses:**\n- `200` — License verified successfully\n- `422` — Verification failed\n- `409` — Already verified or in progress\n\n**Test:** Use `000FAIL` to trigger a failure."
+                "description": "**Auth required (driver).**\n\nSubmits a driver's license number for verification.\n\n**Required fields:**\n- `license_number` \u2014 string, 6\u201320 characters\n\n**Responses:**\n- `200` \u2014 License verified successfully\n- `422` \u2014 Verification failed\n- `409` \u2014 Already verified or in progress\n\n**Test:** Use `000FAIL` to trigger a failure."
               },
               "response": [
                 {
-                  "name": "200 — License Verified",
+                  "name": "200 \u2014 License Verified",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3253,7 +3322,7 @@
                   "body": "{\n  \"message\": \"Driver's license verification successful.\",\n  \"verification\": {\n    \"type\": \"drivers_licence\",\n    \"status\": \"verified\",\n    \"verified_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Verification Failed",
+                  "name": "422 \u2014 Verification Failed",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3305,11 +3374,11 @@
                     "verify-vehicle"
                   ]
                 },
-                "description": "**Auth required (driver).**\n\nVerifies a vehicle plate number against the national vehicle registry. Requires a registered vehicle.\n\n**Required fields:**\n- `plate_number` — string, 3–20 characters\n\n**Responses:**\n- `200` — Plate verified successfully\n- `422` — Verification failed or no vehicle registered\n- `409` — Already verified or in progress\n\n**Note:** Plate verification also auto-triggers on vehicle registration and plate number changes."
+                "description": "**Auth required (driver).**\n\nVerifies a vehicle plate number against the national vehicle registry. Requires a registered vehicle.\n\n**Required fields:**\n- `plate_number` \u2014 string, 3\u201320 characters\n\n**Responses:**\n- `200` \u2014 Plate verified successfully\n- `422` \u2014 Verification failed or no vehicle registered\n- `409` \u2014 Already verified or in progress\n\n**Note:** Plate verification also auto-triggers on vehicle registration and plate number changes."
               },
               "response": [
                 {
-                  "name": "200 — Plate Verified",
+                  "name": "200 \u2014 Plate Verified",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3321,7 +3390,7 @@
                   "body": "{\n  \"message\": \"Vehicle plate verification successful.\",\n  \"verification\": {\n    \"type\": \"vehicle_plate\",\n    \"status\": \"verified\",\n    \"verified_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Verification Failed",
+                  "name": "422 \u2014 Verification Failed",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3369,7 +3438,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Session Created",
+                  "name": "200 \u2014 Session Created",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3381,7 +3450,7 @@
                   "body": "{\n  \"message\": \"Liveness session created.\",\n  \"session_url\": \"https://verify.qoreid.com/session/abc123...\",\n  \"session_id\": \"etigo_kyc_9e1a2b3c_1696500000\"\n}"
                 },
                 {
-                  "name": "422 — Already Verified",
+                  "name": "422 \u2014 Already Verified",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3429,7 +3498,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Verifications",
+                  "name": "200 \u2014 Verifications",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3445,7 +3514,7 @@
           ]
         },
         {
-          "name": "Driver — Online Status",
+          "name": "Driver \u2014 Online Status",
           "item": [
             {
               "name": "Toggle Online",
@@ -3475,7 +3544,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Status Toggled",
+                  "name": "200 \u2014 Status Toggled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3487,7 +3556,7 @@
                   "body": "{\n  \"message\": \"You are now online.\",\n  \"is_online\": true\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -3501,7 +3570,7 @@
               ]
             },
             {
-              "name": "Toggle Online — Not Approved (422)",
+              "name": "Toggle Online \u2014 Not Approved (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3528,7 +3597,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Not Approved",
+                  "name": "422 \u2014 Not Approved",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3544,7 +3613,7 @@
           ]
         },
         {
-          "name": "Driver — Location",
+          "name": "Driver \u2014 Location",
           "item": [
             {
               "name": "Update Location",
@@ -3578,11 +3647,11 @@
                     "location"
                   ]
                 },
-                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0–360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n\n**Rate Limit:** 429 if called more than once per second."
+                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0\u2013360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n\n**Rate Limit:** 429 if called more than once per second."
               },
               "response": [
                 {
-                  "name": "200 — Location Updated",
+                  "name": "200 \u2014 Location Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3594,7 +3663,7 @@
                   "body": "{\n  \"message\": \"Location updated.\",\n  \"location\": {\n    \"lat\": 9.0579,\n    \"lng\": 7.4951,\n    \"heading\": 90.0,\n    \"updated_at\": \"2026-10-06T14:15:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -3608,7 +3677,7 @@
               ]
             },
             {
-              "name": "Update Location — Invalid Coordinates (422)",
+              "name": "Update Location \u2014 Invalid Coordinates (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3643,7 +3712,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Invalid Coordinates",
+                  "name": "422 \u2014 Invalid Coordinates",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3657,7 +3726,7 @@
               ]
             },
             {
-              "name": "Update Location — Missing Fields (422)",
+              "name": "Update Location \u2014 Missing Fields (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3692,7 +3761,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Missing Fields",
+                  "name": "422 \u2014 Missing Fields",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3706,7 +3775,7 @@
               ]
             },
             {
-              "name": "Update Location — Offline Driver (403)",
+              "name": "Update Location \u2014 Offline Driver (403)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3741,7 +3810,7 @@
               },
               "response": [
                 {
-                  "name": "403 — Driver Offline",
+                  "name": "403 \u2014 Driver Offline",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -3789,11 +3858,11 @@
                     "accept"
                   ]
                 },
-                "description": "Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching` and the ride was dispatched to this specific driver.\n\nOn acceptance, the ride transitions through `matched` → `driver_en_route` atomically. Uses row-level locking for first-accept-wins concurrency safety.\n\n**Response 200:**\n```json\n{\n  \"message\": \"Ride accepted.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"status\": \"driver_en_route\",\n    \"driver_id\": 2,\n    \"...\": \"...\"\n  }\n}\n```\n\n**Response 403:** `This ride was not dispatched to you.`\n**Response 409:** `Ride is no longer available.` (another driver already accepted)\n**Response 422:** `This ride is no longer available for acceptance.`"
+                "description": "Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching` and the ride was dispatched to this specific driver.\n\nOn acceptance, the ride transitions through `matched` \u2192 `driver_en_route` atomically. Uses row-level locking for first-accept-wins concurrency safety.\n\n**Response 200:**\n```json\n{\n  \"message\": \"Ride accepted.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"status\": \"driver_en_route\",\n    \"driver_id\": 2,\n    \"...\": \"...\"\n  }\n}\n```\n\n**Response 403:** `This ride was not dispatched to you.`\n**Response 409:** `Ride is no longer available.` (another driver already accepted)\n**Response 422:** `This ride is no longer available for acceptance.`"
               },
               "response": [
                 {
-                  "name": "Accept Ride — Success (200)",
+                  "name": "Accept Ride \u2014 Success (200)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3805,7 +3874,7 @@
                   "body": "{\n  \"message\": \"Ride accepted.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"city_id\": 1,\n    \"vehicle_class_id\": 1,\n    \"passenger_id\": 1,\n    \"driver_id\": 2,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"driver_en_route\",\n    \"status_label\": \"Driver En Route\",\n    \"share_token\": \"abc123xyz789def456ghi012jkl345mno\",\n    \"fare_estimate_amount\": \"3750.00\",\n    \"final_fare_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"matched_at\": \"2026-10-06T14:01:15.000000Z\",\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"updated_at\": \"2026-10-06T14:01:15.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "Accept Ride — Not Dispatched (403)",
+                  "name": "Accept Ride \u2014 Not Dispatched (403)",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -3817,7 +3886,7 @@
                   "body": "{\n  \"message\": \"This ride was not dispatched to you.\"\n}"
                 },
                 {
-                  "name": "Accept Ride — Already Taken (409)",
+                  "name": "Accept Ride \u2014 Already Taken (409)",
                   "status": "Conflict",
                   "code": 409,
                   "header": [
@@ -3863,7 +3932,7 @@
               },
               "response": [
                 {
-                  "name": "Reject Ride — Success (200)",
+                  "name": "Reject Ride \u2014 Success (200)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3909,7 +3978,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Arrived",
+                  "name": "200 \u2014 Arrived",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3921,7 +3990,7 @@
                   "body": "{\n  \"message\": \"Arrival recorded. Waiting for passenger.\",\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"driver_arrived\",\n    \"arrived_at\": \"2026-10-06T14:10:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Invalid State",
+                  "name": "422 \u2014 Invalid State",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3935,7 +4004,7 @@
               ]
             },
             {
-              "name": "Verify PIN — Start Ride",
+              "name": "Verify PIN \u2014 Start Ride",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3971,7 +4040,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Started",
+                  "name": "200 \u2014 Ride Started",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3983,7 +4052,7 @@
                   "body": "{\n  \"message\": \"PIN verified. Ride started.\",\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"in_progress\",\n    \"started_at\": \"2026-10-06T14:12:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Invalid PIN",
+                  "name": "422 \u2014 Invalid PIN",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3997,7 +4066,7 @@
               ]
             },
             {
-              "name": "Verify PIN — Invalid (422)",
+              "name": "Verify PIN \u2014 Invalid (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -4033,7 +4102,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Invalid PIN",
+                  "name": "422 \u2014 Invalid PIN",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -4079,7 +4148,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Ride Completed",
+                  "name": "200 \u2014 Ride Completed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4091,7 +4160,7 @@
                   "body": "{\n  \"message\": \"Ride completed successfully.\",\n  \"ride\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"status\": \"completed\",\n    \"final_fare\": 2650.0,\n    \"distance_km\": 12.5,\n    \"duration_minutes\": 25,\n    \"completed_at\": \"2026-10-06T14:35:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Invalid State",
+                  "name": "422 \u2014 Invalid State",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -4113,7 +4182,7 @@
       "name": "Admin",
       "item": [
         {
-          "name": "Admin — Admin Management",
+          "name": "Admin \u2014 Admin Management",
           "description": "Super admin only. Manage admin users: invite, list, update roles, deactivate/reactivate.",
           "item": [
             {
@@ -4144,7 +4213,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admins List",
+                  "name": "200 \u2014 Admins List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4156,7 +4225,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"email\": \"admin@etigo.com\",\n      \"type\": \"admin\",\n      \"admin_role\": \"super_admin\",\n      \"is_active\": true\n    },\n    {\n      \"id\": \"6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a\",\n      \"first_name\": \"Ops\",\n      \"last_name\": \"Manager\",\n      \"email\": \"ops@etigo.com\",\n      \"type\": \"admin\",\n      \"admin_role\": \"operations\",\n      \"is_active\": true\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -4205,7 +4274,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Details",
+                  "name": "200 \u2014 Admin Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4217,7 +4286,7 @@
                   "body": "{\n  \"admin\": {\n    \"id\": \"7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f\",\n    \"first_name\": \"Admin\",\n    \"last_name\": \"User\",\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"is_active\": true,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -4267,7 +4336,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Invitation Sent",
+                  "name": "201 \u2014 Invitation Sent",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -4279,7 +4348,7 @@
                   "body": "{\n  \"message\": \"Invitation sent successfully.\",\n  \"invitation\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-123456789012\",\n    \"email\": \"new-ops@etigo.com\",\n    \"admin_role\": \"operations\",\n    \"expires_at\": \"2026-10-13T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Already Exists",
+                  "name": "422 \u2014 Already Exists",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -4321,7 +4390,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Invitations",
+                  "name": "200 \u2014 Invitations",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4333,7 +4402,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"e1f2a3b4-c5d6-7890-efab-123456789012\",\n      \"email\": \"new-ops@etigo.com\",\n      \"admin_role\": \"operations\",\n      \"status\": \"pending\",\n      \"expires_at\": \"2026-10-13T14:00:00.000000Z\",\n      \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -4384,7 +4453,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Invitation Resent",
+                  "name": "200 \u2014 Invitation Resent",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4396,7 +4465,7 @@
                   "body": "{\n  \"message\": \"Invitation resent successfully.\"\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -4446,7 +4515,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Invitation Revoked",
+                  "name": "200 \u2014 Invitation Revoked",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4458,7 +4527,7 @@
                   "body": "{\n  \"message\": \"Invitation revoked successfully.\"\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -4515,7 +4584,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Role Updated",
+                  "name": "200 \u2014 Role Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4527,7 +4596,7 @@
                   "body": "{\n  \"message\": \"Admin role updated successfully.\",\n  \"admin\": {\n    \"id\": \"6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a\",\n    \"first_name\": \"Ops\",\n    \"last_name\": \"Manager\",\n    \"email\": \"ops@etigo.com\",\n    \"admin_role\": \"operations\"\n  }\n}"
                 },
                 {
-                  "name": "403 — Cannot Modify Self",
+                  "name": "403 \u2014 Cannot Modify Self",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -4577,7 +4646,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Deactivated",
+                  "name": "200 \u2014 Admin Deactivated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4589,7 +4658,7 @@
                   "body": "{\n  \"message\": \"Admin deactivated successfully.\",\n  \"admin\": {\n    \"id\": \"6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a\",\n    \"is_active\": false\n  }\n}"
                 },
                 {
-                  "name": "403 — Cannot Deactivate Self",
+                  "name": "403 \u2014 Cannot Deactivate Self",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -4639,7 +4708,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Reactivated",
+                  "name": "200 \u2014 Admin Reactivated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4651,7 +4720,7 @@
                   "body": "{\n  \"message\": \"Admin reactivated successfully.\",\n  \"admin\": {\n    \"id\": \"6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a\",\n    \"is_active\": true\n  }\n}"
                 },
                 {
-                  "name": "422 — Already Active",
+                  "name": "422 \u2014 Already Active",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -4706,7 +4775,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Admin Deleted",
+                  "name": "200 \u2014 Admin Deleted",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4718,7 +4787,7 @@
                   "body": "{\n  \"message\": \"Admin deleted successfully.\"\n}"
                 },
                 {
-                  "name": "403 — Cannot Delete Super Admin",
+                  "name": "403 \u2014 Cannot Delete Super Admin",
                   "status": "Forbidden",
                   "code": 403,
                   "header": [
@@ -4734,7 +4803,7 @@
           ]
         },
         {
-          "name": "Admin — Driver Management",
+          "name": "Admin \u2014 Driver Management",
           "item": [
             {
               "name": "List All Drivers",
@@ -4764,7 +4833,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Drivers List",
+                  "name": "200 \u2014 Drivers List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4776,7 +4845,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\"\n      },\n      \"status\": \"approved\",\n      \"kyc_status\": \"verified\",\n      \"is_online\": true\n    },\n    {\n      \"id\": \"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d\",\n      \"user\": {\n        \"id\": \"2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n        \"first_name\": \"Kemi\",\n        \"last_name\": \"Bakare\"\n      },\n      \"status\": \"approved\",\n      \"kyc_status\": \"verified\",\n      \"is_online\": false\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -4823,7 +4892,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Search Results",
+                  "name": "200 \u2014 Search Results",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4865,7 +4934,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Pending Drivers",
+                  "name": "200 \u2014 Pending Drivers",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4914,7 +4983,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Driver Details",
+                  "name": "200 \u2014 Driver Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4926,7 +4995,7 @@
                   "body": "{\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"user\": {\n      \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"phone\": \"+2348200000001\"\n    },\n    \"status\": \"approved\",\n    \"kyc_status\": \"verified\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"plate_number\": \"ABC-1234\",\n      \"year\": 2022\n    },\n    \"documents\": [\n      {\n        \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n        \"type\": \"drivers_licence\",\n        \"status\": \"approved\"\n      }\n    ]\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -4984,7 +5053,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Driver Approved",
+                  "name": "200 \u2014 Driver Approved",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -4996,7 +5065,7 @@
                   "body": "{\n  \"message\": \"Driver approved successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"approved\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Not Pending",
+                  "name": "422 \u2014 Not Pending",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5054,7 +5123,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Driver Rejected",
+                  "name": "200 \u2014 Driver Rejected",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5066,7 +5135,7 @@
                   "body": "{\n  \"message\": \"Driver rejected.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"rejected\",\n    \"rejection_reason\": \"Documents are blurry and unreadable.\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Not Pending",
+                  "name": "422 \u2014 Not Pending",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5131,7 +5200,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Document Approved",
+                  "name": "200 \u2014 Document Approved",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5143,7 +5212,7 @@
                   "body": "{\n  \"message\": \"Document approved.\",\n  \"document\": {\n    \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n    \"type\": \"drivers_licence\",\n    \"status\": \"approved\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5208,7 +5277,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Document Rejected",
+                  "name": "200 \u2014 Document Rejected",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5220,7 +5289,7 @@
                   "body": "{\n  \"message\": \"Document rejected.\",\n  \"document\": {\n    \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n    \"type\": \"drivers_licence\",\n    \"status\": \"rejected\",\n    \"rejection_reason\": \"Document expired on 12 Aug 2026. Please upload a valid commercial insurance certificate.\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5234,7 +5303,7 @@
               ]
             },
             {
-              "name": "Review — Not Pending (422)",
+              "name": "Review \u2014 Not Pending (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -5274,11 +5343,11 @@
                     }
                   ]
                 },
-                "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} — use on a driver that is already approved/rejected/suspended."
+                "description": "Expected: 422 {\"message\": \"Driver can only be reviewed when in pending review status.\"} \u2014 use on a driver that is already approved/rejected/suspended."
               },
               "response": [
                 {
-                  "name": "422 — Not Pending",
+                  "name": "422 \u2014 Not Pending",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5328,7 +5397,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Driver Suspended",
+                  "name": "200 \u2014 Driver Suspended",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5340,7 +5409,7 @@
                   "body": "{\n  \"message\": \"Driver suspended successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"suspended\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5354,7 +5423,7 @@
               ]
             },
             {
-              "name": "Suspend — Not Approved (422)",
+              "name": "Suspend \u2014 Not Approved (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -5386,11 +5455,11 @@
                     }
                   ]
                 },
-                "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} — driver must be in approved status."
+                "description": "Expected: 422 {\"message\": \"Only approved drivers can be suspended.\"} \u2014 driver must be in approved status."
               },
               "response": [
                 {
-                  "name": "422 — Not Approved",
+                  "name": "422 \u2014 Not Approved",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5440,7 +5509,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Driver Reactivated",
+                  "name": "200 \u2014 Driver Reactivated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5452,7 +5521,7 @@
                   "body": "{\n  \"message\": \"Driver reactivated successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"approved\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Not Suspended",
+                  "name": "422 \u2014 Not Suspended",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5498,11 +5567,11 @@
                     "fleet"
                   ]
                 },
-                "description": "**Auth required (admin).**\n\nToggles a driver's vehicle as fleet-owned (company vehicle). Fleet vehicles skip plate verification in the KYC flow.\n\nNo request body required.\n\n**Responses:**\n- `200` — Toggled successfully (message indicates new state)\n- `422` — Driver has no registered vehicle\n\n**Effect:** After toggling, the driver's `kyc_status` is recalculated. If marked fleet and NIN + License are verified, `kyc_status` becomes `verified` without plate verification."
+                "description": "**Auth required (admin).**\n\nToggles a driver's vehicle as fleet-owned (company vehicle). Fleet vehicles skip plate verification in the KYC flow.\n\nNo request body required.\n\n**Responses:**\n- `200` \u2014 Toggled successfully (message indicates new state)\n- `422` \u2014 Driver has no registered vehicle\n\n**Effect:** After toggling, the driver's `kyc_status` is recalculated. If marked fleet and NIN + License are verified, `kyc_status` becomes `verified` without plate verification."
               },
               "response": [
                 {
-                  "name": "200 — Fleet Status Toggled",
+                  "name": "200 \u2014 Fleet Status Toggled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5514,7 +5583,7 @@
                   "body": "{\n  \"message\": \"Vehicle fleet status updated.\",\n  \"vehicle\": {\n    \"id\": \"b8c9d0e1-f2a3-4567-bcde-678901234567\",\n    \"is_fleet\": true\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5530,7 +5599,7 @@
           ]
         },
         {
-          "name": "Admin — Passenger Management",
+          "name": "Admin \u2014 Passenger Management",
           "item": [
             {
               "name": "List Passengers",
@@ -5560,7 +5629,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Passengers List",
+                  "name": "200 \u2014 Passengers List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5572,7 +5641,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"phone\": \"+2348100000001\",\n      \"is_active\": true\n    },\n    {\n      \"id\": \"6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c\",\n      \"first_name\": \"Ngozi\",\n      \"last_name\": \"Okafor\",\n      \"email\": \"ngozi@demo.etigo.com\",\n      \"phone\": \"+2348100000002\",\n      \"is_active\": true\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -5586,7 +5655,7 @@
               ]
             },
             {
-              "name": "List Passengers — Search",
+              "name": "List Passengers \u2014 Search",
               "request": {
                 "method": "GET",
                 "header": [
@@ -5619,7 +5688,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Search Results",
+                  "name": "200 \u2014 Search Results",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5633,7 +5702,7 @@
               ]
             },
             {
-              "name": "List Passengers — Filter Active",
+              "name": "List Passengers \u2014 Filter Active",
               "request": {
                 "method": "GET",
                 "header": [
@@ -5666,7 +5735,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Active Passengers",
+                  "name": "200 \u2014 Active Passengers",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5715,7 +5784,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Passenger Details",
+                  "name": "200 \u2014 Passenger Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5727,7 +5796,7 @@
                   "body": "{\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"is_active\": true,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5777,7 +5846,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Passenger Suspended",
+                  "name": "200 \u2014 Passenger Suspended",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5789,7 +5858,7 @@
                   "body": "{\n  \"message\": \"Passenger suspended successfully.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"is_active\": false\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -5803,7 +5872,7 @@
               ]
             },
             {
-              "name": "Suspend — Already Suspended (422)",
+              "name": "Suspend \u2014 Already Suspended (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -5839,7 +5908,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Already Suspended",
+                  "name": "422 \u2014 Already Suspended",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5889,7 +5958,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Passenger Reactivated",
+                  "name": "200 \u2014 Passenger Reactivated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5901,7 +5970,7 @@
                   "body": "{\n  \"message\": \"Passenger reactivated successfully.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"is_active\": true\n  }\n}"
                 },
                 {
-                  "name": "422 — Not Suspended",
+                  "name": "422 \u2014 Not Suspended",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -5917,7 +5986,7 @@
           ]
         },
         {
-          "name": "Admin — City Management",
+          "name": "Admin \u2014 City Management",
           "item": [
             {
               "name": "List Cities",
@@ -5947,7 +6016,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Cities List",
+                  "name": "200 \u2014 Cities List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -5959,7 +6028,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\",\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ],\n        \"radius_km\": 40\n      }\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"name\": \"Abuja\",\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"coordinates\": [\n          7.4951,\n          9.0579\n        ],\n        \"radius_km\": 30\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -5992,7 +6061,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Lagos\",\n  \"timezone\": \"Africa/Lagos\",\n  \"currency_code\": \"NGN\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [3.3792, 6.5244],\n    \"radius_km\": 30\n  }\n}"
+                  "raw": "{\n  \"name\": \"Kano\",\n  \"state\": \"Kano\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      8.5167,\n      12.0022\n    ],\n    \"radius_km\": 25\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\"\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities",
@@ -6004,11 +6073,11 @@
                     "cities"
                   ]
                 },
-                "description": "Creates a city. Slug is auto-generated from name. Boundary is optional GeoJSON."
+                "description": "Creates a new city/service area.\n\n**Required fields:** name, state\n**Optional fields:** boundary, vehicle_class_ids, timezone, currency_code\n\n**Auto-derived by backend:**\n- region \u2014 derived from state (e.g. Lagos \u2192 South-West)\n- slug \u2014 generated from name, auto-suffixed if duplicate\n- area_sq_km \u2014 calculated from Polygon boundary coordinates\n- is_active \u2014 defaults to true\n- timezone \u2014 defaults to Africa/Lagos if not sent\n- currency_code \u2014 defaults to NGN if not sent\n\n**Boundary types:**\n- Point + radius_km: circular service area (simpler setup)\n- Polygon: custom shape with coordinates array (admin draws on map)\n\n**State validation:** must be one of the 36 Nigerian states or FCT. Use GET /lookup/states to populate the dropdown.\n\n**Vehicle classes:** pass an array of UUIDs from GET /admin/vehicle-classes. They are synced (replaces any existing associations)."
               },
               "response": [
                 {
-                  "name": "201 — City Created",
+                  "name": "201 \u2014 City Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6017,10 +6086,10 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"City created successfully.\",\n  \"city\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-012345678901\",\n    \"name\": \"Lagos\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true\n  }\n}"
+                  "body": "{\n  \"message\": \"City created successfully.\",\n  \"city\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-012345678901\",\n    \"name\": \"Kano\",\n    \"slug\": \"kano\",\n    \"state\": \"Kano\",\n    \"region\": \"North-West\",\n    \"boundary\": {\n      \"type\": \"Point\",\n      \"coordinates\": [\n        8.5167,\n        12.0022\n      ],\n      \"radius_km\": 25\n    },\n    \"area_sq_km\": null,\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"vehicle_classes\": [\n      {\n        \"id\": \"...\",\n        \"name\": \"Economy\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Comfort\",\n        \"is_active\": true\n      }\n    ],\n    \"created_at\": \"2026-10-08T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-08T12:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6069,7 +6138,7 @@
               },
               "response": [
                 {
-                  "name": "200 — City Details",
+                  "name": "200 \u2014 City Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6081,7 +6150,7 @@
                   "body": "{\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"boundary\": {\n      \"type\": \"Point\",\n      \"coordinates\": [\n        3.3792,\n        6.5244\n      ],\n      \"radius_km\": 40\n    },\n    \"vehicle_classes\": [\n      {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"is_active\": true\n      }\n    ]\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -6114,7 +6183,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Abuja\",\n  \"timezone\": \"Africa/Lagos\"\n}"
+                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          7.4,\n          9.1\n        ],\n        [\n          7.55,\n          9.1\n        ],\n        [\n          7.55,\n          8.95\n        ],\n        [\n          7.4,\n          8.95\n        ],\n        [\n          7.4,\n          9.1\n        ]\n      ]\n    ]\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities/:cityId",
@@ -6134,11 +6203,11 @@
                     }
                   ]
                 },
-                "description": "Partial update supported. Slug auto-regenerated if name changes."
+                "description": "Partial update \u2014 only send the fields you want to change.\n\n**Auto-derived on update:**\n- region \u2014 re-derived if state changes\n- slug \u2014 regenerated if name changes (auto-suffixed if duplicate)\n- area_sq_km \u2014 recalculated if boundary changes to Polygon\n\n**vehicle_class_ids:** if sent, replaces the entire set (sync). Omit the field to keep existing vehicle classes unchanged.\n\n**Boundary:** can be changed from Point to Polygon or vice versa at any time."
               },
               "response": [
                 {
-                  "name": "200 — City Updated",
+                  "name": "200 \u2014 City Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6147,10 +6216,10 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Abuja\",\n    \"timezone\": \"Africa/Lagos\"\n  }\n}"
+                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Abuja\",\n    \"slug\": \"abuja\",\n    \"state\": \"FCT\",\n    \"region\": \"North-Central\",\n    \"boundary\": {\n      \"type\": \"Polygon\",\n      \"coordinates\": [\n        [\n          \"...\"\n        ]\n      ]\n    },\n    \"area_sq_km\": \"142.50\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"vehicle_classes\": [\n      {\n        \"id\": \"...\",\n        \"name\": \"Economy\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Comfort\",\n        \"is_active\": true\n      },\n      {\n        \"id\": \"...\",\n        \"name\": \"Premium\",\n        \"is_active\": true\n      }\n    ],\n    \"created_at\": \"2026-10-08T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-08T14:30:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -6200,7 +6269,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Status Toggled",
+                  "name": "200 \u2014 Status Toggled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6212,7 +6281,7 @@
                   "body": "{\n  \"message\": \"City status updated.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"is_active\": false\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -6270,7 +6339,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Classes Updated",
+                  "name": "200 \u2014 Vehicle Classes Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6282,7 +6351,7 @@
                   "body": "{\n  \"message\": \"City vehicle classes updated successfully.\",\n  \"city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\",\n    \"vehicle_classes\": [\n      {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"is_active\": true,\n        \"sort_order\": 1\n      }\n    ]\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6298,7 +6367,7 @@
           ]
         },
         {
-          "name": "Admin — Vehicle Class Management",
+          "name": "Admin \u2014 Vehicle Class Management",
           "item": [
             {
               "name": "List Vehicle Classes",
@@ -6328,7 +6397,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Classes List",
+                  "name": "200 \u2014 Vehicle Classes List",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6377,7 +6446,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Vehicle Class Created",
+                  "name": "201 \u2014 Vehicle Class Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6389,7 +6458,7 @@
                   "body": "{\n  \"message\": \"Vehicle class created successfully.\",\n  \"vehicle_class\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"name\": \"economy\",\n    \"display_name\": \"Economy\",\n    \"capacity\": 4,\n    \"icon\": \"lite\",\n    \"is_active\": true\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6438,7 +6507,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Class Details",
+                  "name": "200 \u2014 Vehicle Class Details",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6491,11 +6560,11 @@
                     }
                   ]
                 },
-                "description": "Partial update supported. All fields are optional.\n\n**is_active** toggles the vehicle class on/off globally.\n\n**city_ids** replaces the full set of enabled cities — cities not in the array are removed, cities in the array are enabled. Omit the field entirely to leave city assignments unchanged."
+                "description": "Partial update supported. All fields are optional.\n\n**is_active** toggles the vehicle class on/off globally.\n\n**city_ids** replaces the full set of enabled cities \u2014 cities not in the array are removed, cities in the array are enabled. Omit the field entirely to leave city assignments unchanged."
               },
               "response": [
                 {
-                  "name": "200 — Vehicle Class Updated",
+                  "name": "200 \u2014 Vehicle Class Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6511,7 +6580,7 @@
           ]
         },
         {
-          "name": "Admin — Pricing Management",
+          "name": "Admin \u2014 Pricing Management",
           "item": [
             {
               "name": "Create Pricing Config",
@@ -6549,7 +6618,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Config Created",
+                  "name": "201 \u2014 Config Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6561,7 +6630,7 @@
                   "body": "{\n  \"message\": \"Pricing config created successfully.\",\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6624,7 +6693,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Pricing Configs",
+                  "name": "200 \u2014 Pricing Configs",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6673,7 +6742,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Pricing Config",
+                  "name": "200 \u2014 Pricing Config",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6685,7 +6754,7 @@
                   "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city\": {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\"\n    },\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -6739,7 +6808,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Current Config",
+                  "name": "200 \u2014 Current Config",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -6751,7 +6820,7 @@
                   "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": true\n  }\n}"
                 },
                 {
-                  "name": "404 — No Config",
+                  "name": "404 \u2014 No Config",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -6765,7 +6834,7 @@
               ]
             },
             {
-              "name": "Create Pricing — Validation Errors (422)",
+              "name": "Create Pricing \u2014 Validation Errors (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -6800,7 +6869,7 @@
               },
               "response": [
                 {
-                  "name": "422 — Validation Errors",
+                  "name": "422 \u2014 Validation Errors",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6816,7 +6885,7 @@
           ]
         },
         {
-          "name": "Admin — Surge Pricing",
+          "name": "Admin \u2014 Surge Pricing",
           "item": [
             {
               "name": "Create Surge Rule (Manual)",
@@ -6850,11 +6919,11 @@
                     "surge-rules"
                   ]
                 },
-                "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00–5.00. Returns 201."
+                "description": "Admin-only. Creates a manual surge rule for a city. Multiplier must be 1.00\u20135.00. Returns 201."
               },
               "response": [
                 {
-                  "name": "201 — Surge Rule Created",
+                  "name": "201 \u2014 Surge Rule Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6866,7 +6935,7 @@
                   "body": "{\n  \"message\": \"Surge rule created successfully.\",\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Manual\",\n    \"type\": \"manual\",\n    \"multiplier\": 1.5,\n    \"is_active\": true,\n    \"effective_from\": \"2026-09-30T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6911,11 +6980,11 @@
                     "surge-rules"
                   ]
                 },
-                "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00–06:00). Returns 201."
+                "description": "Admin-only. Creates a time-based surge rule with a day/time schedule. days_of_week uses ISO: 1=Mon, 7=Sun. Supports overnight spans (e.g. 22:00\u201306:00). Returns 201."
               },
               "response": [
                 {
-                  "name": "201 — Surge Rule Created",
+                  "name": "201 \u2014 Surge Rule Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6927,7 +6996,7 @@
                   "body": "{\n  \"message\": \"Surge rule created successfully.\",\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Time-Based\",\n    \"type\": \"time_based\",\n    \"multiplier\": 1.5,\n    \"is_active\": true,\n    \"effective_from\": \"2026-09-30T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -6976,7 +7045,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Surge Rule Created",
+                  "name": "201 \u2014 Surge Rule Created",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -6988,7 +7057,7 @@
                   "body": "{\n  \"message\": \"Surge rule created successfully.\",\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Demand-Based\",\n    \"type\": \"demand_based\",\n    \"multiplier\": 1.5,\n    \"is_active\": true,\n    \"effective_from\": \"2026-09-30T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7046,7 +7115,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Surge Rules",
+                  "name": "200 \u2014 Surge Rules",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7095,7 +7164,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Surge Rule",
+                  "name": "200 \u2014 Surge Rule",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7107,7 +7176,7 @@
                   "body": "{\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"name\": \"Heavy Rain\",\n    \"type\": \"manual\",\n    \"multiplier\": 1.5,\n    \"is_active\": true,\n    \"city\": {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"effective_from\": \"2026-09-30T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7164,7 +7233,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Surge Rule Updated",
+                  "name": "200 \u2014 Surge Rule Updated",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7176,7 +7245,7 @@
                   "body": "{\n  \"message\": \"Surge rule updated successfully.\",\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"name\": \"Updated Rush Hour\",\n    \"multiplier\": 1.8\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7226,7 +7295,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Status Toggled",
+                  "name": "200 \u2014 Status Toggled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7238,7 +7307,7 @@
                   "body": "{\n  \"message\": \"Surge rule status updated.\",\n  \"surge_rule\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-efab-012345678901\",\n    \"name\": \"Heavy Rain\",\n    \"is_active\": false\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7292,7 +7361,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Current Multiplier",
+                  "name": "200 \u2014 Current Multiplier",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7308,7 +7377,7 @@
           ]
         },
         {
-          "name": "Admin — Ride Management",
+          "name": "Admin \u2014 Ride Management",
           "description": "Admin ride operations: manual driver assignment for support escalations and edge cases where automated matching fails.",
           "item": [
             {
@@ -7349,7 +7418,7 @@
               },
               "response": [
                 {
-                  "name": "Assign Driver — Success (200)",
+                  "name": "Assign Driver \u2014 Success (200)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7361,7 +7430,7 @@
                   "body": "{\n  \"message\": \"Driver assigned successfully.\",\n  \"ride\": {\n    \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"city_id\": 1,\n    \"vehicle_class_id\": 1,\n    \"passenger_id\": 1,\n    \"driver_id\": 2,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"driver_en_route\",\n    \"status_label\": \"Driver En Route\",\n    \"fare_estimate_amount\": \"3750.00\",\n    \"fare_currency\": \"NGN\",\n    \"payment_method\": \"cash\",\n    \"matched_at\": \"2026-10-06T14:05:00.000000Z\",\n    \"created_at\": \"2026-10-06T14:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "Assign Driver — Validation Error (422)",
+                  "name": "Assign Driver \u2014 Validation Error (422)",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7373,7 +7442,7 @@
                   "body": "{\n  \"message\": \"The driver id field is invalid.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"driver_id\": [\n      \"Driver must be online.\",\n      \"Driver vehicle class does not match the ride request.\"\n    ]\n  }\n}"
                 },
                 {
-                  "name": "Assign Driver — Not Assignable (422)",
+                  "name": "Assign Driver \u2014 Not Assignable (422)",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7425,7 +7494,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Payment Methods",
+                  "name": "200 \u2014 Payment Methods",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7437,7 +7506,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"a3b4c5d6-e7f8-9012-abcd-345678901234\",\n      \"type\": \"card\",\n      \"last_four\": \"4242\",\n      \"brand\": \"Visa\",\n      \"is_default\": true\n    },\n    {\n      \"id\": \"b4c5d6e7-f8a9-0123-bcde-456789012345\",\n      \"type\": \"card\",\n      \"last_four\": \"5555\",\n      \"brand\": \"Mastercard\",\n      \"is_default\": false\n    }\n  ]\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -7486,7 +7555,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Payment Initialized",
+                  "name": "200 \u2014 Payment Initialized",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7498,7 +7567,7 @@
                   "body": "{\n  \"message\": \"Payment initialized.\",\n  \"payment_link\": \"https://checkout.flutterwave.com/v3/hosted/pay/abc123...\",\n  \"tx_ref\": \"ETIGO-ABCDEFGHIJKL\"\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7547,7 +7616,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Payment Verified",
+                  "name": "200 \u2014 Payment Verified",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7559,7 +7628,7 @@
                   "body": "{\n  \"message\": \"Payment verified successfully.\",\n  \"payment\": {\n    \"id\": \"c5d6e7f8-a9b0-1234-cdef-567890123456\",\n    \"status\": \"successful\",\n    \"amount\": 100,\n    \"currency\": \"NGN\"\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7608,7 +7677,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Default Set",
+                  "name": "200 \u2014 Default Set",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7620,7 +7689,7 @@
                   "body": "{\n  \"message\": \"Default payment method updated.\",\n  \"payment_method\": {\n    \"id\": \"a3b4c5d6-e7f8-9012-abcd-345678901234\",\n    \"is_default\": true\n  }\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7668,7 +7737,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Deleted",
+                  "name": "200 \u2014 Deleted",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7680,7 +7749,7 @@
                   "body": "{\n  \"message\": \"Payment method deleted successfully.\"\n}"
                 },
                 {
-                  "name": "422 — Cannot Delete Default",
+                  "name": "422 \u2014 Cannot Delete Default",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7694,7 +7763,7 @@
               ]
             },
             {
-              "name": "Initialize — Validation (422)",
+              "name": "Initialize \u2014 Validation (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -7725,11 +7794,11 @@
                     "initialize"
                   ]
                 },
-                "description": "Expected: 422 — negative amount, invalid currency, missing redirect_url."
+                "description": "Expected: 422 \u2014 negative amount, invalid currency, missing redirect_url."
               },
               "response": [
                 {
-                  "name": "422 — Validation Errors",
+                  "name": "422 \u2014 Validation Errors",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -7774,7 +7843,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Notifications",
+                  "name": "200 \u2014 Notifications",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7786,7 +7855,7 @@
                   "body": "{\n  \"data\": [\n    {\n      \"id\": \"d6e7f8a9-b0c1-2345-defa-678901234567\",\n      \"type\": \"ride_completed\",\n      \"title\": \"Ride Completed\",\n      \"body\": \"Your ride has been completed. Fare: \\u20a62,650.\",\n      \"read_at\": null,\n      \"created_at\": \"2026-10-06T14:35:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -7827,7 +7896,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Unread Count",
+                  "name": "200 \u2014 Unread Count",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7839,7 +7908,7 @@
                   "body": "{\n  \"unread_count\": 3\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -7888,7 +7957,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Marked as Read",
+                  "name": "200 \u2014 Marked as Read",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7900,7 +7969,7 @@
                   "body": "{\n  \"message\": \"Notification marked as read.\"\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -7941,7 +8010,7 @@
               },
               "response": [
                 {
-                  "name": "200 — All Marked",
+                  "name": "200 \u2014 All Marked",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7953,7 +8022,7 @@
                   "body": "{\n  \"message\": \"All notifications marked as read.\",\n  \"count\": 3\n}"
                 },
                 {
-                  "name": "401 — Unauthenticated",
+                  "name": "401 \u2014 Unauthenticated",
                   "status": "Unauthorized",
                   "code": 401,
                   "header": [
@@ -8006,7 +8075,7 @@
               },
               "response": [
                 {
-                  "name": "201 — Token Registered",
+                  "name": "201 \u2014 Token Registered",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -8018,7 +8087,7 @@
                   "body": "{\n  \"message\": \"Device token registered successfully.\"\n}"
                 },
                 {
-                  "name": "422 — Validation Error",
+                  "name": "422 \u2014 Validation Error",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -8066,7 +8135,7 @@
               },
               "response": [
                 {
-                  "name": "200 — Token Removed",
+                  "name": "200 \u2014 Token Removed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -8078,7 +8147,7 @@
                   "body": "{\n  \"message\": \"Device token removed successfully.\"\n}"
                 },
                 {
-                  "name": "404 — Not Found",
+                  "name": "404 \u2014 Not Found",
                   "status": "Not Found",
                   "code": 404,
                   "header": [
@@ -8092,7 +8161,7 @@
               ]
             },
             {
-              "name": "Register Token — Validation (422)",
+              "name": "Register Token \u2014 Validation (422)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -8122,11 +8191,11 @@
                     "device-tokens"
                   ]
                 },
-                "description": "Expected: 422 — missing token, invalid platform."
+                "description": "Expected: 422 \u2014 missing token, invalid platform."
               },
               "response": [
                 {
-                  "name": "422 — Validation Errors",
+                  "name": "422 \u2014 Validation Errors",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -8178,11 +8247,11 @@
                 "auth"
               ]
             },
-            "description": "Authorize a private WebSocket channel subscription. Called automatically by the Pusher/Echo client library during channel subscription.\n\n**Channels:**\n- `private-ride.{rideId}` — Authorized for the ride's passenger or assigned driver\n- `private-admin.rides` — Authorized for admin users only\n\n**Events received on these channels:**\n- `driver.location.updated` — Real-time driver GPS (lat, lng, heading, speed, timestamp, ride_id, eta)\n\n**WebSocket Connection:**\nConnect to the Reverb WebSocket server using Laravel Echo or a Pusher-compatible client:\n- Host: `REVERB_HOST` (default: localhost)\n- Port: `REVERB_PORT` (default: 8080)\n- App Key: `REVERB_APP_KEY`\n- Auth endpoint: `POST /broadcasting/auth` with Bearer token"
+            "description": "Authorize a private WebSocket channel subscription. Called automatically by the Pusher/Echo client library during channel subscription.\n\n**Channels:**\n- `private-ride.{rideId}` \u2014 Authorized for the ride's passenger or assigned driver\n- `private-admin.rides` \u2014 Authorized for admin users only\n\n**Events received on these channels:**\n- `driver.location.updated` \u2014 Real-time driver GPS (lat, lng, heading, speed, timestamp, ride_id, eta)\n\n**WebSocket Connection:**\nConnect to the Reverb WebSocket server using Laravel Echo or a Pusher-compatible client:\n- Host: `REVERB_HOST` (default: localhost)\n- Port: `REVERB_PORT` (default: 8080)\n- App Key: `REVERB_APP_KEY`\n- Auth endpoint: `POST /broadcasting/auth` with Bearer token"
           },
           "response": [
             {
-              "name": "200 — Authorized",
+              "name": "200 \u2014 Authorized",
               "status": "OK",
               "code": 200,
               "header": [
@@ -8194,7 +8263,7 @@
               "body": "{\n  \"auth\": \"abc123def456:channel-signature-here\"\n}"
             },
             {
-              "name": "403 — Unauthorized",
+              "name": "403 \u2014 Unauthorized",
               "status": "Forbidden",
               "code": 403,
               "header": [
@@ -8208,7 +8277,7 @@
           ]
         },
         {
-          "name": "Authorize Channel — Admin",
+          "name": "Authorize Channel \u2014 Admin",
           "request": {
             "method": "POST",
             "header": [
@@ -8243,7 +8312,7 @@
           },
           "response": [
             {
-              "name": "200 — Authorized",
+              "name": "200 \u2014 Authorized",
               "status": "OK",
               "code": 200,
               "header": [
@@ -8255,7 +8324,7 @@
               "body": "{\n  \"auth\": \"abc123def456:admin-channel-signature\"\n}"
             },
             {
-              "name": "403 — Unauthorized",
+              "name": "403 \u2014 Unauthorized",
               "status": "Forbidden",
               "code": 403,
               "header": [
@@ -8269,7 +8338,7 @@
           ]
         },
         {
-          "name": "Authorize Channel — Unauthorized (403)",
+          "name": "Authorize Channel \u2014 Unauthorized (403)",
           "request": {
             "method": "POST",
             "header": [
@@ -8304,7 +8373,7 @@
           },
           "response": [
             {
-              "name": "403 — Unauthorized",
+              "name": "403 \u2014 Unauthorized",
               "status": "Forbidden",
               "code": 403,
               "header": [
@@ -8357,11 +8426,11 @@
                     "flutterwave"
                   ]
                 },
-                "description": "No auth — verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+                "description": "No auth \u2014 verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
               },
               "response": [
                 {
-                  "name": "200 — Webhook Processed",
+                  "name": "200 \u2014 Webhook Processed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -8373,7 +8442,7 @@
                   "body": "{\n  \"status\": \"ok\"\n}"
                 },
                 {
-                  "name": "400 — Invalid Signature",
+                  "name": "400 \u2014 Invalid Signature",
                   "status": "Bad Request",
                   "code": 400,
                   "header": [
@@ -8419,11 +8488,11 @@
                     "qoreid"
                   ]
                 },
-                "description": "**No auth required** — verified by HMAC-SHA256 signature.\n\nReceives liveness verification results from QoreID.\n\n**Handled events:** `verification_completed`, `step_verification_completed`, `identity`\n\n**Headers:**\n- `X-QoreID-Signature` — HMAC-SHA256 of body using `QOREID_WEBHOOK_SECRET` (optional in dev when secret is not configured)\n\n**Responses:**\n- `200` — Webhook processed\n- `401` — Invalid signature\n- `400` — Missing session ID"
+                "description": "**No auth required** \u2014 verified by HMAC-SHA256 signature.\n\nReceives liveness verification results from QoreID.\n\n**Handled events:** `verification_completed`, `step_verification_completed`, `identity`\n\n**Headers:**\n- `X-QoreID-Signature` \u2014 HMAC-SHA256 of body using `QOREID_WEBHOOK_SECRET` (optional in dev when secret is not configured)\n\n**Responses:**\n- `200` \u2014 Webhook processed\n- `401` \u2014 Invalid signature\n- `400` \u2014 Missing session ID"
               },
               "response": [
                 {
-                  "name": "200 — Webhook Processed",
+                  "name": "200 \u2014 Webhook Processed",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -8435,7 +8504,7 @@
                   "body": "{\n  \"status\": \"ok\"\n}"
                 },
                 {
-                  "name": "400 — Invalid Signature",
+                  "name": "400 \u2014 Invalid Signature",
                   "status": "Bad Request",
                   "code": 400,
                   "header": [

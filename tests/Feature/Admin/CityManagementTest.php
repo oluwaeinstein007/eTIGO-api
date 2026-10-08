@@ -36,24 +36,29 @@ it('creates a city', function () {
     $admin = User::factory()->admin()->create();
     $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
 
+    $vc = VehicleClass::factory()->create();
+
     $response = $this->withToken($token)
         ->postJson('/api/v1/admin/cities', [
             'name' => 'Lagos',
-            'timezone' => 'Africa/Lagos',
-            'currency_code' => 'NGN',
+            'state' => 'Lagos',
             'boundary' => [
                 'type' => 'Point',
                 'coordinates' => [3.3792, 6.5244],
                 'radius_km' => 30,
             ],
+            'vehicle_class_ids' => [$vc->id],
         ]);
 
     $response->assertCreated()
         ->assertJson(['message' => 'City created successfully.'])
         ->assertJsonPath('city.name', 'Lagos')
-        ->assertJsonPath('city.slug', 'lagos');
+        ->assertJsonPath('city.slug', 'lagos')
+        ->assertJsonPath('city.state', 'Lagos')
+        ->assertJsonPath('city.region', 'South-West')
+        ->assertJsonCount(1, 'city.vehicle_classes');
 
-    $this->assertDatabaseHas('cities', ['name' => 'Lagos', 'slug' => 'lagos']);
+    $this->assertDatabaseHas('cities', ['name' => 'Lagos', 'slug' => 'lagos', 'state' => 'Lagos', 'region' => 'South-West']);
     $this->assertDatabaseHas('audit_logs', ['event' => 'city_created']);
 });
 
@@ -65,7 +70,24 @@ it('validates required fields when creating a city', function () {
         ->postJson('/api/v1/admin/cities', []);
 
     $response->assertUnprocessable()
-        ->assertJsonValidationErrors(['name', 'timezone', 'currency_code']);
+        ->assertJsonValidationErrors(['name', 'state']);
+});
+
+it('rejects invalid polygon coordinates', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/admin/cities', [
+            'name' => 'Test City',
+            'state' => 'Lagos',
+            'boundary' => [
+                'type' => 'Polygon',
+                'coordinates' => [['not-a-coordinate']],
+            ],
+        ]);
+
+    $response->assertUnprocessable();
 });
 
 it('rejects duplicate city names', function () {
@@ -77,8 +99,7 @@ it('rejects duplicate city names', function () {
     $response = $this->withToken($token)
         ->postJson('/api/v1/admin/cities', [
             'name' => 'Lagos',
-            'timezone' => 'Africa/Lagos',
-            'currency_code' => 'NGN',
+            'state' => 'Lagos',
         ]);
 
     $response->assertUnprocessable()
@@ -223,8 +244,7 @@ it('generates unique slug when names produce the same slug', function () {
     $response = $this->withToken($token)
         ->postJson('/api/v1/admin/cities', [
             'name' => 'LAGOS',
-            'timezone' => 'Africa/Lagos',
-            'currency_code' => 'NGN',
+            'state' => 'Lagos',
         ]);
 
     $response->assertCreated();

@@ -21,8 +21,11 @@ class CityFactory extends Factory
         return [
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->randomNumber(4),
+            'state' => fake()->state(),
+            'region' => null,
             'boundary' => null,
-            'timezone' => fake()->timezone(),
+            'area_sq_km' => null,
+            'timezone' => 'Africa/Lagos',
             'currency_code' => 'NGN',
             'is_active' => true,
         ];
