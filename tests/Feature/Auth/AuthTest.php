@@ -196,7 +196,7 @@ it('completes registration for a new driver with driver record', function () {
         'last_name' => 'Driver',
         'type' => 'driver',
         'city_id' => $city->id,
-        'profile_photo' => UploadedFile::fake()->image('profile.jpg'),
+        'profile_photo' => UploadedFile::fake()->create('profile.jpg', 100, 'image/jpeg'),
     ]);
 
     $response->assertCreated()
