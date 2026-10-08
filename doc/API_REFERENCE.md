@@ -2454,7 +2454,10 @@ Returns all active cities. No authentication required.
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "name": "Lagos",
       "slug": "lagos",
+      "state": "Lagos",
+      "region": "South-West",
       "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+      "area_sq_km": 5026.55,
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
@@ -2465,7 +2468,10 @@ Returns all active cities. No authentication required.
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "name": "Abuja",
       "slug": "abuja",
+      "state": "FCT",
+      "region": "North-Central",
       "boundary": { "type": "Point", "coordinates": [7.4951, 9.0579], "radius_km": 30 },
+      "area_sq_km": 2827.43,
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
@@ -2476,7 +2482,10 @@ Returns all active cities. No authentication required.
       "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
       "name": "Port Harcourt",
       "slug": "port-harcourt",
+      "state": "Rivers",
+      "region": "South-South",
       "boundary": { "type": "Point", "coordinates": [7.0498, 4.8156], "radius_km": 20 },
+      "area_sq_km": 1256.64,
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
@@ -2556,7 +2565,10 @@ No authentication required. Detects which active city a set of coordinates falls
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "name": "Lagos",
     "slug": "lagos",
+    "state": "Lagos",
+    "region": "South-West",
     "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "area_sq_km": 5026.55,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
@@ -2589,7 +2601,9 @@ GET /admin/cities
 |-------------|---------|-----------------------------------|
 | is_active   | boolean | Filter by active/inactive status  |
 | search      | string  | Filter by city name (partial)     |
-| per_page    | integer | Results per page (default: 20)    |
+| state       | string  | Filter by state (e.g. `Lagos`)    |
+| region      | string  | Filter by region (e.g. `South-West`) |
+| per_page    | integer | Results per page (default: 20, max: 100) |
 
 **Response 200:**
 ```json
@@ -2599,11 +2613,15 @@ GET /admin/cities
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "name": "Lagos",
       "slug": "lagos",
+      "state": "Lagos",
+      "region": "South-West",
       "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+      "area_sq_km": 5026.55,
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
-      "vehicle_classes": [ "..." ],
+      "vehicle_classes_count": 3,
+      "drivers_count": 12,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -2623,12 +2641,16 @@ GET /admin/cities
 ```
 POST /admin/cities
 ```
-| Field         | Type   | Required | Description                             |
-|---------------|--------|----------|-----------------------------------------|
-| name          | string | Yes      | Unique city name                        |
-| boundary      | object | No       | GeoJSON with `type`, `coordinates`, optional `radius_km` |
-| timezone      | string | Yes      | Valid PHP timezone (e.g. `Africa/Lagos`) |
-| currency_code | string | Yes      | 3-letter currency code (e.g. `NGN`)     |
+| Field             | Type   | Required | Description                                          |
+|-------------------|--------|----------|------------------------------------------------------|
+| name              | string | Yes      | Unique city name                                     |
+| state             | string | Yes      | Nigerian state (e.g. `Lagos`, `FCT`, `Rivers`)       |
+| boundary          | object | No       | GeoJSON with `type`, `coordinates`, optional `radius_km` |
+| vehicle_class_ids | array  | No       | Array of vehicle class UUIDs to assign               |
+| timezone          | string | No       | Valid PHP timezone (default: `Africa/Lagos`)          |
+| currency_code     | string | No       | 3-letter currency code (default: `NGN`)              |
+
+`region` is auto-derived from `state`. `area_sq_km` is auto-computed from the boundary (π×r² for Point, spherical excess for Polygon).
 
 **Response 201:**
 ```json
@@ -2638,10 +2660,14 @@ POST /admin/cities
     "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
     "name": "Kano",
     "slug": "kano",
+    "state": "Kano",
+    "region": "North-West",
     "boundary": { "type": "Point", "coordinates": [8.5167, 12.0022], "radius_km": 25 },
+    "area_sq_km": 1963.5,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
+    "vehicle_classes": [],
     "created_at": "2026-10-06T14:00:00.000000Z",
     "updated_at": "2026-10-06T14:00:00.000000Z"
   }
@@ -2654,7 +2680,7 @@ POST /admin/cities
 ```
 GET /admin/cities/{city_id}
 ```
-Returns city with loaded vehicle classes.
+Returns city with loaded vehicle classes and aggregate counts.
 
 **Response 200:**
 ```json
@@ -2663,10 +2689,18 @@ Returns city with loaded vehicle classes.
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "name": "Lagos",
     "slug": "lagos",
+    "state": "Lagos",
+    "region": "South-West",
     "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "area_sq_km": 5026.55,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
+    "vehicle_classes_count": 3,
+    "drivers_count": 12,
+    "trips_count": 145,
+    "active_rides_count": 3,
+    "active_drivers_count": 8,
     "vehicle_classes": [
       {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
@@ -2706,7 +2740,10 @@ Same fields as create, all optional (partial update supported). Slug auto-regene
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "name": "Lagos",
     "slug": "lagos",
+    "state": "Lagos",
+    "region": "South-West",
     "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 45 },
+    "area_sq_km": 6361.73,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
@@ -2761,7 +2798,10 @@ Syncs the pivot table — entries not included are removed.
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "name": "Lagos",
     "slug": "lagos",
+    "state": "Lagos",
+    "region": "South-West",
     "boundary": { "type": "Point", "coordinates": [3.3792, 6.5244], "radius_km": 40 },
+    "area_sq_km": 5026.55,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
