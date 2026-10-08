@@ -268,9 +268,17 @@ it('handles webhook for liveness completion', function () {
         'status' => KycVerificationStatus::Processing,
     ]);
 
-    $response = $this->postJson('/api/v1/webhooks/qoreid', [
+    $secret = 'test-webhook-secret';
+    config(['services.qoreid.webhook_secret' => $secret]);
+
+    $payload = json_encode([
         'event' => 'verification_completed',
         'sessionId' => 'fake_sess_test123',
+    ]);
+    $signature = hash_hmac('sha256', $payload, $secret);
+
+    $response = $this->postJson('/api/v1/webhooks/qoreid', json_decode($payload, true), [
+        'X-QoreID-Signature' => $signature,
     ]);
 
     $response->assertOk();
