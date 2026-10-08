@@ -2432,6 +2432,149 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Payment Settlement",
+          "item": [
+            {
+              "name": "Confirm Cash Collection",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/confirm-cash",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "confirm-cash"
+                  ]
+                },
+                "description": "Driver confirms cash has been collected from passenger after a completed cash ride. Only available for completed rides with payment_method=cash and payment status=pending_collection."
+              },
+              "response": [
+                {
+                  "name": "200 — Cash Confirmed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cash collection confirmed.\",\n  \"payment\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"amount\": \"3500.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"cash\",\n    \"method_label\": \"Cash\",\n    \"tip_amount\": \"0.00\",\n    \"status\": \"collected\",\n    \"status_label\": \"Collected\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Tip",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 500\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/tip",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "tip"
+                  ]
+                },
+                "description": "Passenger adds a tip to a completed ride. For card rides, an additional charge is captured. For cash rides, the tip is logged. Min ₦50, max ₦50,000. Only one tip per ride."
+              },
+              "response": [
+                {
+                  "name": "200 — Tip Added",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Tip added successfully.\",\n  \"payment\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"amount\": \"3500.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"cash\",\n    \"method_label\": \"Cash\",\n    \"tip_amount\": \"500.00\",\n    \"status\": \"collected\",\n    \"status_label\": \"Collected\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Ride Receipt",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/receipt",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "receipt"
+                  ]
+                },
+                "description": "Returns a detailed receipt for a completed ride including fare breakdown, distance, duration, payment details, and tip. Accessible by the ride's passenger, driver, or any admin."
+              },
+              "response": [
+                {
+                  "name": "200 — Receipt",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"12 Adeola Odeku St, Victoria Island\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"destination\": {\n      \"address\": \"Ikeja City Mall, Obafemi Awolowo Way\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"distance_km\": 22.5,\n    \"duration_minutes\": 35,\n    \"vehicle_class\": \"Comfort\",\n    \"driver\": {\n      \"name\": \"John Doe\"\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 5625.0,\n      \"time_charge\": 1400.0,\n      \"waiting_charge\": 0,\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"7500.00\",\n    \"final_fare\": \"7625.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"cash\",\n      \"method_label\": \"Cash\",\n      \"status\": \"collected\",\n      \"status_label\": \"Collected\",\n      \"tip_amount\": \"500.00\",\n      \"total_charged\": 8125.0\n    },\n    \"city\": \"Lagos\"\n  }\n}"
+                }
+              ]
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated passenger users."

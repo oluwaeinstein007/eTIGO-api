@@ -4782,6 +4782,131 @@ Only the owner can delete it.
 
 ---
 
+## Payment & Settlement
+
+### Confirm Cash Collection (Driver)
+```
+POST /rides/{ride_id}/confirm-cash
+Authorization: Bearer {driver_token}
+```
+Driver confirms cash has been collected from passenger. Only available for completed rides with `payment_method=cash` and payment in `pending_collection` status.
+
+**Response 200:**
+```json
+{
+  "message": "Cash collection confirmed.",
+  "payment": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "amount": "3500.00",
+    "currency": "NGN",
+    "method": "cash",
+    "method_label": "Cash",
+    "tip_amount": "0.00",
+    "status": "collected",
+    "status_label": "Collected"
+  }
+}
+```
+
+**Response 403:** Not the assigned driver.
+**Response 422:** Ride not completed, not a cash ride, or already confirmed.
+
+---
+
+### Add Tip (Passenger)
+```
+POST /rides/{ride_id}/tip
+Authorization: Bearer {passenger_token}
+```
+
+| Field  | Type    | Required | Notes                        |
+|--------|---------|----------|------------------------------|
+| amount | numeric | Yes      | Min ₦50, max ₦50,000        |
+
+Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Flutterwave. For cash rides, the tip is logged. Only one tip per ride.
+
+**Response 200:**
+```json
+{
+  "message": "Tip added successfully.",
+  "payment": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "amount": "3500.00",
+    "currency": "NGN",
+    "method": "cash",
+    "method_label": "Cash",
+    "tip_amount": "500.00",
+    "status": "collected",
+    "status_label": "Collected"
+  }
+}
+```
+
+**Response 403:** Not the ride's passenger.
+**Response 422:** Ride not completed, tip already added, or amount out of range.
+
+---
+
+### Get Ride Receipt
+```
+GET /rides/{ride_id}/receipt
+Authorization: Bearer {token}
+```
+Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin.
+
+**Response 200:**
+```json
+{
+  "receipt": {
+    "ride_id": "uuid",
+    "date": "2026-10-08T14:30:00+01:00",
+    "pickup": {
+      "address": "12 Adeola Odeku St, Victoria Island",
+      "lat": "6.4280000",
+      "lng": "3.4220000"
+    },
+    "destination": {
+      "address": "Ikeja City Mall, Obafemi Awolowo Way",
+      "lat": "6.6180000",
+      "lng": "3.3420000"
+    },
+    "distance_km": 22.5,
+    "duration_minutes": 35,
+    "vehicle_class": "Comfort",
+    "driver": { "name": "John Doe" },
+    "fare_breakdown": {
+      "base_fare": 600.0,
+      "per_km_rate": 250.0,
+      "per_minute_rate": 40.0,
+      "distance_charge": 5625.0,
+      "time_charge": 1400.0,
+      "waiting_charge": 0,
+      "minimum_fare": 1500.0,
+      "surge_multiplier": null
+    },
+    "fare_estimate": "7500.00",
+    "final_fare": "7625.00",
+    "currency": "NGN",
+    "payment": {
+      "method": "cash",
+      "method_label": "Cash",
+      "status": "collected",
+      "status_label": "Collected",
+      "tip_amount": "500.00",
+      "total_charged": 8125.0
+    },
+    "city": "Lagos"
+  }
+}
+```
+
+**Response 403:** Not a participant in the ride.
+**Response 404:** Ride not completed.
+
+---
+
 ## Payment Webhooks
 
 ### Flutterwave Webhook

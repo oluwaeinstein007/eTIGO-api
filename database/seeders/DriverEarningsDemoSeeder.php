@@ -207,7 +207,7 @@ class DriverEarningsDemoSeeder extends Seeder
             'method' => PaymentMethod::Card->value,
             'gateway_transaction_id' => 'DEMO_EARNINGS_'.$ride->id,
             'tip_amount' => 0,
-            'status' => 'successful',
+            'status' => PaymentStatus::Captured,
         ]);
         $payment->created_at = $completedAt;
         $payment->updated_at = $completedAt;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\InitializePaymentRequest;
+use App\Http\Resources\PaymentMethodResource;
 use App\Models\UserPaymentMethod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class PaymentMethodController extends Controller
             ->orderByDesc('is_default')
             ->get();
 
-        return response()->json(['payment_methods' => $methods]);
+        return response()->json(['payment_methods' => PaymentMethodResource::collection($methods)]);
     }
 
     public function initialize(InitializePaymentRequest $request): JsonResponse

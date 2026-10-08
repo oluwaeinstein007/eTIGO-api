@@ -320,20 +320,20 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-PAY-01 | `[ ]` Create `PaymentMethodController@store` — `POST /api/v1/users/payment-methods`: tokenize card via gateway adapter, store token + masked details | P-15 | SETUP-61, SETUP-51 | 🔒 No raw card data stored |
-| BE-PAY-02 | `[ ]` Create `StorePaymentMethodFormRequest` — validate gateway-provided token/nonce (NOT raw card data) | P-15 | BE-PAY-01 | — |
-| BE-PAY-03 | `[ ]` Create `PaymentMethodController@index` — `GET /api/v1/users/payment-methods`: list saved methods (masked) | P-15 | BE-PAY-01 | — |
-| BE-PAY-04 | `[ ]` Create `PaymentMethodController@destroy` — `DELETE /api/v1/users/payment-methods/{method}` | P-15 | BE-PAY-01 | — |
-| BE-PAY-05 | `[ ]` Create `UserPaymentMethod` Eloquent model | — | SETUP-17 | — |
-| BE-PAY-06 | `[ ]` Create `PaymentService` — orchestrate cash and card flows on trip completion | P-15 | SETUP-61 | — |
-| BE-PAY-07 | `[ ]` Implement cash payment flow in `PaymentService`: on trip completion with method=cash, create Payment with status=pending_collection; `POST /api/v1/rides/{ride}/confirm-cash` for driver to mark collected | P-15 | BE-PAY-06, SETUP-16 | — |
-| BE-PAY-08 | `[ ]` Implement card payment flow in `PaymentService`: on trip completion with method=card, capture charge via gateway adapter, create Payment with status=captured | P-15 | BE-PAY-06, SETUP-61 | — |
-| BE-PAY-09 | `[ ]` Create `ProcessPaymentJob` — dispatched on ride completion; calls PaymentService based on payment method | P-15 | BE-PAY-06, BE-RIDE-09 | — |
-| BE-PAY-10 | `[ ]` Create `RideTipController@store` — `POST /api/v1/rides/{ride}/tip`: add tip after completion; capture additional card charge or log cash tip | P-16 | BE-PAY-08 | ⚠ Confirm whether cash-tip logging is in scope |
-| BE-PAY-11 | `[ ]` Create `StoreTipFormRequest` — validate amount (positive), ride is completed, ride belongs to user | P-16 | BE-PAY-10 | — |
-| BE-PAY-12 | `[ ]` Create `RideReceiptController@show` — `GET /api/v1/rides/{ride}/receipt`: generate receipt with fare breakdown, date/time, driver, vehicle, payment method, discount, tip | P-19 | BE-PAY-08 | — |
-| BE-PAY-13 | `[ ]` Create `Payment` Eloquent model with relationships: ride() | — | SETUP-16 | — |
-| BE-PAY-14 | `[ ]` Create `PaymentResource`, `PaymentMethodResource` API resources | — | BE-PAY-13 | — |
+| BE-PAY-01 | `[x]` Create `PaymentMethodController@store` — `POST /api/v1/payments/initialize`: Flutterwave-based card tokenization flow with initialize → verify → save token + masked details | P-15 | SETUP-61, SETUP-51 | 🔒 No raw card data stored; uses Flutterwave redirect flow |
+| BE-PAY-02 | `[x]` Create `InitializePaymentRequest` — validate amount, currency, redirect_url (NOT raw card data) | P-15 | BE-PAY-01 | — |
+| BE-PAY-03 | `[x]` Create `PaymentMethodController@index` — `GET /api/v1/payment-methods`: list saved methods (masked via PaymentMethodResource) | P-15 | BE-PAY-01 | — |
+| BE-PAY-04 | `[x]` Create `PaymentMethodController@destroy` — `DELETE /api/v1/payment-methods/{paymentMethod}` | P-15 | BE-PAY-01 | — |
+| BE-PAY-05 | `[x]` Create `UserPaymentMethod` Eloquent model with `gateway_token` hidden; `Payment` model with enum casts (PaymentMethod, PaymentStatus), factory, helper methods | — | SETUP-17 | — |
+| BE-PAY-06 | `[x]` Create `PaymentService` — orchestrate cash and card flows on trip completion; handles tokenized charges, cash collection, tips, and refunds | P-15 | SETUP-61 | — |
+| BE-PAY-07 | `[x]` Implement cash payment flow in `PaymentService`: on trip completion with method=cash, create Payment with status=pending_collection; `POST /api/v1/rides/{ride}/confirm-cash` for driver to mark collected via `RidePaymentController` | P-15 | BE-PAY-06, SETUP-16 | — |
+| BE-PAY-08 | `[x]` Implement card payment flow in `PaymentService`: on trip completion with method=card, charge default card via Flutterwave tokenized-charges, create Payment with status=captured | P-15 | BE-PAY-06, SETUP-61 | — |
+| BE-PAY-09 | `[x]` Create `ProcessPaymentJob` — dispatched on ride completion via `RideService::completeRide()`; calls PaymentService based on payment method; 3 retries, 30s backoff, idempotent | P-15 | BE-PAY-06, BE-RIDE-09 | — |
+| BE-PAY-10 | `[x]` Create `RideTipController@store` — `POST /api/v1/rides/{ride}/tip`: add tip after completion; captures additional card charge for card rides or logs cash tip; prevents duplicate tips | P-16 | BE-PAY-08 | Cash-tip logging in scope via tip_amount field |
+| BE-PAY-11 | `[x]` Create `StoreTipFormRequest` — validate amount (min ₦50, max ₦50,000), ride is completed, ride belongs to passenger, no duplicate tip | P-16 | BE-PAY-10 | — |
+| BE-PAY-12 | `[x]` Create `RideReceiptController@show` — `GET /api/v1/rides/{ride}/receipt`: generate receipt with fare breakdown, date/time, driver, vehicle class, payment method, tip; accessible by passenger, driver, or admin | P-19 | BE-PAY-08 | — |
+| BE-PAY-13 | `[x]` Create `Payment` Eloquent model with relationships: ride(), paymentMethod(); HasFactory, enum casts for method and status | — | SETUP-16 | — |
+| BE-PAY-14 | `[x]` Create `PaymentResource`, `PaymentMethodResource` API resources; gateway details restricted to admin users | — | BE-PAY-13 | — |
 
 ---
 
