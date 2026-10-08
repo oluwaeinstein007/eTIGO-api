@@ -21,11 +21,14 @@ class KycWebhookController extends Controller
             return response()->json(['message' => 'Webhook endpoint active.']);
         }
 
-        $signature = $request->header('X-QoreID-Signature');
+        $signature = $request->header('X-VerifyMe-Signature') ?? $request->header('X-QoreID-Signature');
         $payload = $request->all();
 
         if (! $this->verifySignature($request->getContent(), $signature)) {
-            Log::warning('KYC webhook: invalid signature', ['ip' => $request->ip()]);
+            Log::warning('KYC webhook: invalid signature', [
+                'ip' => $request->ip(),
+                'headers' => collect($request->headers->all())->filter(fn ($v, $k) => str_starts_with($k, 'x-'))->toArray(),
+            ]);
 
             return response()->json(['message' => 'Invalid signature.'], 401);
         }
@@ -69,7 +72,7 @@ class KycWebhookController extends Controller
             return false;
         }
 
-        $expected = hash_hmac('sha256', $payload, $webhookSecret);
+        $expected = hash_hmac('sha512', $payload, $webhookSecret);
 
         return hash_equals($expected, $signature);
     }

@@ -371,10 +371,10 @@ it('handles webhook for liveness completion', function () {
         'event' => 'verification_completed',
         'sessionId' => 'sess_test_12345',
     ]);
-    $signature = hash_hmac('sha256', $payload, $secret);
+    $signature = hash_hmac('sha512', $payload, $secret);
 
     $response = $this->postJson('/api/v1/webhooks/qoreid', json_decode($payload, true), [
-        'X-QoreID-Signature' => $signature,
+        'X-VerifyMe-Signature' => $signature,
     ]);
 
     $response->assertOk();
