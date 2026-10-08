@@ -226,6 +226,82 @@ describe('Tipping', function () {
     });
 });
 
+describe('End-to-end flows', function () {
+    it('cash ride: process payment → confirm cash → verify collected status', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 3500,
+        ]);
+
+        $service = app(PaymentService::class);
+        $payment = $service->processRidePayment($ride);
+        expect($payment->status)->toBe(PaymentStatus::PendingCollection);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash");
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'collected');
+
+        $ride->refresh();
+        expect($ride->payment_status)->toBe(PaymentStatus::Collected);
+    });
+
+    it('card ride: auto-charge → verify captured → add tip', function () {
+        UserPaymentMethod::create([
+            'user_id' => $this->passenger->id,
+            'gateway_token' => 'tok_test',
+            'card_brand' => 'VISA',
+            'card_last_four' => '4242',
+            'is_default' => true,
+        ]);
+
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 5000,
+        ]);
+
+        $service = app(PaymentService::class);
+        $payment = $service->processRidePayment($ride);
+        expect($payment->status)->toBe(PaymentStatus::Captured)
+            ->and($payment->gateway_transaction_id)->not->toBeNull();
+
+        $response = $this->withToken($this->passengerToken)
+            ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500]);
+
+        $response->assertOk()
+            ->assertJsonPath('payment.tip_amount', '500.00');
+    });
+
+    it('receipt available after ride completion with full payment details', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 4000,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash")
+            ->assertOk();
+
+        $response = $this->withToken($this->passengerToken)
+            ->getJson("/api/v1/rides/{$ride->id}/receipt");
+
+        $response->assertOk()
+            ->assertJsonPath('receipt.final_fare', '4000.00')
+            ->assertJsonPath('receipt.payment.method', 'cash')
+            ->assertJsonPath('receipt.payment.status', 'collected')
+            ->assertJsonPath('receipt.payment.total_charged', 4000);
+    });
+});
+
 describe('Receipt', function () {
     it('returns receipt for completed ride to passenger', function () {
         $ride = Ride::factory()->completed()->create([
