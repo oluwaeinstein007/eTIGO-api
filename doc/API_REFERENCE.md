@@ -4845,7 +4845,7 @@ Adds a tip to a completed ride. For card rides, an additional tokenized charge i
 ```
 
 **Response 403:** Not the ride's passenger.
-**Response 422:** Ride not completed, tip already added, or amount out of range.
+**Response 422:** Ride not completed, no payment record found, payment failed, tip already added, or amount out of range.
 
 ---
 
@@ -4856,7 +4856,11 @@ Authorization: Bearer {token}
 ```
 Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin.
 
-**Response 200:**
+The `payment` object conditionally includes:
+- `total_charged` — present only when payment is settled (`captured`, `collected`, or `settled`). Equals `amount + tip_amount`.
+- `amount_due` — present only when payment is unsettled (`pending`, `pending_collection`). Shows the fare amount the passenger still owes.
+
+**Response 200 (settled payment):**
 ```json
 {
   "receipt": {
@@ -4898,6 +4902,23 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
       "total_charged": 8125.0
     },
     "city": "Lagos"
+  }
+}
+```
+
+**Response 200 (unsettled payment — e.g. pending cash collection):**
+```json
+{
+  "receipt": {
+    "...": "same structure as above",
+    "payment": {
+      "method": "cash",
+      "method_label": "Cash",
+      "status": "pending_collection",
+      "status_label": "Pending Collection",
+      "tip_amount": "0.00",
+      "amount_due": "3500.00"
+    }
   }
 }
 ```
