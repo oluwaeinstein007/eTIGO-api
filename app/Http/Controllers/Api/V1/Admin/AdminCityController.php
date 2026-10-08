@@ -7,6 +7,8 @@ use App\Http\Requests\Admin\City\StoreCityRequest;
 use App\Http\Requests\Admin\City\UpdateCityRequest;
 use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
+use App\Enums\DriverStatus;
+use App\Enums\RideStatus;
 use App\Models\City;
 use App\Services\AppCacheService;
 use App\Support\NigerianStates;
@@ -41,6 +43,8 @@ class AdminCityController extends Controller
             $query->where('region', $request->input('region'));
         }
 
+        $query->withCount(['vehicleClasses', 'drivers']);
+
         $cities = $query->latest()->paginate(min($request->integer('per_page', 20), 100));
 
         return response()->json([
@@ -73,8 +77,13 @@ class AdminCityController extends Controller
             }
 
             $areaSqKm = null;
-            if (isset($validated['boundary']) && ($validated['boundary']['type'] ?? '') === 'Polygon') {
-                $areaSqKm = City::calculateAreaFromPolygon($validated['boundary']['coordinates']);
+            if (isset($validated['boundary'])) {
+                $boundaryType = $validated['boundary']['type'] ?? '';
+                if ($boundaryType === 'Polygon') {
+                    $areaSqKm = City::calculateAreaFromPolygon($validated['boundary']['coordinates']);
+                } elseif ($boundaryType === 'Point') {
+                    $areaSqKm = City::calculateAreaFromPoint($validated['boundary']['radius_km'] ?? 30);
+                }
             }
 
             $city = City::create([
@@ -106,8 +115,24 @@ class AdminCityController extends Controller
 
     public function show(City $city): JsonResponse
     {
+        $city->load('vehicleClasses')
+            ->loadCount([
+                'vehicleClasses',
+                'drivers',
+                'rides as trips_count',
+                'rides as active_rides_count' => fn ($q) => $q->whereIn('status', [
+                    RideStatus::Matched,
+                    RideStatus::DriverEnRoute,
+                    RideStatus::DriverArrived,
+                    RideStatus::InProgress,
+                ]),
+                'drivers as active_drivers_count' => fn ($q) => $q
+                    ->where('is_online', true)
+                    ->where('status', DriverStatus::Approved),
+            ]);
+
         return response()->json([
-            'city' => new CityResource($city->load('vehicleClasses')),
+            'city' => new CityResource($city),
         ]);
     }
 
@@ -135,8 +160,11 @@ class AdminCityController extends Controller
             }
 
             if (isset($validated['boundary'])) {
-                if (($validated['boundary']['type'] ?? '') === 'Polygon') {
+                $boundaryType = $validated['boundary']['type'] ?? '';
+                if ($boundaryType === 'Polygon') {
                     $validated['area_sq_km'] = City::calculateAreaFromPolygon($validated['boundary']['coordinates']);
+                } elseif ($boundaryType === 'Point') {
+                    $validated['area_sq_km'] = City::calculateAreaFromPoint($validated['boundary']['radius_km'] ?? 30);
                 } else {
                     $validated['area_sq_km'] = null;
                 }

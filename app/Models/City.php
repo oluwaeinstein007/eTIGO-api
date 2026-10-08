@@ -68,6 +68,16 @@ class City extends Model
         return abs($sum) * $earthRadiusKm * $earthRadiusKm / 2;
     }
 
+    public static function calculateAreaFromPoint(float $radiusKm): float
+    {
+        return round(M_PI * $radiusKm * $radiusKm, 2);
+    }
+
+    public function drivers(): HasMany
+    {
+        return $this->hasMany(Driver::class);
+    }
+
     public function vehicleClasses(): BelongsToMany
     {
         return $this->belongsToMany(VehicleClass::class, 'city_vehicle_classes')
