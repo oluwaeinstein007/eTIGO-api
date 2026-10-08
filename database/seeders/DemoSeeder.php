@@ -132,6 +132,13 @@ class DemoSeeder extends Seeder
                 $cityData,
             );
 
+            if (! $city->wasRecentlyCreated) {
+                $city->updateQuietly(array_filter([
+                    'state' => $city->state ?? $cityData['state'],
+                    'region' => $city->region ?? $cityData['region'],
+                ]));
+            }
+
             if ($city->vehicleClasses()->count() === 0) {
                 $syncData = [];
                 foreach ($vehicleClasses as $i => $vc) {

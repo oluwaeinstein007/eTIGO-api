@@ -81,4 +81,11 @@ it('reverse geocodes coordinates to an address', function () {
         'place_id' => 'place.12345',
         'city' => 'Lagos',
     ]);
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), 'geocode/v6/reverse')
+            && $request['latitude'] == 6.4281
+            && $request['longitude'] == 3.4219
+            && ! isset($request['limit']);
+    });
 });

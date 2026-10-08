@@ -35,13 +35,24 @@ class City extends Model
 
     public static function calculateAreaFromPolygon(array $coordinates): float
     {
-        $points = $coordinates[0] ?? [];
+        $exteriorRing = $coordinates[0] ?? [];
+        $area = self::calculateRingArea($exteriorRing);
+
+        for ($i = 1, $ringCount = count($coordinates); $i < $ringCount; $i++) {
+            $area -= self::calculateRingArea($coordinates[$i]);
+        }
+
+        return round(max($area, 0), 2);
+    }
+
+    private static function calculateRingArea(array $points): float
+    {
         if (count($points) < 3) {
             return 0;
         }
 
         $earthRadiusKm = 6371;
-        $area = 0;
+        $sum = 0;
         $n = count($points);
 
         for ($i = 0; $i < $n; $i++) {
@@ -51,12 +62,10 @@ class City extends Model
             $lng2 = deg2rad($points[$j][0]);
             $lat2 = deg2rad($points[$j][1]);
 
-            $area += ($lng2 - $lng1) * (2 + sin($lat1) + sin($lat2));
+            $sum += ($lng2 - $lng1) * (2 + sin($lat1) + sin($lat2));
         }
 
-        $area = abs($area) * $earthRadiusKm * $earthRadiusKm / 2;
-
-        return round($area, 2);
+        return abs($sum) * $earthRadiusKm * $earthRadiusKm / 2;
     }
 
     public function vehicleClasses(): BelongsToMany

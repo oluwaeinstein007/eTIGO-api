@@ -134,8 +134,12 @@ class AdminCityController extends Controller
                 $validated['region'] = NigerianStates::regionFor($validated['state']);
             }
 
-            if (isset($validated['boundary']) && ($validated['boundary']['type'] ?? '') === 'Polygon') {
-                $validated['area_sq_km'] = City::calculateAreaFromPolygon($validated['boundary']['coordinates']);
+            if (isset($validated['boundary'])) {
+                if (($validated['boundary']['type'] ?? '') === 'Polygon') {
+                    $validated['area_sq_km'] = City::calculateAreaFromPolygon($validated['boundary']['coordinates']);
+                } else {
+                    $validated['area_sq_km'] = null;
+                }
             }
 
             $city->update($validated);

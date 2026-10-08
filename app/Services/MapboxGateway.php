@@ -83,7 +83,6 @@ class MapboxGateway implements MapsGateway
             'longitude' => $lng,
             'latitude' => $lat,
             'access_token' => $this->accessToken,
-            'limit' => 1,
         ]);
 
         $response->throw();

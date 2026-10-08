@@ -18,7 +18,7 @@ class StoreCityRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'name' => ['required', 'string', 'max:255', 'unique:cities,name'],
             'state' => ['required', 'string', Rule::in(NigerianStates::names())],
             'boundary' => ['nullable', 'array'],
@@ -30,5 +30,13 @@ class StoreCityRequest extends FormRequest
             'vehicle_class_ids' => ['nullable', 'array'],
             'vehicle_class_ids.*' => ['uuid', 'distinct', 'exists:vehicle_classes,id'],
         ];
+
+        if ($this->input('boundary.type') === 'Polygon') {
+            $rules['boundary.coordinates.*'] = ['array', 'min:3'];
+            $rules['boundary.coordinates.*.*'] = ['array', 'size:2'];
+            $rules['boundary.coordinates.*.*.*'] = ['numeric'];
+        }
+
+        return $rules;
     }
 }

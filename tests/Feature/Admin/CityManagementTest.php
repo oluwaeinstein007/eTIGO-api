@@ -73,6 +73,23 @@ it('validates required fields when creating a city', function () {
         ->assertJsonValidationErrors(['name', 'state']);
 });
 
+it('rejects invalid polygon coordinates', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/admin/cities', [
+            'name' => 'Test City',
+            'state' => 'Lagos',
+            'boundary' => [
+                'type' => 'Polygon',
+                'coordinates' => [['not-a-coordinate']],
+            ],
+        ]);
+
+    $response->assertUnprocessable();
+});
+
 it('rejects duplicate city names', function () {
     $admin = User::factory()->admin()->create();
     $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
