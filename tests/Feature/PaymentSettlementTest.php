@@ -3,7 +3,6 @@
 use App\Contracts\PaymentGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
-use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\ProcessPaymentJob;
 use App\Models\Payment;
@@ -12,7 +11,6 @@ use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Services\FakePaymentGateway;
 use App\Services\PaymentService;
-use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->app->instance(PaymentGateway::class, new FakePaymentGateway);

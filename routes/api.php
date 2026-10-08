@@ -29,12 +29,12 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideController;
-use App\Http\Controllers\Api\V1\RidePaymentController;
-use App\Http\Controllers\Api\V1\RideReceiptController;
-use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
 use App\Http\Controllers\Api\V1\RideLocationController;
+use App\Http\Controllers\Api\V1\RidePaymentController;
+use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
+use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
