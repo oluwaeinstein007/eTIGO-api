@@ -99,7 +99,7 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 5
-          STATUS=$(ssh -i ~/.ssh/id_ed25519 deploy@${{ secrets.SERVER_IP }} "curl -s -o /dev/null -w '%{http_code}' http://localhost/api/v1/health")
+          STATUS=$(ssh -i ~/.ssh/id_ed25519 deploy@${{ secrets.SERVER_IP }} "curl -sk -o /dev/null -w '%{http_code}' -H 'Host: etigo-api.apeinhood.xyz' https://localhost/api/v1/health")
           if [ "$STATUS" != "200" ]; then
             echo "Health check failed with status: $STATUS"
             exit 1
