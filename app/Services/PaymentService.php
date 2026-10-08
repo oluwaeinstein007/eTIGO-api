@@ -128,22 +128,24 @@ class PaymentService
                     ->where('is_default', true)
                     ->first();
 
-                if ($defaultMethod) {
-                    try {
-                        $this->paymentGateway->chargeWithToken([
-                            'token' => $defaultMethod->gateway_token,
-                            'email' => $passenger->email,
-                            'amount' => $tipAmount,
-                            'currency' => $ride->fare_currency,
-                            'tx_ref' => $txRef,
-                        ]);
-                    } catch (\Throwable $e) {
-                        Log::warning('Tip charge failed', [
-                            'ride_id' => $ride->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                        throw new \RuntimeException('Failed to charge tip amount.');
-                    }
+                if (! $defaultMethod) {
+                    throw new \RuntimeException('No default payment method on file to charge tip.');
+                }
+
+                try {
+                    $this->paymentGateway->chargeWithToken([
+                        'token' => $defaultMethod->gateway_token,
+                        'email' => $passenger->email,
+                        'amount' => $tipAmount,
+                        'currency' => $ride->fare_currency,
+                        'tx_ref' => $txRef,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('Tip charge failed', [
+                        'ride_id' => $ride->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    throw new \RuntimeException('Failed to charge tip amount.');
                 }
             }
 
@@ -161,7 +163,7 @@ class PaymentService
             throw new \RuntimeException('Cannot refund a payment without a gateway transaction.');
         }
 
-        $result = $this->paymentGateway->refund($payment->gateway_transaction_id, $refundAmount);
+        $this->paymentGateway->refund($payment->gateway_transaction_id, $refundAmount);
 
         return DB::transaction(function () use ($payment) {
             $payment->update(['status' => PaymentStatus::Refunded]);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Ride;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,7 @@ class RideReceiptController extends Controller
             abort(403, 'You do not have access to this receipt.');
         }
 
-        if ($ride->status->value !== 'completed') {
+        if ($ride->status !== RideStatus::Completed) {
             abort(404, 'Receipt is only available for completed rides.');
         }
 
