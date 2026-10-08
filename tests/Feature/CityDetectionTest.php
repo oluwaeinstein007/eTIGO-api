@@ -73,6 +73,61 @@ it('ignores inactive cities', function () {
     $response->assertNotFound();
 });
 
+it('detects a city from polygon boundary', function () {
+    City::factory()->create([
+        'name' => 'Victoria Island',
+        'is_active' => true,
+        'boundary' => [
+            'type' => 'Polygon',
+            'coordinates' => [[
+                [3.4100, 6.4350],
+                [3.4350, 6.4350],
+                [3.4350, 6.4200],
+                [3.4100, 6.4200],
+                [3.4100, 6.4350],
+            ]],
+        ],
+    ]);
+
+    $this->mockMaps->shouldReceive('reverseGeocode')
+        ->andReturn(['address' => 'Somewhere, Nigeria', 'place_id' => 'test']);
+
+    $response = $this->getJson('/api/v1/cities/detect?lat=6.4275&lng=3.4225');
+
+    $response->assertOk()
+        ->assertJsonPath('city.name', 'Victoria Island');
+});
+
+it('returns the smallest city when boundaries overlap', function () {
+    City::factory()->create([
+        'name' => 'Lagos Metro',
+        'is_active' => true,
+        'boundary' => [
+            'type' => 'Point',
+            'coordinates' => [3.3792, 6.5244],
+            'radius_km' => 50,
+        ],
+    ]);
+
+    City::factory()->create([
+        'name' => 'Ikeja',
+        'is_active' => true,
+        'boundary' => [
+            'type' => 'Point',
+            'coordinates' => [3.3420, 6.6018],
+            'radius_km' => 5,
+        ],
+    ]);
+
+    $this->mockMaps->shouldReceive('reverseGeocode')
+        ->andReturn(['address' => 'Somewhere, Nigeria', 'place_id' => 'test']);
+
+    $response = $this->getJson('/api/v1/cities/detect?lat=6.6018&lng=3.3420');
+
+    $response->assertOk()
+        ->assertJsonPath('city.name', 'Ikeja');
+});
+
 it('validates coordinate parameters', function () {
     $response = $this->getJson('/api/v1/cities/detect');
 
