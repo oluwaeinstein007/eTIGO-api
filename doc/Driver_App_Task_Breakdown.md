@@ -191,6 +191,10 @@
 | OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
 | OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | FE2-DVH-01 | `[ ]` Unresolved |
 | OQ-20 | Driver scheduling: shift scheduling or availability planning? | FE2-DSH-01 | `[ ]` Unresolved |
+| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | FE-DEL-01 | `[ ]` Unresolved |
+| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | FE-DEL-11 | `[ ]` Unresolved |
+| OQ-30 | Minimum payout amount for driver withdrawals? | FE-DEL-08 | `[ ]` Unresolved |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | FE-DEL-08 | `[ ]` Unresolved |
 
 ---
 
@@ -198,9 +202,9 @@
 
 | Section | Tasks |
 |---------|-------|
-| Phase 1 | 31 |
+| Phase 1 | 44 |
 | Phase 2 | 4 |
-| **Total** | **35** |
+| **Total** | **48** |
 
 ---
 

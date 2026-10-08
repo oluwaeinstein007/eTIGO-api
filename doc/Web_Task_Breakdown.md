@@ -41,18 +41,20 @@
 13. [SOS Console](#13-sos-console)
 14. [Anti-Offline Monitoring](#14-anti-offline-monitoring)
 15. [EV Charging Management](#15-ev-charging-management)
-16. [Phase 2 — Admin Screens](#16-phase-2--admin-screens)
+16. [Wallet & Ledger Administration](#16-wallet--ledger-administration)
+17. [Payout Management](#17-payout-management)
+18. [Phase 2 — Admin Screens](#18-phase-2--admin-screens)
 
 ### Landing Page
 
 **Platform:** Web (static site or Next.js SSR/SSG — TBD)
 **Purpose:** Public-facing marketing site for riders, drivers, and partners
 
-17. [Landing Page](#17-landing-page)
+19. [Landing Page](#19-landing-page)
 
 ### Tracking
 
-18. [Open Questions](#18-open-questions)
+20. [Open Questions](#20-open-questions)
 
 ---
 
@@ -255,7 +257,80 @@
 
 ---
 
-## 16. Phase 2 — Admin Screens
+## 16. Wallet & Ledger Administration
+
+**PRD refs:** A-16, B-08, NF-06
+
+### 16.1 Dashboard & Overview
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-01 | `[ ]` Build wallet/ledger KPI dashboard: total wallet liability, top-ups today, pending payouts, driver earnings payable, platform commission earned; real-time counters | A-16 | 📡 BE-WADM-25 | Finance and Super Admin roles only |
+| FE-AWL-02 | `[ ]` Build financial alerts panel: failed webhooks count, stuck transactions count, negative driver balances count; each links to detail view | A-16 | 📡 BE-WADM-22, BE-WADM-23 | Prominent placement on dashboard; auto-refresh |
+
+### 16.2 Passenger Wallet Management
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-03 | `[ ]` Build passenger wallet list page: searchable table (name/phone/email) with balance, status (active/frozen), last activity date; balance range filter; pagination | A-16 | 📡 BE-WADM-01 | — |
+| FE-AWL-04 | `[ ]` Build passenger wallet detail page: balance summary (available/held), active holds list, transaction history with type icons and status badges; tabs for overview and transactions | A-16 | 📡 BE-WADM-02 | — |
+| FE-AWL-05 | `[ ]` Build wallet freeze/unfreeze action: confirmation dialog with mandatory reason text area; reflect frozen status immediately with visual indicator; audit trail visible | A-16 | 📡 BE-WADM-03 | 🔒 Finance and Super Admin only |
+
+### 16.3 Driver Ledger Management
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-06 | `[ ]` Build driver ledger list page: table with driver name, pending balance, available balance, total paid out, bank account status; search + filter; pagination | A-16 | 📡 BE-WADM-04 | — |
+| FE-AWL-07 | `[ ]` Build driver ledger detail page: tabs for earnings breakdown, commission history, payout history, bank account details; negative balance highlighted | A-16 | 📡 BE-WADM-05 | Negative balance view for cash-ride commission owed |
+
+### 16.4 Ledger Explorer
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-08 | `[ ]` Build global ledger explorer page: searchable transaction table by reference, user, ride, type, date range; journal view showing both debit and credit sides of each entry | A-16 | 📡 BE-WADM-06 | — |
+| FE-AWL-09 | `[ ]` Build ledger CSV export: "Export" button on ledger explorer; apply current filters to export; stream download for large datasets | A-16 | 📡 BE-WADM-07 | — |
+
+### 16.5 Manual Adjustments & Refunds
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-10 | `[ ]` Build create adjustment form: select account (passenger wallet or driver ledger), type (credit/debit), amount input, mandatory reason text area; submit creates pending adjustment | NF-06 | 📡 BE-WADM-10 | 🔒 Audit trail; Finance and Super Admin only |
+| FE-AWL-11 | `[ ]` Build adjustment approval queue: table of pending adjustments with creator, account, type, amount, reason; "Approve" / "Reject" buttons with confirmation dialog | NF-06 | 📡 BE-WADM-11, BE-WADM-12 | 🔒 Maker-checker: approver must differ from creator |
+| FE-AWL-12 | `[ ]` Build refund-to-wallet action: accessible from ride detail page; full or partial amount input; linked to dispute if one exists; confirmation dialog showing refund impact | A-16 | 📡 BE-WADM-13 | — |
+
+### 16.6 Settings
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-13 | `[ ]` Build commission settings page: global commission rate display and edit; per-driver override table (CRUD); changes apply to future rides only warning | A-16 | 📡 BE-WADM-19 | Super Admin only |
+| FE-AWL-14 | `[ ]` Build wallet settings page: configure min top-up, max balance, daily top-up cap, minimum payout amount, payout schedule; save with confirmation | A-16 | 📡 BE-WADM-20 | Super Admin only |
+
+### 16.7 Reconciliation & Reports
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-AWL-15 | `[ ]` Build daily reconciliation view: Paystack settlements vs ledger entries comparison; mismatches flagged with visual indicators; date selector | A-16 | 📡 BE-WADM-24 | — |
+| FE-AWL-16 | `[ ]` Build wallet liability report: total passenger wallet balances (platform liability), commission collected, driver earnings payable; trend over time chart | A-16 | 📡 BE-WADM-25 | — |
+| FE-AWL-17 | `[ ]` Build audit log viewer for financial actions: searchable log of all money-moving admin actions (who, what, when, before/after values) | NF-06 | 📡 SETUP-54 | — |
+
+---
+
+## 17. Payout Management
+
+**PRD refs:** A-16, B-08
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE-APO-06 | `[ ]` Build payout queue page: table of requested payouts with driver name, amount, bank account, request date, status; filter by status (requested/approved/processing/paid/failed); pagination | A-16 | 📡 BE-WADM-14 | — |
+| FE-APO-07 | `[ ]` Build payout approve/reject actions: "Approve" button with confirmation dialog; "Reject" button with mandatory reason; reflect status immediately | A-16 | 📡 BE-WADM-15, BE-WADM-16 | — |
+| FE-APO-08 | `[ ]` Build bulk payout approval: checkbox selection on payout queue; "Approve Selected" action with count confirmation; process in batch | A-16 | 📡 BE-WADM-15 | — |
+| FE-APO-09 | `[ ]` Build failed payout retry action: "Retry" button on failed payouts; show failure reason; confirmation dialog; re-dispatch transfer | A-16 | 📡 BE-WADM-17 | — |
+| FE-APO-10 | `[ ]` Build payout status tracking: real-time status updates from Paystack transfer webhooks; status timeline on payout detail | A-16 | 📡 BE-EARN-16 | — |
+| FE-APO-11 | `[ ]` Build payout batch export: "Export" button on payout queue; CSV download of filtered payouts for finance reconciliation | A-16 | 📡 BE-WADM-18 | — |
+
+---
+
+## 18. Phase 2 — Admin Screens
 
 **PRD refs:** A-33–A-39
 
@@ -275,7 +350,7 @@
 
 ---
 
-## 17. Landing Page
+## 19. Landing Page
 
 **Platform:** Web (static site or Next.js SSR/SSG — TBD)
 **Purpose:** Public-facing marketing site for riders, drivers, and partners
@@ -297,7 +372,7 @@
 
 ---
 
-## 18. Open Questions
+## 20. Open Questions
 
 ### Admin Dashboard
 
@@ -323,9 +398,9 @@
 
 | App | Phase 1 Tasks | Phase 2 Tasks | Total |
 |-----|--------------|---------------|-------|
-| Admin Dashboard | 55 | 7 | 62 |
+| Admin Dashboard | 78 | 7 | 85 |
 | Landing Page | 12 | — | 12 |
-| **Total** | **67** | **7** | **74** |
+| **Total** | **90** | **7** | **97** |
 
 ---
 
