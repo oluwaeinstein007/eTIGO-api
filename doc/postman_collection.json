@@ -57,6 +57,45 @@
           ]
         },
         {
+          "name": "Lookups",
+          "item": [
+            {
+              "name": "List Nigerian States",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lookup/states",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lookup",
+                    "states"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List Geopolitical Regions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lookup/regions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lookup",
+                    "regions"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Public \u2014 Cities",
           "item": [
             {
