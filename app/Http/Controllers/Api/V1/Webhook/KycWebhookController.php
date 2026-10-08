@@ -61,11 +61,7 @@ class KycWebhookController extends Controller
     {
         $webhookSecret = config('services.qoreid.webhook_secret');
 
-        if (! $webhookSecret) {
-            return true;
-        }
-
-        if (! $signature || ! $payload) {
+        if (! $webhookSecret || ! $signature || ! $payload) {
             return false;
         }
 
