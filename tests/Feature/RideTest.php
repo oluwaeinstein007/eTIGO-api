@@ -3,6 +3,7 @@
 use App\Contracts\MapsGateway;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Events\RideStatusUpdated;
 use App\Jobs\FinalFareCalculationJob;
 use App\Models\City;
 use App\Models\Driver;
@@ -14,6 +15,7 @@ use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\RidePinService;
 use App\Services\RideStateMachine;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -577,6 +579,42 @@ it('records state transition audit trail', function () {
     expect($transitions->first()->from_state)->toBe(RideStatus::Requested);
     expect($transitions->first()->to_state)->toBe(RideStatus::Searching);
     expect($transitions->first()->triggered_by_type)->toBe('passenger');
+});
+
+it('broadcasts ride status changes to the private ride channel', function () {
+    Event::fake([RideStatusUpdated::class]);
+
+    $ride = Ride::factory()->create([
+        'passenger_id' => $this->passenger->id,
+        'driver_id' => $this->driverUser->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => RideStatus::DriverArrived,
+    ]);
+
+    app(RideStateMachine::class)->transitionTo(
+        $ride,
+        RideStatus::Cancelled,
+        $this->passenger,
+        'passenger',
+        ['reason' => 'other'],
+    );
+
+    Event::assertDispatched(RideStatusUpdated::class, function ($event) use ($ride) {
+        expect($event->broadcastAs())->toBe('ride.status.updated');
+        expect($event->broadcastWith())->toMatchArray([
+            'ride_id' => $ride->id,
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'previous_status' => 'driver_arrived',
+            'status' => 'cancelled',
+            'actor_type' => 'passenger',
+            'actor_id' => $this->passenger->id,
+        ]);
+        expect($event->broadcastOn()[0]->name)->toBe('private-ride.'.$ride->id);
+
+        return true;
+    });
 });
 
 it('rejects invalid state transitions', function () {

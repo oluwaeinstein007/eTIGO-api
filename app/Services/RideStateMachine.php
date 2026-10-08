@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\RideStatus;
+use App\Events\RideStatusUpdated;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
@@ -65,8 +66,9 @@ class RideStateMachine
         ?array $metadata = null,
     ): Ride {
         $fromState = null;
+        $occurredAt = null;
 
-        $ride = DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata, &$fromState) {
+        $ride = DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata, &$fromState, &$occurredAt) {
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
 
             if (! $this->canTransitionTo($ride, $newStatus)) {
@@ -80,6 +82,7 @@ class RideStateMachine
             }
 
             $fromState = $ride->status;
+            $occurredAt = now();
 
             $ride->status = $newStatus;
 
@@ -102,7 +105,7 @@ class RideStateMachine
                 'triggered_by_type' => $triggeredByType,
                 'triggered_by_id' => $actor?->id,
                 'metadata' => $metadata,
-                'created_at' => now(),
+                'created_at' => $occurredAt,
             ]);
 
             return $ride;
@@ -114,6 +117,21 @@ class RideStateMachine
             $this->notificationService->notifyTransition($ride, $from, $newStatus);
         } catch (\Throwable) {
             // Push notification failures must not break the ride flow
+        }
+
+        try {
+            event(new RideStatusUpdated(
+                rideId: (string) $ride->id,
+                passengerId: (string) $ride->passenger_id,
+                driverId: $ride->driver_id === null ? null : (string) $ride->driver_id,
+                previousStatus: $from->value,
+                status: $newStatus->value,
+                actorType: $triggeredByType,
+                actorId: $actor?->id === null ? null : (string) $actor->id,
+                occurredAt: $occurredAt->toISOString(),
+            ));
+        } catch (\Throwable) {
+            // Reverb failures must not roll back a committed ride transition.
         }
 
         return $ride;
