@@ -5,13 +5,15 @@ namespace App\Jobs;
 use App\Models\Ride;
 use App\Services\PaymentService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ProcessPaymentJob implements ShouldQueue
+class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -19,23 +21,38 @@ class ProcessPaymentJob implements ShouldQueue
 
     public int $backoff = 30;
 
+    public int $uniqueFor = 300;
+
     public function __construct(
         public readonly string $rideId,
     ) {}
 
+    public function uniqueId(): string
+    {
+        return $this->rideId;
+    }
+
     public function handle(PaymentService $paymentService): void
     {
-        $ride = Ride::with('passenger')->find($this->rideId);
+        $ride = DB::transaction(function () {
+            $ride = Ride::with('passenger')->lockForUpdate()->find($this->rideId);
+
+            if (! $ride) {
+                Log::warning('ProcessPaymentJob: ride not found', ['ride_id' => $this->rideId]);
+
+                return null;
+            }
+
+            if ($ride->payment()->exists()) {
+                Log::info('ProcessPaymentJob: payment already exists', ['ride_id' => $this->rideId]);
+
+                return null;
+            }
+
+            return $ride;
+        });
 
         if (! $ride) {
-            Log::warning('ProcessPaymentJob: ride not found', ['ride_id' => $this->rideId]);
-
-            return;
-        }
-
-        if ($ride->payment()->exists()) {
-            Log::info('ProcessPaymentJob: payment already exists', ['ride_id' => $this->rideId]);
-
             return;
         }
 

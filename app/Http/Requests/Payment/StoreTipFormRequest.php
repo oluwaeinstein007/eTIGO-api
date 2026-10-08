@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Payment;
 
+use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -31,7 +32,21 @@ class StoreTipFormRequest extends FormRequest
                     $validator->errors()->add('ride', 'Tips can only be added to completed rides.');
                 }
 
-                if ($ride?->payment?->tip_amount > 0) {
+                $payment = $ride?->payment;
+
+                if (! $payment) {
+                    $validator->errors()->add('ride', 'No payment record found for this ride.');
+
+                    return;
+                }
+
+                if ($payment->status === PaymentStatus::Failed) {
+                    $validator->errors()->add('ride', 'Cannot add a tip to a failed payment.');
+
+                    return;
+                }
+
+                if ($payment->tip_amount > 0) {
                     $validator->errors()->add('amount', 'A tip has already been added to this ride.');
                 }
             },

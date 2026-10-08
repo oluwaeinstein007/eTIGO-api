@@ -43,17 +43,47 @@ class PaymentWebhookController extends Controller
 
         $payment = Payment::where('gateway_transaction_id', $transactionId)->first();
 
+        if (! $payment) {
+            // Webhook arrived before ProcessPaymentJob — look up by pending status
+            // so the webhook can resolve payments left pending after gateway timeouts.
+            $payment = Payment::where('status', PaymentStatus::Pending)
+                ->whereHas('ride', fn ($q) => $q->where('payment_method', 'card'))
+                ->latest()
+                ->first();
+
+            if ($payment) {
+                $payment->update(['gateway_transaction_id' => $transactionId]);
+            }
+        }
+
         if ($payment) {
+            $terminalStatuses = [
+                PaymentStatus::Refunded,
+                PaymentStatus::Collected,
+                PaymentStatus::Settled,
+            ];
+
+            if (in_array($payment->status, $terminalStatuses)) {
+                Log::info('Flutterwave webhook: skipping update for terminal payment', [
+                    'payment_id' => $payment->id,
+                    'current_status' => $payment->status->value,
+                ]);
+
+                return response()->json(['status' => 'ok']);
+            }
+
+            $newStatus = $verification['status'] === 'successful'
+                ? PaymentStatus::Captured
+                : PaymentStatus::Failed;
+
             $payment->update([
-                'status' => $verification['status'] === 'successful'
-                    ? PaymentStatus::Captured
-                    : PaymentStatus::Failed,
-                'failure_reason' => $verification['status'] !== 'successful'
+                'status' => $newStatus,
+                'failure_reason' => $newStatus === PaymentStatus::Failed
                     ? "Gateway status: {$verification['status']}"
                     : null,
             ]);
 
-            $payment->ride?->update(['payment_status' => $payment->fresh()->status]);
+            $payment->ride?->update(['payment_status' => $newStatus]);
         }
 
         return response()->json(['status' => 'ok']);

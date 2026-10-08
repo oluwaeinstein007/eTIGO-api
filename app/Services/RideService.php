@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\RideCompletedNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -334,15 +335,23 @@ class RideService
 
             AuditLog::record($ride, 'ride_completed', $driver);
 
+            $fareDetails = null;
             try {
                 $fareDetails = $this->calculateFinalFare($ride);
-                $passenger = $ride->passenger;
+            } catch (\Throwable $e) {
+                Log::error('Final fare calculation failed during ride completion', [
+                    'ride_id' => $ride->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
-                if ($passenger?->email) {
+            try {
+                $passenger = $ride->passenger;
+                if ($passenger?->email && $fareDetails) {
                     $passenger->notify(new RideCompletedNotification($ride, $fareDetails));
                 }
             } catch (\Throwable) {
-                // Receipt email failures must not break ride completion
+                // Notification failures must not break ride completion
             }
 
             return $ride;

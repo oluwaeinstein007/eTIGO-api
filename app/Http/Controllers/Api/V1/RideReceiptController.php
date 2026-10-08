@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Payment;
 use App\Models\Ride;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,23 +59,41 @@ class RideReceiptController extends Controller
                     'time_charge' => round(
                         ($snapshot['duration_minutes'] ?? 0) * ($snapshot['per_minute_rate'] ?? 0), 2
                     ),
-                    'waiting_charge' => (float) ($snapshot['waiting_time_rate'] ?? 0),
+                    'waiting_charge' => (float) ($snapshot['waiting_charge'] ?? 0),
                     'minimum_fare' => (float) ($snapshot['minimum_fare'] ?? 0),
                     'surge_multiplier' => $snapshot['surge_multiplier'] ?? null,
                 ],
                 'fare_estimate' => $ride->fare_estimate_amount,
                 'final_fare' => $ride->final_fare_amount,
                 'currency' => $ride->fare_currency,
-                'payment' => $payment ? [
-                    'method' => $payment->method->value,
-                    'method_label' => $payment->method->label(),
-                    'status' => $payment->status->value,
-                    'status_label' => $payment->status->label(),
-                    'tip_amount' => $payment->tip_amount,
-                    'total_charged' => round((float) $payment->amount + (float) $payment->tip_amount, 2),
-                ] : null,
+                'payment' => $payment ? $this->formatPayment($payment) : null,
                 'city' => $ride->city?->name,
             ],
         ]);
+    }
+
+    private function formatPayment(Payment $payment): array
+    {
+        $isSettled = in_array($payment->status, [
+            PaymentStatus::Captured,
+            PaymentStatus::Collected,
+            PaymentStatus::Settled,
+        ]);
+
+        $data = [
+            'method' => $payment->method->value,
+            'method_label' => $payment->method->label(),
+            'status' => $payment->status->value,
+            'status_label' => $payment->status->label(),
+            'tip_amount' => $payment->tip_amount,
+        ];
+
+        if ($isSettled) {
+            $data['total_charged'] = round((float) $payment->amount + (float) $payment->tip_amount, 2);
+        } else {
+            $data['amount_due'] = $payment->amount;
+        }
+
+        return $data;
     }
 }
