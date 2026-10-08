@@ -260,10 +260,12 @@ class QoreIdKycGateway implements KycGateway
         $cacheKey = 'qoreid_access_token';
 
         return cache()->remember($cacheKey, 3500, function () {
-            $response = Http::withBasicAuth($this->clientId, $this->secretKey)
-                ->acceptJson()
+            $response = Http::acceptJson()
                 ->timeout(10)
-                ->post("{$this->baseUrl}/token");
+                ->post('https://api.qoreid.com/token', [
+                    'clientId' => $this->clientId,
+                    'secret' => $this->secretKey,
+                ]);
 
             if ($response->failed()) {
                 throw new RuntimeException('QoreID token error: '.$response->body());
