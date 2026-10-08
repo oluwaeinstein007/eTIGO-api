@@ -8,7 +8,6 @@ use App\Contracts\PaymentGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
 use App\Models\PersonalAccessToken;
-use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
@@ -81,14 +80,10 @@ class AppServiceProvider extends ServiceProvider
     private function registerKycGateway(): void
     {
         $this->app->bind(KycGateway::class, function () {
-            $clientId = config('services.qoreid.client_id');
-            $secretKey = config('services.qoreid.secret_key');
-
-            if ($clientId && $secretKey) {
-                return new QoreIdKycGateway($clientId, $secretKey);
-            }
-
-            return new FakeKycGateway;
+            return new QoreIdKycGateway(
+                config('services.qoreid.client_id', ''),
+                config('services.qoreid.secret_key', ''),
+            );
         });
     }
 

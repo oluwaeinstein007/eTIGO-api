@@ -1,6 +1,5 @@
 <?php
 
-use App\Contracts\KycGateway;
 use App\Enums\KycStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
@@ -9,12 +8,100 @@ use App\Models\Driver;
 use App\Models\KycVerification;
 use App\Models\User;
 use App\Models\VehicleClass;
-use App\Services\FakeKycGateway;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
-    $this->app->bind(KycGateway::class, FakeKycGateway::class);
+    config([
+        'services.qoreid.client_id' => 'test-client-id',
+        'services.qoreid.secret_key' => 'test-secret-key',
+    ]);
 });
+
+function fakeQoreIdForDriver(Driver $driver): void
+{
+    $first = $driver->user->first_name;
+    $last = $driver->user->last_name;
+
+    Http::fake([
+        'https://api.qoreid.com/token' => Http::response([
+            'accessToken' => 'fake-access-token',
+            'expiresIn' => '7200 secs',
+            'tokenType' => 'Bearer',
+        ], 201),
+
+        'https://api.qoreid.com/v1/ng/identities/nin-premium/12345678901' => Http::response([
+            'id' => 'nin-ref-123',
+            'firstname' => $first,
+            'lastname' => $last,
+            'phone' => null,
+            'photo' => null,
+            'gender' => 'Male',
+            'birthdate' => '1990-01-01',
+        ]),
+
+        'https://api.qoreid.com/v1/ng/identities/nin-premium/00012345678' => Http::response([
+            'id' => 'nin-ref-fail',
+            'firstname' => 'WRONG_FIRST',
+            'lastname' => 'WRONG_LAST',
+        ]),
+
+        'https://api.qoreid.com/v1/ng/identities/drivers-license/ABC123DEF' => Http::response([
+            'id' => 'lic-ref-123',
+            'firstname' => $first,
+            'lastname' => $last,
+            'expiryDate' => '2028-12-31',
+            'issueDate' => '2023-01-01',
+            'stateOfIssue' => 'Lagos',
+            'vehicleClass' => 'B',
+        ]),
+
+        'https://api.qoreid.com/v1/ng/identities/drivers-license/000FAIL' => Http::response([
+            'id' => 'lic-ref-fail',
+            'firstname' => 'WRONG_FIRST',
+            'lastname' => 'WRONG_LAST',
+        ]),
+
+        'https://api.qoreid.com/v1/ng/identities/license-plate-basic/LAG-123AB' => Http::response([
+            'id' => 'plate-ref-123',
+            'firstname' => $first,
+            'lastname' => $last,
+            'plateNumber' => 'LAG-123AB',
+            'chassisNumber' => 'ABC123456789',
+            'make' => 'Toyota',
+            'model' => 'Corolla',
+            'category' => 'Sedan',
+            'summary' => [
+                'firstname_match' => 'EXACT_MATCH',
+                'lastname_match' => 'EXACT_MATCH',
+            ],
+        ]),
+
+        'https://api.qoreid.com/v1/ng/identities/license-plate-basic/000-FAIL' => Http::response([
+            'id' => 'plate-ref-fail',
+            'firstname' => 'WRONG_FIRST',
+            'lastname' => 'WRONG_LAST',
+            'plateNumber' => '000-FAIL',
+            'summary' => [
+                'firstname_match' => 'NO_MATCH',
+                'lastname_match' => 'NO_MATCH',
+            ],
+        ]),
+
+        'https://api.qoreid.com/v1/sessions' => Http::response([
+            'sessionId' => 'sess_test_12345',
+            'sdkSessionToken' => 'sdk_token_abc',
+            'type' => 'collection',
+            'productCode' => 'liveness',
+            'expiresAt' => now()->addHour()->toIso8601String(),
+        ], 201),
+
+        'https://api.qoreid.com/v1/sessions/*' => Http::response([
+            'status' => 'completed',
+            'confidence' => 0.98,
+        ]),
+    ]);
+}
 
 it('returns kyc status for a driver', function () {
     $driver = Driver::factory()->create();
@@ -37,6 +124,7 @@ it('returns kyc status for a driver', function () {
 
 it('can verify NIN successfully', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -59,6 +147,7 @@ it('can verify NIN successfully', function () {
 
 it('reports NIN verification failure for invalid NIN', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -110,6 +199,7 @@ it('prevents duplicate NIN verification when already verified', function () {
 
 it('can verify drivers license successfully', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -132,6 +222,7 @@ it('can verify drivers license successfully', function () {
 
 it('reports license verification failure', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -150,6 +241,7 @@ it('reports license verification failure', function () {
 
 it('can create a liveness session', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -174,6 +266,7 @@ it('updates driver kyc_status to verified when all required checks pass', functi
         'plate_number' => 'LAG-123AB',
         'year' => 2022,
     ]);
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $this->withToken($token)
@@ -197,6 +290,7 @@ it('updates driver kyc_status to verified when all required checks pass', functi
 
 it('sets driver kyc_status to failed when a check fails', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $this->withToken($token)
@@ -238,6 +332,7 @@ it('returns 404 for non-driver user accessing kyc', function () {
 
 it('allows failed verification to be retried', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     KycVerification::create([
@@ -260,11 +355,12 @@ it('allows failed verification to be retried', function () {
 
 it('handles webhook for liveness completion', function () {
     $driver = Driver::factory()->create();
+    fakeQoreIdForDriver($driver);
 
     $verification = KycVerification::create([
         'driver_id' => $driver->id,
         'type' => KycVerificationType::Liveness,
-        'provider_reference' => 'fake_sess_test123',
+        'provider_reference' => 'sess_test_12345',
         'status' => KycVerificationStatus::Processing,
     ]);
 
@@ -273,7 +369,7 @@ it('handles webhook for liveness completion', function () {
 
     $payload = json_encode([
         'event' => 'verification_completed',
-        'sessionId' => 'fake_sess_test123',
+        'sessionId' => 'sess_test_12345',
     ]);
     $signature = hash_hmac('sha256', $payload, $secret);
 
@@ -297,6 +393,7 @@ it('can verify vehicle plate successfully', function () {
         'plate_number' => 'LAG-123AB',
         'year' => 2022,
     ]);
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -323,6 +420,7 @@ it('reports vehicle plate verification failure', function () {
         'plate_number' => '000-FAIL',
         'year' => 2022,
     ]);
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $response = $this->withToken($token)
@@ -376,7 +474,7 @@ it('re-verifies plate when plate number changes on vehicle update', function () 
     Queue::fake();
 
     $driver = Driver::factory()->create();
-    $vehicle = $driver->vehicle()->create([
+    $driver->vehicle()->create([
         'make' => 'Toyota',
         'model' => 'Corolla',
         'colour' => 'White',
@@ -420,6 +518,7 @@ it('marks fleet vehicle kyc as verified without plate check', function () {
         'year' => 2022,
         'is_fleet' => true,
     ]);
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $this->withToken($token)
@@ -446,6 +545,7 @@ it('skips plate verification when vehicle is fleet', function () {
         'year' => 2023,
         'is_fleet' => true,
     ]);
+    fakeQoreIdForDriver($driver);
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
 
     $this->withToken($token)
