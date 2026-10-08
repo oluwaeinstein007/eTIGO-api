@@ -11,10 +11,13 @@ use App\Jobs\MatchingTimeoutJob;
 use App\Models\AuditLog;
 use App\Models\PricingConfig;
 use App\Models\Ride;
+use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Notifications\RideCompletedNotification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class RideService
 {
@@ -74,7 +77,11 @@ class RideService
                 'share_token' => Str::random(32),
                 'fare_estimate_amount' => $estimate['fare_estimate'],
                 'fare_currency' => $estimate['currency'],
-                'pricing_snapshot' => $estimate['pricing_snapshot'],
+                'pricing_snapshot' => [
+                    ...$estimate['pricing_snapshot'],
+                    'distance_km' => $estimate['distance_km'],
+                    'duration_minutes' => $estimate['duration_minutes'],
+                ],
                 'payment_method' => $paymentMethod,
                 'payment_status' => PaymentStatus::Pending,
             ]);
@@ -144,6 +151,47 @@ class RideService
 
             return $ride->fresh();
         });
+    }
+
+    public function rebroadcastRide(Ride $ride, User $passenger): Ride
+    {
+        $ride = DB::transaction(function () use ($ride, $passenger) {
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            if (! $ride->belongsToPassenger($passenger)) {
+                throw new AuthorizationException;
+            }
+
+            if ($ride->status !== RideStatus::NoDriverFound) {
+                throw ValidationException::withMessages([
+                    'ride' => 'This ride can only be retried after no driver was found.',
+                ]);
+            }
+
+            $retryCount = RideStateTransition::query()
+                ->where('ride_id', $ride->id)
+                ->where('to_state', RideStatus::Searching->value)
+                ->count();
+
+            $ride = $this->stateMachine->transitionTo(
+                $ride,
+                RideStatus::Searching,
+                $passenger,
+                'passenger',
+                ['reason' => 'passenger_rebroadcast', 'retry_number' => $retryCount],
+            );
+
+            $this->matchingService->cleanupRideCache($ride);
+
+            return $ride->fresh();
+        });
+
+        DispatchRideRequestJob::dispatch($ride->id)->afterCommit();
+        MatchingTimeoutJob::dispatch($ride->id)
+            ->delay(now()->addSeconds(config('matching.matching_timeout', 180)))
+            ->afterCommit();
+
+        return $ride;
     }
 
     /**
@@ -339,7 +387,14 @@ class RideService
             $waitingMinutes,
         );
 
-        $ride->update(['final_fare_amount' => $finalFare]);
+        $ride->update([
+            'final_fare_amount' => $finalFare,
+            'pricing_snapshot' => [
+                ...(is_array($snapshot) ? $snapshot : []),
+                'distance_km' => $route['distance_km'],
+                'duration_minutes' => $route['duration_minutes'],
+            ],
+        ]);
 
         return [
             'final_fare' => $finalFare,

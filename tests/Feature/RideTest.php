@@ -3,7 +3,11 @@
 use App\Contracts\MapsGateway;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Events\RideNoDriverFound;
+use App\Events\RideStatusUpdated;
+use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\FinalFareCalculationJob;
+use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\PricingConfig;
@@ -11,8 +15,10 @@ use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Models\VehicleClass;
+use App\Services\DriverLocationService;
 use App\Services\RidePinService;
 use App\Services\RideStateMachine;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -222,21 +228,162 @@ it('rejects cancellation of in-progress ride', function () {
     $response->assertUnprocessable();
 });
 
+it('lets the passenger rebroadcast a no-driver ride using the same ride', function () {
+    $ride = Ride::factory()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => RideStatus::NoDriverFound,
+    ]);
+
+    $response = $this->withToken($this->passengerToken)
+        ->postJson("/api/v1/rides/{$ride->id}/rebroadcast");
+
+    $response->assertOk()
+        ->assertJsonPath('ride.id', $ride->id)
+        ->assertJsonPath('ride.status', 'searching');
+
+    expect(RideStateTransition::where('ride_id', $ride->id)->where('to_state', 'searching')->count())
+        ->toBe(1);
+    Queue::assertPushed(DispatchRideRequestJob::class, fn ($job) => $job->rideId === $ride->id);
+    Queue::assertPushed(MatchingTimeoutJob::class, fn ($job) => $job->rideId === $ride->id);
+});
+
+it('does not let a passenger rebroadcast another passenger ride', function () {
+    $ride = Ride::factory()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => RideStatus::NoDriverFound,
+    ]);
+    $anotherPassenger = User::factory()->create(['type' => UserType::Passenger]);
+    $token = $anotherPassenger->createToken('auth', ['passenger'])->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson("/api/v1/rides/{$ride->id}/rebroadcast")
+        ->assertForbidden();
+
+    expect($ride->fresh()->status)->toBe(RideStatus::NoDriverFound);
+});
+
+it('rejects rebroadcast until no driver was found', function () {
+    $ride = Ride::factory()->searching()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+    ]);
+
+    $this->withToken($this->passengerToken)
+        ->postJson("/api/v1/rides/{$ride->id}/rebroadcast")
+        ->assertUnprocessable();
+
+    expect($ride->fresh()->status)->toBe(RideStatus::Searching);
+});
+
 // === DRIVER ARRIVED ===
 
 it('allows driver to mark arrival', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->with((string) $this->driver->id)
+        ->andReturn([
+            'lat' => 6.5244,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
     $ride = Ride::factory()->driverEnRoute()->create([
         'passenger_id' => $this->passenger->id,
         'city_id' => $this->city->id,
         'vehicle_class_id' => $this->vehicleClass->id,
         'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
     ]);
 
     $response = $this->withToken($this->driverToken)
         ->postJson("/api/v1/rides/{$ride->id}/driver-arrived");
 
     $response->assertOk()
-        ->assertJsonPath('ride.status', 'driver_arrived');
+        ->assertJsonPath('ride.status', 'driver_arrived')
+        ->assertJsonPath('ride.state_transitions.0.to_state', 'driver_arrived')
+        ->assertJsonStructure([
+            'ride' => [
+                'state_transitions' => [
+                    '*' => ['created_at'],
+                ],
+            ],
+        ]);
+});
+
+it('rejects arrival when the driver location is stale', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->andReturn([
+            'lat' => 6.5244,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->subMinutes(3)->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
+    $ride = Ride::factory()->driverEnRoute()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+    ]);
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/rides/{$ride->id}/driver-arrived")
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'message',
+            'We could not confirm your recent location. Wait for your location to update, then try again.',
+        );
+
+    expect($ride->fresh()->status)->toBe(RideStatus::DriverEnRoute);
+});
+
+it('rejects arrival when the driver is outside the pickup radius', function () {
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('getDriverLocation')
+        ->once()
+        ->andReturn([
+            'lat' => 6.5344,
+            'lng' => 3.3792,
+            'heading' => 0,
+            'speed' => 0,
+            'timestamp' => now()->timestamp,
+        ]);
+    $this->app->instance(DriverLocationService::class, $locationService);
+
+    $ride = Ride::factory()->driverEnRoute()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'driver_id' => $this->driverUser->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+    ]);
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/rides/{$ride->id}/driver-arrived")
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'message',
+            'Move closer to the pickup location before marking arrival.',
+        );
+
+    expect($ride->fresh()->status)->toBe(RideStatus::DriverEnRoute);
 });
 
 it('rejects arrival by unassigned driver', function () {
@@ -342,6 +489,7 @@ it('shows ride details for passenger', function () {
         'passenger_id' => $this->passenger->id,
         'city_id' => $this->city->id,
         'vehicle_class_id' => $this->vehicleClass->id,
+        'pricing_snapshot' => ['distance_km' => 12.6, 'duration_minutes' => 28],
     ]);
 
     $response = $this->withToken($this->passengerToken)
@@ -352,9 +500,13 @@ it('shows ride details for passenger', function () {
             'ride' => [
                 'id', 'status', 'pickup', 'destination',
                 'fare_estimate_amount', 'fare_currency',
-                'state_transitions',
+                'state_transitions', 'vehicle_class', 'passenger', 'distance_km',
             ],
-        ]);
+        ])
+        ->assertJsonPath('ride.distance_km', 12.6)
+        ->assertJsonPath('ride.duration_minutes', 28)
+        ->assertJsonPath('ride.passenger.first_name', $this->passenger->first_name)
+        ->assertJsonPath('ride.vehicle_class.id', $this->vehicleClass->id);
 });
 
 it('prevents passenger from viewing another passengers ride', function () {
@@ -487,6 +639,73 @@ it('records state transition audit trail', function () {
     expect($transitions->first()->from_state)->toBe(RideStatus::Requested);
     expect($transitions->first()->to_state)->toBe(RideStatus::Searching);
     expect($transitions->first()->triggered_by_type)->toBe('passenger');
+});
+
+it('broadcasts ride status changes to the private ride channel', function () {
+    Event::fake([RideStatusUpdated::class]);
+
+    $ride = Ride::factory()->create([
+        'passenger_id' => $this->passenger->id,
+        'driver_id' => $this->driverUser->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => RideStatus::DriverArrived,
+    ]);
+
+    app(RideStateMachine::class)->transitionTo(
+        $ride,
+        RideStatus::Cancelled,
+        $this->passenger,
+        'passenger',
+        ['reason' => 'other'],
+    );
+
+    Event::assertDispatched(RideStatusUpdated::class, function ($event) use ($ride) {
+        expect($event->broadcastAs())->toBe('ride.status.updated');
+        expect($event->broadcastWith())->toMatchArray([
+            'ride_id' => $ride->id,
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'previous_status' => 'driver_arrived',
+            'status' => 'cancelled',
+            'actor_type' => 'passenger',
+            'actor_id' => $this->passenger->id,
+        ]);
+        expect($event->broadcastOn()[0]->name)->toBe('private-ride.'.$ride->id);
+
+        return true;
+    });
+});
+
+it('broadcasts a retryable no-driver event to the passenger ride channel', function () {
+    Event::fake([RideStatusUpdated::class, RideNoDriverFound::class]);
+
+    $ride = Ride::factory()->searching()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+    ]);
+
+    app(RideStateMachine::class)->transitionTo(
+        $ride,
+        RideStatus::NoDriverFound,
+        null,
+        'system',
+        ['reason' => 'matching_timeout'],
+    );
+
+    Event::assertDispatched(RideNoDriverFound::class, function ($event) use ($ride) {
+        expect($event->broadcastAs())->toBe('ride.no-driver-found');
+        expect($event->broadcastOn()[0]->name)->toBe('private-ride.'.$ride->id);
+        expect($event->broadcastWith())->toMatchArray([
+            'ride_id' => $ride->id,
+            'passenger_id' => $this->passenger->id,
+            'status' => 'no_driver_found',
+            'retry_allowed' => true,
+        ]);
+
+        return true;
+    });
 });
 
 it('rejects invalid state transitions', function () {

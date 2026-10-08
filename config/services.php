@@ -63,6 +63,8 @@ return [
         'api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    'demo_earnings_driver_user_id' => env('DEMO_EARNINGS_DRIVER_USER_ID'),
+
     'firebase' => [
         'credentials_path' => env('FIREBASE_CREDENTIALS_PATH'),
         'project_id' => env('FIREBASE_PROJECT_ID'),

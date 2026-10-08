@@ -35,6 +35,8 @@ class RideDetailResource extends JsonResource
             'final_fare_amount' => $this->final_fare_amount,
             'fare_currency' => $this->fare_currency,
             'pricing_snapshot' => $this->pricing_snapshot,
+            'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
+            'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,
             'cancellation_reason' => $this->cancellation_reason,
