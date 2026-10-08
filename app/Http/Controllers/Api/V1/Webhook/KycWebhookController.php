@@ -45,7 +45,7 @@ class KycWebhookController extends Controller
             ?? null;
 
         if (! $sessionId) {
-            return response()->json(['message' => 'Missing session ID.'], 400);
+            return response()->json(['message' => 'Webhook received.']);
         }
 
         if (in_array($event, ['verification_completed', 'step_verification_completed', 'identity'])) {
