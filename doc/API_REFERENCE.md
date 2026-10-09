@@ -2019,6 +2019,399 @@ Restores driver to approved status.
 
 ---
 
+## Admin — Fleet Agreement Management
+
+All fleet agreement endpoints require `Authorization: Bearer {token}` from an admin user.
+
+Fleet agreements represent hire-to-own arrangements between E-tiGo and fleet drivers. Each agreement links a driver to a fleet vehicle with a configurable daily remittance target and tracks payment progress toward full vehicle ownership.
+
+### List Fleet Agreements
+```
+GET /admin/fleet-agreements
+```
+
+| Parameter | Type   | Required | Description                          |
+|-----------|--------|----------|--------------------------------------|
+| status    | string | No       | Filter by status: `active`, `paused`, `completed`, `terminated` |
+| driver_id | string (UUID) | No | Filter by driver |
+
+**Response 200:**
+```json
+{
+  "agreements": [
+    {
+      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+      "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+      "daily_remittance_target": "40000.00",
+      "total_remitted": "1250000.00",
+      "progress_percentage": 25.0,
+      "remaining_amount": "3750000.00",
+      "total_vehicle_cost": "5000000.00",
+      "agreement_start_date": "2026-10-09",
+      "status": "active",
+      "shortfall_streak_days": 0,
+      "driver": { "...": "..." },
+      "vehicle": { "...": "..." },
+      "created_at": "2026-10-09T12:00:00.000000Z",
+      "updated_at": "2026-10-09T12:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
+> **Note:** `total_vehicle_cost`, `remaining_amount`, and full financial details are only included in admin responses. Driver-facing endpoints hide these fields per business decision (Q7).
+
+---
+
+### Create Fleet Agreement
+```
+POST /admin/fleet-agreements
+```
+
+| Field                   | Type           | Required | Validation              | Description                                  |
+|-------------------------|----------------|----------|-------------------------|----------------------------------------------|
+| driver_id               | string (UUID)  | Yes      | Must exist in `drivers`  | Driver to assign the agreement to            |
+| vehicle_id              | string (UUID)  | Yes      | Must exist in `vehicles` | Fleet vehicle to assign                      |
+| daily_remittance_target | number         | Yes      | min: 1000               | Daily target amount (e.g., 40000)            |
+| total_vehicle_cost      | number         | Yes      | min: 100000             | Total hire-to-own price of the vehicle       |
+| agreement_start_date    | date (Y-m-d)   | Yes      | today or future          | When remittance tracking begins             |
+
+**Response 201:**
+```json
+{
+  "message": "Fleet agreement created successfully.",
+  "agreement": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "daily_remittance_target": "40000.00",
+    "total_remitted": "0.00",
+    "progress_percentage": 0,
+    "remaining_amount": "5000000.00",
+    "total_vehicle_cost": "5000000.00",
+    "agreement_start_date": "2026-10-09",
+    "status": "active",
+    "shortfall_streak_days": 0,
+    "driver": { "...": "..." },
+    "vehicle": { "...": "..." },
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Driver already has an active fleet agreement."
+}
+```
+
+```json
+{
+  "message": "Vehicle must be marked as fleet before creating an agreement."
+}
+```
+
+**Prerequisites:**
+- The vehicle must be marked as fleet (`is_fleet: true`) via the [Toggle Fleet Vehicle](#toggle-fleet-vehicle) endpoint before an agreement can be created.
+- A driver can only have one active agreement at a time.
+
+---
+
+### Show Fleet Agreement
+```
+GET /admin/fleet-agreements/{fleet_agreement_id}
+```
+
+Returns agreement detail with the 30 most recent daily remittance records.
+
+**Response 200:**
+```json
+{
+  "agreement": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "daily_remittance_target": "40000.00",
+    "total_remitted": "1250000.00",
+    "progress_percentage": 25.0,
+    "remaining_amount": "3750000.00",
+    "total_vehicle_cost": "5000000.00",
+    "agreement_start_date": "2026-10-09",
+    "status": "active",
+    "shortfall_streak_days": 2,
+    "driver": { "...": "..." },
+    "vehicle": { "...": "..." },
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Update Fleet Agreement
+```
+PUT /admin/fleet-agreements/{fleet_agreement_id}
+```
+
+Only active agreements can be updated.
+
+| Field                   | Type   | Required | Validation | Description                   |
+|-------------------------|--------|----------|------------|-------------------------------|
+| daily_remittance_target | number | No       | min: 1000  | Updated daily target amount   |
+
+**Response 200:**
+```json
+{
+  "message": "Fleet agreement updated successfully.",
+  "agreement": { "...": "..." }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only active agreements can be updated."
+}
+```
+
+---
+
+### Terminate Fleet Agreement
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/terminate
+```
+
+Permanently terminates an agreement. Cannot terminate already completed or terminated agreements.
+
+| Field  | Type   | Required | Validation | Description               |
+|--------|--------|----------|------------|---------------------------|
+| reason | string | Yes      | max: 1000  | Reason for termination    |
+
+**Response 200:**
+```json
+{
+  "message": "Fleet agreement terminated.",
+  "agreement": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "status": "terminated",
+    "terminated_reason": "Driver violated terms",
+    "terminated_at": "2026-10-09T14:30:00.000000Z",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Agreement is already terminated."
+}
+```
+
+---
+
+### Pause Fleet Agreement
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/pause
+```
+
+Pauses an active agreement (e.g., during vehicle maintenance or driver leave). Only active agreements can be paused.
+
+**Response 200:**
+```json
+{
+  "message": "Fleet agreement paused.",
+  "agreement": {
+    "status": "paused",
+    "paused_at": "2026-10-09T14:30:00.000000Z",
+    "...": "..."
+  }
+}
+```
+
+---
+
+### Resume Fleet Agreement
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/resume
+```
+
+Resumes a paused agreement. Only paused agreements can be resumed.
+
+**Response 200:**
+```json
+{
+  "message": "Fleet agreement resumed.",
+  "agreement": {
+    "status": "active",
+    "...": "..."
+  }
+}
+```
+
+---
+
+## Driver — Fleet Remittance
+
+All remittance endpoints require `Authorization: Bearer {token}` from a driver user.
+
+These endpoints provide fleet drivers with visibility into their daily remittance progress and agreement status. The remittance-first model means the first ₦X of each day's fares go to E-tiGo, and only after the daily target is met does the driver earn for themselves.
+
+### Today's Remittance
+```
+GET /driver/remittance/today
+```
+
+Returns the current day's remittance progress. If the driver has no active fleet agreement, returns `null`.
+
+**Response 200 (active agreement):**
+```json
+{
+  "remittance": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "date": "2026-10-09",
+    "target_amount": "40000.00",
+    "remitted_amount": "28500.00",
+    "shortfall_amount": "11500.00",
+    "target_met": false,
+    "target_met_at": null,
+    "ride_count": 7,
+    "total_fares": "28500.00",
+    "driver_earnings": "0.00",
+    "settled": false,
+    "created_at": "2026-10-09T06:15:00.000000Z"
+  }
+}
+```
+
+**Response 200 (target met — driver earning):**
+```json
+{
+  "remittance": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "date": "2026-10-09",
+    "target_amount": "40000.00",
+    "remitted_amount": "40000.00",
+    "shortfall_amount": "0.00",
+    "target_met": true,
+    "target_met_at": "2026-10-09T14:22:00.000000Z",
+    "ride_count": 10,
+    "total_fares": "48200.00",
+    "driver_earnings": "8200.00",
+    "settled": false,
+    "created_at": "2026-10-09T06:15:00.000000Z"
+  }
+}
+```
+
+**Response 200 (no active agreement):**
+```json
+{
+  "message": "No active fleet agreement.",
+  "remittance": null
+}
+```
+
+---
+
+### Remittance History
+```
+GET /driver/remittance/history
+```
+
+Paginated list of daily remittance records, most recent first.
+
+**Response 200:**
+```json
+{
+  "remittances": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "date": "2026-10-08",
+      "target_amount": "40000.00",
+      "remitted_amount": "40000.00",
+      "shortfall_amount": "0.00",
+      "target_met": true,
+      "target_met_at": "2026-10-08T15:10:00.000000Z",
+      "ride_count": 12,
+      "total_fares": "55000.00",
+      "driver_earnings": "15000.00",
+      "settled": true,
+      "created_at": "2026-10-08T06:00:00.000000Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+      "date": "2026-10-07",
+      "target_amount": "40000.00",
+      "remitted_amount": "32000.00",
+      "shortfall_amount": "8000.00",
+      "target_met": false,
+      "target_met_at": null,
+      "ride_count": 8,
+      "total_fares": "32000.00",
+      "driver_earnings": "0.00",
+      "settled": true,
+      "created_at": "2026-10-07T06:30:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 3,
+    "per_page": 20,
+    "total": 45
+  }
+}
+```
+
+---
+
+### Fleet Agreement (Driver View)
+```
+GET /driver/fleet-agreement
+```
+
+Returns the driver's active fleet agreement. **Does not include `total_vehicle_cost` or `remaining_amount`** — the driver sees only percentage progress.
+
+**Response 200 (active agreement):**
+```json
+{
+  "agreement": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "daily_remittance_target": "40000.00",
+    "total_remitted": "1250000.00",
+    "progress_percentage": 25.0,
+    "agreement_start_date": "2026-10-09",
+    "status": "active",
+    "shortfall_streak_days": 0,
+    "vehicle": { "...": "..." },
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Response 200 (no active agreement):**
+```json
+{
+  "message": "No active fleet agreement.",
+  "agreement": null
+}
+```
+
+---
+
 ## Admin — Passenger Management
 
 All passenger management endpoints require `Authorization: Bearer {token}` from an admin user.
@@ -5374,6 +5767,14 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `under_review` | Being reviewed by admin                  |
 | `resolved`     | Resolved by admin                        |
 | `dismissed`    | Dismissed by admin                       |
+
+### Fleet Agreement Status
+| Value        | Description                                            |
+|--------------|--------------------------------------------------------|
+| `active`     | Agreement is in force; daily remittance is tracked     |
+| `paused`     | Temporarily suspended (e.g., vehicle maintenance)      |
+| `completed`  | Total vehicle cost fully remitted; ownership transfers |
+| `terminated` | Agreement ended early by admin                         |
 
 ### Cancellation Reason
 | Value                | Description                              |

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vehicle extends Model
 {
@@ -38,5 +39,10 @@ class Vehicle extends Model
     public function vehicleClass(): BelongsTo
     {
         return $this->belongsTo(VehicleClass::class);
+    }
+
+    public function fleetAgreements(): HasMany
+    {
+        return $this->hasMany(FleetAgreement::class);
     }
 }

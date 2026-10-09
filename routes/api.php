@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
+use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
+use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
@@ -200,6 +202,12 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::put('/vehicle', [OnboardingController::class, 'updateVehicle']);
     Route::get('/vehicle', [OnboardingController::class, 'vehicle']);
 
+    Route::prefix('remittance')->group(function () {
+        Route::get('/today', [DriverRemittanceController::class, 'today']);
+        Route::get('/history', [DriverRemittanceController::class, 'history']);
+    });
+    Route::get('/fleet-agreement', [DriverRemittanceController::class, 'agreement']);
+
     Route::prefix('kyc')->group(function () {
         Route::get('/status', [KycController::class, 'status']);
         Route::get('/verifications', [KycController::class, 'verifications']);
@@ -261,6 +269,16 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::prefix('rides')->group(function () {
         Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
+    });
+
+    Route::prefix('fleet-agreements')->group(function () {
+        Route::get('/', [AdminFleetAgreementController::class, 'index']);
+        Route::post('/', [AdminFleetAgreementController::class, 'store']);
+        Route::get('/{fleetAgreement}', [AdminFleetAgreementController::class, 'show']);
+        Route::put('/{fleetAgreement}', [AdminFleetAgreementController::class, 'update']);
+        Route::post('/{fleetAgreement}/terminate', [AdminFleetAgreementController::class, 'terminate']);
+        Route::post('/{fleetAgreement}/pause', [AdminFleetAgreementController::class, 'pause']);
+        Route::post('/{fleetAgreement}/resume', [AdminFleetAgreementController::class, 'resume']);
     });
 
     Route::prefix('disputes')->group(function () {
