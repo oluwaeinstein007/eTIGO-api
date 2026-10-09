@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             PricingConfigSeeder::class,
             TierConfigSeeder::class,
             PointMultiplierConfigSeeder::class,
+            SystemAccountSeeder::class,
+            CommissionConfigSeeder::class,
         ]);
     }
 }

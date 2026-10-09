@@ -46,6 +46,20 @@ use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
+use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
+use App\Http\Controllers\Api\V1\Passenger\WalletController;
+use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
+use App\Http\Controllers\Api\V1\Driver\BankAccountController;
+use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
+use App\Http\Controllers\Api\V1\Driver\PayoutController;
+use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
+use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
+use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
+use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
+use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
+use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -73,6 +87,7 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
+Route::post('/webhooks/flutterwave-wallet', [FlutterwaveWalletWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
@@ -195,6 +210,13 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
+
+    Route::prefix('wallet')->group(function () {
+        Route::get('/', [WalletController::class, 'show']);
+        Route::get('/transactions', [WalletController::class, 'transactions']);
+        Route::post('/topup', [WalletTopupController::class, 'store'])->middleware('throttle:10,1');
+        Route::get('/topup/{transactionId}/verify', [WalletTopupController::class, 'verify']);
+    });
 });
 
 /*
@@ -231,6 +253,21 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::get('/history', [DriverRemittanceController::class, 'history']);
     });
     Route::get('/fleet-agreement', [DriverRemittanceController::class, 'agreement']);
+
+    Route::prefix('ledger')->group(function () {
+        Route::get('/summary', [DriverLedgerController::class, 'summary']);
+        Route::get('/transactions', [DriverLedgerController::class, 'index']);
+    });
+
+    Route::prefix('bank-account')->group(function () {
+        Route::get('/', [BankAccountController::class, 'show']);
+        Route::post('/', [BankAccountController::class, 'store']);
+    });
+
+    Route::prefix('payouts')->group(function () {
+        Route::get('/', [PayoutController::class, 'index']);
+        Route::post('/', [PayoutController::class, 'store'])->middleware('throttle:3,1');
+    });
 
     Route::prefix('kyc')->group(function () {
         Route::get('/status', [KycController::class, 'status']);
@@ -348,5 +385,52 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{admin}/deactivate', [AdminManagementController::class, 'deactivate']);
         Route::post('/{admin}/reactivate', [AdminManagementController::class, 'reactivate']);
         Route::delete('/{admin}', [AdminManagementController::class, 'destroy']);
+    });
+
+    // ── Wallet & Ledger Administration ──
+
+    Route::middleware('admin.role:finance,support')->prefix('wallets')->group(function () {
+        Route::get('/', [AdminWalletController::class, 'index']);
+        Route::get('/{account}', [AdminWalletController::class, 'show']);
+        Route::post('/{account}/freeze', [AdminWalletController::class, 'freeze'])->middleware('admin.role:finance,super_admin');
+        Route::post('/{account}/unfreeze', [AdminWalletController::class, 'unfreeze'])->middleware('admin.role:finance,super_admin');
+    });
+
+    Route::middleware('admin.role:finance,support')->prefix('driver-ledgers')->group(function () {
+        Route::get('/', [AdminDriverLedgerController::class, 'index']);
+        Route::get('/{account}', [AdminDriverLedgerController::class, 'show']);
+    });
+
+    Route::middleware('admin.role:finance')->prefix('ledger')->group(function () {
+        Route::get('/', [AdminLedgerExplorerController::class, 'index']);
+        Route::get('/export', [AdminLedgerExplorerController::class, 'export']);
+    });
+
+    Route::middleware('admin.role:finance')->prefix('adjustments')->group(function () {
+        Route::get('/', [AdminAdjustmentController::class, 'index']);
+        Route::post('/', [AdminAdjustmentController::class, 'store']);
+        Route::post('/{adjustment}/approve', [AdminAdjustmentController::class, 'approve']);
+        Route::post('/{adjustment}/reject', [AdminAdjustmentController::class, 'reject']);
+    });
+
+    Route::middleware('admin.role:finance')->prefix('payouts')->group(function () {
+        Route::get('/', [AdminPayoutController::class, 'index']);
+        Route::post('/{payout}/approve', [AdminPayoutController::class, 'approve']);
+        Route::post('/{payout}/reject', [AdminPayoutController::class, 'reject']);
+        Route::post('/{payout}/retry', [AdminPayoutController::class, 'retry']);
+        Route::get('/export', [AdminPayoutController::class, 'export']);
+    });
+
+    Route::middleware('admin.role:finance')->prefix('rides')->group(function () {
+        Route::post('/{ride}/refund', [AdminRefundController::class, 'refundToWallet']);
+    });
+
+    Route::middleware('admin.role:finance,super_admin')->prefix('settings')->group(function () {
+        Route::get('/commission', [AdminCommissionController::class, 'show']);
+        Route::put('/commission', [AdminCommissionController::class, 'update']);
+    });
+
+    Route::middleware('admin.role:finance')->prefix('reports')->group(function () {
+        Route::get('/reconciliation/wallet-liability', [AdminReconciliationController::class, 'walletLiability']);
     });
 });

@@ -5742,6 +5742,43 @@ POST /webhooks/flutterwave
 }
 ```
 
+### Flutterwave Wallet Webhook
+
+```
+POST /webhooks/flutterwave-wallet
+```
+
+**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_WEBHOOK_HASH`. Receives wallet-specific payment events (top-ups, transfers) from Flutterwave.
+
+**Handled Events:**
+
+- `charge.completed` — Dispatches `ProcessTopupWebhookJob` for TOPUP- references
+- `transfer.completed` — Dispatches `ProcessPayoutWebhookJob` with status `paid`
+- `transfer.failed` — Dispatches `ProcessPayoutWebhookJob` with status `failed`
+
+Duplicate events are deduplicated via the `webhook_events` table.
+
+**Response 200:**
+```json
+{
+  "message": "Webhook received."
+}
+```
+
+**Response 200 (duplicate):**
+```json
+{
+  "message": "Already processed."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Invalid signature."
+}
+```
+
 ---
 
 ## Ratings
@@ -6290,6 +6327,323 @@ Content-Type: application/json
   "multipliers": [ "...PointMultiplierConfigResource..." ]
 }
 ```
+
+---
+
+## Passenger — Wallet
+
+**Middleware:** `auth:sanctum`, `user.type:passenger`
+
+### View Wallet
+
+```
+GET /passenger/wallet
+Authorization: Bearer {passenger_token}
+```
+
+**Response 200:**
+```json
+{
+  "wallet": {
+    "id": "uuid",
+    "balance": 500000,
+    "balance_formatted": "₦5,000.00",
+    "status": "active",
+    "currency": "NGN"
+  }
+}
+```
+
+### Wallet Transaction History
+
+```
+GET /passenger/wallet/transactions?per_page=20
+Authorization: Bearer {passenger_token}
+```
+
+Returns paginated ledger entries for the passenger's wallet.
+
+### Initialize Top-up
+
+```
+POST /passenger/wallet/topup
+Authorization: Bearer {passenger_token}
+Content-Type: application/json
+```
+
+Initializes a Flutterwave payment for wallet top-up. Amounts are in kobo.
+
+**Request Body:**
+
+| Field          | Type    | Required | Rules                                |
+|----------------|---------|----------|--------------------------------------|
+| `amount`       | integer | Yes      | Min: 50000 (₦500)                   |
+| `callback_url` | string  | Yes      | Valid URL for redirect after payment |
+
+**Example Request:**
+```json
+{
+  "amount": 500000,
+  "callback_url": "https://app.etigo.ng/wallet/callback"
+}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Top-up initialized.",
+  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "tx_ref": "TOPUP-ABCD1234EFGH"
+}
+```
+
+**Response 422:** Wallet frozen, exceeds max balance, or daily limit exceeded.
+**Response 429:** Too many top-up attempts (max 5/hour).
+
+### Verify Top-up
+
+```
+GET /passenger/wallet/topup/{transactionId}/verify
+Authorization: Bearer {passenger_token}
+```
+
+Verifies a Flutterwave transaction by its transaction ID (returned by Flutterwave after payment, not the tx_ref). On success, dispatches `ProcessTopupWebhookJob`.
+
+**Response 200:**
+```json
+{
+  "message": "Top-up is being processed."
+}
+```
+
+**Response 422:** Transaction was not successful.
+**Response 502:** Unable to verify transaction with Flutterwave.
+
+---
+
+## Driver — Bank Account
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Add Bank Account
+
+```
+POST /driver/bank-account
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Verifies the bank account via Flutterwave account resolution and saves it as the driver's primary bank account.
+
+**Request Body:**
+
+| Field            | Type   | Required | Rules              |
+|------------------|--------|----------|--------------------|
+| `account_number` | string | Yes      | 10-digit NUBAN     |
+| `bank_code`      | string | Yes      | Valid bank code     |
+
+**Response 201:**
+```json
+{
+  "message": "Bank account added and verified.",
+  "bank_account": {
+    "id": "uuid",
+    "bank_code": "058",
+    "account_number": "0123456789",
+    "account_name": "JOHN DOE",
+    "is_verified": true,
+    "is_primary": true
+  }
+}
+```
+
+### View Bank Account
+
+```
+GET /driver/bank-account
+Authorization: Bearer {driver_token}
+```
+
+**Response 200:** Returns the driver's primary bank account.
+**Response 404:** No bank account on file.
+
+---
+
+## Driver — Ledger & Payouts
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Ledger Summary
+
+```
+GET /driver/ledger/summary
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's earnings account balance and summary.
+
+### Ledger Transactions
+
+```
+GET /driver/ledger/transactions?per_page=20
+Authorization: Bearer {driver_token}
+```
+
+Returns paginated ledger entries for the driver's earnings account.
+
+### List Payouts
+
+```
+GET /driver/payouts
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's payout history.
+
+### Request Payout
+
+```
+POST /driver/payouts
+Authorization: Bearer {driver_token}
+```
+
+Requests a withdrawal from driver earnings to their primary bank account via Flutterwave transfer. Requires an approved bank account. Payout goes through admin approval before transfer is initiated.
+
+**Request Body:**
+
+| Field    | Type    | Required | Rules                         |
+|----------|---------|----------|-------------------------------|
+| `amount` | integer | Yes      | Min: 100000 (₦1,000), in kobo |
+
+**Response 201:** Payout request created, pending admin approval.
+**Response 422:** Insufficient balance, no bank account, or wallet frozen.
+
+---
+
+## Admin — Wallet & Ledger Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`
+
+### List Wallets
+
+```
+GET /admin/wallets?search=john&status=active&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### View Wallet
+
+```
+GET /admin/wallets/{account}
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### Freeze Wallet
+
+```
+POST /admin/wallets/{account}/freeze
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Super Admin
+
+**Request Body:**
+
+| Field    | Type   | Required | Rules          |
+|----------|--------|----------|----------------|
+| `reason` | string | Yes      | Max 500 chars  |
+
+### Unfreeze Wallet
+
+```
+POST /admin/wallets/{account}/unfreeze
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Super Admin
+
+**Request Body:**
+
+| Field    | Type   | Required | Rules          |
+|----------|--------|----------|----------------|
+| `reason` | string | Yes      | Max 500 chars  |
+
+### Driver Ledgers
+
+```
+GET /admin/driver-ledgers
+GET /admin/driver-ledgers/{account}
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### Ledger Explorer
+
+```
+GET /admin/ledger?per_page=50
+GET /admin/ledger/export?format=csv
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Adjustments
+
+```
+GET /admin/adjustments
+POST /admin/adjustments
+POST /admin/adjustments/{adjustment}/approve
+POST /admin/adjustments/{adjustment}/reject
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Payouts
+
+```
+GET /admin/payouts?status=pending
+POST /admin/payouts/{payout}/approve
+POST /admin/payouts/{payout}/reject
+POST /admin/payouts/{payout}/retry
+GET /admin/payouts/export?format=csv
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Refund to Wallet
+
+```
+POST /admin/rides/{ride}/refund
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Commission Settings
+
+```
+GET /admin/settings/commission
+PUT /admin/settings/commission
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Super Admin
+
+### Reconciliation — Wallet Liability
+
+```
+GET /admin/reports/reconciliation/wallet-liability
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
 
 ---
 

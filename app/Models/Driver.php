@@ -84,6 +84,21 @@ class Driver extends Model
         return $this->hasMany(DailyRemittance::class);
     }
 
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(BankAccount::class);
+    }
+
+    public function primaryBankAccount(): HasOne
+    {
+        return $this->hasOne(BankAccount::class)->where('is_primary', true);
+    }
+
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class);
+    }
+
     public function isApproved(): bool
     {
         return $this->status === DriverStatus::Approved;
