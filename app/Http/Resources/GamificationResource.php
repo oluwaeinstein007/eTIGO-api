@@ -9,16 +9,29 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class GamificationResource extends JsonResource
 {
+    private static ?array $tierConfigCache = null;
+
+    private static function tierConfigs(): array
+    {
+        if (self::$tierConfigCache === null) {
+            self::$tierConfigCache = TierConfig::all()->keyBy('tier_level')->all();
+        }
+
+        return self::$tierConfigCache;
+    }
+
     public function toArray(Request $request): array
     {
         $currentTier = TierLevel::from($this->current_tier);
         $nextTier = $currentTier->next();
 
+        $configs = self::tierConfigs();
+
         $nextTierConfig = $nextTier
-            ? TierConfig::forLevel($nextTier->value)
+            ? ($configs[$nextTier->value] ?? null)
             : null;
 
-        $currentTierConfig = TierConfig::forLevel($this->current_tier);
+        $currentTierConfig = $configs[$this->current_tier] ?? null;
 
         $progressToNext = null;
         if ($nextTierConfig) {

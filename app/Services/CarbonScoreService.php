@@ -15,7 +15,9 @@ class CarbonScoreService
     {
         $distanceKm = $this->resolveDistanceKm($ride);
         $baselineEmissionPerKm = config('gamification.baseline_emission_per_km', 120.0);
-        $vehicleEmissionPerKm = $this->resolveVehicleEmission($ride->vehicleClass);
+        $vehicleEmissionPerKm = $ride->vehicleClass
+            ? $this->resolveVehicleEmission($ride->vehicleClass)
+            : config('gamification.default_vehicle_emission', 75.0);
 
         $baselineEmission = $distanceKm * ($baselineEmissionPerKm / 1000);
         $vehicleEmission = $distanceKm * ($vehicleEmissionPerKm / 1000);
@@ -56,7 +58,7 @@ class CarbonScoreService
         return 0.0;
     }
 
-    private function resolveVehicleEmission(VehicleClass $vehicleClass): float
+    public static function resolveVehicleEmission(VehicleClass $vehicleClass): float
     {
         $classKey = mb_strtolower($vehicleClass->name);
         $emissions = config('gamification.vehicle_class_emissions', []);

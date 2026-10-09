@@ -29,7 +29,7 @@ class AdminGamificationController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
+            $search = str_replace(['%', '_', '\\'], ['\\%', '\\_', '\\\\'], $request->input('search'));
             $query->whereHas('user', function ($q) use ($search) {
                 $q->where('first_name', 'ilike', "%{$search}%")
                     ->orWhere('last_name', 'ilike', "%{$search}%")

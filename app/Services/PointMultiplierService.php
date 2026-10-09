@@ -101,10 +101,7 @@ class PointMultiplierService
             return false;
         }
 
-        $classKey = mb_strtolower($vehicleClass->name);
-        $emissions = config('gamification.vehicle_class_emissions', []);
-
-        return isset($emissions[$classKey]) && $emissions[$classKey] <= 0;
+        return CarbonScoreService::resolveVehicleEmission($vehicleClass) <= 0;
     }
 
     private function isOffPeak(Ride $ride): bool
@@ -120,6 +117,10 @@ class PointMultiplierService
 
         $hour = $rideTime->format('H:i');
 
-        return $hour >= $offPeakStart || $hour < $offPeakEnd;
+        if ($offPeakStart > $offPeakEnd) {
+            return $hour >= $offPeakStart || $hour < $offPeakEnd;
+        }
+
+        return $hour >= $offPeakStart && $hour < $offPeakEnd;
     }
 }

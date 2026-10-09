@@ -61,7 +61,7 @@ return new class extends Migration
                 $table->unsignedInteger('final_points');
                 $table->timestamp('created_at')->useCurrent();
 
-                $table->index('ride_id');
+                $table->unique(['ride_id', 'user_id']);
                 $table->index('user_id');
             });
         }

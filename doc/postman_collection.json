@@ -8890,6 +8890,335 @@
             }
           ],
           "description": "**Required Role(s):** Support (Super Admin always has access)"
+        },
+        {
+          "name": "Admin — Gamification Management",
+          "item": [
+            {
+              "name": "List Gamification Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/users?per_page=15&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "tier",
+                      "value": "",
+                      "description": "Filter by tier level (1-5)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by name or email",
+                      "disabled": true
+                    },
+                    {
+                      "key": "min_points",
+                      "value": "",
+                      "description": "Minimum ranking points filter",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort_by",
+                      "value": "total_ranking_points",
+                      "description": "Sort field: total_ranking_points, total_carbon_score, current_tier, created_at"
+                    },
+                    {
+                      "key": "sort_dir",
+                      "value": "desc",
+                      "description": "Sort direction: asc or desc"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "Items per page (default: 15, max: 100)"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number"
+                    }
+                  ]
+                },
+                "description": "List all users with gamification profiles. Supports filtering by tier, searching by name/email, and sorting.\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Gamification Users",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"profiles\": [\n    \"...GamificationResource...\"\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 5\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Aggregate Stats",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/aggregate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "aggregate"
+                  ]
+                },
+                "description": "Returns aggregate gamification statistics: tier distribution, average scores, total CO₂ saved, and top 10 users.\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Aggregate Stats",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"aggregate\": {\n    \"total_profiles\": 150,\n    \"average_carbon_score\": 45.2,\n    \"average_ranking_points\": 1200,\n    \"total_co2_saved_kg\": 6780.5,\n    \"tier_distribution\": [\n      {\n        \"tier_level\": 1,\n        \"tier_name\": \"Bronze\",\n        \"count\": 80\n      },\n      {\n        \"tier_level\": 2,\n        \"tier_name\": \"Silver\",\n        \"count\": 40\n      },\n      {\n        \"tier_level\": 3,\n        \"tier_name\": \"Gold\",\n        \"count\": 20\n      },\n      {\n        \"tier_level\": 4,\n        \"tier_name\": \"Platinum\",\n        \"count\": 8\n      },\n      {\n        \"tier_level\": 5,\n        \"tier_name\": \"Diamond\",\n        \"count\": 2\n      }\n    ],\n    \"top_users\": [\n      {\n        \"user_id\": \"uuid\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"tier\": 5,\n        \"tier_name\": \"Diamond\",\n        \"total_ranking_points\": 18500,\n        \"total_carbon_score\": 890.25\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "View Tier Configuration",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/tiers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "tiers"
+                  ]
+                },
+                "description": "Returns all 5 tier configurations.\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Tier Configs",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"tiers\": [\n    \"...TierConfigResource...\"\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Tier Configuration",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tiers\": [\n    {\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    },\n    {\n      \"tier_level\": 2,\n      \"tier_name\": \"Silver\",\n      \"min_points_required\": 500,\n      \"booking_fee_discount_pct\": 2,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    },\n    {\n      \"tier_level\": 3,\n      \"tier_name\": \"Gold\",\n      \"min_points_required\": 2000,\n      \"booking_fee_discount_pct\": 5,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": true\n    },\n    {\n      \"tier_level\": 4,\n      \"tier_name\": \"Platinum\",\n      \"min_points_required\": 5000,\n      \"booking_fee_discount_pct\": 10,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true\n    },\n    {\n      \"tier_level\": 5,\n      \"tier_name\": \"Diamond\",\n      \"min_points_required\": 15000,\n      \"booking_fee_discount_pct\": 15,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/tiers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "tiers"
+                  ]
+                },
+                "description": "Update all 5 tier configurations (names, thresholds, benefits). All 5 tiers must be provided with distinct tier_level values (1-5).\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Tier configuration updated successfully.\",\n  \"tiers\": [\n    \"...TierConfigResource...\"\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "View Multiplier Configuration",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/multipliers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "multipliers"
+                  ]
+                },
+                "description": "Returns all point multiplier configurations.\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Multiplier Configs",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"multipliers\": [\n    \"...PointMultiplierConfigResource...\"\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Multiplier Configuration",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"multipliers\": [\n    {\n      \"condition_type\": \"ev_ride\",\n      \"multiplier_value\": 2.0,\n      \"is_stackable\": true\n    },\n    {\n      \"condition_type\": \"off_peak\",\n      \"multiplier_value\": 1.25,\n      \"is_stackable\": true\n    },\n    {\n      \"condition_type\": \"shared_journey\",\n      \"multiplier_value\": 1.5,\n      \"is_stackable\": true\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/gamification/multipliers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "gamification",
+                    "multipliers"
+                  ]
+                },
+                "description": "Update point multiplier configurations. Creates new multipliers if condition_type doesn't exist yet.\n\n**Required Role:** Operations or Super Admin"
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Multiplier configuration updated successfully.\",\n  \"multipliers\": [\n    \"...PointMultiplierConfigResource...\"\n  ]\n}"
+                }
+              ]
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated admin users. Requires `user.type:admin` middleware."
@@ -9651,6 +9980,209 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"platform\": [\n      \"The selected platform is invalid.\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Gamification",
+          "item": [
+            {
+              "name": "View Gamification Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/gamification",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "gamification"
+                  ]
+                },
+                "description": "Returns the authenticated user's gamification profile with current tier, points, carbon score, progress to next tier, and unlocked benefits. Auto-creates a Bronze profile on first access."
+              },
+              "response": [
+                {
+                  "name": "200 — Gamification Profile",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"gamification\": {\n    \"id\": \"uuid\",\n    \"user_id\": \"uuid\",\n    \"current_tier\": 1,\n    \"tier_name\": \"Bronze\",\n    \"total_ranking_points\": 150,\n    \"total_carbon_score\": 12.5,\n    \"tier_upgraded_at\": null,\n    \"progress_to_next_tier\": 30.0,\n    \"points_to_next_tier\": 350,\n    \"next_tier\": \"Silver\",\n    \"benefits\": {\n      \"booking_fee_discount_pct\": 0,\n      \"priority_matching\": false,\n      \"ev_reservation_fee_waived\": false\n    },\n    \"created_at\": \"2026-10-09T00:00:00Z\",\n    \"updated_at\": \"2026-10-09T00:00:00Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Carbon History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/gamification/carbon-history?per_page=15",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "gamification",
+                    "carbon-history"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "Items per page (default: 15, max: 100)"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number"
+                    }
+                  ]
+                },
+                "description": "Returns paginated list of the user's per-trip carbon scores."
+              },
+              "response": [
+                {
+                  "name": "200 — Carbon History",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"carbon_scores\": [\n    {\n      \"id\": \"uuid\",\n      \"ride_id\": \"uuid\",\n      \"user_id\": \"uuid\",\n      \"distance_km\": 10.5,\n      \"baseline_emission\": 1.26,\n      \"vehicle_emission\": 0.6825,\n      \"co2_saved\": 0.5775,\n      \"base_points\": 6,\n      \"multiplier_applied\": 1.25,\n      \"multiplier_reason\": \"Off-Peak\",\n      \"final_points\": 8,\n      \"created_at\": \"2026-10-09T00:00:00Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Tiers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/gamification/tiers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "gamification",
+                    "tiers"
+                  ]
+                },
+                "description": "Returns all 5 tier configurations (Bronze → Silver → Gold → Platinum → Diamond)."
+              },
+              "response": [
+                {
+                  "name": "200 — Tiers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"tiers\": [\n    {\n      \"id\": \"uuid\",\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"tier_label\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Leaderboard",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/gamification/leaderboard?limit=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "gamification",
+                    "leaderboard"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Number of users to return (default: 20, max: 100)"
+                    }
+                  ]
+                },
+                "description": "Returns top users sorted by total ranking points."
+              },
+              "response": [
+                {
+                  "name": "200 — Leaderboard",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"leaderboard\": [\n    {\n      \"user_id\": \"uuid\",\n      \"first_name\": \"Ade\",\n      \"tier\": 3,\n      \"tier_name\": \"Gold\",\n      \"total_ranking_points\": 2500,\n      \"total_carbon_score\": 150.25\n    }\n  ]\n}"
                 }
               ]
             }
