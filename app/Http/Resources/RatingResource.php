@@ -14,8 +14,8 @@ class RatingResource extends JsonResource
             'ride_id' => $this->ride_id,
             'score' => $this->score,
             'comment' => $this->comment,
-            'rated_by' => new UserResource($this->whenLoaded('ratedBy')),
-            'rated_user' => new UserResource($this->whenLoaded('ratedUser')),
+            'rated_by' => new ParticipantResource($this->whenLoaded('ratedBy')),
+            'rated_user' => new ParticipantResource($this->whenLoaded('ratedUser')),
             'created_at' => $this->created_at,
         ];
     }

@@ -2,10 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Enums\UserType;
 use App\Models\Rating;
 use App\Models\Ride;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,10 +18,12 @@ class RatingFactory extends Factory
      */
     public function definition(): array
     {
+        $ride = Ride::factory()->completed()->create();
+
         return [
-            'ride_id' => Ride::factory()->completed(),
-            'rated_by_user_id' => User::factory()->state(['type' => UserType::Passenger]),
-            'rated_user_id' => User::factory()->state(['type' => UserType::Driver]),
+            'ride_id' => $ride->id,
+            'rated_by_user_id' => $ride->passenger_id,
+            'rated_user_id' => $ride->driver_id,
             'score' => fake()->numberBetween(1, 5),
             'comment' => fake()->optional(0.5)->sentence(),
             'created_at' => now(),

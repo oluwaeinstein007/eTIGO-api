@@ -4656,29 +4656,33 @@ POST /notifications/read-all
 ```
 GET /payment-methods
 ```
-Returns the authenticated user's saved payment methods, default method first.
+Returns available payment methods for the authenticated user. Cash is always included. Saved cards appear after cash. If a saved card is set as default, cash's `is_default` is `false`; otherwise cash is the default.
 
 **Response 200:**
 ```json
 {
   "payment_methods": [
     {
+      "id": "cash",
+      "type": "cash",
+      "label": "Cash",
+      "is_default": true
+    },
+    {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "user_id": 1,
-      "card_last_four": "4081",
+      "type": "card",
+      "label": "Visa •••• 4081",
       "card_brand": "visa",
-      "is_default": true,
-      "created_at": "2026-09-30T10:00:00.000000Z",
-      "updated_at": "2026-09-30T10:00:00.000000Z"
+      "card_last_four": "4081",
+      "is_default": false
     },
     {
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      "user_id": 1,
-      "card_last_four": "5432",
+      "type": "card",
+      "label": "Mastercard •••• 5432",
       "card_brand": "mastercard",
-      "is_default": false,
-      "created_at": "2026-10-02T10:00:00.000000Z",
-      "updated_at": "2026-10-02T10:00:00.000000Z"
+      "card_last_four": "5432",
+      "is_default": false
     }
   ]
 }
@@ -4972,8 +4976,8 @@ Submit a 1–5 star rating for a completed ride. Passengers rate drivers and dri
     "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
     "score": 5,
     "comment": "Great ride, very smooth!",
-    "rated_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-    "rated_user": { "id": "...", "first_name": "Jane", "last_name": "Smith" },
+    "rated_by": { "id": "...", "first_name": "John", "last_name": "Doe", "type": "passenger", "profile_photo_url": null },
+    "rated_user": { "id": "...", "first_name": "Jane", "last_name": "Smith", "type": "driver", "profile_photo_url": null },
     "created_at": "2026-10-09T12:00:00.000000Z"
   }
 }
@@ -5054,7 +5058,7 @@ List all disputes with optional filters and pagination.
 | `search`   | string | Search by description or reporter name/email    |
 | `from`     | date   | Filter disputes created on or after (YYYY-MM-DD) |
 | `to`       | date   | Filter disputes created on or before (YYYY-MM-DD) |
-| `per_page` | int    | Items per page (default: 15)                    |
+| `per_page` | int    | Items per page (default: 15, max: 100)          |
 | `page`     | int    | Page number                                     |
 
 **Response: `200 OK`**

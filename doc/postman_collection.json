@@ -2625,7 +2625,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 5,\n    \"comment\": \"Great ride, very smooth!\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"email\": \"jane@example.com\",\n      \"type\": \"driver\"\n    },\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 5,\n    \"comment\": \"Great ride, very smooth!\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"type\": \"passenger\",\n      \"profile_photo_url\": null\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"type\": \"driver\",\n      \"profile_photo_url\": null\n    },\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -2675,7 +2675,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-ef2345678901\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 4,\n    \"comment\": \"Passenger was on time.\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"type\": \"driver\"\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"type\": \"passenger\"\n    },\n    \"created_at\": \"2026-10-09T12:05:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-ef2345678901\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 4,\n    \"comment\": \"Passenger was on time.\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"type\": \"driver\",\n      \"profile_photo_url\": null\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"type\": \"passenger\",\n      \"profile_photo_url\": null\n    },\n    \"created_at\": \"2026-10-09T12:05:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -8019,7 +8019,7 @@
                     {
                       "key": "per_page",
                       "value": "15",
-                      "description": "Items per page (default: 15)"
+                      "description": "Items per page (default: 15, max: 100)"
                     },
                     {
                       "key": "page",
@@ -8028,7 +8028,7 @@
                     }
                   ]
                 },
-                "description": "List all disputes with optional filters and pagination.\n\n**Filters:**\n- `status`: open, under_review, resolved, dismissed\n- `category`: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other\n- `ride_id`: UUID of a specific ride\n- `search`: full-text search across dispute description and reporter name/email\n- `from` / `to`: date range (YYYY-MM-DD)\n- `per_page`: pagination size (default 15)"
+                "description": "List all disputes with optional filters and pagination.\n\n**Filters:**\n- `status`: open, under_review, resolved, dismissed\n- `category`: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other\n- `ride_id`: UUID of a specific ride\n- `search`: full-text search across dispute description and reporter name/email\n- `from` / `to`: date range (YYYY-MM-DD)\n- `per_page`: pagination size (default 15, max 100)"
               },
               "response": [
                 {
@@ -8357,11 +8357,11 @@
                     "payment-methods"
                   ]
                 },
-                "description": "Auth required. Returns saved payment methods, default method first."
+                "description": "Auth required. Returns available payment methods. Cash is always included as the first method. Saved cards follow. If a saved card is set as default, cash is not default; otherwise cash is the default."
               },
               "response": [
                 {
-                  "name": "200 — Payment Methods",
+                  "name": "200 — Payment Methods (with saved card)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -8370,7 +8370,19 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"a3b4c5d6-e7f8-9012-abcd-345678901234\",\n      \"type\": \"card\",\n      \"last_four\": \"4242\",\n      \"brand\": \"Visa\",\n      \"is_default\": true\n    },\n    {\n      \"id\": \"b4c5d6e7-f8a9-0123-bcde-456789012345\",\n      \"type\": \"card\",\n      \"last_four\": \"5555\",\n      \"brand\": \"Mastercard\",\n      \"is_default\": false\n    }\n  ]\n}"
+                  "body": "{\n  \"payment_methods\": [\n    {\n      \"id\": \"cash\",\n      \"type\": \"cash\",\n      \"label\": \"Cash\",\n      \"is_default\": false\n    },\n    {\n      \"id\": \"a3b4c5d6-e7f8-9012-abcd-345678901234\",\n      \"type\": \"card\",\n      \"label\": \"Visa \\u2022\\u2022\\u2022\\u2022 4242\",\n      \"card_brand\": \"VISA\",\n      \"card_last_four\": \"4242\",\n      \"is_default\": true\n    }\n  ]\n}"
+                },
+                {
+                  "name": "200 — No saved cards (cash only)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payment_methods\": [\n    {\n      \"id\": \"cash\",\n      \"type\": \"cash\",\n      \"label\": \"Cash\",\n      \"is_default\": true\n    }\n  ]\n}"
                 },
                 {
                   "name": "401 — Unauthenticated",

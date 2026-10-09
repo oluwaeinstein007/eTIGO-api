@@ -49,7 +49,7 @@ class AdminDisputeController extends Controller
         }
 
         $disputes = $query->orderByDesc('created_at')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate(min(max($request->integer('per_page', 15), 1), 100));
 
         return response()->json([
             'disputes' => DisputeResource::collection($disputes),
