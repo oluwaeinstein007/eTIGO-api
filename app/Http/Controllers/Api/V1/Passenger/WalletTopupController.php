@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Passenger;
 
-use App\Contracts\PaystackGateway;
+use App\Contracts\FlutterwaveWalletGateway;
 use App\Enums\AccountType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreTopupRequest;
@@ -17,7 +17,7 @@ class WalletTopupController extends Controller
 {
     public function __construct(
         private LedgerService $ledgerService,
-        private PaystackGateway $paystackGateway,
+        private FlutterwaveWalletGateway $flutterwaveGateway,
     ) {}
 
     public function store(StoreTopupRequest $request): JsonResponse
@@ -35,7 +35,6 @@ class WalletTopupController extends Controller
             return response()->json(['message' => 'Wallet is frozen or closed.'], 422);
         }
 
-        // Check max balance
         $maxBalance = config('wallet.max_balance');
         if (($account->balance + $amountKobo) > $maxBalance) {
             $maxNaira = $maxBalance / 100;
@@ -43,60 +42,62 @@ class WalletTopupController extends Controller
             return response()->json(['message' => "Top-up would exceed maximum wallet balance of ₦{$maxNaira}."], 422);
         }
 
-        // Check daily cap
         $dailyCap = config('wallet.daily_topup_cap');
         $todayTopups = Cache::get("topup_daily:{$user->id}:".now()->toDateString(), 0);
         if (($todayTopups + $amountKobo) > $dailyCap) {
             return response()->json(['message' => 'Daily top-up limit exceeded.'], 422);
         }
 
-        // Velocity check
         $hourlyKey = "topup_hourly:{$user->id}:".now()->format('Y-m-d-H');
         $hourlyCount = Cache::get($hourlyKey, 0);
         if ($hourlyCount >= config('wallet.max_topups_per_hour', 5)) {
             return response()->json(['message' => 'Too many top-up attempts. Please wait.'], 429);
         }
 
-        $reference = 'TOPUP-'.strtoupper(Str::random(12));
+        $txRef = 'TOPUP-'.strtoupper(Str::random(12));
 
         try {
-            $result = $this->paystackGateway->initializeTransaction([
-                'email' => $user->email,
-                'amount' => $amountKobo,
-                'reference' => $reference,
-                'callback_url' => $request->validated('callback_url'),
-                'metadata' => [
+            $result = $this->flutterwaveGateway->initializePayment([
+                'tx_ref' => $txRef,
+                'amount' => $amountKobo / 100,
+                'currency' => 'NGN',
+                'redirect_url' => $request->validated('callback_url'),
+                'customer' => [
+                    'email' => $user->email,
+                    'name' => "{$user->first_name} {$user->last_name}",
+                ],
+                'meta' => [
                     'user_id' => $user->id,
                     'account_id' => $account->id,
                     'type' => 'wallet_topup',
                 ],
+                'payment_options' => 'card,banktransfer,ussd',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to initialize payment. Please try again.'], 502);
         }
 
-        // Track velocity
         Cache::increment($hourlyKey);
         Cache::put($hourlyKey, Cache::get($hourlyKey, 1), now()->addHour());
 
         return response()->json([
             'message' => 'Top-up initialized.',
-            'authorization_url' => $result['authorization_url'],
-            'reference' => $reference,
+            'payment_link' => $result['link'],
+            'tx_ref' => $txRef,
         ]);
     }
 
-    public function verify(Request $request, string $reference): JsonResponse
+    public function verify(Request $request, string $transactionId): JsonResponse
     {
         $user = $request->user();
 
         try {
-            $result = $this->paystackGateway->verifyTransaction($reference);
+            $result = $this->flutterwaveGateway->verifyTransaction($transactionId);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to verify transaction.'], 502);
         }
 
-        if ($result['status'] !== 'success') {
+        if ($result['status'] !== 'successful') {
             return response()->json([
                 'message' => 'Transaction was not successful.',
                 'status' => $result['status'],
@@ -109,10 +110,12 @@ class WalletTopupController extends Controller
             AccountType::PassengerWallet,
         );
 
+        $amountKobo = (int) ($result['amount'] * 100);
+
         ProcessTopupWebhookJob::dispatch(
             $account->id,
-            (int) $result['amount'],
-            $reference,
+            $amountKobo,
+            $result['tx_ref'],
         );
 
         return response()->json(['message' => 'Top-up is being processed.']);

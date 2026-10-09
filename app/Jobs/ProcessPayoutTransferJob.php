@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Contracts\PaystackGateway;
+use App\Contracts\FlutterwaveWalletGateway;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Enums\PayoutStatus;
@@ -36,7 +36,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         return $this->payoutId;
     }
 
-    public function handle(PaystackGateway $paystackGateway, LedgerService $ledgerService): void
+    public function handle(FlutterwaveWalletGateway $flutterwaveGateway, LedgerService $ledgerService): void
     {
         $payout = Payout::with(['bankAccount', 'driver'])->findOrFail($this->payoutId);
 
@@ -46,7 +46,6 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        // Pre-debit driver earnings
         $driverAccount = $ledgerService->findOrCreateAccount(
             'App\\Models\\Driver',
             $payout->driver_id,
@@ -64,38 +63,30 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         ]);
 
         try {
-            $recipient = $paystackGateway->createTransferRecipient([
-                'type' => 'nuban',
-                'name' => $payout->bankAccount->account_name,
-                'account_number' => $payout->bankAccount->account_number,
-                'bank_code' => $payout->bankAccount->bank_code,
-                'currency' => 'NGN',
-            ]);
-
             $reference = 'PAYOUT-'.strtoupper(Str::random(12));
 
-            $transfer = $paystackGateway->initiateTransfer([
-                'source' => 'balance',
-                'amount' => $payout->amount,
-                'recipient' => $recipient['recipient_code'],
-                'reason' => "E-tiGo driver payout #{$payout->id}",
+            $transfer = $flutterwaveGateway->initiateTransfer([
+                'account_bank' => $payout->bankAccount->bank_code,
+                'account_number' => $payout->bankAccount->account_number,
+                'amount' => $payout->amount / 100,
+                'narration' => "E-tiGo driver payout #{$payout->id}",
+                'currency' => 'NGN',
                 'reference' => $reference,
             ]);
 
             $payout->update([
                 'status' => PayoutStatus::Processing,
-                'gateway_transfer_id' => $transfer['transfer_code'],
+                'gateway_transfer_id' => (string) $transfer['id'],
                 'gateway_reference' => $reference,
             ]);
 
-            Log::info("Payout transfer initiated: {$payout->id}, transfer: {$transfer['transfer_code']}");
+            Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
         } catch (\Throwable $e) {
             $payout->update([
                 'status' => PayoutStatus::Failed,
                 'failure_reason' => $e->getMessage(),
             ]);
 
-            // Reverse the pre-debit
             $journal = DB::table('journals')
                 ->where('idempotency_key', "payout-debit-{$payout->id}")
                 ->first();

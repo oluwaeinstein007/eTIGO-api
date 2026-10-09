@@ -46,7 +46,7 @@ use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
-use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
+use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
@@ -87,7 +87,7 @@ Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class,
 */
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
-Route::post('/webhooks/paystack', [PaystackWebhookController::class, 'handle']);
+Route::post('/webhooks/flutterwave-wallet', [FlutterwaveWalletWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
@@ -215,7 +215,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
         Route::get('/', [WalletController::class, 'show']);
         Route::get('/transactions', [WalletController::class, 'transactions']);
         Route::post('/topup', [WalletTopupController::class, 'store'])->middleware('throttle:10,1');
-        Route::get('/topup/{reference}/verify', [WalletTopupController::class, 'verify']);
+        Route::get('/topup/{transactionId}/verify', [WalletTopupController::class, 'verify']);
     });
 });
 

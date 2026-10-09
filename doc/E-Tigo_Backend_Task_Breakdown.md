@@ -575,7 +575,7 @@
 | BE-WINFRA-02 | `[x]` Create migration: `journals` table — id (UUID), reference (unique), description, idempotency_key (unique nullable), metadata (jsonb nullable), posted_at, created_at | NF-10 | BE-WINFRA-01 | Immutable; no UPDATE or DELETE |
 | BE-WINFRA-03 | `[x]` Create migration: `ledger_entries` table — id, journal_id (FK), account_id (FK), type (enum: debit/credit), amount (bigint, positive), running_balance (bigint), created_at | NF-10 | BE-WINFRA-02 | Immutable; CHECK constraint: amount > 0; index on (account_id, created_at) |
 | BE-WINFRA-04 | `[x]` Create migration: `holds` table — id, account_id (FK), ride_id (FK nullable), amount (bigint), status (enum: active/captured/released/expired), expires_at, captured_at (nullable), released_at (nullable), created_at | B-08 | BE-WINFRA-01 | Active holds reduce available balance |
-| BE-WINFRA-05 | `[x]` Create migration: `bank_accounts` table — id, driver_id (FK), bank_code (string), account_number (string), account_name (string), is_verified (bool default false), is_primary (bool default true), created_at, updated_at | B-08 | SETUP-11 | One primary account per driver; verified via Paystack Resolve |
+| BE-WINFRA-05 | `[x]` Create migration: `bank_accounts` table — id, driver_id (FK), bank_code (string), account_number (string), account_name (string), is_verified (bool default false), is_primary (bool default true), created_at, updated_at | B-08 | SETUP-11 | One primary account per driver; verified via Flutterwave Account Resolve |
 | BE-WINFRA-06 | `[x]` Create migration: `payouts` table — id, driver_id (FK), bank_account_id (FK), amount (bigint), status (enum: requested/approved/processing/paid/failed/reversed), gateway_transfer_id (nullable), gateway_reference (nullable), failure_reason (nullable), requested_at, approved_at (nullable), approved_by_admin_id (FK nullable), paid_at (nullable), created_at, updated_at | B-08 | BE-WINFRA-05 | — |
 | BE-WINFRA-07 | `[x]` Create migration: `webhook_events` table — id, provider (string), event_type (string), payload (jsonb), signature (string), processed_at (nullable), created_at | NF-10 | SETUP-06 | Replay-safe: unique index on (provider, payload→id); idempotent processing |
 | BE-WINFRA-08 | `[x]` Create database indexes: accounts by (owner_type, owner_id), ledger_entries by (account_id, created_at), holds by (account_id, status), payouts by (driver_id, status), webhook_events by (provider, event_type) | — | BE-WINFRA-01 through BE-WINFRA-07 | ⏱ Profile queries during load testing |
@@ -616,10 +616,10 @@
 |----|------|---------|------|-------|
 | BE-WAL-01 | `[x]` Create `WalletController@show` — `GET /api/v1/wallet`: return passenger's wallet balance (available, held), account status | P-15 | BE-WINFRA-10, SETUP-51 | Auto-creates wallet account on first access if not exists |
 | BE-WAL-02 | `[x]` Create `WalletController@transactions` — `GET /api/v1/wallet/transactions`: paginated ledger entries for passenger's wallet with type filter (credits/debits/all), date range | P-15 | BE-WINFRA-11 | — |
-| BE-WAL-03 | `[x]` Create `WalletTopupController@store` — `POST /api/v1/wallet/topup`: validate amount against min/max/daily limits, initialize Paystack transaction, return authorization_url for client redirect | P-15 | SETUP-61, BE-WINFRA-10 | ⚠ OQ-25: Min top-up, max balance, and daily cap values TBD |
+| BE-WAL-03 | `[x]` Create `WalletTopupController@store` — `POST /api/v1/wallet/topup`: validate amount against min/max/daily limits, initialize Flutterwave payment, return payment_link for client redirect | P-15 | SETUP-61, BE-WINFRA-10 | ⚠ OQ-25: Min top-up, max balance, and daily cap values TBD |
 | BE-WAL-04 | `[x]` Create `StoreTopupFormRequest` — validate amount (positive integer kobo, within configured limits), check daily cap not exceeded, check max balance not exceeded post-top-up | P-15 | BE-WAL-03 | — |
-| BE-WAL-05 | `[x]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{reference}/verify`: fallback verification endpoint for missed webhooks; query Paystack Verify Transaction API, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
-| BE-WAL-06 | `[x]` Create `PaystackWebhookController@handle` — `POST /api/v1/webhooks/paystack`: verify HMAC-SHA512 signature, deduplicate via webhook_events table, route by event type (charge.success → credit wallet, transfer.success/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
+| BE-WAL-05 | `[x]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{transactionId}/verify`: fallback verification endpoint for missed webhooks; query Flutterwave Verify Transaction API by transaction ID, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
+| BE-WAL-06 | `[x]` Create `FlutterwaveWalletWebhookController@handle` — `POST /api/v1/webhooks/flutterwave-wallet`: verify `verif-hash` header, deduplicate via webhook_events table, route by event type (charge.completed → credit wallet, transfer.completed/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
 | BE-WAL-07 | `[x]` Create `ProcessTopupWebhookJob` — queued job processing verified charge.success webhook: credit passenger wallet via LedgerService, debit psp_clearing account; handle already-processed gracefully | P-15 | BE-WAL-06, BE-WINFRA-15 | 3 retries, 30s backoff |
 | BE-WAL-08 | `[ ]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
 
@@ -666,13 +666,13 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-EARN-09 | `[x]` Create `BankAccountController@store` — `POST /api/v1/driver/bank-account`: accept bank_code + account_number; call Paystack Resolve Account Name API to verify; save verified account | D-10 | BE-WINFRA-13, SETUP-61 | 🔒 Re-authentication or OTP required for account changes |
-| BE-EARN-10 | `[x]` Create `StoreBankAccountRequest` — validate bank_code (from Paystack bank list), account_number (10 digits for Nigerian banks) | D-10 | BE-EARN-09 | — |
+| BE-EARN-09 | `[x]` Create `BankAccountController@store` — `POST /api/v1/driver/bank-account`: accept bank_code + account_number; call Flutterwave Account Resolve API to verify; save verified account | D-10 | BE-WINFRA-13, SETUP-61 | 🔒 Re-authentication or OTP required for account changes |
+| BE-EARN-10 | `[x]` Create `StoreBankAccountRequest` — validate bank_code (from Flutterwave bank list), account_number (10 digits for Nigerian banks) | D-10 | BE-EARN-09 | — |
 | BE-EARN-11 | `[x]` Create `BankAccountController@show` — `GET /api/v1/driver/bank-account`: return saved bank account details (masked account number) | D-10 | BE-WINFRA-13 | — |
 | BE-EARN-12 | `[x]` Create `PayoutController@store` — `POST /api/v1/driver/payouts`: request payout of available balance; validate minimum payout amount; validate bank account exists and is verified; create Payout record with status=requested | D-10 | BE-WINFRA-14, BE-EARN-09 | ⚠ OQ-30: Minimum payout amount TBD |
 | BE-EARN-13 | `[x]` Create `StorePayoutRequest` — validate amount (positive, ≤ available balance, ≥ minimum), no other pending payout exists | D-10 | BE-EARN-12 | — |
 | BE-EARN-14 | `[x]` Create `PayoutController@index` — `GET /api/v1/driver/payouts`: list payout history with status filters (requested/approved/processing/paid/failed) | D-10 | BE-WINFRA-14 | — |
-| BE-EARN-15 | `[x]` Create `ProcessPayoutTransferJob` — on Admin approval, initiate Paystack Transfer to driver's bank account; update payout status to processing; handle Paystack Transfer response | D-10 | BE-EARN-12, SETUP-61 | 3 retries, exponential backoff; 🔒 Paystack Transfer API keys restricted to server |
+| BE-EARN-15 | `[x]` Create `ProcessPayoutTransferJob` — on Admin approval, initiate Flutterwave Transfer to driver's bank account; update payout status to processing; handle Flutterwave Transfer response | D-10 | BE-EARN-12, SETUP-61 | 3 retries, exponential backoff; 🔒 Flutterwave Transfer API keys restricted to server |
 | BE-EARN-16 | `[x]` Handle payout transfer webhook — on transfer.success: post journal (debit driver_earnings_available, credit psp_clearing), update payout status=paid; on transfer.failed: update status=failed, record failure_reason | D-10 | BE-WAL-06, BE-EARN-15 | Idempotent via webhook_events table |
 | BE-EARN-17 | `[x]` Create `PayoutFailureReversalJob` — on payout failure, reverse the earnings debit if it was pre-debited; notify driver of failure with retry guidance | D-10 | BE-EARN-16, BE-WINFRA-17 | — |
 
@@ -726,10 +726,10 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-21 | `[ ]` Create `DailyReconciliationJob` — compare Paystack settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Schedule daily; results stored in reconciliation_reports table |
+| BE-WADM-21 | `[ ]` Create `DailyReconciliationJob` — compare Flutterwave settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Schedule daily; results stored in reconciliation_reports table |
 | BE-WADM-22 | `[ ]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes |
 | BE-WADM-23 | `[ ]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly schedule |
-| BE-WADM-24 | `[ ]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Paystack settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | — |
+| BE-WADM-24 | `[ ]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Flutterwave settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | — |
 | BE-WADM-25 | `[x]` Create `AdminReconciliationController@walletLiability` — `GET /api/v1/admin/reports/wallet-liability`: total passenger wallet balances (platform liability), commission collected, driver earnings payable | A-16 | BE-WINFRA-10 | — |
 
 ### 21.6 Wallet Notifications
@@ -754,7 +754,7 @@
 | BE-WADM-31 | `[x]` Create ledger unit tests: postJournal balance invariant, double-spend prevention, idempotent posting, reversal entries, hold capture/release, available balance calculation | — | BE-WINFRA-15 | — |
 | BE-WADM-32 | `[x]` Create concurrency tests: parallel debit attempts on same account (only one should succeed), concurrent top-up webhooks (idempotent), concurrent payout requests | — | BE-WINFRA-15 | ⏱ Run with `--parallel` flag |
 | BE-WADM-33 | `[x]` Create webhook tests: signature verification, replay detection (duplicate event_id), out-of-order event processing, missing/malformed payloads | — | BE-WAL-06 | — |
-| BE-WADM-34 | `[x]` Create Paystack integration tests: test-mode top-up end-to-end, transfer initiation and webhook callback | — | BE-WAL-03, BE-EARN-15 | Uses Paystack test keys |
+| BE-WADM-34 | `[x]` Create Flutterwave integration tests: test-mode top-up end-to-end, transfer initiation and webhook callback | — | BE-WAL-03, BE-EARN-15 | Uses Flutterwave test keys |
 
 ---
 

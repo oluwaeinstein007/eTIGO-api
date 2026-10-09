@@ -2,63 +2,53 @@
 
 namespace App\Gateways;
 
-use App\Contracts\PaystackGateway;
+use App\Contracts\FlutterwaveWalletGateway;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class FakePaystackGateway implements PaystackGateway
+class FakeFlutterwaveWalletGateway implements FlutterwaveWalletGateway
 {
-    public function initializeTransaction(array $data): array
+    public function initializePayment(array $data): array
     {
-        Log::info('[FakePaystack] initializeTransaction', $data);
+        Log::info('[FakeFlutterwaveWallet] initializePayment', $data);
 
-        $reference = $data['reference'] ?? 'fake-'.Str::random(12);
+        $txRef = $data['tx_ref'] ?? 'fake-'.Str::random(12);
 
         return [
-            'authorization_url' => "https://checkout.paystack.com/fake-{$reference}",
-            'access_code' => 'fake-access-'.Str::random(8),
-            'reference' => $reference,
+            'link' => "https://checkout.flutterwave.com/v3/hosted/pay/fake-{$txRef}",
+            'tx_ref' => $txRef,
         ];
     }
 
-    public function verifyTransaction(string $reference): array
+    public function verifyTransaction(string $transactionId): array
     {
-        Log::info('[FakePaystack] verifyTransaction', ['reference' => $reference]);
+        Log::info('[FakeFlutterwaveWallet] verifyTransaction', ['transaction_id' => $transactionId]);
 
         return [
-            'status' => 'success',
+            'status' => 'successful',
             'amount' => 100000,
-            'reference' => $reference,
-            'authorization' => [
-                'authorization_code' => 'AUTH_fake_'.Str::random(8),
-                'card_type' => 'visa',
-                'last4' => '4081',
-                'exp_month' => '12',
-                'exp_year' => '2030',
-                'bank' => 'TEST BANK',
-            ],
+            'tx_ref' => 'TOPUP-FAKE-'.Str::random(8),
         ];
     }
 
     public function initiateTransfer(array $data): array
     {
-        Log::info('[FakePaystack] initiateTransfer', $data);
+        Log::info('[FakeFlutterwaveWallet] initiateTransfer', $data);
 
         return [
-            'transfer_code' => 'TRF_fake_'.Str::random(8),
             'id' => random_int(100000, 999999),
             'reference' => $data['reference'] ?? 'fake-trf-'.Str::random(8),
+            'status' => 'NEW',
         ];
     }
 
     public function resolveAccountNumber(string $accountNumber, string $bankCode): array
     {
-        Log::info('[FakePaystack] resolveAccountNumber', compact('accountNumber', 'bankCode'));
+        Log::info('[FakeFlutterwaveWallet] resolveAccountNumber', compact('accountNumber', 'bankCode'));
 
         return [
             'account_number' => $accountNumber,
             'account_name' => 'FAKE TEST ACCOUNT',
-            'bank_id' => 1,
         ];
     }
 
@@ -81,15 +71,6 @@ class FakePaystackGateway implements PaystackGateway
             ['id' => 14, 'code' => '215', 'name' => 'Unity Bank'],
             ['id' => 15, 'code' => '035', 'name' => 'Wema Bank'],
             ['id' => 16, 'code' => '057', 'name' => 'Zenith Bank'],
-        ];
-    }
-
-    public function createTransferRecipient(array $data): array
-    {
-        Log::info('[FakePaystack] createTransferRecipient', $data);
-
-        return [
-            'recipient_code' => 'RCP_fake_'.Str::random(8),
         ];
     }
 }

@@ -67,15 +67,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Paystack Configuration
+    | Flutterwave Configuration (Wallet)
     |--------------------------------------------------------------------------
+    |
+    | Reuses the same Flutterwave keys as the ride-payment gateway.
+    |
     */
 
-    'paystack' => [
-        'secret_key' => env('PAYSTACK_SECRET_KEY'),
-        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
-        'webhook_secret' => env('PAYSTACK_WEBHOOK_SECRET'),
-        'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+    'flutterwave' => [
+        'secret_key' => env('FLUTTERWAVE_SECRET_KEY'),
+        'public_key' => env('FLUTTERWAVE_PUBLIC_KEY'),
+        'webhook_hash' => env('FLUTTERWAVE_WEBHOOK_HASH'),
+        'base_url' => env('FLUTTERWAVE_BASE_URL', 'https://api.flutterwave.com/v3'),
     ],
 
 ];
