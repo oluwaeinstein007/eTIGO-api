@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,5 +45,20 @@ class Vehicle extends Model
     public function fleetAgreements(): HasMany
     {
         return $this->hasMany(FleetAgreement::class);
+    }
+
+    public function isAssigned(): bool
+    {
+        return $this->driver_id !== null;
+    }
+
+    public function scopeFleetInventory(Builder $query): void
+    {
+        $query->where('is_fleet', true)->whereNull('driver_id');
+    }
+
+    public function scopeFleet(Builder $query): void
+    {
+        $query->where('is_fleet', true);
     }
 }

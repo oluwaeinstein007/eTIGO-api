@@ -18,6 +18,7 @@ class DriverResource extends JsonResource
             'user' => new UserResource($this->whenLoaded('user')),
             'city' => new CityResource($this->whenLoaded('city')),
             'status' => $this->status,
+            'vehicle_ownership_type' => $this->vehicle_ownership_type,
             'kyc_status' => $this->kyc_status,
             'kyc_verified_at' => $this->kyc_verified_at,
             'licence_number' => $this->licence_number,

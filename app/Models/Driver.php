@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\DriverStatus;
 use App\Enums\KycStatus;
+use App\Enums\VehicleOwnershipType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,6 +20,7 @@ class Driver extends Model
     protected $fillable = [
         'user_id',
         'city_id',
+        'vehicle_ownership_type',
         'status',
         'kyc_status',
         'kyc_verified_at',
@@ -33,6 +36,7 @@ class Driver extends Model
         return [
             'status' => DriverStatus::class,
             'kyc_status' => KycStatus::class,
+            'vehicle_ownership_type' => VehicleOwnershipType::class,
             'is_online' => 'boolean',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
@@ -100,11 +104,35 @@ class Driver extends Model
         return $this->kyc_status === KycStatus::Verified;
     }
 
+    public function isOwnVehicle(): bool
+    {
+        return $this->vehicle_ownership_type === VehicleOwnershipType::OwnVehicle;
+    }
+
+    public function isFleetVehicle(): bool
+    {
+        return $this->vehicle_ownership_type === VehicleOwnershipType::FleetVehicle;
+    }
+
+    public function isAwaitingVehicleAssignment(): bool
+    {
+        return $this->isFleetVehicle()
+            && $this->isApproved()
+            && $this->vehicle === null;
+    }
+
     public function canGoOnline(): bool
     {
         return $this->isApproved()
             && $this->isKycVerified()
             && $this->vehicle !== null
             && $this->vehicle->vehicle_class_id !== null;
+    }
+
+    public function scopeAwaitingVehicle(Builder $query): void
+    {
+        $query->where('vehicle_ownership_type', VehicleOwnershipType::FleetVehicle)
+            ->where('status', DriverStatus::Approved)
+            ->whereDoesntHave('vehicle');
     }
 }

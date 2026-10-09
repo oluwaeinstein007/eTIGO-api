@@ -56,6 +56,43 @@ class FleetRemittanceService
         });
     }
 
+    public function assignFleetVehicle(
+        Driver $driver,
+        Vehicle $vehicle,
+        float $dailyTarget,
+        float $totalVehicleCost,
+        string $startDate,
+        User $admin,
+    ): FleetAgreement {
+        if (! $vehicle->is_fleet) {
+            throw new \DomainException('Vehicle must be a fleet vehicle.');
+        }
+
+        if ($vehicle->isAssigned()) {
+            throw new \DomainException('Vehicle is already assigned to a driver.');
+        }
+
+        return DB::transaction(function () use ($driver, $vehicle, $dailyTarget, $totalVehicleCost, $startDate, $admin) {
+            $vehicle->update(['driver_id' => $driver->id]);
+
+            $agreement = $this->createAgreement(
+                driver: $driver,
+                vehicle: $vehicle,
+                dailyTarget: $dailyTarget,
+                totalVehicleCost: $totalVehicleCost,
+                startDate: $startDate,
+                admin: $admin,
+            );
+
+            AuditLog::record($vehicle, 'fleet_vehicle_assigned', $admin, null, [
+                'driver_id' => $driver->id,
+                'agreement_id' => $agreement->id,
+            ]);
+
+            return $agreement;
+        });
+    }
+
     public function updateAgreement(
         FleetAgreement $agreement,
         array $data,

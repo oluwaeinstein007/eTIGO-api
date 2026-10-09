@@ -832,6 +832,12 @@ All driver endpoints require `Authorization: Bearer {token}` from a driver user.
 GET /driver/onboarding/status
 ```
 
+Drivers have two onboarding paths based on `vehicle_ownership_type`:
+- **`own_vehicle`** — driver registers their own vehicle, must upload `vehicle_registration` and `insurance_certificate` documents, and KYC includes vehicle plate verification.
+- **`fleet_vehicle`** — admin assigns a fleet vehicle after approval; only `driving_licence` and `government_id` documents are required, KYC skips vehicle plate verification.
+
+The `vehicle_ownership_type` must be set (via `POST /driver/onboarding/vehicle-ownership`) before submitting for review.
+
 **Response 200:**
 ```json
 {
@@ -861,6 +867,7 @@ GET /driver/onboarding/status
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
     "status": "onboarding",
+    "vehicle_ownership_type": null,
     "kyc_status": "not_started",
     "kyc_verified_at": null,
     "licence_number": null,
@@ -873,7 +880,10 @@ GET /driver/onboarding/status
   "onboarding_complete": false,
   "can_submit": false,
   "missing_documents": ["driving_licence", "vehicle_registration", "insurance_certificate", "government_id"],
+  "has_vehicle_ownership_type": false,
+  "vehicle_ownership_type": null,
   "has_vehicle": false,
+  "needs_vehicle_registration": true,
   "has_licence_number": false,
   "has_city": true,
   "kyc_status": "not_started",
@@ -881,7 +891,53 @@ GET /driver/onboarding/status
 }
 ```
 
-Documents with `rejected` status are excluded from the uploaded count — a rejected document must be re-uploaded before it counts toward onboarding completion.
+**Notes:**
+- Documents with `rejected` status are excluded from the uploaded count — a rejected document must be re-uploaded before it counts toward onboarding completion.
+- `needs_vehicle_registration` is `true` only for `own_vehicle` drivers. Fleet drivers do not register vehicles.
+- `missing_documents` is conditional: fleet drivers only need `driving_licence` and `government_id`.
+- Onboarding is considered complete when: `vehicle_ownership_type` is set, all required documents uploaded, licence number set, city selected, and vehicle registered (own_vehicle drivers only).
+
+---
+
+### Set Vehicle Ownership
+```
+POST /driver/onboarding/vehicle-ownership
+```
+
+Sets the driver's vehicle ownership path during onboarding. This determines which documents and KYC steps are required.
+
+| Field                   | Type   | Required | Description                                  |
+|-------------------------|--------|----------|----------------------------------------------|
+| vehicle_ownership_type  | string | Yes      | `own_vehicle` or `fleet_vehicle`             |
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle ownership type set successfully.",
+  "driver": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "status": "onboarding",
+    "vehicle_ownership_type": "fleet_vehicle",
+    "kyc_status": "not_started",
+    "kyc_verified_at": null,
+    "licence_number": null,
+    "is_online": false,
+    "approved_at": null,
+    "documents": [],
+    "vehicle": null,
+    "created_at": "2026-10-01T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422 (wrong status):**
+```json
+{
+  "message": "Vehicle ownership type can only be set during onboarding."
+}
+```
+
+Can only be set when driver status is `onboarding` or `rejected`. Can be changed freely during those states (e.g., if the driver changes their mind).
 
 ---
 
@@ -1048,6 +1104,8 @@ GET /driver/documents
 POST /driver/vehicle
 ```
 
+Only available for drivers with `vehicle_ownership_type: "own_vehicle"`. Fleet vehicle drivers cannot register their own vehicle — a fleet vehicle is assigned by admin after approval.
+
 | Field        | Type    | Required | Description              |
 |--------------|---------|----------|--------------------------|
 | make         | string  | Yes      | Vehicle make (e.g. Toyota)|
@@ -1072,6 +1130,13 @@ POST /driver/vehicle
     "vehicle_class": null,
     "created_at": "2026-10-06T14:00:00.000000Z"
   }
+}
+```
+
+**Response 422 (fleet driver):**
+```json
+{
+  "message": "Fleet vehicle drivers cannot register their own vehicle. A vehicle will be assigned by admin."
 }
 ```
 
@@ -1176,7 +1241,12 @@ GET /driver/vehicle
 POST /driver/onboarding/submit
 ```
 
-Submits the driver application for admin review. Only valid when driver status is `onboarding` or `rejected` and all requirements are met (all documents uploaded, vehicle registered, licence number set, city selected).
+Submits the driver application for admin review. Only valid when driver status is `onboarding` or `rejected` and all requirements are met.
+
+**Requirements vary by ownership type:**
+- **All drivers:** `vehicle_ownership_type` set, required documents uploaded, licence number set, city selected.
+- **`own_vehicle` only:** vehicle registered.
+- **`fleet_vehicle`:** no vehicle required at submission time (assigned by admin after approval).
 
 **Response 200:**
 ```json
@@ -1202,6 +1272,7 @@ Submits the driver application for admin review. Only valid when driver status i
 {
   "message": "Cannot submit application. Please complete all required steps.",
   "errors": [
+    "Vehicle ownership type must be selected.",
     "Missing documents: insurance_certificate, government_id",
     "Licence number is required."
   ]
@@ -1370,9 +1441,13 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
 
 All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
 
-KYC verification uses QoreID as the identity verification provider. Drivers must complete NIN verification, driver's license verification, and vehicle plate verification before their `kyc_status` becomes `verified`. Liveness verification is supported but optional for the `verified` status.
+KYC verification uses QoreID as the identity verification provider. Required verifications depend on the driver's vehicle ownership type:
 
-Vehicle plate verification auto-triggers when a vehicle is registered or the plate number is updated.
+- **`own_vehicle` drivers:** NIN + Driver's License + Vehicle Plate verification required.
+- **`fleet_vehicle` drivers:** NIN + Driver's License only. Vehicle plate verification is skipped since the fleet vehicle is managed by admin.
+- **Liveness verification** is supported but optional for the `verified` status.
+
+Vehicle plate verification auto-triggers when a vehicle is registered or the plate number is updated (own_vehicle drivers only).
 
 ### KYC Status
 ```
@@ -1390,22 +1465,26 @@ Returns the driver's aggregate KYC status and per-type verification summary.
     "nin": {
       "status": "verified",
       "verified_at": "2026-10-05T10:00:00.000000Z",
-      "failure_reason": null
+      "failure_reason": null,
+      "required": true
     },
     "drivers_license": {
       "status": "not_started",
       "verified_at": null,
-      "failure_reason": null
+      "failure_reason": null,
+      "required": true
     },
     "vehicle_plate": {
       "status": "not_started",
       "verified_at": null,
-      "failure_reason": null
+      "failure_reason": null,
+      "required": true
     },
     "liveness": {
       "status": "not_started",
       "verified_at": null,
-      "failure_reason": null
+      "failure_reason": null,
+      "required": false
     }
   }
 }
@@ -1417,8 +1496,10 @@ Returns the driver's aggregate KYC status and per-type verification summary.
 |----------------|----------------------------------------------------|
 | `not_started`  | No verifications submitted yet                     |
 | `in_progress`  | At least one verification submitted, not all done  |
-| `verified`     | NIN + License + Vehicle Plate all verified         |
+| `verified`     | All required verifications passed                  |
 | `failed`       | At least one required verification failed          |
+
+Each verification type includes a `required` field indicating whether it's needed for this driver. Fleet vehicle drivers will see `vehicle_plate.required: false`.
 
 ---
 
@@ -2017,6 +2098,317 @@ Restores driver to approved status.
 ```json
 {
   "message": "Only suspended drivers can be reactivated."
+}
+```
+
+---
+
+## Admin — Fleet Vehicle Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+**Allowed Roles:** Operations, Finance (Super Admin always has access)
+
+Fleet vehicles are company-owned vehicles pre-registered in inventory (without a driver) and later assigned to approved fleet drivers. Assignment creates a fleet agreement automatically.
+
+### List Fleet Vehicles
+```
+GET /admin/fleet-vehicles
+```
+
+| Parameter       | Type    | Required | Description                                      |
+|-----------------|---------|----------|--------------------------------------------------|
+| unassigned_only | boolean | No       | `true` to show only unassigned (available) vehicles |
+| search          | string  | No       | Search by make, model, or plate number           |
+
+**Response 200:**
+```json
+{
+  "vehicles": [
+    {
+      "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+      "driver_id": null,
+      "make": "Toyota",
+      "model": "Corolla",
+      "colour": "White",
+      "plate_number": "FLEET-001",
+      "year": 2024,
+      "is_fleet": true,
+      "is_assigned": false,
+      "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "vehicle_class": {
+        "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+        "name": "economy",
+        "display_name": "Economy",
+        "capacity": 4
+      },
+      "created_at": "2026-10-09T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
+---
+
+### Register Fleet Vehicle
+```
+POST /admin/fleet-vehicles
+```
+
+Creates a new fleet vehicle in inventory with no driver assigned. The vehicle is created with `is_fleet: true` and `driver_id: null`.
+
+| Field            | Type          | Required | Description                            |
+|------------------|---------------|----------|----------------------------------------|
+| make             | string        | Yes      | Vehicle make (e.g. Toyota)             |
+| model            | string        | Yes      | Vehicle model (e.g. Corolla)           |
+| colour           | string        | Yes      | Vehicle colour                         |
+| plate_number     | string        | Yes      | Plate number (unique across all vehicles) |
+| year             | integer       | Yes      | Year of manufacture (2000 – next year) |
+| vehicle_class_id | string (UUID) | Yes      | Must exist in vehicle_classes          |
+
+**Response 201:**
+```json
+{
+  "message": "Fleet vehicle registered successfully.",
+  "vehicle": {
+    "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "driver_id": null,
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "FLEET-001",
+    "year": 2024,
+    "is_fleet": true,
+    "is_assigned": false,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "vehicle_class": { "...": "..." },
+    "created_at": "2026-10-09T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Show Fleet Vehicle
+```
+GET /admin/fleet-vehicles/{vehicle_id}
+```
+
+Returns a single fleet vehicle with its assigned driver and fleet agreements.
+
+**Response 200:**
+```json
+{
+  "vehicle": {
+    "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "driver": {
+      "id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+      "name": "Bayo Akinola"
+    },
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "FLEET-001",
+    "year": 2024,
+    "is_fleet": true,
+    "is_assigned": true,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "vehicle_class": { "...": "..." },
+    "created_at": "2026-10-09T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Vehicle is not a fleet vehicle."
+}
+```
+
+---
+
+### Update Fleet Vehicle
+```
+PUT /admin/fleet-vehicles/{vehicle_id}
+```
+
+Updates a fleet vehicle's details. All fields are optional (partial update).
+
+| Field            | Type          | Required | Description                                        |
+|------------------|---------------|----------|----------------------------------------------------|
+| make             | string        | No       | Vehicle make                                       |
+| model            | string        | No       | Vehicle model                                      |
+| colour           | string        | No       | Vehicle colour                                     |
+| plate_number     | string        | No       | Plate number (unique, excluding current vehicle)   |
+| year             | integer       | No       | Year of manufacture                                |
+| vehicle_class_id | string (UUID) | No       | Must exist in vehicle_classes                      |
+
+**Response 200:**
+```json
+{
+  "message": "Fleet vehicle updated successfully.",
+  "vehicle": { "...": "..." }
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Vehicle is not a fleet vehicle."
+}
+```
+
+---
+
+### Assign Fleet Vehicle to Driver
+```
+POST /admin/fleet-vehicles/{vehicle_id}/assign
+```
+
+Assigns an unassigned fleet vehicle to an approved driver. This also creates a fleet agreement automatically in a single transaction.
+
+**Prerequisites:**
+- Vehicle must be a fleet vehicle (`is_fleet: true`) and unassigned (`driver_id: null`).
+- Driver must be approved and not already have a vehicle assigned.
+
+| Field                   | Type          | Required | Validation                     | Description                        |
+|-------------------------|---------------|----------|--------------------------------|------------------------------------|
+| driver_id               | string (UUID) | Yes      | Must exist in `drivers`         | Approved driver to assign to       |
+| daily_remittance_target | number        | Yes      | min: 1000                      | Daily remittance target amount     |
+| total_vehicle_cost      | number        | Yes      | min: 100000                    | Total hire-to-own vehicle price    |
+| agreement_start_date    | date (Y-m-d)  | Yes      | today or future                | When remittance tracking begins    |
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle assigned to driver successfully. Fleet agreement created.",
+  "vehicle": {
+    "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "driver": {
+      "id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+      "name": "Bayo Akinola"
+    },
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "FLEET-001",
+    "year": 2024,
+    "is_fleet": true,
+    "is_assigned": true,
+    "vehicle_class": { "...": "..." },
+    "created_at": "2026-10-09T10:00:00.000000Z"
+  },
+  "driver": { "...": "..." }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Vehicle is already assigned to a driver."
+}
+```
+
+```json
+{
+  "message": "Driver must be approved before vehicle assignment."
+}
+```
+
+```json
+{
+  "message": "Driver already has a vehicle assigned."
+}
+```
+
+---
+
+### Unassign Fleet Vehicle
+```
+POST /admin/fleet-vehicles/{vehicle_id}/unassign
+```
+
+Removes the driver assignment from a fleet vehicle. Cannot unassign if there is an active fleet agreement — terminate the agreement first.
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle unassigned from driver successfully.",
+  "vehicle": {
+    "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "driver_id": null,
+    "make": "Toyota",
+    "model": "Corolla",
+    "colour": "White",
+    "plate_number": "FLEET-001",
+    "year": 2024,
+    "is_fleet": true,
+    "is_assigned": false,
+    "vehicle_class": { "...": "..." },
+    "created_at": "2026-10-09T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Vehicle is not assigned to any driver."
+}
+```
+
+```json
+{
+  "message": "Cannot unassign vehicle with an active fleet agreement. Terminate the agreement first."
+}
+```
+
+---
+
+### Drivers Awaiting Vehicle Assignment
+```
+GET /admin/fleet-vehicles/drivers-awaiting
+```
+
+Lists approved fleet drivers who do not yet have a vehicle assigned. Useful for admins to find which fleet drivers need a vehicle.
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+      "user": {
+        "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+        "first_name": "Bayo",
+        "last_name": "Akinola",
+        "phone": "+2348200000001",
+        "email": "bayo@demo.etigo.com",
+        "type": "driver"
+      },
+      "status": "approved",
+      "vehicle_ownership_type": "fleet_vehicle",
+      "kyc_status": "verified",
+      "licence_number": "DL-12345678",
+      "vehicle": null,
+      "created_at": "2026-10-01T10:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
 }
 ```
 
@@ -5978,6 +6370,7 @@ Super Admins always bypass role checks and have full access.
 | `/admin/pricing` | Yes | — | Yes | — |
 | `/admin/surge-rules` | Yes | — | — | — |
 | `/admin/rides` | Yes | — | — | — |
+| `/admin/fleet-vehicles` | Yes | — | Yes | — |
 | `/admin/fleet-agreements` | Yes | — | Yes | — |
 | `/admin/gamification` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
@@ -5992,6 +6385,12 @@ Super Admins always bypass role checks and have full access.
 | `approved`       | KYC approved, can go online              |
 | `rejected`       | KYC rejected (reason provided)           |
 | `suspended`      | Account suspended by admin               |
+
+### Vehicle Ownership Type
+| Value           | Description                                    |
+|-----------------|------------------------------------------------|
+| `own_vehicle`   | Driver owns and registers their own vehicle    |
+| `fleet_vehicle` | Driver will be assigned a fleet vehicle by admin |
 
 ### Document Types
 | Value                    | Description            |
