@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\RideCancellationReasonController;
 use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideDisputeController;
 use App\Http\Controllers\Api\V1\RideEstimateController;
@@ -61,6 +62,7 @@ Route::get('/health', HealthController::class);
 */
 Route::get('/lookup/states', [LookupController::class, 'states']);
 Route::get('/lookup/regions', [LookupController::class, 'regions']);
+Route::get('/lookup/cancellation-reasons', [RideCancellationReasonController::class, 'index']);
 Route::get('/cities', [CityController::class, 'index']);
 Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);
@@ -165,6 +167,7 @@ Route::middleware('auth:sanctum')->prefix('gamification')->group(function () {
 Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/', [RideController::class, 'store'])->middleware('user.type:passenger');
     Route::get('/', [RideController::class, 'index']);
+    Route::get('/cancellation-reasons', [RideCancellationReasonController::class, 'index']);
     Route::get('/{ride}', [RideController::class, 'show']);
     Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
         ->middleware(['user.type:passenger', 'throttle:3,1']);
