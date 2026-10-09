@@ -188,7 +188,7 @@ it('pauses and resumes a fleet agreement', function () {
         ->assertJsonPath('agreement.status', 'active');
 });
 
-it('hides total_vehicle_cost from non-admin users in resource', function () {
+it('exposes total_vehicle_cost to admin users', function () {
     [$admin, $token] = adminToken();
 
     $agreement = FleetAgreement::factory()->create(['created_by_admin_id' => $admin->id]);
@@ -198,6 +198,27 @@ it('hides total_vehicle_cost from non-admin users in resource', function () {
 
     $response->assertOk()
         ->assertJsonPath('agreement.total_vehicle_cost', $agreement->total_vehicle_cost);
+});
+
+it('hides total_vehicle_cost from driver users in resource', function () {
+    $user = User::factory()->driver()->create();
+    $driver = Driver::factory()->create(['user_id' => $user->id]);
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $admin = User::factory()->admin()->create();
+
+    FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $vehicle->id,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $token = $user->createToken('driver-auth', ['driver'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->getJson('/api/v1/driver/fleet-agreement');
+
+    $response->assertOk()
+        ->assertJsonMissingPath('agreement.total_vehicle_cost');
 });
 
 it('creates audit logs for fleet agreement operations', function () {

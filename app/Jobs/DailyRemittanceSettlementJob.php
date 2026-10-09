@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\DailyRemittance;
+use App\Models\FleetAgreement;
 use App\Services\FleetRemittanceService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -23,6 +24,19 @@ class DailyRemittanceSettlementJob implements ShouldQueue
 
     public function handle(FleetRemittanceService $service): void
     {
+        FleetAgreement::active()->each(function (FleetAgreement $agreement) {
+            DailyRemittance::firstOrCreate(
+                [
+                    'agreement_id' => $agreement->id,
+                    'date' => $this->date,
+                ],
+                [
+                    'driver_id' => $agreement->driver_id,
+                    'target_amount' => $agreement->daily_remittance_target,
+                ],
+            );
+        });
+
         $unsettled = DailyRemittance::unsettled()
             ->forDate($this->date)
             ->with('agreement')

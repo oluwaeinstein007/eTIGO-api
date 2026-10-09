@@ -158,10 +158,19 @@ class FleetRemittanceService
         }
 
         return DB::transaction(function () use ($agreement, $fareAmount) {
-            $remittance = $this->getOrCreateTodayRemittance($agreement);
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
+            if (! $agreement->isActive()) {
+                throw new \DomainException('Cannot record remittance on a non-active agreement.');
+            }
+
+            $this->getOrCreateTodayRemittance($agreement);
+            $remittance = DailyRemittance::where('agreement_id', $agreement->id)
+                ->where('date', now()->toDateString())
+                ->lockForUpdate()
+                ->firstOrFail();
 
             $remainingTarget = max(0, $remittance->target_amount - $remittance->remitted_amount);
-            $remittanceShare = min($fareAmount, $remainingTarget);
+            $remittanceShare = min($fareAmount, $remainingTarget, $agreement->remainingAmount());
             $driverShare = $fareAmount - $remittanceShare;
 
             $remittance->increment('ride_count');
@@ -190,11 +199,13 @@ class FleetRemittanceService
 
     public function settleDay(DailyRemittance $remittance): DailyRemittance
     {
-        if ($remittance->settled) {
-            return $remittance;
-        }
-
         return DB::transaction(function () use ($remittance) {
+            $remittance = DailyRemittance::whereKey($remittance->id)->lockForUpdate()->firstOrFail();
+
+            if ($remittance->settled) {
+                return $remittance;
+            }
+
             $remittance->update(['settled' => true]);
 
             $agreement = $remittance->agreement;

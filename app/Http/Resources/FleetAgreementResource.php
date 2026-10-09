@@ -30,6 +30,7 @@ class FleetAgreementResource extends JsonResource
             'terminated_at' => $this->when($this->terminated_at !== null, $this->terminated_at),
             'completed_at' => $this->when($this->completed_at !== null, $this->completed_at),
             'paused_at' => $this->when($this->paused_at !== null, $this->paused_at),
+            'daily_remittances' => DailyRemittanceResource::collection($this->whenLoaded('dailyRemittances')),
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),
             'created_at' => $this->created_at,

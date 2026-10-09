@@ -82,7 +82,7 @@ it('shows driver fleet agreement without total_vehicle_cost', function () {
     $response->assertOk()
         ->assertJsonPath('agreement.status', 'active')
         ->assertJsonPath('agreement.daily_remittance_target', '40000.00')
-        ->assertJsonMissing(['total_vehicle_cost']);
+        ->assertJsonMissingPath('agreement.total_vehicle_cost');
 });
 
 it('records ride remittance toward daily target', function () {

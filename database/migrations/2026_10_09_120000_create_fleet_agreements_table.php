@@ -22,7 +22,7 @@ return new class extends Migration
             $table->timestamp('terminated_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('paused_at')->nullable();
-            $table->foreignUuid('created_by_admin_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignUuid('created_by_admin_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->index(['driver_id', 'status']);
