@@ -64,15 +64,17 @@ class FleetRemittanceService
         string $startDate,
         User $admin,
     ): FleetAgreement {
-        if (! $vehicle->is_fleet) {
-            throw new \DomainException('Vehicle must be a fleet vehicle.');
-        }
-
-        if ($vehicle->isAssigned()) {
-            throw new \DomainException('Vehicle is already assigned to a driver.');
-        }
-
         return DB::transaction(function () use ($driver, $vehicle, $dailyTarget, $totalVehicleCost, $startDate, $admin) {
+            $vehicle = Vehicle::lockForUpdate()->findOrFail($vehicle->id);
+
+            if (! $vehicle->is_fleet) {
+                throw new \DomainException('Vehicle must be a fleet vehicle.');
+            }
+
+            if ($vehicle->isAssigned()) {
+                throw new \DomainException('Vehicle is already assigned to a driver.');
+            }
+
             $vehicle->update(['driver_id' => $driver->id]);
 
             $agreement = $this->createAgreement(

@@ -23,14 +23,12 @@ class AdminFleetVehicleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Vehicle::fleet()->with(['driver.user', 'vehicleClass']);
-
-        if ($request->boolean('unassigned_only')) {
-            $query->whereNull('driver_id');
-        }
+        $query = $request->boolean('unassigned_only')
+            ? Vehicle::fleetInventory()->with(['vehicleClass'])
+            : Vehicle::fleet()->with(['driver.user', 'vehicleClass']);
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
+            $search = str_replace(['%', '_'], ['\%', '\_'], $request->input('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('make', 'ilike', "%{$search}%")
                     ->orWhere('model', 'ilike', "%{$search}%")

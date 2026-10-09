@@ -86,8 +86,16 @@ class OnboardingController extends Controller
             ], 422);
         }
 
+        $newType = VehicleOwnershipType::from($request->input('vehicle_ownership_type'));
+
+        if ($driver->vehicle && $driver->vehicle_ownership_type !== $newType) {
+            return response()->json([
+                'message' => 'Vehicle ownership type cannot be changed while a vehicle is registered or assigned.',
+            ], 422);
+        }
+
         $driver->update([
-            'vehicle_ownership_type' => $request->input('vehicle_ownership_type'),
+            'vehicle_ownership_type' => $newType,
         ]);
 
         AuditLog::record($driver, 'vehicle_ownership_set', $user, null, [
