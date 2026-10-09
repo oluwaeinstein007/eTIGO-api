@@ -65,6 +65,21 @@ class Driver extends Model
         return $this->hasMany(KycVerification::class);
     }
 
+    public function fleetAgreements(): HasMany
+    {
+        return $this->hasMany(FleetAgreement::class);
+    }
+
+    public function activeFleetAgreement(): HasOne
+    {
+        return $this->hasOne(FleetAgreement::class)->where('status', \App\Enums\FleetAgreementStatus::Active);
+    }
+
+    public function dailyRemittances(): HasMany
+    {
+        return $this->hasMany(DailyRemittance::class);
+    }
+
     public function isApproved(): bool
     {
         return $this->status === DriverStatus::Approved;

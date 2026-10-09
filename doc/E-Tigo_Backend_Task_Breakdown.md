@@ -42,18 +42,20 @@
 20. [Driver Earnings Ledger & Payouts](#20-driver-earnings-ledger--payouts)
 21. [Wallet Administration & Reconciliation](#21-wallet-administration--reconciliation)
 
+22. [Fleet Agreement & Remittance Tracking](#22-fleet-agreement--remittance-tracking)
+
 ### Phase 2 — Month-3 Rollout (Weeks 9–12)
 
-22. [Phase 2 — Scheduled Rides](#22-phase-2--scheduled-rides)
-23. [Phase 2 — Third-Party Bookings](#23-phase-2--third-party-bookings)
-24. [Phase 2 — Lost & Found](#24-phase-2--lost--found)
-25. [Phase 2 — Advanced Disputes](#25-phase-2--advanced-disputes)
-26. [Phase 2 — Multi-City Support](#26-phase-2--multi-city-support)
-27. [Phase 2 — Driver Scheduling & Vehicle Maintenance](#27-phase-2--driver-scheduling--vehicle-maintenance)
+23. [Phase 2 — Scheduled Rides](#23-phase-2--scheduled-rides)
+24. [Phase 2 — Third-Party Bookings](#24-phase-2--third-party-bookings)
+25. [Phase 2 — Lost & Found](#25-phase-2--lost--found)
+26. [Phase 2 — Advanced Disputes](#26-phase-2--advanced-disputes)
+27. [Phase 2 — Multi-City Support](#27-phase-2--multi-city-support)
+28. [Phase 2 — Driver Scheduling & Vehicle Maintenance](#28-phase-2--driver-scheduling--vehicle-maintenance)
 
 ### Tracking
 
-28. [Open Questions Tracker](#28-open-questions-tracker)
+29. [Open Questions Tracker](#29-open-questions-tracker)
 
 ---
 
@@ -755,13 +757,85 @@
 
 ---
 
+## 22. Fleet Agreement & Remittance Tracking
+
+**PRD refs:** Fleet hire-to-own model — remittance-first per-ride allocation
+
+**Design note:** First ₦X of each ride fare goes to E-tiGo until the vehicle cost is fully remitted; remainder goes to the driver. Drivers see progress percentage only (total_vehicle_cost hidden per business decision). Daily settlement job tracks shortfall streaks.
+
+### 22.1 Schema & Migrations
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-01 | `[x]` Create migration: `fleet_agreements` table — id (UUID), driver_id (FK), vehicle_id (FK), daily_remittance_target (decimal 12,2), total_vehicle_cost (decimal 14,2), total_remitted (decimal 14,2 default 0), agreement_start_date (date), status (string default 'active'), shortfall_streak_days (int default 0), terminated_reason (text nullable), terminated_at, completed_at, paused_at, created_by_admin_id (FK nullable, nullOnDelete to users), timestamps; indexes on (driver_id, status) and (vehicle_id, status) | — | SETUP-06 | Admin deletion nullifies created_by_admin_id instead of cascading |
+| BE-FLEET-02 | `[x]` Create migration: `daily_remittances` table — id (UUID), agreement_id (FK cascadeOnDelete), driver_id (FK), date, target_amount (decimal 12,2), remitted_amount (decimal 12,2 default 0), shortfall_amount (decimal 12,2 default 0), driver_earnings (decimal 12,2 default 0), total_fares (decimal 12,2 default 0), ride_count (int default 0), settled (bool default false), target_met_at (nullable), timestamps; unique on (agreement_id, date); indexes on (driver_id, date) and (settled, date) | — | BE-FLEET-01 | — |
+
+### 22.2 Models & Enums
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-03 | `[x]` Create `FleetAgreementStatus` enum: Active, Paused, Terminated, Completed | — | — | Backed PHP enum with string values |
+| BE-FLEET-04 | `[x]` Create `FleetAgreement` Eloquent model with relationships: driver(), vehicle(), createdByAdmin(), dailyRemittances(); scopes: active(), forDriver(); helpers: isActive(), isCompleted(), isTerminated(), progressPercentage(), remainingAmount() | — | BE-FLEET-01 | HasUuids, HasFactory |
+| BE-FLEET-05 | `[x]` Create `DailyRemittance` Eloquent model with relationships: agreement(), driver(); scopes: unsettled(), forDate(); helpers: shortfall(), hasMetTarget() | — | BE-FLEET-02 | HasUuids, HasFactory |
+| BE-FLEET-06 | `[x]` Create `FleetAgreementFactory` with states: terminated(), completed(), paused() | — | BE-FLEET-04 | — |
+| BE-FLEET-07 | `[x]` Create `DailyRemittanceFactory` | — | BE-FLEET-05 | — |
+| BE-FLEET-08 | `[x]` Add `activeFleetAgreement()` relationship on Driver model; add `is_fleet` flag support on Vehicle model | — | BE-FLEET-04 | — |
+
+### 22.3 Fleet Remittance Service
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-09 | `[x]` Create `FleetRemittanceService@createAgreement()` — validate no existing active agreement for driver, vehicle must be fleet-flagged; create agreement in DB::transaction with audit log | — | BE-FLEET-04 | Throws DomainException on validation failures |
+| BE-FLEET-10 | `[x]` Create `FleetRemittanceService@updateAgreement()` — only active agreements; audit log with old/new values | — | BE-FLEET-09 | — |
+| BE-FLEET-11 | `[x]` Create `FleetRemittanceService@terminateAgreement()` — set status=terminated with reason and timestamp; audit log | — | BE-FLEET-09 | Rejects already completed/terminated |
+| BE-FLEET-12 | `[x]` Create `FleetRemittanceService@pauseAgreement()` / `resumeAgreement()` — toggle between active/paused; audit log | — | BE-FLEET-09 | — |
+| BE-FLEET-13 | `[x]` Create `FleetRemittanceService@recordRideRemittance()` — lock agreement + remittance rows (lockForUpdate), compute split: min(fare, daily_target_remaining, vehicle_cost_remaining) → E-tiGo, remainder → driver; increment counters; auto-complete agreement when total_vehicle_cost reached | — | BE-FLEET-05 | 🔒 Row-level locking prevents concurrent ride race conditions; caps remittance at remaining vehicle cost |
+| BE-FLEET-14 | `[x]` Create `FleetRemittanceService@settleDay()` — lock remittance row (lockForUpdate), mark settled, update shortfall streak on agreement (increment on shortfall, reset on target met) | — | BE-FLEET-13 | 🔒 Locked-row check prevents double settlement |
+| BE-FLEET-15 | `[x]` Create `FleetRemittanceService@getDriverTodayRemittance()` / `getDriverRemittanceHistory()` — driver-facing read methods | — | BE-FLEET-05 | — |
+
+### 22.4 Admin Endpoints
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-16 | `[x]` Create `AdminFleetAgreementController@index` — `GET /api/v1/admin/fleet-agreements`: list with status and driver_id filters, pagination | — | BE-FLEET-04, SETUP-52 | Admin-only |
+| BE-FLEET-17 | `[x]` Create `AdminFleetAgreementController@store` — `POST /api/v1/admin/fleet-agreements`: create agreement with driver, vehicle, daily target, total cost, start date | — | BE-FLEET-09 | — |
+| BE-FLEET-18 | `[x]` Create `AdminFleetAgreementController@show` — `GET /api/v1/admin/fleet-agreements/{id}`: full agreement with 30 most recent daily remittances | — | BE-FLEET-04 | Eager-loads dailyRemittances (latest 30) |
+| BE-FLEET-19 | `[x]` Create `AdminFleetAgreementController@update` — `PUT /api/v1/admin/fleet-agreements/{id}`: update daily target or total cost on active agreement | — | BE-FLEET-10 | — |
+| BE-FLEET-20 | `[x]` Create `AdminFleetAgreementController@terminate` / `pause` / `resume` — `POST /api/v1/admin/fleet-agreements/{id}/terminate|pause|resume` | — | BE-FLEET-11, BE-FLEET-12 | — |
+| BE-FLEET-21 | `[x]` Create `StoreFleetAgreementRequest`, `UpdateFleetAgreementRequest`, `TerminateFleetAgreementRequest` form requests | — | BE-FLEET-17 | — |
+
+### 22.5 Driver Endpoints
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-22 | `[x]` Create `DriverRemittanceController@today` — `GET /api/v1/driver/remittance/today`: daily remittance progress | — | BE-FLEET-15 | Returns null when no active agreement |
+| BE-FLEET-23 | `[x]` Create `DriverRemittanceController@history` — `GET /api/v1/driver/remittance/history`: paginated remittance history | — | BE-FLEET-15 | — |
+| BE-FLEET-24 | `[x]` Create `DriverRemittanceController@fleetAgreement` — `GET /api/v1/driver/fleet-agreement`: agreement summary without total_vehicle_cost | — | BE-FLEET-04 | total_vehicle_cost and remaining_amount hidden from drivers |
+
+### 22.6 Resources & Background Jobs
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-25 | `[x]` Create `FleetAgreementResource` — conditional total_vehicle_cost/remaining_amount (admin-only); includes daily_remittances when loaded | — | BE-FLEET-04 | Uses `$request->user()->isAdmin()` check |
+| BE-FLEET-26 | `[x]` Create `DailyRemittanceResource` | — | BE-FLEET-05 | — |
+| BE-FLEET-27 | `[x]` Create `DailyRemittanceSettlementJob` — ensures every active agreement has a DailyRemittance row for the date (including zero-ride days), then settles all unsettled remittances | — | BE-FLEET-14 | 3 retries; creates missing rows before settlement to capture zero-ride shortfalls |
+
+### 22.7 Tests
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-28 | `[x]` Create admin fleet agreement tests (12 tests): CRUD, validation, audit logs, status transitions, admin exposes total_vehicle_cost, driver hides total_vehicle_cost | — | BE-FLEET-16 through BE-FLEET-21 | — |
+| BE-FLEET-29 | `[x]` Create driver remittance tests (12 tests): today, history, ride accumulation, driver earnings after target met, auto-completion, shortfall streaks, shortfall reset, non-active rejection, progress percentage, hidden-field assertion via assertJsonMissingPath | — | BE-FLEET-22 through BE-FLEET-24, BE-FLEET-13 | — |
+
+---
+
 # PHASE 2 — Month-3 Rollout (Weeks 9–12)
 
 > Working draft — must be reviewed and re-frozen before Week 9.
 
 ---
 
-## 22. Phase 2 — Scheduled Rides
+## 23. Phase 2 — Scheduled Rides
 
 **PRD refs:** B-27, P-20–P-22, D-12, A-33, NF-11
 
@@ -779,7 +853,7 @@
 
 ---
 
-## 23. Phase 2 — Third-Party Bookings
+## 24. Phase 2 — Third-Party Bookings
 
 **PRD refs:** B-28, P-23, P-24, D-13, A-34
 
@@ -793,7 +867,7 @@
 
 ---
 
-## 24. Phase 2 — Lost & Found
+## 25. Phase 2 — Lost & Found
 
 **PRD refs:** B-29, P-25, P-26, D-14, A-35
 
@@ -811,7 +885,7 @@
 
 ---
 
-## 25. Phase 2 — Advanced Disputes
+## 26. Phase 2 — Advanced Disputes
 
 **PRD refs:** B-30, P-27, A-36, A-37, NF-12
 
@@ -825,7 +899,7 @@
 
 ---
 
-## 26. Phase 2 — Multi-City Support
+## 27. Phase 2 — Multi-City Support
 
 **PRD refs:** B-31, A-38
 
@@ -836,7 +910,7 @@
 
 ---
 
-## 27. Phase 2 — Driver Scheduling & Vehicle Maintenance
+## 28. Phase 2 — Driver Scheduling & Vehicle Maintenance
 
 **PRD refs:** B-32, D-15, D-16, A-39
 
@@ -853,7 +927,7 @@
 
 ---
 
-## 28. Open Questions Tracker
+## 29. Open Questions Tracker
 
 ### Provider & Integration Decisions
 
