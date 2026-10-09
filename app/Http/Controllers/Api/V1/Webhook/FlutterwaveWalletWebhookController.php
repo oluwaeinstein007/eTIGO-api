@@ -16,14 +16,18 @@ class FlutterwaveWalletWebhookController extends Controller
     {
         $webhookHash = config('wallet.flutterwave.webhook_hash');
 
-        if ($webhookHash) {
-            $verifHash = $request->header('verif-hash');
+        if (! $webhookHash) {
+            if (! app()->environment('local', 'testing')) {
+                Log::error('Flutterwave wallet webhook: webhook hash not configured');
 
-            if (! hash_equals($webhookHash, (string) $verifHash)) {
-                Log::warning('Flutterwave wallet webhook: invalid verif-hash');
-
-                return response()->json(['message' => 'Invalid signature.'], 403);
+                return response()->json(['message' => 'Webhook verification unavailable.'], 503);
             }
+        }
+
+        if ($webhookHash && ! hash_equals($webhookHash, (string) $request->header('verif-hash'))) {
+            Log::warning('Flutterwave wallet webhook: invalid verif-hash');
+
+            return response()->json(['message' => 'Invalid signature.'], 403);
         }
 
         $payload = $request->all();
@@ -50,7 +54,7 @@ class FlutterwaveWalletWebhookController extends Controller
 
         match ($eventType) {
             'charge.completed' => $this->handleChargeCompleted($data, $webhookEvent),
-            'transfer.completed', 'transfer.failed' => $this->handleTransferEvent($payload, $webhookEvent),
+            'transfer.completed', 'transfer.failed', 'transfer.reversed' => $this->handleTransferEvent($payload, $webhookEvent),
             default => Log::info("Flutterwave wallet webhook: unhandled event type {$eventType}"),
         };
 
@@ -76,6 +80,14 @@ class FlutterwaveWalletWebhookController extends Controller
     {
         $data = $payload['data'] ?? [];
         $transferId = (string) ($data['id'] ?? '');
+
+        if (! $transferId) {
+            Log::warning('Flutterwave wallet webhook: transfer event missing transfer ID');
+            $webhookEvent->markProcessed();
+
+            return;
+        }
+
         $eventType = $payload['event'] ?? '';
         $status = $eventType === 'transfer.completed' ? 'paid' : 'failed';
         $reason = $data['complete_message'] ?? ($data['narration'] ?? null);

@@ -87,7 +87,7 @@ class AdminPayoutController extends Controller
         }
 
         $payout->update([
-            'status' => PayoutStatus::Failed,
+            'status' => PayoutStatus::Rejected,
             'failure_reason' => $request->input('reason'),
         ]);
 
@@ -100,7 +100,7 @@ class AdminPayoutController extends Controller
 
     public function retry(Request $request, Payout $payout): JsonResponse
     {
-        if (! $payout->isFailed()) {
+        if ($payout->status !== PayoutStatus::Failed) {
             return response()->json(['message' => 'Only failed payouts can be retried.'], 422);
         }
 
@@ -132,6 +132,7 @@ class AdminPayoutController extends Controller
             Payout::with(['driver.user', 'bankAccount'])
                 ->whereBetween('requested_at', [$request->input('from'), $request->input('to').' 23:59:59'])
                 ->orderBy('requested_at')
+                ->orderBy('id')
                 ->chunk(100, function ($payouts) use ($handle) {
                     foreach ($payouts as $payout) {
                         fputcsv($handle, [

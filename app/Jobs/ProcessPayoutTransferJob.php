@@ -17,7 +17,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
 {
@@ -62,9 +61,13 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             'metadata' => ['payout_id' => $payout->id],
         ]);
 
-        try {
-            $reference = 'PAYOUT-'.strtoupper(Str::random(12));
+        $reference = "PAYOUT-{$payout->id}";
 
+        $payout->update([
+            'gateway_reference' => $reference,
+        ]);
+
+        try {
             $transfer = $flutterwaveGateway->initiateTransfer([
                 'account_bank' => $payout->bankAccount->bank_code,
                 'account_number' => $payout->bankAccount->account_number,
@@ -77,10 +80,12 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             $payout->update([
                 'status' => PayoutStatus::Processing,
                 'gateway_transfer_id' => (string) $transfer['id'],
-                'gateway_reference' => $reference,
             ]);
 
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error("Payout transfer network error: {$payout->id}", ['error' => $e->getMessage()]);
+            throw $e;
         } catch (\Throwable $e) {
             $payout->update([
                 'status' => PayoutStatus::Failed,

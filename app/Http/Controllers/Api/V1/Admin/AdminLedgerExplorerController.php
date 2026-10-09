@@ -64,6 +64,7 @@ class AdminLedgerExplorerController extends Controller
             Journal::with('entries.account')
                 ->whereBetween('posted_at', [$from, $to])
                 ->orderBy('posted_at')
+                ->orderBy('id')
                 ->chunk(100, function ($journals) use ($handle) {
                     foreach ($journals as $journal) {
                         foreach ($journal->entries as $entry) {

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unsignedInteger('balance_version')->default(0);
             $table->timestamps();
 
-            $table->index(['owner_type', 'owner_id']);
+            $table->unique(['owner_type', 'owner_id', 'type']);
             $table->index(['type', 'status']);
         });
     }

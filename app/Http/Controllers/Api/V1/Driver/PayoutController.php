@@ -29,38 +29,43 @@ class PayoutController extends Controller
             return response()->json(['message' => 'No verified bank account on file. Please add a bank account first.'], 422);
         }
 
-        $existingPending = Payout::where('driver_id', $driver->id)
-            ->whereIn('status', [PayoutStatus::Requested, PayoutStatus::Approved, PayoutStatus::Processing])
-            ->exists();
-
-        if ($existingPending) {
-            return response()->json(['message' => 'You already have a pending payout request.'], 422);
-        }
-
         $amountKobo = $request->validated('amount');
 
-        $account = Account::where('owner_type', 'App\\Models\\Driver')
-            ->where('owner_id', $driver->id)
-            ->where('type', AccountType::DriverEarningsAvailable)
-            ->first();
+        try {
+            $payout = DB::transaction(function () use ($driver, $bankAccount, $amountKobo, $request) {
+                $account = Account::where('owner_type', 'App\\Models\\Driver')
+                    ->where('owner_id', $driver->id)
+                    ->where('type', AccountType::DriverEarningsAvailable)
+                    ->lockForUpdate()
+                    ->first();
 
-        if (! $account || $account->availableBalance() < $amountKobo) {
-            return response()->json(['message' => 'Insufficient available balance.'], 422);
+                if (! $account || $account->availableBalance() < $amountKobo) {
+                    throw new \DomainException('Insufficient available balance.');
+                }
+
+                $hasPending = Payout::where('driver_id', $driver->id)
+                    ->whereIn('status', [PayoutStatus::Requested, PayoutStatus::Approved, PayoutStatus::Processing])
+                    ->exists();
+
+                if ($hasPending) {
+                    throw new \DomainException('You already have a pending payout request.');
+                }
+
+                $payout = Payout::create([
+                    'driver_id' => $driver->id,
+                    'bank_account_id' => $bankAccount->id,
+                    'amount' => $amountKobo,
+                    'status' => PayoutStatus::Requested,
+                    'requested_at' => now(),
+                ]);
+
+                AuditLog::record($payout, 'payout.requested', $request->user());
+
+                return $payout;
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $payout = DB::transaction(function () use ($driver, $bankAccount, $amountKobo, $request) {
-            $payout = Payout::create([
-                'driver_id' => $driver->id,
-                'bank_account_id' => $bankAccount->id,
-                'amount' => $amountKobo,
-                'status' => PayoutStatus::Requested,
-                'requested_at' => now(),
-            ]);
-
-            AuditLog::record($payout, 'payout.requested', $request->user());
-
-            return $payout;
-        });
 
         return response()->json([
             'message' => 'Payout request submitted for approval.',
@@ -71,7 +76,7 @@ class PayoutController extends Controller
     public function index(Request $request): JsonResponse
     {
         $request->validate([
-            'status' => ['sometimes', 'in:requested,approved,processing,paid,failed,reversed'],
+            'status' => ['sometimes', 'in:requested,approved,processing,paid,failed,rejected,reversed'],
         ]);
 
         $driver = $request->user()->driver;

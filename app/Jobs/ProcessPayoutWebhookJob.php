@@ -41,6 +41,12 @@ class ProcessPayoutWebhookJob implements ShouldQueue
             return;
         }
 
+        if ($payout->status === PayoutStatus::Failed) {
+            Log::warning("Payout {$payout->id} is already failed, ignoring webhook status '{$this->status}'");
+
+            return;
+        }
+
         if ($this->status === 'paid') {
             $payout->update([
                 'status' => PayoutStatus::Paid,

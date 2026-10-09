@@ -9,6 +9,7 @@ enum PayoutStatus: string
     case Processing = 'processing';
     case Paid = 'paid';
     case Failed = 'failed';
+    case Rejected = 'rejected';
     case Reversed = 'reversed';
 
     public function label(): string
@@ -19,12 +20,13 @@ enum PayoutStatus: string
             self::Processing => 'Processing',
             self::Paid => 'Paid',
             self::Failed => 'Failed',
+            self::Rejected => 'Rejected',
             self::Reversed => 'Reversed',
         };
     }
 
     public function isTerminal(): bool
     {
-        return in_array($this, [self::Paid, self::Reversed]);
+        return in_array($this, [self::Paid, self::Rejected, self::Reversed]);
     }
 }

@@ -11,6 +11,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
@@ -38,28 +39,28 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
     {
         $pspClearingAccount = $ledgerService->systemAccount(AccountType::PspClearing);
 
-        try {
-            $ledgerService->postJournal([
-                ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $this->amountKobo],
-                ['account_id' => $this->accountId, 'type' => LedgerEntryType::Credit->value, 'amount' => $this->amountKobo],
-            ], [
-                'description' => "Wallet top-up via Paystack: {$this->reference}",
-                'idempotency_key' => "topup-{$this->reference}",
-                'metadata' => [
-                    'reference' => $this->reference,
-                    'amount_kobo' => $this->amountKobo,
-                ],
-            ]);
+        $journal = $ledgerService->postJournal([
+            ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $this->amountKobo],
+            ['account_id' => $this->accountId, 'type' => LedgerEntryType::Credit->value, 'amount' => $this->amountKobo],
+        ], [
+            'description' => "Wallet top-up via Flutterwave: {$this->reference}",
+            'idempotency_key' => "topup-{$this->reference}",
+            'metadata' => [
+                'reference' => $this->reference,
+                'amount_kobo' => $this->amountKobo,
+            ],
+        ]);
+
+        if ($journal->wasRecentlyCreated) {
+            $account = \App\Models\Account::find($this->accountId);
+            if ($account && $account->owner_id) {
+                $dailyKey = "topup_daily:{$account->owner_id}:".now()->toDateString();
+                Cache::increment($dailyKey, $this->amountKobo);
+                Cache::put($dailyKey, Cache::get($dailyKey, $this->amountKobo), now()->endOfDay());
+            }
 
             Log::info("Wallet top-up processed: {$this->reference}, amount: {$this->amountKobo}");
-        } catch (\DomainException $e) {
-            if (str_contains($e->getMessage(), 'Journal does not balance') || str_contains($e->getMessage(), 'not found')) {
-                Log::error("Top-up processing failed: {$e->getMessage()}", [
-                    'reference' => $this->reference,
-                ]);
-                throw $e;
-            }
-            // Idempotent — already posted
+        } else {
             Log::info("Top-up already processed: {$this->reference}");
         }
     }

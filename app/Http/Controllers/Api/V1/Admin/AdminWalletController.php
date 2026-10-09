@@ -75,6 +75,10 @@ class AdminWalletController extends Controller
 
     public function freeze(FreezeWalletRequest $request, Account $account): JsonResponse
     {
+        if ($account->type !== AccountType::PassengerWallet) {
+            return response()->json(['message' => 'Only passenger wallets can be frozen.'], 422);
+        }
+
         if ($account->isFrozen()) {
             return response()->json(['message' => 'Wallet is already frozen.'], 422);
         }
@@ -95,6 +99,10 @@ class AdminWalletController extends Controller
 
     public function unfreeze(FreezeWalletRequest $request, Account $account): JsonResponse
     {
+        if ($account->type !== AccountType::PassengerWallet) {
+            return response()->json(['message' => 'Only passenger wallets can be unfrozen.'], 422);
+        }
+
         if (! $account->isFrozen()) {
             return response()->json(['message' => 'Wallet is not frozen.'], 422);
         }

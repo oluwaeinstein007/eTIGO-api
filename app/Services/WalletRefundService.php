@@ -7,6 +7,7 @@ use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\Driver;
 use App\Models\Ride;
+use Illuminate\Support\Str;
 
 class WalletRefundService
 {
@@ -14,11 +15,10 @@ class WalletRefundService
         private LedgerService $ledgerService,
     ) {}
 
-    /**
-     * Refund an amount to the passenger's wallet.
-     */
-    public function refundToWallet(Ride $ride, int $amountKobo, ?string $reason = null): void
+    public function refundToWallet(Ride $ride, int $amountKobo, ?string $reason = null, ?string $refundKey = null): void
     {
+        $key = $refundKey ?? 'refund-'.$ride->id.'-'.Str::random(8);
+
         $passengerAccount = $this->ledgerService->findOrCreateAccount(
             'App\\Models\\User',
             $ride->passenger_id,
@@ -32,7 +32,7 @@ class WalletRefundService
             ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $amountKobo],
         ], [
             'description' => $reason ?? "Refund for ride {$ride->id}",
-            'idempotency_key' => "refund-{$ride->id}-{$amountKobo}",
+            'idempotency_key' => $key,
             'metadata' => [
                 'ride_id' => $ride->id,
                 'refund_amount_kobo' => $amountKobo,
@@ -40,11 +40,10 @@ class WalletRefundService
         ]);
     }
 
-    /**
-     * Clawback driver earnings on refund.
-     */
-    public function clawbackDriverEarnings(Ride $ride, int $amountKobo): void
+    public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null): void
     {
+        $key = $clawbackKey ?? 'clawback-'.$ride->id.'-'.Str::random(8);
+
         $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
 
         $driverAccount = Account::where('owner_type', 'App\\Models\\Driver')
@@ -59,7 +58,7 @@ class WalletRefundService
             ['account_id' => $refundsAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $amountKobo],
         ], [
             'description' => "Driver earnings clawback for ride {$ride->id}",
-            'idempotency_key' => "clawback-{$ride->id}-{$amountKobo}",
+            'idempotency_key' => $key,
             'metadata' => [
                 'ride_id' => $ride->id,
                 'clawback_amount_kobo' => $amountKobo,

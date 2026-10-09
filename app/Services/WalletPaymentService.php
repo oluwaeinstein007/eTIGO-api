@@ -70,6 +70,10 @@ class WalletPaymentService
 
             $passengerAccount = Account::whereKey($hold->account_id)->lockForUpdate()->first();
 
+            if ($passengerAccount->balance < $finalFareKobo) {
+                throw new \DomainException('Insufficient wallet balance to settle ride fare.');
+            }
+
             $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
 
             $commission = $this->commissionService->calculate($finalFareKobo, $driver->id);
@@ -81,11 +85,17 @@ class WalletPaymentService
                 AccountType::DriverEarningsAvailable,
             );
 
-            $this->ledgerService->postJournal([
+            $journalLines = array_filter([
                 ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $finalFareKobo],
-                ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']],
-                ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']],
-            ], [
+                $commission['commission'] > 0
+                    ? ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']]
+                    : null,
+                $commission['net_earnings'] > 0
+                    ? ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']]
+                    : null,
+            ]);
+
+            $this->ledgerService->postJournal(array_values($journalLines), [
                 'description' => "Ride settlement for ride {$ride->id}",
                 'idempotency_key' => "ride-settlement-{$ride->id}",
                 'metadata' => [

@@ -104,6 +104,11 @@ class WalletTopupController extends Controller
             ], 422);
         }
 
+        $txRef = $result['tx_ref'] ?? '';
+        if (! str_starts_with($txRef, 'TOPUP-')) {
+            return response()->json(['message' => 'Invalid transaction reference.'], 422);
+        }
+
         $account = $this->ledgerService->findOrCreateAccount(
             $user->getMorphClass(),
             $user->id,
@@ -115,7 +120,7 @@ class WalletTopupController extends Controller
         ProcessTopupWebhookJob::dispatch(
             $account->id,
             $amountKobo,
-            $result['tx_ref'],
+            $txRef,
         );
 
         return response()->json(['message' => 'Top-up is being processed.']);
