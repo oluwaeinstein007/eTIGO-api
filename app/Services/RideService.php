@@ -17,6 +17,7 @@ use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Notifications\RideCompletedNotification;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -151,6 +152,7 @@ class RideService
             ]);
 
             $this->matchingService->cleanupRideCache($ride);
+            Cache::forget("ride:{$ride->id}:pin_code");
 
             return $ride->fresh();
         });

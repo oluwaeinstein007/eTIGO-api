@@ -84,7 +84,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions', 'cancelledByUser']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),

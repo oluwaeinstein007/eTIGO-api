@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
+use App\Http\Controllers\Api\V1\Passenger\PassengerActiveRideController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
@@ -191,6 +192,7 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')->group(function () {
+    Route::get('/active-ride', [PassengerActiveRideController::class, 'show']);
     Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
