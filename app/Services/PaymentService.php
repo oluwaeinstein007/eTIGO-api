@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\PaymentGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Events\PaymentUpdated;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\UserPaymentMethod;
@@ -28,7 +29,7 @@ class PaymentService
 
     public function processCashPayment(Ride $ride): Payment
     {
-        return DB::transaction(function () use ($ride) {
+        $payment = DB::transaction(function () use ($ride) {
             $payment = Payment::updateOrCreate(
                 ['ride_id' => $ride->id],
                 [
@@ -43,6 +44,10 @@ class PaymentService
 
             return $payment;
         });
+
+        $this->broadcastPaymentUpdate($payment->fresh());
+
+        return $payment;
     }
 
     public function processCardPayment(Ride $ride): Payment
@@ -73,6 +78,7 @@ class PaymentService
                 ],
             );
         });
+        $this->broadcastPaymentUpdate($payment->fresh());
 
         try {
             $result = $this->paymentGateway->chargeWithToken([
@@ -96,6 +102,7 @@ class PaymentService
             ]);
 
             $ride->update(['payment_status' => $newStatus]);
+            $this->broadcastPaymentUpdate($payment->fresh());
         } catch (\Throwable $e) {
             // Gateway exception — charge may have succeeded (timeout, network).
             // Leave payment as Pending so the webhook or manual reconciliation
@@ -112,12 +119,16 @@ class PaymentService
 
     public function confirmCashCollection(Payment $payment): Payment
     {
-        return DB::transaction(function () use ($payment) {
+        $payment = DB::transaction(function () use ($payment) {
             $payment->update(['status' => PaymentStatus::Collected]);
             $payment->ride->update(['payment_status' => PaymentStatus::Collected]);
 
             return $payment->fresh();
         });
+
+        $this->broadcastPaymentUpdate($payment->fresh());
+
+        return $payment;
     }
 
     public function addTip(Ride $ride, float $tipAmount): Payment
@@ -166,6 +177,8 @@ class PaymentService
 
         $payment->update(['tip_amount' => $tipAmount]);
 
+        $this->broadcastPaymentUpdate($payment->fresh());
+
         return $payment->fresh();
     }
 
@@ -179,17 +192,21 @@ class PaymentService
 
         $this->paymentGateway->refund($payment->gateway_transaction_id, $refundAmount);
 
-        return DB::transaction(function () use ($payment) {
+        $payment = DB::transaction(function () use ($payment) {
             $payment->update(['status' => PaymentStatus::Refunded]);
             $payment->ride->update(['payment_status' => PaymentStatus::Refunded]);
 
             return $payment->fresh();
         });
+
+        $this->broadcastPaymentUpdate($payment->fresh());
+
+        return $payment;
     }
 
     private function createFailedPayment(Ride $ride, string $reason): Payment
     {
-        return DB::transaction(function () use ($ride, $reason) {
+        $payment = DB::transaction(function () use ($ride, $reason) {
             $payment = Payment::updateOrCreate(
                 ['ride_id' => $ride->id],
                 [
@@ -205,5 +222,22 @@ class PaymentService
 
             return $payment;
         });
+
+        $this->broadcastPaymentUpdate($payment->fresh());
+
+        return $payment;
+    }
+
+    private function broadcastPaymentUpdate(Payment $payment): void
+    {
+        try {
+            PaymentUpdated::dispatch($payment);
+        } catch (\Throwable $exception) {
+            Log::warning('Payment update broadcast failed', [
+                'payment_id' => $payment->id,
+                'ride_id' => $payment->ride_id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

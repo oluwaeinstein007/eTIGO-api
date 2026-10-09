@@ -4,6 +4,7 @@ use App\Contracts\PaymentGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\UserType;
+use App\Events\PaymentUpdated;
 use App\Jobs\ProcessPaymentJob;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Services\FakePaymentGateway;
 use App\Services\PaymentService;
+use Illuminate\Support\Facades\Event;
 
 beforeEach(function () {
     $this->app->instance(PaymentGateway::class, new FakePaymentGateway);
@@ -23,6 +25,38 @@ beforeEach(function () {
 });
 
 describe('ProcessPaymentJob', function () {
+    it('broadcasts payment details after a cash payment is created', function () {
+        Event::fake([PaymentUpdated::class]);
+
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 3500,
+        ]);
+
+        $payment = app(PaymentService::class)->processRidePayment($ride);
+
+        Event::assertDispatched(PaymentUpdated::class, function (PaymentUpdated $event) use ($ride, $payment) {
+            $payload = $event->broadcastWith();
+
+            return $event->payment->is($payment)
+                && $payload['ride_id'] === (string) $ride->id
+                && $payload['method'] === 'cash'
+                && $payload['status'] === 'pending_collection'
+                && $payload['amount'] === 3500.0
+                && $payload['tip_amount'] === 0.0;
+        });
+
+        app(PaymentService::class)->addTip($ride, 500);
+        Event::assertDispatched(PaymentUpdated::class, function (PaymentUpdated $event) use ($ride) {
+            $payload = $event->broadcastWith();
+
+            return $payload['ride_id'] === (string) $ride->id
+                && $payload['tip_amount'] === 500.0;
+        });
+    });
+
     it('creates a pending_collection payment for cash rides', function () {
         $ride = Ride::factory()->completed()->create([
             'passenger_id' => $this->passenger->id,
