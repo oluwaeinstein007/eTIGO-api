@@ -2,10 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Models\Ride;
 use App\Services\DriverMatchingService;
 use App\Services\RideStateMachine;
+use App\Services\WalletPaymentService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,6 +28,7 @@ class MatchingTimeoutJob implements ShouldQueue
     public function handle(
         RideStateMachine $stateMachine,
         DriverMatchingService $matchingService,
+        WalletPaymentService $walletPaymentService,
     ): void {
         $ride = Ride::find($this->rideId);
 
@@ -44,6 +47,10 @@ class MatchingTimeoutJob implements ShouldQueue
             'system',
             ['reason' => 'matching_timeout'],
         );
+
+        if ($ride->payment_method === PaymentMethod::Wallet) {
+            $walletPaymentService->releaseHold($ride);
+        }
 
         $matchingService->cleanupRideCache($ride);
     }

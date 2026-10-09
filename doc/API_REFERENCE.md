@@ -3971,7 +3971,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lat    | number  | Yes      | Destination latitude                |
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
-| payment_method     | string  | Yes      | `cash` or `card`                    |
+| payment_method     | string  | Yes      | `cash`, `card`, or `wallet`         |
 
 **Response 201:**
 ```json

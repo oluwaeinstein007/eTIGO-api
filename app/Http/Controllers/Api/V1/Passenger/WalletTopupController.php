@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Passenger;
 
 use App\Contracts\FlutterwaveWalletGateway;
 use App\Enums\AccountType;
+use App\Enums\WalletTransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreTopupRequest;
 use App\Jobs\ProcessTopupWebhookJob;
+use App\Models\WalletTransaction;
 use App\Services\LedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,6 +78,13 @@ class WalletTopupController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to initialize payment. Please try again.'], 502);
         }
+
+        WalletTransaction::create([
+            'account_id' => $account->id,
+            'reference' => $txRef,
+            'amount' => $amountKobo,
+            'status' => WalletTransactionStatus::Pending,
+        ]);
 
         Cache::increment($hourlyKey);
         Cache::put($hourlyKey, Cache::get($hourlyKey, 1), now()->addHour());

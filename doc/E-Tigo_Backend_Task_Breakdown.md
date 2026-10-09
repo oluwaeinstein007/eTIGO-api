@@ -621,7 +621,7 @@
 | BE-WAL-05 | `[x]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{transactionId}/verify`: fallback verification endpoint for missed webhooks; query Flutterwave Verify Transaction API by transaction ID, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
 | BE-WAL-06 | `[x]` Create `FlutterwaveWalletWebhookController@handle` — `POST /api/v1/webhooks/flutterwave-wallet`: verify `verif-hash` header, deduplicate via webhook_events table, route by event type (charge.completed → credit wallet, transfer.completed/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
 | BE-WAL-07 | `[x]` Create `ProcessTopupWebhookJob` — queued job processing verified charge.success webhook: credit passenger wallet via LedgerService, debit psp_clearing account; handle already-processed gracefully | P-15 | BE-WAL-06, BE-WINFRA-15 | 3 retries, 30s backoff |
-| BE-WAL-08 | `[ ]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
+| BE-WAL-08 | `[x]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
 
 ### 19.2 Ride Payment Flow (Wallet)
 
@@ -630,10 +630,10 @@
 | BE-WAL-09 | `[x]` Create `WalletPaymentService@placeHold()` — place hold on passenger wallet at ride request or start; validate sufficient available balance; create Hold record with ride association | P-15 | BE-WINFRA-04, BE-WINFRA-18 | Hold amount = fare estimate; returns insufficient_balance error if not enough |
 | BE-WAL-10 | `[x]` Create `WalletPaymentService@settle()` — on ride completion, capture hold for final fare amount (may differ from estimate); post journal: debit passenger wallet, credit platform commission + driver earnings; release any hold surplus | P-15 | BE-WAL-09, BE-WINFRA-15 | Final fare may be less or more than hold — handle both |
 | BE-WAL-11 | `[x]` Create `WalletPaymentService@releaseHold()` — on ride cancellation or no_driver_found, release hold and restore available balance | P-15 | BE-WAL-09 | — |
-| BE-WAL-12 | `[ ]` Implement insufficient balance handling — if final fare exceeds hold (route change, waiting time), attempt to capture available balance up to final fare; if still short, flag ride for Admin review with shortfall amount | P-15 | BE-WAL-10 | ⚠ OQ-26: Fallback payment method policy TBD |
+| BE-WAL-12 | `[x]` Implement insufficient balance handling — if final fare exceeds hold (route change, waiting time), attempt to capture available balance up to final fare; if still short, flag ride for Admin review with shortfall amount | P-15 | BE-WAL-10 | Resolved: partial settlement captures available balance, records shortfall, marks payment as Failed |
 | BE-WAL-13 | `[x]` Create `ExpireStaleHoldsJob` — scheduled job releasing holds older than configurable threshold (default 4 hours) with no associated active ride | P-15 | BE-WAL-09 | Runs hourly; prevents balance lockup from orphaned holds |
-| BE-WAL-14 | `[ ]` Integrate wallet as payment method in `RideController@store` — accept `payment_method: wallet`; validate sufficient balance; place hold on ride creation | P-15 | BE-WAL-09, BE-RIDE-03 | Extends existing payment_method enum (cash/card/wallet) |
-| BE-WAL-15 | `[ ]` Integrate wallet settlement into ride completion flow — wire `WalletPaymentService@settle()` into `ProcessPaymentJob` for wallet rides | P-15 | BE-WAL-10, BE-PAY-09 | — |
+| BE-WAL-14 | `[x]` Integrate wallet as payment method in `RideController@store` — accept `payment_method: wallet`; validate sufficient balance; place hold on ride creation | P-15 | BE-WAL-09, BE-RIDE-03 | Extends existing payment_method enum (cash/card/wallet) |
+| BE-WAL-15 | `[x]` Integrate wallet settlement into ride completion flow — wire `WalletPaymentService@settle()` into `PaymentService@processRidePayment()` for wallet rides | P-15 | BE-WAL-10, BE-PAY-09 | Settled via PaymentService match arm; creates Payment record with Captured/Failed status |
 
 ### 19.3 Wallet Refunds
 
@@ -972,7 +972,7 @@
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
 | OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[x]` Unresolved |
-| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[ ]` Unresolved |
+| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[x]` Resolved — partial settlement: capture available balance, record shortfall, mark payment Failed for admin review |
 | OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[x]` Unresolved |
 | OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[ ]` Unresolved |
 | OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[ ]` Unresolved |

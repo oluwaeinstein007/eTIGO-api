@@ -4,6 +4,9 @@ namespace App\Jobs;
 
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
+use App\Enums\WalletTransactionStatus;
+use App\Models\Account;
+use App\Models\WalletTransaction;
 use App\Services\LedgerService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -52,12 +55,20 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
         ]);
 
         if ($journal->wasRecentlyCreated) {
-            $account = \App\Models\Account::find($this->accountId);
+            $account = Account::find($this->accountId);
             if ($account && $account->owner_id) {
                 $dailyKey = "topup_daily:{$account->owner_id}:".now()->toDateString();
                 Cache::increment($dailyKey, $this->amountKobo);
                 Cache::put($dailyKey, Cache::get($dailyKey, $this->amountKobo), now()->endOfDay());
             }
+
+            WalletTransaction::where('reference', $this->reference)
+                ->where('status', WalletTransactionStatus::Pending)
+                ->update([
+                    'status' => WalletTransactionStatus::Completed,
+                    'journal_id' => $journal->id,
+                    'completed_at' => now(),
+                ]);
 
             Log::info("Wallet top-up processed: {$this->reference}, amount: {$this->amountKobo}");
         } else {
