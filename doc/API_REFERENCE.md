@@ -24,6 +24,7 @@ Run `php artisan db:seed` to populate the database with the test data below.
 | `ops@etigo.com` | Operations | Operations manager |
 | `safety@etigo.com` | Safety Operator | SOS/safety console |
 | `support@etigo.com` | Support | Customer support |
+| `finance@etigo.com` | Finance | Finance & payments manager |
 
 #### Passenger Accounts (OTP login)
 
@@ -1671,7 +1672,9 @@ Handled events: `verification_completed`, `step_verification_completed`, `identi
 
 ## Admin — Driver Management
 
-All admin endpoints require `Authorization: Bearer {token}` from an admin user.
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,safety_operator`
+
+**Allowed Roles:** Operations, Safety (Super Admin always has access)
 
 ### List All Drivers
 ```
@@ -2021,7 +2024,9 @@ Restores driver to approved status.
 
 ## Admin — Fleet Agreement Management
 
-All fleet agreement endpoints require `Authorization: Bearer {token}` from an admin user.
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+**Allowed Roles:** Operations, Finance (Super Admin always has access)
 
 Fleet agreements represent hire-to-own arrangements between E-tiGo and fleet drivers. Each agreement links a driver to a fleet vehicle with a configurable daily remittance target and tracks payment progress toward full vehicle ownership.
 
@@ -5581,6 +5586,303 @@ Resolve or dismiss a dispute. Creates an audit log entry.
 
 ---
 
+## Gamification & Carbon Scoring
+
+### View Gamification Profile
+
+```
+GET /gamification
+Authorization: Bearer {token}
+```
+
+Returns the authenticated user's gamification profile with current tier, points, carbon score, progress to next tier, and unlocked benefits. Auto-creates a Bronze profile on first access.
+
+**Response `200`:**
+
+```json
+{
+  "gamification": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "current_tier": 1,
+    "tier_name": "Bronze",
+    "total_ranking_points": 150,
+    "total_carbon_score": 12.50,
+    "tier_upgraded_at": null,
+    "progress_to_next_tier": 30.0,
+    "points_to_next_tier": 350,
+    "next_tier": "Silver",
+    "benefits": {
+      "booking_fee_discount_pct": 0,
+      "priority_matching": false,
+      "ev_reservation_fee_waived": false
+    },
+    "created_at": "2026-10-09T00:00:00Z",
+    "updated_at": "2026-10-09T00:00:00Z"
+  }
+}
+```
+
+### Carbon History
+
+```
+GET /gamification/carbon-history?per_page=15
+Authorization: Bearer {token}
+```
+
+Returns paginated list of the user's per-trip carbon scores.
+
+**Response `200`:**
+
+```json
+{
+  "carbon_scores": [
+    {
+      "id": "uuid",
+      "ride_id": "uuid",
+      "user_id": "uuid",
+      "distance_km": 10.50,
+      "baseline_emission": 1.2600,
+      "vehicle_emission": 0.6825,
+      "co2_saved": 0.5775,
+      "base_points": 6,
+      "multiplier_applied": 1.25,
+      "multiplier_reason": "Off-Peak",
+      "final_points": 8,
+      "created_at": "2026-10-09T00:00:00Z"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 }
+}
+```
+
+### List Tiers
+
+```
+GET /gamification/tiers
+Authorization: Bearer {token}
+```
+
+Returns all 5 tier configurations (Bronze → Silver → Gold → Platinum → Diamond).
+
+**Response `200`:**
+
+```json
+{
+  "tiers": [
+    {
+      "id": "uuid",
+      "tier_level": 1,
+      "tier_name": "Bronze",
+      "tier_label": "Bronze",
+      "min_points_required": 0,
+      "booking_fee_discount_pct": 0,
+      "ev_reservation_fee_waived": false,
+      "priority_matching_enabled": false
+    }
+  ]
+}
+```
+
+### Leaderboard
+
+```
+GET /gamification/leaderboard?limit=20
+Authorization: Bearer {token}
+```
+
+Returns top users sorted by total ranking points.
+
+**Response `200`:**
+
+```json
+{
+  "leaderboard": [
+    {
+      "user_id": "uuid",
+      "first_name": "Ade",
+      "tier": 3,
+      "tier_name": "Gold",
+      "total_ranking_points": 2500,
+      "total_carbon_score": 150.25
+    }
+  ]
+}
+```
+
+---
+
+## Admin — Gamification Management
+
+### List Gamification Users
+
+```
+GET /admin/gamification/users?tier=2&search=ade&sort_by=total_ranking_points&sort_dir=desc&per_page=15
+Authorization: Bearer {admin_token}
+```
+
+**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc)
+
+**Response `200`:**
+
+```json
+{
+  "profiles": [ { "...GamificationResource..." } ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 5 }
+}
+```
+
+### Aggregate Stats
+
+```
+GET /admin/gamification/aggregate
+Authorization: Bearer {admin_token}
+```
+
+**Response `200`:**
+
+```json
+{
+  "aggregate": {
+    "total_profiles": 150,
+    "average_carbon_score": 45.20,
+    "average_ranking_points": 1200,
+    "total_co2_saved_kg": 6780.50,
+    "tier_distribution": [
+      { "tier_level": 1, "tier_name": "Bronze", "count": 80 },
+      { "tier_level": 2, "tier_name": "Silver", "count": 40 },
+      { "tier_level": 3, "tier_name": "Gold", "count": 20 },
+      { "tier_level": 4, "tier_name": "Platinum", "count": 8 },
+      { "tier_level": 5, "tier_name": "Diamond", "count": 2 }
+    ],
+    "top_users": [
+      {
+        "user_id": "uuid",
+        "first_name": "Ade",
+        "last_name": "Ogunleye",
+        "tier": 5,
+        "tier_name": "Diamond",
+        "total_ranking_points": 18500,
+        "total_carbon_score": 890.25
+      }
+    ]
+  }
+}
+```
+
+### View Tier Configuration
+
+```
+GET /admin/gamification/tiers
+Authorization: Bearer {admin_token}
+```
+
+Returns all 5 tier configurations.
+
+### Update Tier Configuration
+
+```
+PUT /admin/gamification/tiers
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+**Body:**
+
+```json
+{
+  "tiers": [
+    {
+      "tier_level": 1,
+      "tier_name": "Bronze",
+      "min_points_required": 0,
+      "booking_fee_discount_pct": 0,
+      "ev_reservation_fee_waived": false,
+      "priority_matching_enabled": false
+    },
+    {
+      "tier_level": 2,
+      "tier_name": "Silver",
+      "min_points_required": 500,
+      "booking_fee_discount_pct": 2,
+      "ev_reservation_fee_waived": false,
+      "priority_matching_enabled": false
+    },
+    {
+      "tier_level": 3,
+      "tier_name": "Gold",
+      "min_points_required": 2000,
+      "booking_fee_discount_pct": 5,
+      "ev_reservation_fee_waived": false,
+      "priority_matching_enabled": true
+    },
+    {
+      "tier_level": 4,
+      "tier_name": "Platinum",
+      "min_points_required": 5000,
+      "booking_fee_discount_pct": 10,
+      "ev_reservation_fee_waived": true,
+      "priority_matching_enabled": true
+    },
+    {
+      "tier_level": 5,
+      "tier_name": "Diamond",
+      "min_points_required": 15000,
+      "booking_fee_discount_pct": 15,
+      "ev_reservation_fee_waived": true,
+      "priority_matching_enabled": true
+    }
+  ]
+}
+```
+
+**Response `200`:**
+
+```json
+{
+  "message": "Tier configuration updated successfully.",
+  "tiers": [ "...TierConfigResource..." ]
+}
+```
+
+### View Multiplier Configuration
+
+```
+GET /admin/gamification/multipliers
+Authorization: Bearer {admin_token}
+```
+
+### Update Multiplier Configuration
+
+```
+PUT /admin/gamification/multipliers
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+**Body:**
+
+```json
+{
+  "multipliers": [
+    { "condition_type": "ev_ride", "multiplier_value": 2.00, "is_stackable": true },
+    { "condition_type": "off_peak", "multiplier_value": 1.25, "is_stackable": true },
+    { "condition_type": "shared_journey", "multiplier_value": 1.50, "is_stackable": true }
+  ]
+}
+```
+
+**Response `200`:**
+
+```json
+{
+  "message": "Multiplier configuration updated successfully.",
+  "multipliers": [ "...PointMultiplierConfigResource..." ]
+}
+```
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:
@@ -5641,9 +5943,28 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | Value             | Description                              |
 |-------------------|------------------------------------------|
 | `super_admin`     | Full platform access                     |
-| `operations`      | Operational management access            |
-| `safety_operator` | SOS/safety console access                |
-| `support`         | Customer support access                  |
+| `operations`      | Drivers, vehicles, trips, fleet management |
+| `support`         | Passenger/driver complaints, refunds, fare adjustments |
+| `finance`         | Payments, wallets, payouts, financial reports |
+| `safety_operator` | SOS incidents, safety investigations, suspensions |
+
+### Admin Role Permissions Matrix
+
+Super Admins always bypass role checks and have full access.
+
+| Endpoint Group | Operations | Support | Finance | Safety |
+|----------------|:----------:|:-------:|:-------:|:------:|
+| `/admin/drivers` | Yes | — | — | Yes |
+| `/admin/cities` | Yes | — | — | — |
+| `/admin/vehicle-classes` | Yes | — | — | — |
+| `/admin/pricing` | Yes | — | Yes | — |
+| `/admin/surge-rules` | Yes | — | — | — |
+| `/admin/rides` | Yes | — | — | — |
+| `/admin/fleet-agreements` | Yes | — | Yes | — |
+| `/admin/gamification` | Yes | — | — | — |
+| `/admin/passengers` | — | Yes | — | Yes |
+| `/admin/disputes` | — | Yes | — | — |
+| `/admin/admins` | — | — | — | — |
 
 ### Driver Status
 | Value            | Description                              |
@@ -5794,6 +6115,22 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `other`              | Other reason                             |
 | `system_timeout`     | System timeout                           |
 
+### Tier Level
+| Value | Name       | Points Required | Booking Discount | Priority Matching | EV Fee Waived |
+|-------|------------|-----------------|------------------|-------------------|---------------|
+| `1`   | Bronze     | 0               | 0%               | No                | No            |
+| `2`   | Silver     | 500             | 2%               | No                | No            |
+| `3`   | Gold       | 2,000           | 5%               | Yes               | No            |
+| `4`   | Platinum   | 5,000           | 10%              | Yes               | Yes           |
+| `5`   | Diamond    | 15,000          | 15%              | Yes               | Yes           |
+
+### Multiplier Condition Type
+| Value            | Description                   | Default Multiplier | Stackable |
+|------------------|-------------------------------|--------------------|-----------|
+| `ev_ride`        | Ride in an electric vehicle   | 2.00x              | Yes       |
+| `shared_journey` | Shared/pooled ride            | 1.50x              | Yes       |
+| `off_peak`       | Ride during off-peak hours    | 1.25x              | Yes       |
+
 ---
 
 ## Push Notifications (FCM)
@@ -5872,6 +6209,7 @@ Private channels require authentication. The client must send an authorization r
 |---------|------|-------------|--------|
 | `private-ride.{rideId}` | Passenger or assigned driver | Ride participant | `driver.location.updated` |
 | `private-admin.rides` | Admin users only | Admin dashboard | `driver.location.updated` |
+| `private-user.{userId}` | Authenticated user (self) | User apps | `tier.upgraded` |
 
 ### Events
 
@@ -5896,3 +6234,16 @@ Dispatched on every driver location update (max 1/second). Includes live GPS coo
 ```
 
 `ride_id` and `eta` are `null` when the driver has no active ride (admin channel only in that case).
+
+#### `tier.upgraded`
+
+Dispatched when a user's gamification tier is promoted. Broadcast to `private-user.{userId}` channel.
+
+```json
+{
+  "user_id": "uuid",
+  "previous_tier": 1,
+  "new_tier": 2,
+  "tier_name": "Silver"
+}
+```

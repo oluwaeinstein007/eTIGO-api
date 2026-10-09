@@ -6,6 +6,7 @@ use App\Contracts\MapsGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Jobs\CalculateCarbonScoreJob;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Jobs\ProcessPaymentJob;
@@ -358,6 +359,7 @@ class RideService
         });
 
         ProcessPaymentJob::dispatch($ride->id)->afterCommit();
+        CalculateCarbonScoreJob::dispatch($ride->id)->afterCommit();
 
         return $ride;
     }
