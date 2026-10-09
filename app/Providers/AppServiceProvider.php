@@ -16,7 +16,6 @@ use App\Services\HaversineMapsGateway;
 use App\Services\MapboxGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
-use App\Gateways\FakeFlutterwaveWalletGateway;
 use App\Gateways\FlutterwaveWalletPaymentGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
@@ -96,15 +95,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(FlutterwaveWalletGateway::class, function () {
             $secretKey = config('wallet.flutterwave.secret_key');
 
-            if ($secretKey) {
-                return new FlutterwaveWalletPaymentGateway($secretKey);
-            }
-
-            if (! $this->app->environment('local', 'testing')) {
+            if (! $secretKey) {
                 throw new \RuntimeException('Flutterwave secret key is not configured. Set FLUTTERWAVE_SECRET_KEY in your environment.');
             }
 
-            return new FakeFlutterwaveWalletGateway;
+            return new FlutterwaveWalletPaymentGateway($secretKey);
         });
     }
 
