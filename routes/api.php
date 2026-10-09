@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
+use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
 use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
@@ -110,14 +111,16 @@ Route::prefix('auth')->group(function () {
 | Auth — Admin (email/password)
 |--------------------------------------------------------------------------
 */
-Route::prefix('admin/auth')->middleware('throttle:5,1')->group(function () {
-    Route::post('/login', [AdminAuthController::class, 'login']);
+Route::prefix('admin/auth')->group(function () {
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('/login', [AdminAuthController::class, 'login']);
 
-    Route::get('/invite/verify/{token}', [AdminInvitationController::class, 'verifyToken']);
-    Route::post('/invite/accept', [AdminInvitationController::class, 'accept']);
+        Route::get('/invite/verify/{token}', [AdminInvitationController::class, 'verifyToken']);
+        Route::post('/invite/accept', [AdminInvitationController::class, 'accept']);
 
-    Route::post('/forgot-password', [AdminInvitationController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AdminInvitationController::class, 'resetPassword']);
+        Route::post('/forgot-password', [AdminInvitationController::class, 'forgotPassword']);
+        Route::post('/reset-password', [AdminInvitationController::class, 'resetPassword']);
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
@@ -222,6 +225,8 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::post('/documents', [OnboardingController::class, 'uploadDocument']);
     Route::get('/documents', [OnboardingController::class, 'documents']);
 
+    Route::post('/onboarding/vehicle-ownership', [OnboardingController::class, 'setVehicleOwnership']);
+
     Route::post('/vehicle', [OnboardingController::class, 'storeVehicle']);
     Route::put('/vehicle', [OnboardingController::class, 'updateVehicle']);
     Route::get('/vehicle', [OnboardingController::class, 'vehicle']);
@@ -293,6 +298,16 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {
         Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
+    });
+
+    Route::middleware('admin.role:operations,finance')->prefix('fleet-vehicles')->group(function () {
+        Route::get('/', [AdminFleetVehicleController::class, 'index']);
+        Route::post('/', [AdminFleetVehicleController::class, 'store']);
+        Route::get('/drivers-awaiting', [AdminFleetVehicleController::class, 'awaitingAssignment']);
+        Route::get('/{vehicle}', [AdminFleetVehicleController::class, 'show']);
+        Route::put('/{vehicle}', [AdminFleetVehicleController::class, 'update']);
+        Route::post('/{vehicle}/assign', [AdminFleetVehicleController::class, 'assign']);
+        Route::post('/{vehicle}/unassign', [AdminFleetVehicleController::class, 'unassign']);
     });
 
     Route::middleware('admin.role:operations,finance')->prefix('fleet-agreements')->group(function () {

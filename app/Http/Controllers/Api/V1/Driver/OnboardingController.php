@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DriverStatus;
+use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreVehicleRequest;
 use App\Http\Requests\Driver\UpdateDriverProfileRequest;
@@ -19,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\Enum;
 
 class OnboardingController extends Controller
 {
@@ -33,28 +35,76 @@ class OnboardingController extends Controller
             ], 404);
         }
 
-        $requiredDocTypes = ['driving_licence', 'vehicle_registration', 'insurance_certificate', 'government_id'];
+        $requiredDocTypes = $this->getRequiredDocumentTypes($driver);
         $uploadedDocTypes = $driver->documents
             ->where('status', '!==', DocumentStatus::Rejected)
             ->pluck('type.value')
             ->toArray();
         $missingDocTypes = array_diff($requiredDocTypes, $uploadedDocTypes);
 
+        $needsVehicle = $driver->isOwnVehicle();
+        $hasVehicleOwnershipType = $driver->vehicle_ownership_type !== null;
+
         $onboardingComplete = empty($missingDocTypes)
-            && $driver->vehicle !== null
+            && $hasVehicleOwnershipType
+            && (! $needsVehicle || $driver->vehicle !== null)
             && $driver->licence_number !== null
             && $driver->city_id !== null;
 
         return response()->json([
             'driver' => new DriverResource($driver),
             'onboarding_complete' => $onboardingComplete,
-            'can_submit' => $onboardingComplete && in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
+            'can_submit' => $onboardingComplete && \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
             'missing_documents' => array_values($missingDocTypes),
+            'has_vehicle_ownership_type' => $hasVehicleOwnershipType,
+            'vehicle_ownership_type' => $driver->vehicle_ownership_type,
             'has_vehicle' => $driver->vehicle !== null,
+            'needs_vehicle_registration' => $needsVehicle,
             'has_licence_number' => $driver->licence_number !== null,
             'has_city' => $driver->city_id !== null,
             'kyc_status' => $driver->kyc_status,
             'kyc_verified_at' => $driver->kyc_verified_at,
+        ]);
+    }
+
+    public function setVehicleOwnership(Request $request): JsonResponse
+    {
+        $request->validate([
+            'vehicle_ownership_type' => ['required', new Enum(VehicleOwnershipType::class)],
+        ]);
+
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if (! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected])) {
+            return response()->json([
+                'message' => 'Vehicle ownership type can only be set during onboarding.',
+            ], 422);
+        }
+
+        $newType = VehicleOwnershipType::from($request->input('vehicle_ownership_type'));
+
+        if ($driver->vehicle && $driver->vehicle_ownership_type !== $newType) {
+            return response()->json([
+                'message' => 'Vehicle ownership type cannot be changed while a vehicle is registered or assigned.',
+            ], 422);
+        }
+
+        $driver->update([
+            'vehicle_ownership_type' => $newType,
+        ]);
+
+        AuditLog::record($driver, 'vehicle_ownership_set', $user, null, [
+            'vehicle_ownership_type' => $request->input('vehicle_ownership_type'),
+        ]);
+
+        return response()->json([
+            'message' => 'Vehicle ownership type set successfully.',
+            'driver' => new DriverResource($driver->fresh(['documents', 'vehicle.vehicleClass', 'city'])),
         ]);
     }
 
@@ -154,6 +204,12 @@ class OnboardingController extends Controller
 
         if (! $driver) {
             return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if ($driver->isFleetVehicle()) {
+            return response()->json([
+                'message' => 'Fleet vehicle drivers cannot register their own vehicle. A vehicle will be assigned by admin.',
+            ], 422);
         }
 
         if ($driver->vehicle) {
@@ -287,26 +343,30 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
-        if (! in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected])) {
+        if (! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected])) {
             return response()->json([
                 'message' => 'Application can only be submitted from onboarding or rejected status.',
             ], 422);
         }
 
-        $requiredDocTypes = ['driving_licence', 'vehicle_registration', 'insurance_certificate', 'government_id'];
+        $errors = [];
+
+        if (! $driver->vehicle_ownership_type) {
+            $errors[] = 'Vehicle ownership type must be selected.';
+        }
+
+        $requiredDocTypes = $this->getRequiredDocumentTypes($driver);
         $uploadedDocTypes = $driver->documents
             ->where('status', '!==', DocumentStatus::Rejected)
             ->pluck('type.value')
             ->toArray();
         $missingDocTypes = array_diff($requiredDocTypes, $uploadedDocTypes);
 
-        $errors = [];
-
         if (! empty($missingDocTypes)) {
             $errors[] = 'Missing documents: '.implode(', ', $missingDocTypes);
         }
 
-        if (! $driver->vehicle) {
+        if ($driver->isOwnVehicle() && ! $driver->vehicle) {
             $errors[] = 'Vehicle information is required.';
         }
 
@@ -336,5 +396,17 @@ class OnboardingController extends Controller
             'message' => 'Application submitted for review.',
             'driver' => new DriverResource($driver->fresh(['documents', 'vehicle.vehicleClass', 'city'])),
         ]);
+    }
+
+    private function getRequiredDocumentTypes(\App\Models\Driver $driver): array
+    {
+        $types = ['driving_licence', 'government_id'];
+
+        if (! $driver->isFleetVehicle()) {
+            $types[] = 'vehicle_registration';
+            $types[] = 'insurance_certificate';
+        }
+
+        return $types;
     }
 }

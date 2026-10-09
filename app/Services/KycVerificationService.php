@@ -276,6 +276,10 @@ class KycVerificationService
             KycVerificationType::DriversLicense,
         ];
 
+        if ($driver->isFleetVehicle()) {
+            return $types;
+        }
+
         $vehicle = $driver->vehicle;
         if (! $vehicle || ! $vehicle->is_fleet) {
             $types[] = KycVerificationType::VehiclePlate;
