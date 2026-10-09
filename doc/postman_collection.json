@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo — Local** or **E-tiGo — Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max ₦2,000) | Active | 1 use per user |\n| `RIDE500` | ₦500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | — |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP → Verify OTP → (if new user) Complete Registration → Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password → Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone → returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` → logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\neTiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access |\n| Operations | `operations` | Drivers, vehicles, cities, trips, pricing, surge, fleet, gamification |\n| Support | `support` | Passengers, disputes |\n| Finance | `finance` | Pricing (view/manage), fleet agreements |\n| Safety | `safety_operator` | Drivers (suspend/reactivate), passengers, safety investigations |\n\n**Permission Matrix:**\n\n| Endpoint Group | Operations | Support | Finance | Safety |\n|----------------|:----------:|:-------:|:-------:|:------:|\n| Drivers | ✅ | — | — | ✅ |\n| Cities | ✅ | — | — | — |\n| Vehicle Classes | ✅ | — | — | — |\n| Pricing | ✅ | — | ✅ | — |\n| Surge Rules | ✅ | — | — | — |\n| Rides | ✅ | — | — | — |\n| Fleet Agreements | ✅ | — | ✅ | — |\n| Gamification | ✅ | — | — | — |\n| Passengers | — | ✅ | — | ✅ |\n| Disputes | — | ✅ | — | — |\n| Admin Management | — | — | — | — |\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo — Local** or **E-tiGo — Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max ₦2,000) | Active | 1 use per user |\n| `RIDE500` | ₦500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | — |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP → Verify OTP → (if new user) Complete Registration → Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password → Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone → returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` → logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\neTiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access |\n| Operations | `operations` | Drivers, vehicles, cities, trips, pricing, surge, fleet, gamification |\n| Support | `support` | Passengers, disputes |\n| Finance | `finance` | Pricing (view/manage), fleet agreements |\n| Safety | `safety_operator` | Drivers (suspend/reactivate), passengers, safety investigations |\n\n**Permission Matrix:**\n\n| Endpoint Group | Operations | Support | Finance | Safety |\n|----------------|:----------:|:-------:|:-------:|:------:|\n| Drivers | ✅ | — | — | ✅ |\n| Cities | ✅ | — | — | — |\n| Vehicle Classes | ✅ | — | — | — |\n| Pricing | ✅ | — | ✅ | — |\n| Surge Rules | ✅ | — | — | — |\n| Rides | ✅ | — | — | — |\n| Fleet Vehicles | ✅ | — | ✅ | — |\n| Fleet Agreements | ✅ | — | ✅ | — |\n| Gamification | ✅ | — | — | — |\n| Passengers | — | ✅ | — | ✅ |\n| Disputes | — | ✅ | — | — |\n| Admin Management | — | — | — | — |\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -2995,6 +2995,80 @@
               ]
             },
             {
+              "name": "Set Vehicle Ownership",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicle_ownership_type\": \"own_vehicle\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/onboarding/vehicle-ownership",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "onboarding",
+                    "vehicle-ownership"
+                  ]
+                },
+                "description": "Sets the driver's vehicle ownership path during onboarding. This determines which documents and KYC verifications are required.\n\n**Values:**\n- `own_vehicle` — Driver registers their own vehicle, must upload vehicle_registration and insurance_certificate, KYC includes plate verification.\n- `fleet_vehicle` — Admin assigns a fleet vehicle after approval, only driving_licence and government_id required, KYC skips plate verification.\n\nCan only be set when driver status is `onboarding` or `rejected`. Can be changed freely during those states."
+              },
+              "response": [
+                {
+                  "name": "200 — Ownership Set",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle ownership type set successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"onboarding\",\n    \"vehicle_ownership_type\": \"own_vehicle\",\n    \"kyc_status\": \"not_started\",\n    \"licence_number\": null,\n    \"is_online\": false,\n    \"documents\": [],\n    \"vehicle\": null\n  }\n}"
+                },
+                {
+                  "name": "200 — Fleet Vehicle Selected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle ownership type set successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"onboarding\",\n    \"vehicle_ownership_type\": \"fleet_vehicle\",\n    \"kyc_status\": \"not_started\",\n    \"licence_number\": null,\n    \"is_online\": false,\n    \"documents\": [],\n    \"vehicle\": null\n  }\n}"
+                },
+                {
+                  "name": "422 — Wrong Status",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle ownership type can only be set during onboarding.\"\n}"
+                }
+              ]
+            },
+            {
               "name": "Update Driver Profile",
               "request": {
                 "method": "PUT",
@@ -3322,7 +3396,7 @@
                     "vehicle"
                   ]
                 },
-                "description": "Register a new vehicle for the authenticated driver. Each driver can have one vehicle. Requires driver authentication."
+                "description": "Register a new vehicle for the authenticated driver. Each driver can have one vehicle. Requires driver authentication.\n\n**Only for `own_vehicle` drivers.** Fleet vehicle drivers (`vehicle_ownership_type: fleet_vehicle`) cannot register their own vehicle — returns 422. Fleet vehicles are assigned by admin via the Fleet Vehicle Management endpoints."
               },
               "response": [
                 {
@@ -3490,7 +3564,7 @@
                     "submit"
                   ]
                 },
-                "description": "Submits the driver application for admin review. Requires all documents uploaded, vehicle registered, licence number set, and city selected. Works from onboarding or rejected status. Returns 422 with specific errors if requirements are not met."
+                "description": "Submits the driver application for admin review. Works from onboarding or rejected status. Returns 422 with specific errors if requirements are not met.\n\n**Requirements vary by vehicle ownership type:**\n- **All drivers:** vehicle_ownership_type set, required documents uploaded, licence number set, city selected.\n- **own_vehicle only:** vehicle registered.\n- **fleet_vehicle:** no vehicle required at submission (assigned by admin after approval).\n\n**Required documents:**\n- own_vehicle: driving_licence, government_id, vehicle_registration, insurance_certificate\n- fleet_vehicle: driving_licence, government_id only"
               },
               "response": [
                 {
@@ -6265,6 +6339,473 @@
             }
           ],
           "description": "**Required Role(s):** Operations, Safety (Super Admin always has access)"
+        },
+        {
+          "name": "Admin — Fleet Vehicle Management",
+          "item": [
+            {
+              "name": "List Fleet Vehicles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nLists all fleet vehicles in inventory. Supports pagination (20 per page).\n\n**Query parameters:**\n- `unassigned_only` (boolean) — `true` to show only unassigned (available) vehicles.\n- `search` (string) — Search by make, model, or plate number (case-insensitive)."
+              },
+              "response": [
+                {
+                  "name": "200 — Fleet Vehicles List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicles\": [\n    {\n      \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n      \"driver_id\": null,\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"FLEET-001\",\n      \"year\": 2024,\n      \"is_fleet\": true,\n      \"is_assigned\": false,\n      \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4\n      },\n      \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Fleet Vehicles — Unassigned Only",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles?unassigned_only=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles"
+                  ],
+                  "query": [
+                    {
+                      "key": "unassigned_only",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nLists only unassigned fleet vehicles available for assignment to drivers."
+              },
+              "response": [
+                {
+                  "name": "200 — Unassigned Fleet Vehicles",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicles\": [\n    {\n      \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n      \"driver_id\": null,\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"FLEET-001\",\n      \"year\": 2024,\n      \"is_fleet\": true,\n      \"is_assigned\": false,\n      \"vehicle_class\": { \"name\": \"economy\", \"display_name\": \"Economy\" },\n      \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": { \"current_page\": 1, \"last_page\": 1, \"per_page\": 20, \"total\": 1 }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Register Fleet Vehicle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"make\": \"Toyota\",\n  \"model\": \"Corolla\",\n  \"colour\": \"White\",\n  \"plate_number\": \"FLEET-001\",\n  \"year\": 2024,\n  \"vehicle_class_id\": \"{{vehicle_class_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nCreates a new fleet vehicle in inventory with no driver assigned. The vehicle is automatically created with `is_fleet: true` and `driver_id: null`.\n\n**Required fields:**\n- `make` (string, max 100)\n- `model` (string, max 100)\n- `colour` (string, max 50)\n- `plate_number` (string, max 20, unique across all vehicles)\n- `year` (integer, 2000 to next year)\n- `vehicle_class_id` (UUID, must exist in vehicle_classes)"
+              },
+              "response": [
+                {
+                  "name": "201 — Fleet Vehicle Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Fleet vehicle registered successfully.\",\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"driver_id\": null,\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"FLEET-001\",\n    \"year\": 2024,\n    \"is_fleet\": true,\n    \"is_assigned\": false,\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"vehicle_class\": {\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4\n    },\n    \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Validation Error",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"plate_number\": [\n      \"The plate number has already been taken.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show Fleet Vehicle",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nReturns a single fleet vehicle with its assigned driver (if any), vehicle class, and fleet agreements."
+              },
+              "response": [
+                {
+                  "name": "200 — Fleet Vehicle Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"driver_id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n    \"driver\": {\n      \"id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n      \"name\": \"Bayo Akinola\"\n    },\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"FLEET-001\",\n    \"year\": 2024,\n    \"is_fleet\": true,\n    \"is_assigned\": true,\n    \"vehicle_class\": { \"name\": \"economy\", \"display_name\": \"Economy\" },\n    \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "404 — Not a Fleet Vehicle",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle is not a fleet vehicle.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Fleet Vehicle",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"colour\": \"Black\",\n  \"year\": 2025\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nUpdates a fleet vehicle's details. All fields are optional (partial update supported).\n\n**Fields:** make, model, colour, plate_number (unique, excluding current), year, vehicle_class_id."
+              },
+              "response": [
+                {
+                  "name": "200 — Fleet Vehicle Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Fleet vehicle updated successfully.\",\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"Black\",\n    \"plate_number\": \"FLEET-001\",\n    \"year\": 2025,\n    \"is_fleet\": true,\n    \"is_assigned\": false,\n    \"vehicle_class\": { \"name\": \"economy\", \"display_name\": \"Economy\" },\n    \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "404 — Not a Fleet Vehicle",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle is not a fleet vehicle.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Assign Fleet Vehicle to Driver",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"daily_remittance_target\": 40000,\n  \"total_vehicle_cost\": 5000000,\n  \"agreement_start_date\": \"2026-10-15\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nAssigns an unassigned fleet vehicle to an approved driver and creates a fleet agreement automatically in a single transaction.\n\n**Prerequisites:**\n- Vehicle must be fleet (`is_fleet: true`) and unassigned (`driver_id: null`).\n- Driver must be approved and not already have a vehicle assigned.\n\n**Required fields:**\n- `driver_id` (UUID, must exist in drivers)\n- `daily_remittance_target` (number, min: 1000)\n- `total_vehicle_cost` (number, min: 100000)\n- `agreement_start_date` (date Y-m-d, today or future)"
+              },
+              "response": [
+                {
+                  "name": "200 — Vehicle Assigned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle assigned to driver successfully. Fleet agreement created.\",\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"driver_id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n    \"driver\": {\n      \"id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n      \"name\": \"Bayo Akinola\"\n    },\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"is_fleet\": true,\n    \"is_assigned\": true\n  },\n  \"driver\": {\n    \"id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n    \"status\": \"approved\",\n    \"vehicle_ownership_type\": \"fleet_vehicle\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Vehicle Already Assigned",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle is already assigned to a driver.\"\n}"
+                },
+                {
+                  "name": "422 — Driver Not Approved",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver must be approved before vehicle assignment.\"\n}"
+                },
+                {
+                  "name": "422 — Driver Has Vehicle",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver already has a vehicle assigned.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Unassign Fleet Vehicle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}/unassign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}",
+                    "unassign"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nRemoves the driver assignment from a fleet vehicle, returning it to inventory. Cannot unassign if there is an active fleet agreement — terminate the agreement first.\n\nNo request body required."
+              },
+              "response": [
+                {
+                  "name": "200 — Vehicle Unassigned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle unassigned from driver successfully.\",\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"driver_id\": null,\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"is_fleet\": true,\n    \"is_assigned\": false\n  }\n}"
+                },
+                {
+                  "name": "422 — Not Assigned",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle is not assigned to any driver.\"\n}"
+                },
+                {
+                  "name": "422 — Active Agreement",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot unassign vehicle with an active fleet agreement. Terminate the agreement first.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Drivers Awaiting Vehicle Assignment",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/drivers-awaiting",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "drivers-awaiting"
+                  ]
+                },
+                "description": "**Auth required (admin — Operations or Finance).**\n\nLists approved fleet drivers (`vehicle_ownership_type: fleet_vehicle`) who do not yet have a vehicle assigned. Useful for admins to find which drivers need a fleet vehicle. Supports pagination (20 per page)."
+              },
+              "response": [
+                {
+                  "name": "200 — Drivers Awaiting",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"id\": \"8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d\",\n      \"user\": {\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"status\": \"approved\",\n      \"vehicle_ownership_type\": \"fleet_vehicle\",\n      \"kyc_status\": \"verified\",\n      \"licence_number\": \"DL-12345678\",\n      \"vehicle\": null,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            }
+          ],
+          "description": "**Required Role(s):** Operations, Finance (Super Admin always has access)\n\nFleet vehicles are company-owned vehicles pre-registered by admin in inventory. They are assigned to approved fleet drivers, which automatically creates a fleet agreement."
         },
         {
           "name": "Admin — Fleet Agreement Management",
