@@ -80,4 +80,32 @@ class DriverController extends Controller
             'driver' => new DriverResource($driver),
         ]);
     }
+
+    public function location(Request $request): JsonResponse
+    {
+        $driver = $request->user()->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if (! $driver->is_online) {
+            return response()->json(['message' => 'Driver is offline.'], 409);
+        }
+
+        $location = $this->locationService->getDriverLocation((string) $driver->id);
+
+        if (! $location || $location['timestamp'] < now()->subSeconds(300)->timestamp) {
+            return response()->json(['message' => 'No recent driver location is available.'], 404);
+        }
+
+        $driver->loadMissing(['city', 'vehicle.vehicleClass']);
+
+        return response()->json([
+            'location' => $location,
+            'city_id' => $driver->city_id,
+            'vehicle_class_id' => $driver->vehicle?->vehicle_class_id,
+            'is_online' => $driver->is_online,
+        ]);
+    }
 }

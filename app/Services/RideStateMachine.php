@@ -3,11 +3,14 @@
 namespace App\Services;
 
 use App\Enums\RideStatus;
+use App\Events\NearbyMapChanged;
 use App\Events\RideNoDriverFound;
 use App\Events\RideStatusUpdated;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class RideStateMachine
@@ -68,7 +71,7 @@ class RideStateMachine
     ): Ride {
         /** @var RideStatus $fromState */
         $fromState = null;
-        /** @var \Illuminate\Support\Carbon $occurredAt */
+        /** @var Carbon $occurredAt */
         $occurredAt = null;
 
         $ride = DB::transaction(function () use ($ride, $newStatus, $actor, $triggeredByType, $metadata, &$fromState, &$occurredAt) {
@@ -135,6 +138,16 @@ class RideStateMachine
             ));
         } catch (\Throwable) {
             // Reverb failures must not roll back a committed ride transition.
+        }
+
+        if ($from === RideStatus::Searching || $newStatus === RideStatus::Searching) {
+            try {
+                if (Cache::add('nearby_map:drivers', true, 5)) {
+                    NearbyMapChanged::dispatch('drivers');
+                }
+            } catch (\Throwable) {
+                // Map refresh signaling must not break the ride transition.
+            }
         }
 
         if ($newStatus === RideStatus::NoDriverFound) {

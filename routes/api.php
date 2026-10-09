@@ -25,11 +25,13 @@ use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
+use App\Http\Controllers\Api\V1\Driver\NearbyRidesController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
@@ -186,6 +188,7 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')->group(function () {
+    Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
@@ -197,10 +200,12 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::get('/nearby-rides', NearbyRidesController::class);
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
     Route::get('/stats', [DriverStatsController::class, 'show']);
     Route::get('/earnings', [DriverEarningsController::class, 'show']);
     Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
+    Route::get('/location', [DriverController::class, 'location']);
     Route::post('/location', [DriverLocationController::class, 'update']);
 
     Route::get('/onboarding/status', [OnboardingController::class, 'status']);

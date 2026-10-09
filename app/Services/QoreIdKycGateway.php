@@ -8,7 +8,9 @@ use RuntimeException;
 
 class QoreIdKycGateway implements KycGateway
 {
-    private string $baseUrl = 'https://api.qoreid.com/v1';
+    private const API_BASE_URL = 'https://api.qoreid.com';
+
+    private const VERSIONED_API_BASE_URL = self::API_BASE_URL.'/v1';
 
     public function __construct(
         private string $clientId,
@@ -222,7 +224,7 @@ class QoreIdKycGateway implements KycGateway
             ->acceptJson()
             ->timeout(15)
             ->connectTimeout(5)
-            ->post("{$this->baseUrl}{$path}", $data);
+            ->post(self::VERSIONED_API_BASE_URL.$path, $data);
 
         if ($response->failed()) {
             throw new RuntimeException(
@@ -244,7 +246,7 @@ class QoreIdKycGateway implements KycGateway
             ->acceptJson()
             ->timeout(30)
             ->connectTimeout(5)
-            ->{$method}("{$this->baseUrl}{$path}", $data);
+            ->{$method}(self::VERSIONED_API_BASE_URL.$path, $data);
 
         if ($response->failed()) {
             throw new RuntimeException(
@@ -260,9 +262,10 @@ class QoreIdKycGateway implements KycGateway
         $cacheKey = 'qoreid_access_token';
 
         return cache()->remember($cacheKey, 3500, function () {
-            $response = Http::acceptJson()
+            $response = Http::asJson()
+                ->acceptJson()
                 ->timeout(10)
-                ->post('https://api.qoreid.com/token', [
+                ->post(self::API_BASE_URL.'/token', [
                     'clientId' => $this->clientId,
                     'secret' => $this->secretKey,
                 ]);
