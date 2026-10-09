@@ -37,6 +37,9 @@ Broadcast::channel('driver.{driverUserId}', function (User $user, string $driver
     return $user->id === $driverUserId && $user->isDriver();
 });
 
+Broadcast::channel('passengers.nearby', fn (User $user): bool => $user->isPassenger());
+Broadcast::channel('drivers.nearby', fn (User $user): bool => $user->isDriver());
+
 Broadcast::channel('user.{userId}', function (User $user, string $userId): bool {
     return $user->id === $userId;
 });

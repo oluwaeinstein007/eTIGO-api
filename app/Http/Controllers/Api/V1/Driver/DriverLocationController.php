@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Enums\RideStatus;
 use App\Events\DriverLocationUpdated;
+use App\Events\NearbyMapChanged;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\LocationUpdateRequest;
 use App\Models\Ride;
 use App\Services\DriverLocationService;
 use App\Services\EtaService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 
 class DriverLocationController extends Controller
@@ -70,6 +72,16 @@ class DriverLocationController extends Controller
         }
 
         DriverLocationUpdated::dispatch($driver->id, $location, $rideId, $eta);
+        try {
+            if (Cache::add('nearby_map:passengers', true, 5)) {
+                NearbyMapChanged::dispatch('passengers');
+            }
+            if (Cache::add('nearby_map:drivers', true, 5)) {
+                NearbyMapChanged::dispatch('drivers');
+            }
+        } catch (\Throwable) {
+            // Realtime map refresh must not fail location tracking.
+        }
 
         return response()->json([
             'message' => 'Location updated.',

@@ -9,6 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\DriverLocationService;
+use App\Services\EtaService;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -98,6 +99,36 @@ it('returns 401 without authentication', function () {
     $response->assertUnauthorized();
 });
 
+it('returns the authenticated driver current location and ride defaults', function () {
+    $this->mockLocationService->shouldReceive('getDriverLocation')
+        ->with((string) $this->driver->id)
+        ->andReturn([
+            'lat' => 6.5244,
+            'lng' => 3.3792,
+            'heading' => 90.0,
+            'speed' => 0.0,
+            'timestamp' => now()->timestamp,
+        ]);
+
+    $this->withToken($this->token)
+        ->getJson('/api/v1/driver/location')
+        ->assertOk()
+        ->assertJsonPath('location.lat', 6.5244)
+        ->assertJsonPath('location.lng', 3.3792)
+        ->assertJsonPath('city_id', $this->driver->city_id)
+        ->assertJsonPath('vehicle_class_id', $this->driver->vehicle->vehicle_class_id);
+});
+
+it('does not return a missing or stale driver location', function () {
+    $this->mockLocationService->shouldReceive('getDriverLocation')
+        ->with((string) $this->driver->id)
+        ->andReturn(null);
+
+    $this->withToken($this->token)
+        ->getJson('/api/v1/driver/location')
+        ->assertNotFound();
+});
+
 it('returns 403 for passenger user type', function () {
     $passenger = User::factory()->create(['type' => UserType::Passenger]);
     $token = $passenger->createToken('auth', ['passenger'])->plainTextToken;
@@ -150,6 +181,10 @@ it('returns 429 when rate limited', function () {
 
 it('broadcasts to ride channel when driver has active ride', function () {
     Event::fake([DriverLocationUpdated::class]);
+    $this->mock(EtaService::class)
+        ->shouldReceive('getThrottledEta')
+        ->once()
+        ->andReturn(null);
 
     $passenger = User::factory()->create(['type' => UserType::Passenger]);
 
@@ -163,7 +198,8 @@ it('broadcasts to ride channel when driver has active ride', function () {
         ->postJson('/api/v1/driver/location', [
             'lat' => 9.0579,
             'lng' => 7.4951,
-        ]);
+        ])
+        ->assertOk();
 
     Event::assertDispatched(DriverLocationUpdated::class, function ($event) use ($ride) {
         return $event->rideId === $ride->id;
