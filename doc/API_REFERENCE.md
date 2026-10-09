@@ -2419,7 +2419,9 @@ Returns the driver's active fleet agreement. **Does not include `total_vehicle_c
 
 ## Admin — Passenger Management
 
-All passenger management endpoints require `Authorization: Bearer {token}` from an admin user.
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:support,safety_operator`
+
+**Allowed Roles:** Support, Safety (Super Admin always has access)
 
 ### List Passengers
 ```
@@ -2635,7 +2637,7 @@ POST /admin/admins/invite
 | Field      | Type   | Required | Description                                      |
 |------------|--------|----------|--------------------------------------------------|
 | email      | string | Yes      | Email for the invitation                         |
-| admin_role | string | Yes      | `operations`, `safety_operator`, or `support`    |
+| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, or `finance` |
 
 **Response 201:**
 ```json
@@ -2742,7 +2744,7 @@ PUT /admin/admins/{admin_id}
 
 | Field      | Type   | Required | Description                                      |
 |------------|--------|----------|--------------------------------------------------|
-| admin_role | string | Yes      | `operations`, `safety_operator`, or `support`    |
+| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, or `finance` |
 
 Cannot modify super admin accounts.
 
@@ -2989,7 +2991,9 @@ No authentication required. Detects which active city a set of coordinates falls
 
 ## Admin — City Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
 
 ### List Cities
 ```
@@ -3245,7 +3249,9 @@ Syncs the pivot table — entries not included are removed.
 
 ## Admin — Vehicle Class Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
 
 ### List Vehicle Classes
 ```
@@ -4352,7 +4358,9 @@ GET /rides/{ride}/share/{token}
 
 ## Admin — Ride Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
 
 ### Manually Assign Driver to Ride
 ```
@@ -4465,7 +4473,9 @@ Manually assigns an online driver to a ride. The ride must be in `searching` or 
 
 ## Admin — Pricing Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+**Allowed Roles:** Operations, Finance (Super Admin always has access)
 
 ### List Pricing Configs
 ```
@@ -4646,7 +4656,9 @@ Returns the currently effective pricing config for the given city + vehicle clas
 
 ## Admin — Surge Pricing
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
 
 Surge pricing applies a multiplier to fares during high-demand periods (rush hour, rain, events). Three rule types are supported:
 
@@ -5438,13 +5450,15 @@ File a dispute for a completed ride. Both passengers and drivers can file disput
 
 ## Admin — Dispute Management
 
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:support`
+
+**Allowed Roles:** Support (Super Admin always has access)
+
 ### List Disputes
 
 `GET /api/v1/admin/disputes`
 
 List all disputes with optional filters and pagination.
-
-**Auth:** Bearer token (admin)
 
 **Query Parameters:**
 
@@ -5713,6 +5727,10 @@ Returns top users sorted by total ranking points.
 ---
 
 ## Admin — Gamification Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
 
 ### List Gamification Users
 

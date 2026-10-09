@@ -61,6 +61,11 @@ class UserFactory extends Factory
         return $this->admin(AdminRole::SafetyOperator);
     }
 
+    public function finance(): static
+    {
+        return $this->admin(AdminRole::Finance);
+    }
+
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [

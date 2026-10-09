@@ -110,9 +110,9 @@
 | SETUP-32 | `[x]` Create migration: `ev_reservations` table — id, stall_id (FK nullable), station_id (FK), driver_id (FK), status (enum: reserved/queued/active/completed/expired/cancelled), queue_position (int nullable), estimated_available_at (nullable), fee_amount (decimal default 0), fee_waived (bool default false), reserved_at, activated_at (nullable), completed_at (nullable), created_at | B-02 | SETUP-31 | — |
 | SETUP-33 | `[x]` Create migration: `notifications` table — id, user_id (FK), type (string), title, body, data (jsonb nullable), is_read (bool default false), read_at (nullable), created_at | B-06 | SETUP-07 | — |
 | SETUP-34 | `[x]` Create migration: `device_tokens` table — id, user_id (FK), platform (enum: ios/android/web), token (string), is_active (bool default true), created_at, updated_at | B-06 | SETUP-07 | Unique constraint on (user_id, platform, token) |
-| SETUP-35 | `[x]` Admin roles stored in `users.admin_role` column (enum: super_admin/operations/safety_operator/support). No separate admin_users table — single users table with `type=admin` + `admin_role`. Admin seeder creates 3 dev accounts. | §8.4 | SETUP-07 | OQ-07 resolved: tiered roles implemented |
+| SETUP-35 | `[x]` Admin roles stored in `users.admin_role` column (enum: super_admin/operations/safety_operator/support/finance). No separate admin_users table — single users table with `type=admin` + `admin_role`. Admin seeder creates accounts for all roles. | §8.4 | SETUP-07 | OQ-07 resolved: tiered roles with Finance role added |
 | SETUP-36 | `[x]` Create database indexes for high-frequency queries: rides by (status, city_id), rides by (passenger_id, created_at), rides by (driver_id, created_at), drivers by (city via vehicle class, is_online, kyc_status), promo_codes by (code), gamification_profiles by (user_id), device_tokens by (user_id) | — | SETUP-14 through SETUP-34 | ⏱ Profile queries during load testing |
-| SETUP-37 | `[x]` Create database seeders: `AdminSeeder` creates 3 admin accounts (super_admin, safety_operator, operations). Seeder skips in production. | — | SETUP-24, SETUP-25 | For development and staging environments |
+| SETUP-37 | `[x]` Create database seeders: `AdminSeeder` creates admin accounts for all roles (super_admin, operations, safety_operator, support, finance). Seeder skips in production. | — | SETUP-24, SETUP-25 | For development and staging environments |
 
 ### 1.3 Cache Layer (Redis)
 
@@ -142,8 +142,9 @@
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | SETUP-51 | `[x]` Implement Sanctum token authentication guard: `auth:sanctum` middleware | B-01 | SETUP-43 | Laravel Sanctum personal access tokens; shared across Passenger, Driver, Admin clients |
-| SETUP-52 | `[x]` Implement RBAC middleware: `EnsureUserType` (comma-separated types), `EnsureAdminRole` (comma-separated roles), `EnsureDriverApproved` | §8.4 | SETUP-35, SETUP-51 | Safety Operator scope restricts to SOS console endpoints only |
-| SETUP-53 | `[x]` Implement route-level permission guards: `user.type:admin`, `user.type:driver`, `user.type:passenger`, `admin.role:safety_operator`, `driver.approved` | §8.4 | SETUP-52 | Applied as route middleware aliases in `bootstrap/app.php` |
+| SETUP-52 | `[x]` Implement RBAC middleware: `EnsureUserType` (comma-separated types), `EnsureAdminRole` (comma-separated roles), `EnsureDriverApproved` | §8.4 | SETUP-35, SETUP-51 | Role-based permissions enforced per admin route group |
+| SETUP-53 | `[x]` Implement route-level permission guards: `user.type:admin`, `user.type:driver`, `user.type:passenger`, `admin.role:{roles}`, `driver.approved` | §8.4 | SETUP-52 | Applied as route middleware aliases in `bootstrap/app.php` |
+| SETUP-53b | `[x]` Apply role-based middleware to all admin route groups: drivers (operations,safety_operator), cities (operations), vehicle-classes (operations), pricing (operations,finance), surge-rules (operations), rides (operations), fleet-agreements (operations,finance), gamification (operations), passengers (support,safety_operator), disputes (support), admins (super_admin) | §8.4 | SETUP-52, SETUP-35 | Super admin bypasses all role checks automatically |
 | SETUP-54 | `[x]` Implement `AuditLog::record()` static method for immutable event logging: captures model, event, actor, old/new values, IP, user agent | B-09, NF-06 | SETUP-20, SETUP-52 | Used across all controllers; admin actions wrapped in DB::transaction() |
 
 ### 1.6 Third-Party Integration Adapters

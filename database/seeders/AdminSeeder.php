@@ -91,6 +91,16 @@ class AdminSeeder extends Seeder
                 'password' => $password,
                 'phone_verified_at' => now(),
             ],
+            [
+                'first_name' => 'Finance',
+                'last_name' => 'Manager',
+                'phone' => '+2340000000008',
+                'email' => 'finance@etigo.com',
+                'type' => UserType::Admin,
+                'admin_role' => AdminRole::Finance,
+                'password' => $password,
+                'phone_verified_at' => now(),
+            ],
         ];
 
         foreach ($admins as $admin) {
