@@ -24,7 +24,9 @@ beforeEach(function () {
     $this->mockLocationService = Mockery::mock(DriverLocationService::class);
     $this->mockLocationService->shouldReceive('updateLocation')->andReturnNull();
     $this->mockLocationService->shouldReceive('removeDriver')->andReturnNull();
-    $this->mockLocationService->shouldReceive('getDriverLocation')->andReturnNull();
+    $this->mockLocationService->shouldReceive('getDriverLocation')
+        ->andReturnNull()
+        ->byDefault();
     $this->app->instance(DriverLocationService::class, $this->mockLocationService);
 });
 
