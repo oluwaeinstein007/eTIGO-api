@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
+use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
@@ -20,11 +21,12 @@ use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
-use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
+use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
+use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -143,6 +145,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| Gamification Routes (Authenticated)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->prefix('gamification')->group(function () {
+    Route::get('/', [GamificationController::class, 'show']);
+    Route::get('/carbon-history', [GamificationController::class, 'carbonHistory']);
+    Route::get('/tiers', [GamificationController::class, 'tiers']);
+    Route::get('/leaderboard', [GamificationController::class, 'leaderboard']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | Ride Routes (authenticated — any role, scoped inside controller)
 |--------------------------------------------------------------------------
 */
@@ -224,7 +238,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(function () {
-    Route::prefix('drivers')->group(function () {
+    Route::middleware('admin.role:operations,safety_operator')->prefix('drivers')->group(function () {
         Route::get('/', [DriverManagementController::class, 'index']);
         Route::get('/pending', [DriverManagementController::class, 'pendingReview']);
         Route::get('/{driver}', [DriverManagementController::class, 'show']);
@@ -235,7 +249,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
     });
 
-    Route::prefix('cities')->group(function () {
+    Route::middleware('admin.role:operations')->prefix('cities')->group(function () {
         Route::get('/', [AdminCityController::class, 'index']);
         Route::post('/', [AdminCityController::class, 'store']);
         Route::get('/{city}', [AdminCityController::class, 'show']);
@@ -244,21 +258,21 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{city}/vehicle-classes', [AdminCityVehicleClassController::class, 'update']);
     });
 
-    Route::prefix('vehicle-classes')->group(function () {
+    Route::middleware('admin.role:operations')->prefix('vehicle-classes')->group(function () {
         Route::get('/', [AdminVehicleClassController::class, 'index']);
         Route::post('/', [AdminVehicleClassController::class, 'store']);
         Route::get('/{vehicleClass}', [AdminVehicleClassController::class, 'show']);
         Route::put('/{vehicleClass}', [AdminVehicleClassController::class, 'update']);
     });
 
-    Route::prefix('pricing')->group(function () {
+    Route::middleware('admin.role:operations,finance')->prefix('pricing')->group(function () {
         Route::get('/', [AdminPricingController::class, 'index']);
         Route::post('/', [AdminPricingController::class, 'store']);
         Route::get('/current', [AdminPricingController::class, 'current']);
         Route::get('/{pricingConfig}', [AdminPricingController::class, 'show']);
     });
 
-    Route::prefix('surge-rules')->group(function () {
+    Route::middleware('admin.role:operations')->prefix('surge-rules')->group(function () {
         Route::get('/', [AdminSurgeRuleController::class, 'index']);
         Route::post('/', [AdminSurgeRuleController::class, 'store']);
         Route::get('/current-multiplier', [AdminSurgeRuleController::class, 'currentMultiplier']);
@@ -267,11 +281,11 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
     });
 
-    Route::prefix('rides')->group(function () {
+    Route::middleware('admin.role:operations')->prefix('rides')->group(function () {
         Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
     });
 
-    Route::prefix('fleet-agreements')->group(function () {
+    Route::middleware('admin.role:operations,finance')->prefix('fleet-agreements')->group(function () {
         Route::get('/', [AdminFleetAgreementController::class, 'index']);
         Route::post('/', [AdminFleetAgreementController::class, 'store']);
         Route::get('/{fleetAgreement}', [AdminFleetAgreementController::class, 'show']);
@@ -281,13 +295,22 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{fleetAgreement}/resume', [AdminFleetAgreementController::class, 'resume']);
     });
 
-    Route::prefix('disputes')->group(function () {
+    Route::middleware('admin.role:operations')->prefix('gamification')->group(function () {
+        Route::get('/users', [AdminGamificationController::class, 'indexUsers']);
+        Route::get('/aggregate', [AdminGamificationController::class, 'aggregate']);
+        Route::get('/tiers', [AdminGamificationController::class, 'tiers']);
+        Route::put('/tiers', [AdminGamificationController::class, 'updateTiers']);
+        Route::get('/multipliers', [AdminGamificationController::class, 'multipliers']);
+        Route::put('/multipliers', [AdminGamificationController::class, 'updateMultipliers']);
+    });
+
+    Route::middleware('admin.role:support')->prefix('disputes')->group(function () {
         Route::get('/', [AdminDisputeController::class, 'index']);
         Route::get('/{dispute}', [AdminDisputeController::class, 'show']);
         Route::post('/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
     });
 
-    Route::prefix('passengers')->group(function () {
+    Route::middleware('admin.role:support,safety_operator')->prefix('passengers')->group(function () {
         Route::get('/', [AdminPassengerController::class, 'index']);
         Route::get('/{passenger}', [AdminPassengerController::class, 'show']);
         Route::post('/{passenger}/suspend', [AdminPassengerController::class, 'suspend']);

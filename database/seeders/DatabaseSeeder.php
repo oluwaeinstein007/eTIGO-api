@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             DemoSeeder::class,
             PricingConfigSeeder::class,
+            TierConfigSeeder::class,
+            PointMultiplierConfigSeeder::class,
         ]);
     }
 }

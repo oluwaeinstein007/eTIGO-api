@@ -103,6 +103,11 @@ class User extends Authenticatable
         return $this->isAdmin() && $this->admin_role === $role;
     }
 
+    public function gamificationProfile(): HasOne
+    {
+        return $this->hasOne(GamificationProfile::class);
+    }
+
     public function ratingsReceived(): HasMany
     {
         return $this->hasMany(Rating::class, 'rated_user_id');

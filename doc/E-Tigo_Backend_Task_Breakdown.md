@@ -110,9 +110,9 @@
 | SETUP-32 | `[x]` Create migration: `ev_reservations` table — id, stall_id (FK nullable), station_id (FK), driver_id (FK), status (enum: reserved/queued/active/completed/expired/cancelled), queue_position (int nullable), estimated_available_at (nullable), fee_amount (decimal default 0), fee_waived (bool default false), reserved_at, activated_at (nullable), completed_at (nullable), created_at | B-02 | SETUP-31 | — |
 | SETUP-33 | `[x]` Create migration: `notifications` table — id, user_id (FK), type (string), title, body, data (jsonb nullable), is_read (bool default false), read_at (nullable), created_at | B-06 | SETUP-07 | — |
 | SETUP-34 | `[x]` Create migration: `device_tokens` table — id, user_id (FK), platform (enum: ios/android/web), token (string), is_active (bool default true), created_at, updated_at | B-06 | SETUP-07 | Unique constraint on (user_id, platform, token) |
-| SETUP-35 | `[x]` Admin roles stored in `users.admin_role` column (enum: super_admin/operations/safety_operator/support). No separate admin_users table — single users table with `type=admin` + `admin_role`. Admin seeder creates 3 dev accounts. | §8.4 | SETUP-07 | OQ-07 resolved: tiered roles implemented |
+| SETUP-35 | `[x]` Admin roles stored in `users.admin_role` column (enum: super_admin/operations/safety_operator/support/finance). No separate admin_users table — single users table with `type=admin` + `admin_role`. Admin seeder creates accounts for all roles. | §8.4 | SETUP-07 | OQ-07 resolved: tiered roles with Finance role added |
 | SETUP-36 | `[x]` Create database indexes for high-frequency queries: rides by (status, city_id), rides by (passenger_id, created_at), rides by (driver_id, created_at), drivers by (city via vehicle class, is_online, kyc_status), promo_codes by (code), gamification_profiles by (user_id), device_tokens by (user_id) | — | SETUP-14 through SETUP-34 | ⏱ Profile queries during load testing |
-| SETUP-37 | `[x]` Create database seeders: `AdminSeeder` creates 3 admin accounts (super_admin, safety_operator, operations). Seeder skips in production. | — | SETUP-24, SETUP-25 | For development and staging environments |
+| SETUP-37 | `[x]` Create database seeders: `AdminSeeder` creates admin accounts for all roles (super_admin, operations, safety_operator, support, finance). Seeder skips in production. | — | SETUP-24, SETUP-25 | For development and staging environments |
 
 ### 1.3 Cache Layer (Redis)
 
@@ -142,8 +142,9 @@
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | SETUP-51 | `[x]` Implement Sanctum token authentication guard: `auth:sanctum` middleware | B-01 | SETUP-43 | Laravel Sanctum personal access tokens; shared across Passenger, Driver, Admin clients |
-| SETUP-52 | `[x]` Implement RBAC middleware: `EnsureUserType` (comma-separated types), `EnsureAdminRole` (comma-separated roles), `EnsureDriverApproved` | §8.4 | SETUP-35, SETUP-51 | Safety Operator scope restricts to SOS console endpoints only |
-| SETUP-53 | `[x]` Implement route-level permission guards: `user.type:admin`, `user.type:driver`, `user.type:passenger`, `admin.role:safety_operator`, `driver.approved` | §8.4 | SETUP-52 | Applied as route middleware aliases in `bootstrap/app.php` |
+| SETUP-52 | `[x]` Implement RBAC middleware: `EnsureUserType` (comma-separated types), `EnsureAdminRole` (comma-separated roles), `EnsureDriverApproved` | §8.4 | SETUP-35, SETUP-51 | Role-based permissions enforced per admin route group |
+| SETUP-53 | `[x]` Implement route-level permission guards: `user.type:admin`, `user.type:driver`, `user.type:passenger`, `admin.role:{roles}`, `driver.approved` | §8.4 | SETUP-52 | Applied as route middleware aliases in `bootstrap/app.php` |
+| SETUP-53b | `[x]` Apply role-based middleware to all admin route groups: drivers (operations,safety_operator), cities (operations), vehicle-classes (operations), pricing (operations,finance), surge-rules (operations), rides (operations), fleet-agreements (operations,finance), gamification (operations), passengers (support,safety_operator), disputes (support), admins (super_admin) | §8.4 | SETUP-52, SETUP-35 | Super admin bypasses all role checks automatically |
 | SETUP-54 | `[x]` Implement `AuditLog::record()` static method for immutable event logging: captures model, event, actor, old/new values, IP, user agent | B-09, NF-06 | SETUP-20, SETUP-52 | Used across all controllers; admin actions wrapped in DB::transaction() |
 
 ### 1.6 Third-Party Integration Adapters
@@ -365,19 +366,19 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-GAME-01 | `[ ]` Create `TierConfig`, `PointMultiplierConfig`, `GamificationProfile`, `TripCarbonScore` Eloquent models with relationships | — | SETUP-23 through SETUP-26 | — |
-| BE-GAME-02 | `[ ]` Create `CarbonScoreService` — calculate per-trip carbon score: CO₂ saved = distance_km × (baseline_emission − vehicle_class_emission); store in trip_carbon_scores | G-02, B-10 | BE-GAME-01, BE-RIDE-09 | ⚠ OQ-10: Emission data source TBD |
-| BE-GAME-03 | `[ ]` Create `PointMultiplierService` — check ride conditions (EV, shared, off-peak), look up multiplier config, apply to base points, handle stacking | G-03, B-11 | BE-GAME-02, SETUP-25 | — |
-| BE-GAME-04 | `[ ]` Create `TierEvaluationService` — update cumulative points on gamification profile, compare against tier thresholds, promote if crossed | B-11 | BE-GAME-03, SETUP-24 | — |
-| BE-GAME-05 | `[ ]` Create `CalculateCarbonScoreJob` — dispatched on ride completion; calls CarbonScoreService → PointMultiplierService → TierEvaluationService pipeline | B-10, B-11 | BE-GAME-02, BE-GAME-03, BE-GAME-04 | — |
-| BE-GAME-06 | `[ ]` Create `TierUpgraded` event — on tier promotion, dispatch push notification for celebration animation and unlock tier-gated features | G-04, B-11 | BE-GAME-04, SETUP-57 | — |
-| BE-GAME-07 | `[ ]` Create `GamificationController@show` — `GET /api/v1/users/gamification`: return current tier, total points, carbon score, progress to next tier, unlocked benefits | G-04, B-12 | BE-GAME-01 | — |
-| BE-GAME-08 | `[ ]` Create `TierGateService` — utility checking user's tier for: (a) priority matching eligibility (G-05), (b) booking fee discount amount (G-06), (c) exclusive promo access (G-07), (d) EV fee waiver eligibility (G-08) | B-12 | BE-GAME-04 | ⚠ OQ-11: G-05 depends on surge pricing (not in Phase 1) — implement hook but flag inactive |
-| BE-GAME-09 | `[ ]` Create `AdminGamificationController@indexUsers` — `GET /api/v1/admin/gamification/users`: list users with tier/score data, filters, pagination | A-19 | BE-GAME-01, SETUP-52 | — |
-| BE-GAME-10 | `[ ]` Create `AdminGamificationController@aggregate` — `GET /api/v1/admin/gamification/aggregate`: tier distribution, average carbon scores, top users | A-19 | BE-GAME-09 | — |
-| BE-GAME-11 | `[ ]` Create `AdminTierConfigController@update` — `PUT /api/v1/admin/gamification/tiers`: update tier thresholds/names; audit log | A-17 | BE-GAME-01, SETUP-52 | ⚠ OQ-09: Tier naming TBD |
-| BE-GAME-12 | `[ ]` Create `AdminMultiplierConfigController@update` — `PUT /api/v1/admin/gamification/multipliers`: update multiplier values; audit log | A-18 | BE-GAME-01, SETUP-52 | — |
-| BE-GAME-13 | `[ ]` Create `GamificationResource`, `TierConfigResource`, `CarbonScoreResource` API resources | — | BE-GAME-01 | — |
+| BE-GAME-01 | `[x]` Create `TierConfig`, `PointMultiplierConfig`, `GamificationProfile`, `TripCarbonScore` Eloquent models with relationships; factories for `GamificationProfile` (with tier state helpers) and `TripCarbonScore` | — | SETUP-23 through SETUP-26 | Models use HasUuids; `TierLevel` and `MultiplierConditionType` enums |
+| BE-GAME-02 | `[x]` Create `CarbonScoreService` — calculate per-trip carbon score: CO₂ saved = distance_km × (baseline_emission − vehicle_class_emission); store in trip_carbon_scores; configurable emission factors in `config/gamification.php` | G-02, B-10 | BE-GAME-01, BE-RIDE-09 | Emission data: EU/IPCC averages adjusted for ride-sharing occupancy; configurable via config |
+| BE-GAME-03 | `[x]` Create `PointMultiplierService` — check ride conditions (EV, off-peak), look up multiplier config, apply to base points, handle stacking; off-peak hours configurable | G-03, B-11 | BE-GAME-02, SETUP-25 | SharedJourney multiplier seeded but not auto-detected (Phase 2) |
+| BE-GAME-04 | `[x]` Create `TierEvaluationService` — update cumulative points on gamification profile, compare against tier thresholds, promote if crossed; dispatches `TierUpgraded` event | B-11 | BE-GAME-03, SETUP-24 | — |
+| BE-GAME-05 | `[x]` Create `CalculateCarbonScoreJob` — dispatched on ride completion via `RideService::completeRide()`; calls CarbonScoreService → PointMultiplierService → TierEvaluationService pipeline; idempotent, 3 retries, 30s backoff | B-10, B-11 | BE-GAME-02, BE-GAME-03, BE-GAME-04 | — |
+| BE-GAME-06 | `[x]` Create `TierUpgraded` broadcastable event (`ShouldBroadcastNow`) — on tier promotion, broadcast to `user.{userId}` channel for celebration animation | G-04, B-11 | BE-GAME-04, SETUP-57 | Push notification can be wired via listener |
+| BE-GAME-07 | `[x]` Create `GamificationController` — `GET /api/v1/gamification`: current tier, points, carbon score, progress to next tier, unlocked benefits; `GET /carbon-history`: paginated trip scores; `GET /tiers`: all tiers; `GET /leaderboard`: top users by points | G-04, B-12 | BE-GAME-01 | Auto-creates profile on first access |
+| BE-GAME-08 | `[x]` Create `TierGateService` — utility checking user's tier for: (a) priority matching eligibility (G-05), (b) booking fee discount amount (G-06), (c) exclusive promo access (G-07), (d) EV fee waiver eligibility (G-08) | B-12 | BE-GAME-04 | Ready for integration; surge pricing hook available for Phase 2 |
+| BE-GAME-09 | `[x]` Create `AdminGamificationController@indexUsers` — `GET /api/v1/admin/gamification/users`: list users with tier/score data, filters (tier, search, min_points), pagination, sorting | A-19 | BE-GAME-01, SETUP-52 | — |
+| BE-GAME-10 | `[x]` Create `AdminGamificationController@aggregate` — `GET /api/v1/admin/gamification/aggregate`: tier distribution, average carbon scores, total CO₂ saved, top 10 users | A-19 | BE-GAME-09 | — |
+| BE-GAME-11 | `[x]` Create `AdminGamificationController@updateTiers` — `PUT /api/v1/admin/gamification/tiers`: update all 5 tier configs (names, thresholds, benefits); audit log | A-17 | BE-GAME-01, SETUP-52 | Tier names: Bronze → Silver → Gold → Platinum → Diamond (OQ-09 resolved) |
+| BE-GAME-12 | `[x]` Create `AdminGamificationController@updateMultipliers` — `PUT /api/v1/admin/gamification/multipliers`: update multiplier values; audit log; creates new if not exists | A-18 | BE-GAME-01, SETUP-52 | — |
+| BE-GAME-13 | `[x]` Create `GamificationResource`, `TierConfigResource`, `CarbonScoreResource`, `PointMultiplierConfigResource` API resources | — | BE-GAME-01 | GamificationResource includes progress calculation and benefits |
 
 ---
 

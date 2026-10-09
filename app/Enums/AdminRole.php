@@ -8,4 +8,5 @@ enum AdminRole: string
     case Operations = 'operations';
     case SafetyOperator = 'safety_operator';
     case Support = 'support';
+    case Finance = 'finance';
 }
