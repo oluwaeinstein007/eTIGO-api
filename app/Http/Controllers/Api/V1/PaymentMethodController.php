@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Contracts\PaymentGateway;
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\InitializePaymentRequest;
-use App\Http\Resources\PaymentMethodResource;
 use App\Models\UserPaymentMethod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,11 +20,35 @@ class PaymentMethodController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $methods = UserPaymentMethod::where('user_id', $request->user()->id)
+        $savedCards = UserPaymentMethod::where('user_id', $request->user()->id)
             ->orderByDesc('is_default')
             ->get();
 
-        return response()->json(['payment_methods' => PaymentMethodResource::collection($methods)]);
+        $defaultIsCard = $savedCards->contains('is_default', true);
+
+        $methods = collect([
+            [
+                'id' => PaymentMethod::Cash->value,
+                'type' => PaymentMethod::Cash->value,
+                'label' => PaymentMethod::Cash->label(),
+                'is_default' => ! $defaultIsCard,
+            ],
+        ]);
+
+        foreach ($savedCards as $card) {
+            $methods->push([
+                'id' => $card->id,
+                'type' => PaymentMethod::Card->value,
+                'label' => $card->card_brand
+                    ? ucfirst($card->card_brand).' •••• '.$card->card_last_four
+                    : 'Card •••• '.$card->card_last_four,
+                'card_brand' => $card->card_brand,
+                'card_last_four' => $card->card_last_four,
+                'is_default' => $card->is_default,
+            ]);
+        }
+
+        return response()->json(['payment_methods' => $methods]);
     }
 
     public function initialize(InitializePaymentRequest $request): JsonResponse

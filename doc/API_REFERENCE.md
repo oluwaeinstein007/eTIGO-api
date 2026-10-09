@@ -4656,29 +4656,33 @@ POST /notifications/read-all
 ```
 GET /payment-methods
 ```
-Returns the authenticated user's saved payment methods, default method first.
+Returns available payment methods for the authenticated user. Cash is always included. Saved cards appear after cash. If a saved card is set as default, cash's `is_default` is `false`; otherwise cash is the default.
 
 **Response 200:**
 ```json
 {
   "payment_methods": [
     {
+      "id": "cash",
+      "type": "cash",
+      "label": "Cash",
+      "is_default": true
+    },
+    {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "user_id": 1,
-      "card_last_four": "4081",
+      "type": "card",
+      "label": "Visa •••• 4081",
       "card_brand": "visa",
-      "is_default": true,
-      "created_at": "2026-09-30T10:00:00.000000Z",
-      "updated_at": "2026-09-30T10:00:00.000000Z"
+      "card_last_four": "4081",
+      "is_default": false
     },
     {
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      "user_id": 1,
-      "card_last_four": "5432",
+      "type": "card",
+      "label": "Mastercard •••• 5432",
       "card_brand": "mastercard",
-      "is_default": false,
-      "created_at": "2026-10-02T10:00:00.000000Z",
-      "updated_at": "2026-10-02T10:00:00.000000Z"
+      "card_last_four": "5432",
+      "is_default": false
     }
   ]
 }
@@ -4938,6 +4942,252 @@ POST /webhooks/flutterwave
 
 ---
 
+## Ratings
+
+### Submit Rating
+
+`POST /api/v1/rides/{ride}/rating`
+
+Submit a 1–5 star rating for a completed ride. Passengers rate drivers and drivers rate passengers. Each participant can submit one rating per ride.
+
+**Auth:** Bearer token (passenger or driver)
+
+**Request Body:**
+
+| Field     | Type    | Required | Rules              |
+|-----------|---------|----------|--------------------|
+| `score`   | integer | Yes      | 1–5                |
+| `comment` | string  | No       | Max 1000 characters |
+
+**Example Request:**
+```json
+{
+  "score": 5,
+  "comment": "Great ride, very smooth!"
+}
+```
+
+**Response: `201 Created`**
+```json
+{
+  "message": "Rating submitted successfully.",
+  "rating": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
+    "score": 5,
+    "comment": "Great ride, very smooth!",
+    "rated_by": { "id": "...", "first_name": "John", "last_name": "Doe", "type": "passenger", "profile_photo_url": null },
+    "rated_user": { "id": "...", "first_name": "Jane", "last_name": "Smith", "type": "driver", "profile_photo_url": null },
+    "created_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Ride not completed, user not a participant, or already rated
+
+---
+
+## Disputes
+
+### File a Dispute
+
+`POST /api/v1/rides/{ride}/dispute`
+
+File a dispute for a completed ride. Both passengers and drivers can file disputes. Each participant can submit one dispute per ride.
+
+**Auth:** Bearer token (passenger or driver)
+
+**Request Body:**
+
+| Field         | Type   | Required | Rules                                  |
+|---------------|--------|----------|----------------------------------------|
+| `category`    | string | Yes      | One of `DisputeCategory` enum values   |
+| `description` | string | Yes      | 10–2000 characters                     |
+
+**Example Request:**
+```json
+{
+  "category": "fare_dispute",
+  "description": "The fare charged was significantly higher than the estimated fare shown before the ride."
+}
+```
+
+**Response: `201 Created`**
+```json
+{
+  "message": "Dispute filed successfully.",
+  "dispute": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e38",
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "The fare charged was significantly higher than the estimated fare shown before the ride.",
+    "status": "open",
+    "status_label": "Open",
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_at": null,
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Ride not completed, user not a participant, already disputed, or invalid category
+
+---
+
+## Admin — Dispute Management
+
+### List Disputes
+
+`GET /api/v1/admin/disputes`
+
+List all disputes with optional filters and pagination.
+
+**Auth:** Bearer token (admin)
+
+**Query Parameters:**
+
+| Parameter  | Type   | Description                                     |
+|------------|--------|-------------------------------------------------|
+| `status`   | string | Filter by status: `open`, `under_review`, `resolved`, `dismissed` |
+| `category` | string | Filter by category (see `DisputeCategory` enum) |
+| `ride_id`  | uuid   | Filter by specific ride ID                      |
+| `search`   | string | Search by description or reporter name/email    |
+| `from`     | date   | Filter disputes created on or after (YYYY-MM-DD) |
+| `to`       | date   | Filter disputes created on or before (YYYY-MM-DD) |
+| `per_page` | int    | Items per page (default: 15, max: 100)          |
+| `page`     | int    | Page number                                     |
+
+**Response: `200 OK`**
+```json
+{
+  "disputes": [
+    {
+      "id": "...",
+      "ride_id": "...",
+      "category": "fare_dispute",
+      "category_label": "Fare Dispute",
+      "description": "...",
+      "status": "open",
+      "status_label": "Open",
+      "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+      "ride": { "id": "...", "status": "completed" },
+      "resolved_at": null,
+      "created_at": "2026-10-09T12:00:00.000000Z",
+      "updated_at": "2026-10-09T12:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+### Show Dispute Detail
+
+`GET /api/v1/admin/disputes/{dispute}`
+
+Return full dispute details including ride, passenger, driver, vehicle class, city, and payment information.
+
+**Auth:** Bearer token (admin)
+
+**Response: `200 OK`**
+```json
+{
+  "dispute": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "The fare charged was significantly higher than the estimated fare.",
+    "status": "open",
+    "status_label": "Open",
+    "reported_by": {
+      "id": "f1a2b3c4-d5e6-7890-abcd-111111111111",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "type": "passenger"
+    },
+    "ride": {
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "status": "completed",
+      "pickup_address": "123 Main Street, Abuja",
+      "destination_address": "456 Airport Road, Abuja",
+      "fare_estimate_amount": "3500.00",
+      "final_fare_amount": "4200.00",
+      "fare_currency": "NGN",
+      "payment_method": "card",
+      "passenger": { "id": "...", "first_name": "John", "last_name": "Doe" },
+      "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith" },
+      "vehicle_class": { "id": "...", "name": "comfort", "display_name": "Comfort" },
+      "city": { "id": "...", "name": "Abuja" },
+      "payment": { "id": "...", "amount": "4200.00", "method": "card", "status": "captured" }
+    },
+    "resolved_at": null,
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T12:00:00.000000Z"
+  }
+}
+```
+
+### Resolve Dispute
+
+`POST /api/v1/admin/disputes/{dispute}/resolve`
+
+Resolve or dismiss a dispute. Creates an audit log entry.
+
+**Auth:** Bearer token (admin)
+
+**Request Body:**
+
+| Field              | Type   | Required | Rules                           |
+|--------------------|--------|----------|---------------------------------|
+| `status`           | string | Yes      | `resolved` or `dismissed`       |
+| `resolution_notes` | string | Yes      | 10–2000 characters              |
+
+**Example Request:**
+```json
+{
+  "status": "resolved",
+  "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account."
+}
+```
+
+**Response: `200 OK`**
+```json
+{
+  "message": "Dispute resolved successfully.",
+  "dispute": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "The fare charged was significantly higher than the estimated fare.",
+    "status": "resolved",
+    "status_label": "Resolved",
+    "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account.",
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
+    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
+    "resolved_at": "2026-10-09T14:00:00.000000Z",
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T14:00:00.000000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `422` — Dispute already resolved/dismissed, or missing resolution notes
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:
@@ -5104,6 +5354,26 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 | `failed`             | Payment failed                           |
 | `pending_collection` | Cash payment awaiting driver collection  |
 | `collected`          | Cash payment collected by driver         |
+
+### Dispute Category
+| Value                | Description                              |
+|----------------------|------------------------------------------|
+| `fare_dispute`       | Dispute about fare amount                |
+| `driver_behaviour`   | Issue with driver conduct                |
+| `route_deviation`    | Driver took an unexpected route          |
+| `vehicle_condition`  | Vehicle was in poor condition            |
+| `safety_concern`     | Safety-related concern                   |
+| `payment_issue`      | Problem with payment processing          |
+| `item_left_behind`   | Item left in the vehicle                 |
+| `other`              | Other issue                              |
+
+### Dispute Status
+| Value          | Description                              |
+|----------------|------------------------------------------|
+| `open`         | Newly filed, awaiting review             |
+| `under_review` | Being reviewed by admin                  |
+| `resolved`     | Resolved by admin                        |
+| `dismissed`    | Dismissed by admin                       |
 
 ### Cancellation Reason
 | Value                | Description                              |

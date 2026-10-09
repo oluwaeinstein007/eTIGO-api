@@ -343,17 +343,17 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-RATE-01 | `[ ]` Create `RideRatingController@store` — `POST /api/v1/rides/{ride}/rating`: submit 1-5 star rating with optional comment; validate ride is completed and user hasn't already rated | P-17 | SETUP-18 | — |
-| BE-RATE-02 | `[ ]` Create `StoreRatingFormRequest` — validate score (1-5), comment (nullable, max length), ride completed | P-17 | BE-RATE-01 | — |
-| BE-RATE-03 | `[ ]` Create `Rating` Eloquent model; add average rating accessor on User model | — | SETUP-18 | — |
-| BE-RATE-04 | `[ ]` Create `DisputeController@store` — `POST /api/v1/rides/{ride}/dispute`: passenger reports an issue with category + description; creates dispute record | P-18 | SETUP-19 | — |
-| BE-RATE-05 | `[ ]` Create `StoreDisputeFormRequest` — validate category (enum), description (required, max length) | P-18 | BE-RATE-04 | — |
-| BE-RATE-06 | `[ ]` Create `Dispute` Eloquent model with relationships: ride(), reportedBy(), resolvedBy() | — | SETUP-19 | — |
-| BE-RATE-07 | `[ ]` Create `AdminDisputeController@index` — `GET /api/v1/admin/disputes`: list disputes with filters (status, date range), pagination | A-13 | BE-RATE-06, SETUP-52 | — |
-| BE-RATE-08 | `[ ]` Create `AdminDisputeController@show` — `GET /api/v1/admin/disputes/{dispute}`: full dispute with trip detail | A-13 | BE-RATE-07 | — |
-| BE-RATE-09 | `[ ]` Create `AdminDisputeController@resolve` — `POST /api/v1/admin/disputes/{dispute}/resolve`: update status, add resolution notes; audit log | A-14 | BE-RATE-08 | ⚠ OQ-08: Confirm whether refund/fare adjustment actions are in scope |
-| BE-RATE-10 | `[ ]` Create `ResolveDisputeFormRequest` — validate status transition, resolution_notes required | A-14 | BE-RATE-09 | — |
-| BE-RATE-11 | `[ ]` Create `DisputeResource` API resource | — | BE-RATE-06 | — |
+| BE-RATE-01 | `[x]` Create `RideRatingController@store` — `POST /api/v1/rides/{ride}/rating`: submit 1-5 star rating with optional comment; validate ride is completed and user hasn't already rated; both passenger and driver can rate | P-17 | SETUP-18 | Passenger rates driver, driver rates passenger; `RatingResource` returned |
+| BE-RATE-02 | `[x]` Create `StoreRatingFormRequest` — validate score (1-5), comment (nullable, max 1000 chars), ride completed, user is participant, no duplicate rating | P-17 | BE-RATE-01 | Uses `after()` validators for business rules |
+| BE-RATE-03 | `[x]` Create `Rating` Eloquent model with factory; add `ratingsReceived()` relationship and `averageRating()` accessor on User model | — | SETUP-18 | `RatingFactory` with completed ride defaults |
+| BE-RATE-04 | `[x]` Create `RideDisputeController@store` — `POST /api/v1/rides/{ride}/dispute`: ride participant reports an issue with category + description; creates dispute record with `open` status | P-18 | SETUP-19 | Both passenger and driver can file disputes |
+| BE-RATE-05 | `[x]` Create `StoreDisputeFormRequest` — validate category (`DisputeCategory` enum), description (required, min 10, max 2000 chars), ride completed, user is participant, no duplicate dispute | P-18 | BE-RATE-04 | `DisputeCategory` enum: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other |
+| BE-RATE-06 | `[x]` Create `Dispute` Eloquent model with relationships: ride(), reportedBy(), resolvedBy(); `DisputeCategory` and `DisputeStatus` enums with `label()` helpers; `DisputeFactory` with `underReview()`, `resolved()`, `dismissed()` states | — | SETUP-19 | `DisputeStatus`: open, under_review, resolved, dismissed |
+| BE-RATE-07 | `[x]` Create `AdminDisputeController@index` — `GET /api/v1/admin/disputes`: list disputes with filters (status, category, date range), pagination | A-13 | BE-RATE-06, SETUP-52 | Loads reportedBy, resolvedBy, ride relationships |
+| BE-RATE-08 | `[x]` Create `AdminDisputeController@show` — `GET /api/v1/admin/disputes/{dispute}`: full dispute with ride detail including passenger, driver, vehicle class, city, payment | A-13 | BE-RATE-07 | — |
+| BE-RATE-09 | `[x]` Create `AdminDisputeController@resolve` — `POST /api/v1/admin/disputes/{dispute}/resolve`: update status to resolved/dismissed, add resolution notes; audit log records old→new status | A-14 | BE-RATE-08 | ⚠ OQ-08: Confirm whether refund/fare adjustment actions are in scope |
+| BE-RATE-10 | `[x]` Create `ResolveDisputeFormRequest` — validate status (resolved/dismissed), resolution_notes required (min 10 chars), prevents re-resolving terminal disputes | A-14 | BE-RATE-09 | — |
+| BE-RATE-11 | `[x]` Create `DisputeResource` and `RatingResource` API resources | — | BE-RATE-06 | Conditional resolution_notes display; enum value + label pairs |
 
 ---
 

@@ -23,12 +23,12 @@ class DriverEarningsDemoSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    private const string SEED_MARKER = 'driver_earnings_six_month_demo';
+    private const SEED_MARKER = 'driver_earnings_six_month_demo';
 
-    private const int TARGET_RIDE_COUNT = 1000;
+    private const TARGET_RIDE_COUNT = 1000;
 
     /** @var array<array{latitude: float, longitude: float, address: string}> */
-    private const array LAGOS_PLACES = [
+    private const LAGOS_PLACES = [
         ['latitude' => 6.6143785, 'longitude' => 3.3577680, 'address' => 'Ikeja City Mall, Ikeja, Lagos'],
         ['latitude' => 6.6156242, 'longitude' => 3.3607369, 'address' => 'Lagos State Secretariat, Alausa, Lagos'],
         ['latitude' => 6.5120272, 'longitude' => 3.3935314, 'address' => 'University of Lagos, Akoka, Lagos'],
