@@ -571,37 +571,37 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WINFRA-01 | `[ ]` Create migration: `accounts` table — id, owner_type (polymorphic), owner_id, type (enum: passenger_wallet/driver_earnings_pending/driver_earnings_available/platform_commission/psp_clearing/refunds), currency (char 3, default NGN), status (enum: active/frozen/closed), balance (bigint default 0), balance_version (int default 0 for optimistic locking), created_at, updated_at | B-08 | SETUP-06 | System accounts (platform_commission, psp_clearing, refunds) seeded on deploy; user accounts created on first transaction |
-| BE-WINFRA-02 | `[ ]` Create migration: `journals` table — id (UUID), reference (unique), description, idempotency_key (unique nullable), metadata (jsonb nullable), posted_at, created_at | NF-10 | BE-WINFRA-01 | Immutable; no UPDATE or DELETE |
-| BE-WINFRA-03 | `[ ]` Create migration: `ledger_entries` table — id, journal_id (FK), account_id (FK), type (enum: debit/credit), amount (bigint, positive), running_balance (bigint), created_at | NF-10 | BE-WINFRA-02 | Immutable; CHECK constraint: amount > 0; index on (account_id, created_at) |
-| BE-WINFRA-04 | `[ ]` Create migration: `holds` table — id, account_id (FK), ride_id (FK nullable), amount (bigint), status (enum: active/captured/released/expired), expires_at, captured_at (nullable), released_at (nullable), created_at | B-08 | BE-WINFRA-01 | Active holds reduce available balance |
-| BE-WINFRA-05 | `[ ]` Create migration: `bank_accounts` table — id, driver_id (FK), bank_code (string), account_number (string), account_name (string), is_verified (bool default false), is_primary (bool default true), created_at, updated_at | B-08 | SETUP-11 | One primary account per driver; verified via Paystack Resolve |
-| BE-WINFRA-06 | `[ ]` Create migration: `payouts` table — id, driver_id (FK), bank_account_id (FK), amount (bigint), status (enum: requested/approved/processing/paid/failed/reversed), gateway_transfer_id (nullable), gateway_reference (nullable), failure_reason (nullable), requested_at, approved_at (nullable), approved_by_admin_id (FK nullable), paid_at (nullable), created_at, updated_at | B-08 | BE-WINFRA-05 | — |
-| BE-WINFRA-07 | `[ ]` Create migration: `webhook_events` table — id, provider (string), event_type (string), payload (jsonb), signature (string), processed_at (nullable), created_at | NF-10 | SETUP-06 | Replay-safe: unique index on (provider, payload→id); idempotent processing |
-| BE-WINFRA-08 | `[ ]` Create database indexes: accounts by (owner_type, owner_id), ledger_entries by (account_id, created_at), holds by (account_id, status), payouts by (driver_id, status), webhook_events by (provider, event_type) | — | BE-WINFRA-01 through BE-WINFRA-07 | ⏱ Profile queries during load testing |
+| BE-WINFRA-01 | `[x]` Create migration: `accounts` table — id, owner_type (polymorphic), owner_id, type (enum: passenger_wallet/driver_earnings_pending/driver_earnings_available/platform_commission/psp_clearing/refunds), currency (char 3, default NGN), status (enum: active/frozen/closed), balance (bigint default 0), balance_version (int default 0 for optimistic locking), created_at, updated_at | B-08 | SETUP-06 | System accounts (platform_commission, psp_clearing, refunds) seeded on deploy; user accounts created on first transaction |
+| BE-WINFRA-02 | `[x]` Create migration: `journals` table — id (UUID), reference (unique), description, idempotency_key (unique nullable), metadata (jsonb nullable), posted_at, created_at | NF-10 | BE-WINFRA-01 | Immutable; no UPDATE or DELETE |
+| BE-WINFRA-03 | `[x]` Create migration: `ledger_entries` table — id, journal_id (FK), account_id (FK), type (enum: debit/credit), amount (bigint, positive), running_balance (bigint), created_at | NF-10 | BE-WINFRA-02 | Immutable; CHECK constraint: amount > 0; index on (account_id, created_at) |
+| BE-WINFRA-04 | `[x]` Create migration: `holds` table — id, account_id (FK), ride_id (FK nullable), amount (bigint), status (enum: active/captured/released/expired), expires_at, captured_at (nullable), released_at (nullable), created_at | B-08 | BE-WINFRA-01 | Active holds reduce available balance |
+| BE-WINFRA-05 | `[x]` Create migration: `bank_accounts` table — id, driver_id (FK), bank_code (string), account_number (string), account_name (string), is_verified (bool default false), is_primary (bool default true), created_at, updated_at | B-08 | SETUP-11 | One primary account per driver; verified via Paystack Resolve |
+| BE-WINFRA-06 | `[x]` Create migration: `payouts` table — id, driver_id (FK), bank_account_id (FK), amount (bigint), status (enum: requested/approved/processing/paid/failed/reversed), gateway_transfer_id (nullable), gateway_reference (nullable), failure_reason (nullable), requested_at, approved_at (nullable), approved_by_admin_id (FK nullable), paid_at (nullable), created_at, updated_at | B-08 | BE-WINFRA-05 | — |
+| BE-WINFRA-07 | `[x]` Create migration: `webhook_events` table — id, provider (string), event_type (string), payload (jsonb), signature (string), processed_at (nullable), created_at | NF-10 | SETUP-06 | Replay-safe: unique index on (provider, payload→id); idempotent processing |
+| BE-WINFRA-08 | `[x]` Create database indexes: accounts by (owner_type, owner_id), ledger_entries by (account_id, created_at), holds by (account_id, status), payouts by (driver_id, status), webhook_events by (provider, event_type) | — | BE-WINFRA-01 through BE-WINFRA-07 | ⏱ Profile queries during load testing |
 
 ### 18.2 Models & Enums
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WINFRA-09 | `[ ]` Define `AccountType`, `LedgerEntryType`, `HoldStatus`, `PayoutStatus`, `TransactionType` (top_up/ride_payment/ride_settlement/commission/tip/refund/adjustment/payout) PHP enums | — | — | Backed enums with label() helpers |
-| BE-WINFRA-10 | `[ ]` Create `Account` Eloquent model with relationships: owner() (polymorphic), entries(), holds(); scopes: active(), frozen(), forOwner(); helper: availableBalance() (balance − active holds) | — | BE-WINFRA-01 | Balance cached on column; updated atomically with entries |
-| BE-WINFRA-11 | `[ ]` Create `Journal`, `LedgerEntry` Eloquent models — Journal: entries() relationship; LedgerEntry: journal(), account() relationships; both read-only (guard against update/delete) | — | BE-WINFRA-02, BE-WINFRA-03 | — |
-| BE-WINFRA-12 | `[ ]` Create `Hold` Eloquent model with relationships: account(), ride(); scopes: active(), expired() | — | BE-WINFRA-04 | — |
-| BE-WINFRA-13 | `[ ]` Create `BankAccount` Eloquent model with relationships: driver(), payouts() | — | BE-WINFRA-05 | — |
-| BE-WINFRA-14 | `[ ]` Create `Payout` Eloquent model with relationships: driver(), bankAccount(), approvedBy() | — | BE-WINFRA-06 | — |
+| BE-WINFRA-09 | `[x]` Define `AccountType`, `LedgerEntryType`, `HoldStatus`, `PayoutStatus`, `TransactionType` (top_up/ride_payment/ride_settlement/commission/tip/refund/adjustment/payout) PHP enums | — | — | Backed enums with label() helpers |
+| BE-WINFRA-10 | `[x]` Create `Account` Eloquent model with relationships: owner() (polymorphic), entries(), holds(); scopes: active(), frozen(), forOwner(); helper: availableBalance() (balance − active holds) | — | BE-WINFRA-01 | Balance cached on column; updated atomically with entries |
+| BE-WINFRA-11 | `[x]` Create `Journal`, `LedgerEntry` Eloquent models — Journal: entries() relationship; LedgerEntry: journal(), account() relationships; both read-only (guard against update/delete) | — | BE-WINFRA-02, BE-WINFRA-03 | — |
+| BE-WINFRA-12 | `[x]` Create `Hold` Eloquent model with relationships: account(), ride(); scopes: active(), expired() | — | BE-WINFRA-04 | — |
+| BE-WINFRA-13 | `[x]` Create `BankAccount` Eloquent model with relationships: driver(), payouts() | — | BE-WINFRA-05 | — |
+| BE-WINFRA-14 | `[x]` Create `Payout` Eloquent model with relationships: driver(), bankAccount(), approvedBy() | — | BE-WINFRA-06 | — |
 
 ### 18.3 Core Ledger Service
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WINFRA-15 | `[ ]` Create `LedgerService@postJournal()` — accept array of entries (account, type, amount), wrap in DB::transaction with row-level locking (`SELECT … FOR UPDATE` on accounts), validate debits = credits, create journal + entries, update cached balances atomically with version check | NF-10 | BE-WINFRA-10, BE-WINFRA-11 | 🔒 Double-spend prevention via row locks + optimistic version |
-| BE-WINFRA-16 | `[ ]` Implement idempotent posting in `LedgerService` — accept idempotency_key; if journal with key exists, return existing result without re-posting | NF-10 | BE-WINFRA-15 | Prevents duplicate postings from retries or webhook replays |
-| BE-WINFRA-17 | `[ ]` Implement `LedgerService@reverse()` — create a new counter-journal reversing all entries of the original; never edit or delete original entries | NF-10 | BE-WINFRA-15 | Reversal reference format: `REV-{original_reference}` |
-| BE-WINFRA-18 | `[ ]` Implement `LedgerService@getBalance()` — return available, held, and pending balances for an account | — | BE-WINFRA-10 | Available = balance − active holds |
-| BE-WINFRA-19 | `[ ]` Create `LedgerIntegrityCheckCommand` — artisan command verifying sum of all ledger entries = 0 (system-wide balance); report mismatches | NF-10 | BE-WINFRA-15 | Schedule daily via cron; alert on mismatch |
-| BE-WINFRA-20 | `[ ]` Create `AccountResource`, `JournalResource`, `LedgerEntryResource`, `HoldResource`, `PayoutResource`, `BankAccountResource` API resources | — | BE-WINFRA-10 through BE-WINFRA-14 | — |
-| BE-WINFRA-21 | `[ ]` Create database seeders: system accounts (platform_commission, psp_clearing, refunds) | — | BE-WINFRA-01 | Run on every deploy; idempotent (firstOrCreate) |
+| BE-WINFRA-15 | `[x]` Create `LedgerService@postJournal()` — accept array of entries (account, type, amount), wrap in DB::transaction with row-level locking (`SELECT … FOR UPDATE` on accounts), validate debits = credits, create journal + entries, update cached balances atomically with version check | NF-10 | BE-WINFRA-10, BE-WINFRA-11 | 🔒 Double-spend prevention via row locks + optimistic version |
+| BE-WINFRA-16 | `[x]` Implement idempotent posting in `LedgerService` — accept idempotency_key; if journal with key exists, return existing result without re-posting | NF-10 | BE-WINFRA-15 | Prevents duplicate postings from retries or webhook replays |
+| BE-WINFRA-17 | `[x]` Implement `LedgerService@reverse()` — create a new counter-journal reversing all entries of the original; never edit or delete original entries | NF-10 | BE-WINFRA-15 | Reversal reference format: `REV-{original_reference}` |
+| BE-WINFRA-18 | `[x]` Implement `LedgerService@getBalance()` — return available, held, and pending balances for an account | — | BE-WINFRA-10 | Available = balance − active holds |
+| BE-WINFRA-19 | `[x]` Create `LedgerIntegrityCheckCommand` — artisan command verifying sum of all ledger entries = 0 (system-wide balance); report mismatches | NF-10 | BE-WINFRA-15 | Schedule daily via cron; alert on mismatch |
+| BE-WINFRA-20 | `[x]` Create `AccountResource`, `JournalResource`, `LedgerEntryResource`, `HoldResource`, `PayoutResource`, `BankAccountResource` API resources | — | BE-WINFRA-10 through BE-WINFRA-14 | — |
+| BE-WINFRA-21 | `[x]` Create database seeders: system accounts (platform_commission, psp_clearing, refunds) | — | BE-WINFRA-01 | Run on every deploy; idempotent (firstOrCreate) |
 
 ---
 
@@ -614,24 +614,24 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WAL-01 | `[ ]` Create `WalletController@show` — `GET /api/v1/wallet`: return passenger's wallet balance (available, held), account status | P-15 | BE-WINFRA-10, SETUP-51 | Auto-creates wallet account on first access if not exists |
-| BE-WAL-02 | `[ ]` Create `WalletController@transactions` — `GET /api/v1/wallet/transactions`: paginated ledger entries for passenger's wallet with type filter (credits/debits/all), date range | P-15 | BE-WINFRA-11 | — |
-| BE-WAL-03 | `[ ]` Create `WalletTopupController@store` — `POST /api/v1/wallet/topup`: validate amount against min/max/daily limits, initialize Paystack transaction, return authorization_url for client redirect | P-15 | SETUP-61, BE-WINFRA-10 | ⚠ OQ-25: Min top-up, max balance, and daily cap values TBD |
-| BE-WAL-04 | `[ ]` Create `StoreTopupFormRequest` — validate amount (positive integer kobo, within configured limits), check daily cap not exceeded, check max balance not exceeded post-top-up | P-15 | BE-WAL-03 | — |
-| BE-WAL-05 | `[ ]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{reference}/verify`: fallback verification endpoint for missed webhooks; query Paystack Verify Transaction API, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
-| BE-WAL-06 | `[ ]` Create `PaystackWebhookController@handle` — `POST /api/v1/webhooks/paystack`: verify HMAC-SHA512 signature, deduplicate via webhook_events table, route by event type (charge.success → credit wallet, transfer.success/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
-| BE-WAL-07 | `[ ]` Create `ProcessTopupWebhookJob` — queued job processing verified charge.success webhook: credit passenger wallet via LedgerService, debit psp_clearing account; handle already-processed gracefully | P-15 | BE-WAL-06, BE-WINFRA-15 | 3 retries, 30s backoff |
+| BE-WAL-01 | `[x]` Create `WalletController@show` — `GET /api/v1/wallet`: return passenger's wallet balance (available, held), account status | P-15 | BE-WINFRA-10, SETUP-51 | Auto-creates wallet account on first access if not exists |
+| BE-WAL-02 | `[x]` Create `WalletController@transactions` — `GET /api/v1/wallet/transactions`: paginated ledger entries for passenger's wallet with type filter (credits/debits/all), date range | P-15 | BE-WINFRA-11 | — |
+| BE-WAL-03 | `[x]` Create `WalletTopupController@store` — `POST /api/v1/wallet/topup`: validate amount against min/max/daily limits, initialize Paystack transaction, return authorization_url for client redirect | P-15 | SETUP-61, BE-WINFRA-10 | ⚠ OQ-25: Min top-up, max balance, and daily cap values TBD |
+| BE-WAL-04 | `[x]` Create `StoreTopupFormRequest` — validate amount (positive integer kobo, within configured limits), check daily cap not exceeded, check max balance not exceeded post-top-up | P-15 | BE-WAL-03 | — |
+| BE-WAL-05 | `[x]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{reference}/verify`: fallback verification endpoint for missed webhooks; query Paystack Verify Transaction API, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
+| BE-WAL-06 | `[x]` Create `PaystackWebhookController@handle` — `POST /api/v1/webhooks/paystack`: verify HMAC-SHA512 signature, deduplicate via webhook_events table, route by event type (charge.success → credit wallet, transfer.success/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
+| BE-WAL-07 | `[x]` Create `ProcessTopupWebhookJob` — queued job processing verified charge.success webhook: credit passenger wallet via LedgerService, debit psp_clearing account; handle already-processed gracefully | P-15 | BE-WAL-06, BE-WINFRA-15 | 3 retries, 30s backoff |
 | BE-WAL-08 | `[ ]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
 
 ### 19.2 Ride Payment Flow (Wallet)
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WAL-09 | `[ ]` Create `WalletPaymentService@placeHold()` — place hold on passenger wallet at ride request or start; validate sufficient available balance; create Hold record with ride association | P-15 | BE-WINFRA-04, BE-WINFRA-18 | Hold amount = fare estimate; returns insufficient_balance error if not enough |
-| BE-WAL-10 | `[ ]` Create `WalletPaymentService@settle()` — on ride completion, capture hold for final fare amount (may differ from estimate); post journal: debit passenger wallet, credit platform commission + driver earnings; release any hold surplus | P-15 | BE-WAL-09, BE-WINFRA-15 | Final fare may be less or more than hold — handle both |
-| BE-WAL-11 | `[ ]` Create `WalletPaymentService@releaseHold()` — on ride cancellation or no_driver_found, release hold and restore available balance | P-15 | BE-WAL-09 | — |
+| BE-WAL-09 | `[x]` Create `WalletPaymentService@placeHold()` — place hold on passenger wallet at ride request or start; validate sufficient available balance; create Hold record with ride association | P-15 | BE-WINFRA-04, BE-WINFRA-18 | Hold amount = fare estimate; returns insufficient_balance error if not enough |
+| BE-WAL-10 | `[x]` Create `WalletPaymentService@settle()` — on ride completion, capture hold for final fare amount (may differ from estimate); post journal: debit passenger wallet, credit platform commission + driver earnings; release any hold surplus | P-15 | BE-WAL-09, BE-WINFRA-15 | Final fare may be less or more than hold — handle both |
+| BE-WAL-11 | `[x]` Create `WalletPaymentService@releaseHold()` — on ride cancellation or no_driver_found, release hold and restore available balance | P-15 | BE-WAL-09 | — |
 | BE-WAL-12 | `[ ]` Implement insufficient balance handling — if final fare exceeds hold (route change, waiting time), attempt to capture available balance up to final fare; if still short, flag ride for Admin review with shortfall amount | P-15 | BE-WAL-10 | ⚠ OQ-26: Fallback payment method policy TBD |
-| BE-WAL-13 | `[ ]` Create `ExpireStaleHoldsJob` — scheduled job releasing holds older than configurable threshold (default 4 hours) with no associated active ride | P-15 | BE-WAL-09 | Runs hourly; prevents balance lockup from orphaned holds |
+| BE-WAL-13 | `[x]` Create `ExpireStaleHoldsJob` — scheduled job releasing holds older than configurable threshold (default 4 hours) with no associated active ride | P-15 | BE-WAL-09 | Runs hourly; prevents balance lockup from orphaned holds |
 | BE-WAL-14 | `[ ]` Integrate wallet as payment method in `RideController@store` — accept `payment_method: wallet`; validate sufficient balance; place hold on ride creation | P-15 | BE-WAL-09, BE-RIDE-03 | Extends existing payment_method enum (cash/card/wallet) |
 | BE-WAL-15 | `[ ]` Integrate wallet settlement into ride completion flow — wire `WalletPaymentService@settle()` into `ProcessPaymentJob` for wallet rides | P-15 | BE-WAL-10, BE-PAY-09 | — |
 
@@ -639,8 +639,8 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WAL-16 | `[ ]` Create `WalletRefundService@refundToWallet()` — post journal: debit refunds account, credit passenger wallet; link to ride and dispute; support full and partial refunds | P-15 | BE-WINFRA-15 | ⚠ OQ-27: Refund policy — wallet only, or back to original payment method? |
-| BE-WAL-17 | `[ ]` Create `WalletRefundService@clawbackDriverEarnings()` — on refund, create corresponding debit entry on driver earnings account; link to original ride settlement journal | P-15 | BE-WAL-16, BE-WINFRA-17 | — |
+| BE-WAL-16 | `[x]` Create `WalletRefundService@refundToWallet()` — post journal: debit refunds account, credit passenger wallet; link to ride and dispute; support full and partial refunds | P-15 | BE-WINFRA-15 | ⚠ OQ-27: Refund policy — wallet only, or back to original payment method? |
+| BE-WAL-17 | `[x]` Create `WalletRefundService@clawbackDriverEarnings()` — on refund, create corresponding debit entry on driver earnings account; link to original ride settlement journal | P-15 | BE-WAL-16, BE-WINFRA-17 | — |
 
 ---
 
@@ -653,28 +653,28 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-EARN-01 | `[ ]` Create migration: `commission_configs` table — id, rate (decimal 5,4, e.g. 0.2000 = 20%), driver_id (FK nullable for per-driver override), is_active (bool default true), created_by_admin_id (FK), created_at, updated_at | D-10 | SETUP-06 | Global default + optional per-driver override; nullable driver_id = global rate |
-| BE-EARN-02 | `[ ]` Create `CommissionConfig` Eloquent model; `CommissionService@getRate()` — return per-driver override if exists, else global default | — | BE-EARN-01 | — |
-| BE-EARN-03 | `[ ]` Create `DriverEarningsService@creditRideEarnings()` — on ride completion, calculate commission = fare × rate, net earnings = fare − commission; post journal: debit passenger wallet (or psp_clearing for card/cash), credit driver_earnings_pending + platform_commission | D-10 | BE-EARN-02, BE-WINFRA-15 | Dispatched from ride completion pipeline |
+| BE-EARN-01 | `[x]` Create migration: `commission_configs` table — id, rate (decimal 5,4, e.g. 0.2000 = 20%), driver_id (FK nullable for per-driver override), is_active (bool default true), created_by_admin_id (FK), created_at, updated_at | D-10 | SETUP-06 | Global default + optional per-driver override; nullable driver_id = global rate |
+| BE-EARN-02 | `[x]` Create `CommissionConfig` Eloquent model; `CommissionService@getRate()` — return per-driver override if exists, else global default | — | BE-EARN-01 | — |
+| BE-EARN-03 | `[x]` Create `DriverEarningsService@creditRideEarnings()` — on ride completion, calculate commission = fare × rate, net earnings = fare − commission; post journal: debit passenger wallet (or psp_clearing for card/cash), credit driver_earnings_pending + platform_commission | D-10 | BE-EARN-02, BE-WINFRA-15 | Dispatched from ride completion pipeline |
 | BE-EARN-04 | `[ ]` Create `SettleDriverEarningsJob` — move earnings from pending to available based on settlement rule (configurable delay: instant, 24h, or weekly); post journal: debit driver_earnings_pending, credit driver_earnings_available | D-10 | BE-EARN-03 | ⚠ OQ-28: Settlement delay policy TBD |
 | BE-EARN-05 | `[ ]` Implement cash-ride commission handling — when payment_method = cash, driver collects fare directly; debit commission from driver_earnings_available; allow negative balance up to configurable threshold | D-10 | BE-EARN-03 | ⚠ OQ-29: Cash-ride commission policy TBD; negative balance blocks/warns on new rides |
 | BE-EARN-06 | `[ ]` Create `DriverEarningsController@show` — `GET /api/v1/driver/earnings`: return pending, available, total paid out balances; today/this week/this month summaries | D-10 | BE-WINFRA-10, SETUP-51 | — |
 | BE-EARN-07 | `[ ]` Create `DriverEarningsController@rideBreakdown` — `GET /api/v1/driver/earnings/rides/{ride}`: fare, commission amount, commission rate, net earnings, payment type, tip (if any) for a specific ride | D-10 | BE-EARN-03 | — |
-| BE-EARN-08 | `[ ]` Create `DriverLedgerController@index` — `GET /api/v1/driver/ledger`: paginated ledger entries (ride earnings, adjustments, clawbacks, payouts) with date and type filters | D-11 | BE-WINFRA-11 | — |
+| BE-EARN-08 | `[x]` Create `DriverLedgerController@index` — `GET /api/v1/driver/ledger`: paginated ledger entries (ride earnings, adjustments, clawbacks, payouts) with date and type filters | D-11 | BE-WINFRA-11 | — |
 
 ### 20.2 Bank Account & Payouts
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-EARN-09 | `[ ]` Create `BankAccountController@store` — `POST /api/v1/driver/bank-account`: accept bank_code + account_number; call Paystack Resolve Account Name API to verify; save verified account | D-10 | BE-WINFRA-13, SETUP-61 | 🔒 Re-authentication or OTP required for account changes |
-| BE-EARN-10 | `[ ]` Create `StoreBankAccountRequest` — validate bank_code (from Paystack bank list), account_number (10 digits for Nigerian banks) | D-10 | BE-EARN-09 | — |
-| BE-EARN-11 | `[ ]` Create `BankAccountController@show` — `GET /api/v1/driver/bank-account`: return saved bank account details (masked account number) | D-10 | BE-WINFRA-13 | — |
-| BE-EARN-12 | `[ ]` Create `PayoutController@store` — `POST /api/v1/driver/payouts`: request payout of available balance; validate minimum payout amount; validate bank account exists and is verified; create Payout record with status=requested | D-10 | BE-WINFRA-14, BE-EARN-09 | ⚠ OQ-30: Minimum payout amount TBD |
-| BE-EARN-13 | `[ ]` Create `StorePayoutRequest` — validate amount (positive, ≤ available balance, ≥ minimum), no other pending payout exists | D-10 | BE-EARN-12 | — |
-| BE-EARN-14 | `[ ]` Create `PayoutController@index` — `GET /api/v1/driver/payouts`: list payout history with status filters (requested/approved/processing/paid/failed) | D-10 | BE-WINFRA-14 | — |
-| BE-EARN-15 | `[ ]` Create `ProcessPayoutTransferJob` — on Admin approval, initiate Paystack Transfer to driver's bank account; update payout status to processing; handle Paystack Transfer response | D-10 | BE-EARN-12, SETUP-61 | 3 retries, exponential backoff; 🔒 Paystack Transfer API keys restricted to server |
-| BE-EARN-16 | `[ ]` Handle payout transfer webhook — on transfer.success: post journal (debit driver_earnings_available, credit psp_clearing), update payout status=paid; on transfer.failed: update status=failed, record failure_reason | D-10 | BE-WAL-06, BE-EARN-15 | Idempotent via webhook_events table |
-| BE-EARN-17 | `[ ]` Create `PayoutFailureReversalJob` — on payout failure, reverse the earnings debit if it was pre-debited; notify driver of failure with retry guidance | D-10 | BE-EARN-16, BE-WINFRA-17 | — |
+| BE-EARN-09 | `[x]` Create `BankAccountController@store` — `POST /api/v1/driver/bank-account`: accept bank_code + account_number; call Paystack Resolve Account Name API to verify; save verified account | D-10 | BE-WINFRA-13, SETUP-61 | 🔒 Re-authentication or OTP required for account changes |
+| BE-EARN-10 | `[x]` Create `StoreBankAccountRequest` — validate bank_code (from Paystack bank list), account_number (10 digits for Nigerian banks) | D-10 | BE-EARN-09 | — |
+| BE-EARN-11 | `[x]` Create `BankAccountController@show` — `GET /api/v1/driver/bank-account`: return saved bank account details (masked account number) | D-10 | BE-WINFRA-13 | — |
+| BE-EARN-12 | `[x]` Create `PayoutController@store` — `POST /api/v1/driver/payouts`: request payout of available balance; validate minimum payout amount; validate bank account exists and is verified; create Payout record with status=requested | D-10 | BE-WINFRA-14, BE-EARN-09 | ⚠ OQ-30: Minimum payout amount TBD |
+| BE-EARN-13 | `[x]` Create `StorePayoutRequest` — validate amount (positive, ≤ available balance, ≥ minimum), no other pending payout exists | D-10 | BE-EARN-12 | — |
+| BE-EARN-14 | `[x]` Create `PayoutController@index` — `GET /api/v1/driver/payouts`: list payout history with status filters (requested/approved/processing/paid/failed) | D-10 | BE-WINFRA-14 | — |
+| BE-EARN-15 | `[x]` Create `ProcessPayoutTransferJob` — on Admin approval, initiate Paystack Transfer to driver's bank account; update payout status to processing; handle Paystack Transfer response | D-10 | BE-EARN-12, SETUP-61 | 3 retries, exponential backoff; 🔒 Paystack Transfer API keys restricted to server |
+| BE-EARN-16 | `[x]` Handle payout transfer webhook — on transfer.success: post journal (debit driver_earnings_available, credit psp_clearing), update payout status=paid; on transfer.failed: update status=failed, record failure_reason | D-10 | BE-WAL-06, BE-EARN-15 | Idempotent via webhook_events table |
+| BE-EARN-17 | `[x]` Create `PayoutFailureReversalJob` — on payout failure, reverse the earnings debit if it was pre-debited; notify driver of failure with retry guidance | D-10 | BE-EARN-16, BE-WINFRA-17 | — |
 
 ---
 
@@ -686,40 +686,40 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-01 | `[ ]` Create `AdminWalletController@index` — `GET /api/v1/admin/wallets`: list passenger wallets with search (name/phone/email), balance range filter, status filter, pagination | A-16 | BE-WINFRA-10, SETUP-52 | — |
-| BE-WADM-02 | `[ ]` Create `AdminWalletController@show` — `GET /api/v1/admin/wallets/{account}`: wallet detail with balance, active holds, recent transactions | A-16 | BE-WADM-01 | — |
-| BE-WADM-03 | `[ ]` Create `AdminWalletController@freeze` / `unfreeze` — `POST /api/v1/admin/wallets/{account}/freeze` / `unfreeze`: freeze wallet (blocks all transactions) or unfreeze with mandatory reason; audit log | A-16 | BE-WADM-01 | Frozen wallet rejects top-ups, ride payments, and refunds |
-| BE-WADM-04 | `[ ]` Create `AdminDriverLedgerController@index` — `GET /api/v1/admin/driver-ledgers`: list driver earnings accounts with pending/available balances, search, pagination | A-16 | BE-WINFRA-10, SETUP-52 | — |
-| BE-WADM-05 | `[ ]` Create `AdminDriverLedgerController@show` — `GET /api/v1/admin/driver-ledgers/{account}`: driver earnings detail with commission history, payouts, bank account | A-16 | BE-WADM-04 | — |
-| BE-WADM-06 | `[ ]` Create `AdminLedgerExplorerController@index` — `GET /api/v1/admin/ledger`: global transaction search by reference, user, ride, type, date range; journal view showing both sides of each entry; pagination | A-16 | BE-WINFRA-11, SETUP-52 | — |
-| BE-WADM-07 | `[ ]` Create `AdminLedgerExplorerController@export` — `GET /api/v1/admin/ledger/export`: CSV export of filtered ledger entries; stream large datasets | A-16 | BE-WADM-06 | — |
+| BE-WADM-01 | `[x]` Create `AdminWalletController@index` — `GET /api/v1/admin/wallets`: list passenger wallets with search (name/phone/email), balance range filter, status filter, pagination | A-16 | BE-WINFRA-10, SETUP-52 | — |
+| BE-WADM-02 | `[x]` Create `AdminWalletController@show` — `GET /api/v1/admin/wallets/{account}`: wallet detail with balance, active holds, recent transactions | A-16 | BE-WADM-01 | — |
+| BE-WADM-03 | `[x]` Create `AdminWalletController@freeze` / `unfreeze` — `POST /api/v1/admin/wallets/{account}/freeze` / `unfreeze`: freeze wallet (blocks all transactions) or unfreeze with mandatory reason; audit log | A-16 | BE-WADM-01 | Frozen wallet rejects top-ups, ride payments, and refunds |
+| BE-WADM-04 | `[x]` Create `AdminDriverLedgerController@index` — `GET /api/v1/admin/driver-ledgers`: list driver earnings accounts with pending/available balances, search, pagination | A-16 | BE-WINFRA-10, SETUP-52 | — |
+| BE-WADM-05 | `[x]` Create `AdminDriverLedgerController@show` — `GET /api/v1/admin/driver-ledgers/{account}`: driver earnings detail with commission history, payouts, bank account | A-16 | BE-WADM-04 | — |
+| BE-WADM-06 | `[x]` Create `AdminLedgerExplorerController@index` — `GET /api/v1/admin/ledger`: global transaction search by reference, user, ride, type, date range; journal view showing both sides of each entry; pagination | A-16 | BE-WINFRA-11, SETUP-52 | — |
+| BE-WADM-07 | `[x]` Create `AdminLedgerExplorerController@export` — `GET /api/v1/admin/ledger/export`: CSV export of filtered ledger entries; stream large datasets | A-16 | BE-WADM-06 | — |
 
 ### 21.2 Manual Adjustments
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-08 | `[ ]` Create migration: `adjustments` table — id, account_id (FK), type (enum: credit/debit), amount (bigint), reason (text), status (enum: pending/approved/rejected), created_by_admin_id (FK), approved_by_admin_id (FK nullable), journal_id (FK nullable), created_at, approved_at (nullable) | NF-06 | BE-WINFRA-01 | Maker-checker: creator ≠ approver |
-| BE-WADM-09 | `[ ]` Create `Adjustment` Eloquent model with relationships | — | BE-WADM-08 | — |
-| BE-WADM-10 | `[ ]` Create `AdminAdjustmentController@store` — `POST /api/v1/admin/adjustments`: create pending adjustment (credit or debit) with mandatory reason; does NOT post to ledger until approved | NF-06 | BE-WADM-09, SETUP-52 | 🔒 Audit log on creation |
-| BE-WADM-11 | `[ ]` Create `AdminAdjustmentController@approve` — `POST /api/v1/admin/adjustments/{adjustment}/approve`: second admin approves; post journal via LedgerService; update adjustment status and link journal_id | NF-06 | BE-WADM-10, BE-WINFRA-15 | 🔒 Approver must differ from creator; audit log |
-| BE-WADM-12 | `[ ]` Create `AdminAdjustmentController@reject` — `POST /api/v1/admin/adjustments/{adjustment}/reject`: reject with reason; audit log | NF-06 | BE-WADM-10 | — |
-| BE-WADM-13 | `[ ]` Create `AdminRefundController@refundToWallet` — `POST /api/v1/admin/rides/{ride}/refund`: Admin-initiated refund to passenger wallet from ride detail; full or partial amount | A-16 | BE-WAL-16, SETUP-52 | Linked to dispute if one exists |
+| BE-WADM-08 | `[x]` Create migration: `adjustments` table — id, account_id (FK), type (enum: credit/debit), amount (bigint), reason (text), status (enum: pending/approved/rejected), created_by_admin_id (FK), approved_by_admin_id (FK nullable), journal_id (FK nullable), created_at, approved_at (nullable) | NF-06 | BE-WINFRA-01 | Maker-checker: creator ≠ approver |
+| BE-WADM-09 | `[x]` Create `Adjustment` Eloquent model with relationships | — | BE-WADM-08 | — |
+| BE-WADM-10 | `[x]` Create `AdminAdjustmentController@store` — `POST /api/v1/admin/adjustments`: create pending adjustment (credit or debit) with mandatory reason; does NOT post to ledger until approved | NF-06 | BE-WADM-09, SETUP-52 | 🔒 Audit log on creation |
+| BE-WADM-11 | `[x]` Create `AdminAdjustmentController@approve` — `POST /api/v1/admin/adjustments/{adjustment}/approve`: second admin approves; post journal via LedgerService; update adjustment status and link journal_id | NF-06 | BE-WADM-10, BE-WINFRA-15 | 🔒 Approver must differ from creator; audit log |
+| BE-WADM-12 | `[x]` Create `AdminAdjustmentController@reject` — `POST /api/v1/admin/adjustments/{adjustment}/reject`: reject with reason; audit log | NF-06 | BE-WADM-10 | — |
+| BE-WADM-13 | `[x]` Create `AdminRefundController@refundToWallet` — `POST /api/v1/admin/rides/{ride}/refund`: Admin-initiated refund to passenger wallet from ride detail; full or partial amount | A-16 | BE-WAL-16, SETUP-52 | Linked to dispute if one exists |
 
 ### 21.3 Payout Administration
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-14 | `[ ]` Create `AdminPayoutController@index` — `GET /api/v1/admin/payouts`: payout queue with status filter, driver search, date range, pagination | A-16 | BE-WINFRA-14, SETUP-52 | — |
-| BE-WADM-15 | `[ ]` Create `AdminPayoutController@approve` — `POST /api/v1/admin/payouts/{payout}/approve`: approve payout; dispatch `ProcessPayoutTransferJob`; audit log | A-16 | BE-EARN-15 | — |
-| BE-WADM-16 | `[ ]` Create `AdminPayoutController@reject` — `POST /api/v1/admin/payouts/{payout}/reject`: reject with reason; notify driver; audit log | A-16 | BE-WADM-14 | — |
-| BE-WADM-17 | `[ ]` Create `AdminPayoutController@retry` — `POST /api/v1/admin/payouts/{payout}/retry`: retry failed payout; re-dispatch transfer job | A-16 | BE-EARN-15 | Only for status=failed payouts |
-| BE-WADM-18 | `[ ]` Create `AdminPayoutController@export` — `GET /api/v1/admin/payouts/export`: CSV export of payout batch for finance reconciliation | A-16 | BE-WADM-14 | — |
+| BE-WADM-14 | `[x]` Create `AdminPayoutController@index` — `GET /api/v1/admin/payouts`: payout queue with status filter, driver search, date range, pagination | A-16 | BE-WINFRA-14, SETUP-52 | — |
+| BE-WADM-15 | `[x]` Create `AdminPayoutController@approve` — `POST /api/v1/admin/payouts/{payout}/approve`: approve payout; dispatch `ProcessPayoutTransferJob`; audit log | A-16 | BE-EARN-15 | — |
+| BE-WADM-16 | `[x]` Create `AdminPayoutController@reject` — `POST /api/v1/admin/payouts/{payout}/reject`: reject with reason; notify driver; audit log | A-16 | BE-WADM-14 | — |
+| BE-WADM-17 | `[x]` Create `AdminPayoutController@retry` — `POST /api/v1/admin/payouts/{payout}/retry`: retry failed payout; re-dispatch transfer job | A-16 | BE-EARN-15 | Only for status=failed payouts |
+| BE-WADM-18 | `[x]` Create `AdminPayoutController@export` — `GET /api/v1/admin/payouts/export`: CSV export of payout batch for finance reconciliation | A-16 | BE-WADM-14 | — |
 
 ### 21.4 Settings & Configuration
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-19 | `[ ]` Create `AdminCommissionController@show` / `update` — `GET/PUT /api/v1/admin/settings/commission`: view and update global commission rate; per-driver override CRUD | A-16 | BE-EARN-01, SETUP-52 | Audit log on changes; changes apply to future rides only |
+| BE-WADM-19 | `[x]` Create `AdminCommissionController@show` / `update` — `GET/PUT /api/v1/admin/settings/commission`: view and update global commission rate; per-driver override CRUD | A-16 | BE-EARN-01, SETUP-52 | Audit log on changes; changes apply to future rides only |
 | BE-WADM-20 | `[ ]` Create `AdminWalletSettingsController@show` / `update` — `GET/PUT /api/v1/admin/settings/wallet`: configure min top-up, max balance, daily top-up cap, minimum payout amount, payout schedule | A-16 | SETUP-52 | Stored in config table or application settings |
 
 ### 21.5 Reconciliation & Monitoring
@@ -730,7 +730,7 @@
 | BE-WADM-22 | `[ ]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes |
 | BE-WADM-23 | `[ ]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly schedule |
 | BE-WADM-24 | `[ ]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Paystack settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | — |
-| BE-WADM-25 | `[ ]` Create `AdminReconciliationController@walletLiability` — `GET /api/v1/admin/reports/wallet-liability`: total passenger wallet balances (platform liability), commission collected, driver earnings payable | A-16 | BE-WINFRA-10 | — |
+| BE-WADM-25 | `[x]` Create `AdminReconciliationController@walletLiability` — `GET /api/v1/admin/reports/wallet-liability`: total passenger wallet balances (platform liability), commission collected, driver earnings payable | A-16 | BE-WINFRA-10 | — |
 
 ### 21.6 Wallet Notifications
 
@@ -751,10 +751,10 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-31 | `[ ]` Create ledger unit tests: postJournal balance invariant, double-spend prevention, idempotent posting, reversal entries, hold capture/release, available balance calculation | — | BE-WINFRA-15 | — |
-| BE-WADM-32 | `[ ]` Create concurrency tests: parallel debit attempts on same account (only one should succeed), concurrent top-up webhooks (idempotent), concurrent payout requests | — | BE-WINFRA-15 | ⏱ Run with `--parallel` flag |
-| BE-WADM-33 | `[ ]` Create webhook tests: signature verification, replay detection (duplicate event_id), out-of-order event processing, missing/malformed payloads | — | BE-WAL-06 | — |
-| BE-WADM-34 | `[ ]` Create Paystack integration tests: test-mode top-up end-to-end, transfer initiation and webhook callback | — | BE-WAL-03, BE-EARN-15 | Uses Paystack test keys |
+| BE-WADM-31 | `[x]` Create ledger unit tests: postJournal balance invariant, double-spend prevention, idempotent posting, reversal entries, hold capture/release, available balance calculation | — | BE-WINFRA-15 | — |
+| BE-WADM-32 | `[x]` Create concurrency tests: parallel debit attempts on same account (only one should succeed), concurrent top-up webhooks (idempotent), concurrent payout requests | — | BE-WINFRA-15 | ⏱ Run with `--parallel` flag |
+| BE-WADM-33 | `[x]` Create webhook tests: signature verification, replay detection (duplicate event_id), out-of-order event processing, missing/malformed payloads | — | BE-WAL-06 | — |
+| BE-WADM-34 | `[x]` Create Paystack integration tests: test-mode top-up end-to-end, transfer initiation and webhook callback | — | BE-WAL-03, BE-EARN-15 | Uses Paystack test keys |
 
 ---
 
@@ -971,15 +971,15 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[ ]` Unresolved |
+| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[x]` Unresolved |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[ ]` Unresolved |
-| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[ ]` Unresolved |
+| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[x]` Unresolved |
 | OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[ ]` Unresolved |
 | OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[ ]` Unresolved |
-| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[ ]` Unresolved |
-| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[ ]` Unresolved |
-| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[ ]` Unresolved |
-| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[ ]` Unresolved |
+| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[x]` Unresolved |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` Unresolved |
+| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[x]` Unresolved |
+| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[x]` Unresolved |
 
 ### Phase 2 Decisions
 

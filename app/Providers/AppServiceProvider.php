@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
+use App\Contracts\PaystackGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
 use App\Models\PersonalAccessToken;
@@ -15,6 +16,8 @@ use App\Services\HaversineMapsGateway;
 use App\Services\MapboxGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
+use App\Gateways\FakePaystackGateway;
+use App\Gateways\PaystackPaymentGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
@@ -40,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPushNotificationGateway();
         $this->registerPaymentGateway();
         $this->registerKycGateway();
+        $this->registerPaystackGateway();
     }
 
     public function boot(): void
@@ -84,6 +88,23 @@ class AppServiceProvider extends ServiceProvider
                 config('services.qoreid.client_id', ''),
                 config('services.qoreid.secret_key', ''),
             );
+        });
+    }
+
+    private function registerPaystackGateway(): void
+    {
+        $this->app->bind(PaystackGateway::class, function () {
+            $secretKey = config('wallet.paystack.secret_key');
+
+            if ($secretKey) {
+                return new PaystackPaymentGateway($secretKey);
+            }
+
+            if (! $this->app->environment('local', 'testing')) {
+                throw new \RuntimeException('Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in your environment.');
+            }
+
+            return new FakePaystackGateway;
         });
     }
 
