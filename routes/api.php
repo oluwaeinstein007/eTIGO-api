@@ -108,14 +108,16 @@ Route::prefix('auth')->group(function () {
 | Auth — Admin (email/password)
 |--------------------------------------------------------------------------
 */
-Route::prefix('admin/auth')->middleware('throttle:5,1')->group(function () {
-    Route::post('/login', [AdminAuthController::class, 'login']);
+Route::prefix('admin/auth')->group(function () {
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('/login', [AdminAuthController::class, 'login']);
 
-    Route::get('/invite/verify/{token}', [AdminInvitationController::class, 'verifyToken']);
-    Route::post('/invite/accept', [AdminInvitationController::class, 'accept']);
+        Route::get('/invite/verify/{token}', [AdminInvitationController::class, 'verifyToken']);
+        Route::post('/invite/accept', [AdminInvitationController::class, 'accept']);
 
-    Route::post('/forgot-password', [AdminInvitationController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AdminInvitationController::class, 'resetPassword']);
+        Route::post('/forgot-password', [AdminInvitationController::class, 'forgotPassword']);
+        Route::post('/reset-password', [AdminInvitationController::class, 'resetPassword']);
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
