@@ -28,7 +28,8 @@ class DispatchRideRequestJob implements ShouldQueue
         DriverMatchingService $matchingService,
         PushNotificationGateway $pushGateway,
     ): void {
-        $ride = Ride::with(['vehicleClass', 'city'])->find($this->rideId);
+        $ride = Ride::with(['vehicleClass', 'city', 'passenger'])
+            ->find($this->rideId);
 
         if (! $ride || $ride->status !== RideStatus::Searching) {
             return;
@@ -68,6 +69,17 @@ class DispatchRideRequestJob implements ShouldQueue
             currency: $ride->fare_currency ?? 'NGN',
             vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
             responseTimeoutSeconds: $timeout,
+            paymentMethod: $ride->payment_method?->value ?? '',
+            passengerName: trim(
+                ($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')
+            ),
+            passengerRating: $ride->passenger?->averageRating(),
+            distanceKm: isset($ride->pricing_snapshot['distance_km'])
+                ? (float) $ride->pricing_snapshot['distance_km']
+                : null,
+            durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
+                ? (float) $ride->pricing_snapshot['duration_minutes']
+                : null,
         );
 
         try {
