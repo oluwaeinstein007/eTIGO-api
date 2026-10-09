@@ -77,11 +77,18 @@ class WalletPaymentService
             }
 
             $passengerAccount = Account::whereKey($hold->account_id)->lockForUpdate()->first();
+
+            $otherHoldsTotal = (int) Hold::where('account_id', $passengerAccount->id)
+                ->where('status', HoldStatus::Active)
+                ->where('id', '!=', $hold->id)
+                ->sum('amount');
+            $spendableBalance = max(0, $passengerAccount->balance - $otherHoldsTotal);
+
             $chargeAmount = $finalFareKobo;
             $shortfall = 0;
 
-            if ($passengerAccount->balance < $finalFareKobo) {
-                $chargeAmount = max(0, $passengerAccount->balance);
+            if ($spendableBalance < $finalFareKobo) {
+                $chargeAmount = $spendableBalance;
                 $shortfall = $finalFareKobo - $chargeAmount;
             }
 

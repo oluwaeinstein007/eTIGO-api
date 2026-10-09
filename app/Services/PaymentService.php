@@ -191,6 +191,14 @@ class PaymentService
 
     public function processWalletPayment(Ride $ride): Payment
     {
+        $existing = Payment::where('ride_id', $ride->id)
+            ->whereIn('status', [PaymentStatus::Captured, PaymentStatus::Failed])
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
         $finalFareKobo = (int) round(($ride->final_fare_amount ?? $ride->fare_estimate_amount) * 100);
 
         try {

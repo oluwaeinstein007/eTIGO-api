@@ -63,11 +63,12 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
             }
 
             WalletTransaction::where('reference', $this->reference)
-                ->where('status', WalletTransactionStatus::Pending)
+                ->whereIn('status', [WalletTransactionStatus::Pending, WalletTransactionStatus::Abandoned])
                 ->update([
                     'status' => WalletTransactionStatus::Completed,
                     'journal_id' => $journal->id,
                     'completed_at' => now(),
+                    'abandoned_at' => null,
                 ]);
 
             Log::info("Wallet top-up processed: {$this->reference}, amount: {$this->amountKobo}");

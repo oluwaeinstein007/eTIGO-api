@@ -13,13 +13,16 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class MatchingTimeoutJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 1;
+    public int $tries = 3;
+
+    public array $backoff = [5, 15];
 
     public function __construct(
         public readonly string $rideId,
@@ -40,17 +43,19 @@ class MatchingTimeoutJob implements ShouldQueue
             'ride_id' => $this->rideId,
         ]);
 
-        $stateMachine->transitionTo(
-            $ride,
-            RideStatus::NoDriverFound,
-            null,
-            'system',
-            ['reason' => 'matching_timeout'],
-        );
+        DB::transaction(function () use ($ride, $stateMachine, $walletPaymentService) {
+            $stateMachine->transitionTo(
+                $ride,
+                RideStatus::NoDriverFound,
+                null,
+                'system',
+                ['reason' => 'matching_timeout'],
+            );
 
-        if ($ride->payment_method === PaymentMethod::Wallet) {
-            $walletPaymentService->releaseHold($ride);
-        }
+            if ($ride->payment_method === PaymentMethod::Wallet) {
+                $walletPaymentService->releaseHold($ride);
+            }
+        });
 
         $matchingService->cleanupRideCache($ride);
     }
