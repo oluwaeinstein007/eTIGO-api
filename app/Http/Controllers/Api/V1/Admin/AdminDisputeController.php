@@ -24,6 +24,22 @@ class AdminDisputeController extends Controller
             $query->where('category', $request->input('category'));
         }
 
+        if ($request->filled('ride_id')) {
+            $query->where('ride_id', $request->input('ride_id'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'ilike', "%{$search}%")
+                    ->orWhereHas('reportedBy', function ($q) use ($search) {
+                        $q->where('first_name', 'ilike', "%{$search}%")
+                            ->orWhere('last_name', 'ilike', "%{$search}%")
+                            ->orWhere('email', 'ilike', "%{$search}%");
+                    });
+            });
+        }
+
         if ($request->filled('from')) {
             $query->whereDate('created_at', '>=', $request->input('from'));
         }

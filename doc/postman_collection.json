@@ -2575,6 +2575,361 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Ratings & Disputes",
+          "item": [
+            {
+              "name": "Submit Rating (Passenger → Driver)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"score\": 5,\n  \"comment\": \"Great ride, very smooth!\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/rating",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "rating"
+                  ]
+                },
+                "description": "Submit a 1–5 star rating for a completed ride. Passenger rates the driver. Each participant can submit one rating per ride.\n\n**Validation:**\n- Ride must be completed\n- User must be a participant (passenger or driver)\n- Cannot rate the same ride twice\n- Score: integer 1–5\n- Comment: optional, max 1000 characters"
+              },
+              "response": [
+                {
+                  "name": "201 — Rating Submitted",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 5,\n    \"comment\": \"Great ride, very smooth!\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"email\": \"jane@example.com\",\n      \"type\": \"driver\"\n    },\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Submit Rating (Driver → Passenger)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"score\": 4,\n  \"comment\": \"Passenger was on time.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/rating",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "rating"
+                  ]
+                },
+                "description": "Driver rates the passenger after a completed ride. Same endpoint, different auth token."
+              },
+              "response": [
+                {
+                  "name": "201 — Rating Submitted",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Rating submitted successfully.\",\n  \"rating\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-ef2345678901\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"score\": 4,\n    \"comment\": \"Passenger was on time.\",\n    \"rated_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-222222222222\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"type\": \"driver\"\n    },\n    \"rated_user\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"type\": \"passenger\"\n    },\n    \"created_at\": \"2026-10-09T12:05:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Submit Rating — Already Rated (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"score\": 5\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/rating",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "rating"
+                  ]
+                },
+                "description": "Attempting to rate a ride that has already been rated by the same user returns a 422 validation error."
+              },
+              "response": [
+                {
+                  "name": "422 — Already Rated",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You have already rated this ride.\",\n  \"errors\": {\n    \"ride\": [\n      \"You have already rated this ride.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Submit Rating — Invalid Score (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"score\": 6\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/rating",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "rating"
+                  ]
+                },
+                "description": "Score must be an integer between 1 and 5."
+              },
+              "response": [
+                {
+                  "name": "422 — Invalid Score",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The score field must not be greater than 5.\",\n  \"errors\": {\n    \"score\": [\n      \"The score field must not be greater than 5.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "File Dispute",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"fare_dispute\",\n  \"description\": \"The fare charged was significantly higher than the estimated fare shown before the ride.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "File a dispute for a completed ride. Both passengers and drivers can file disputes.\n\n**Categories:** `fare_dispute`, `driver_behaviour`, `route_deviation`, `vehicle_condition`, `safety_concern`, `payment_issue`, `item_left_behind`, `other`\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10–2000 characters"
+              },
+              "response": [
+                {
+                  "name": "201 — Dispute Filed",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute filed successfully.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare shown before the ride.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "File Dispute — Already Disputed (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"safety_concern\",\n  \"description\": \"Attempting to file a second dispute for the same ride.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "Attempting to file a second dispute for the same ride returns a 422 validation error."
+              },
+              "response": [
+                {
+                  "name": "422 — Already Disputed",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You have already filed a dispute for this ride.\",\n  \"errors\": {\n    \"ride\": [\n      \"You have already filed a dispute for this ride.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "File Dispute — Invalid Category (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"invalid_category\",\n  \"description\": \"Testing with an invalid dispute category.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "Submitting an invalid category returns a 422 validation error. Valid categories: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other."
+              },
+              "response": [
+                {
+                  "name": "422 — Invalid Category",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The selected category is invalid.\",\n  \"errors\": {\n    \"category\": [\n      \"The selected category is invalid.\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated passenger users."
@@ -7595,6 +7950,375 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This ride cannot be assigned in its current state.\",\n  \"current_status\": \"in_progress\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Dispute Management",
+          "item": [
+            {
+              "name": "List Disputes",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes?per_page=15&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Filter by status: open, under_review, resolved, dismissed"
+                    },
+                    {
+                      "key": "category",
+                      "value": "",
+                      "description": "Filter by category: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other"
+                    },
+                    {
+                      "key": "ride_id",
+                      "value": "",
+                      "description": "Filter by specific ride UUID"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by description or reporter name/email"
+                    },
+                    {
+                      "key": "from",
+                      "value": "",
+                      "description": "Filter disputes created on or after (YYYY-MM-DD)"
+                    },
+                    {
+                      "key": "to",
+                      "value": "",
+                      "description": "Filter disputes created on or before (YYYY-MM-DD)"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "Items per page (default: 15)"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number"
+                    }
+                  ]
+                },
+                "description": "List all disputes with optional filters and pagination.\n\n**Filters:**\n- `status`: open, under_review, resolved, dismissed\n- `category`: fare_dispute, driver_behaviour, route_deviation, vehicle_condition, safety_concern, payment_issue, item_left_behind, other\n- `ride_id`: UUID of a specific ride\n- `search`: full-text search across dispute description and reporter name/email\n- `from` / `to`: date range (YYYY-MM-DD)\n- `per_page`: pagination size (default 15)"
+              },
+              "response": [
+                {
+                  "name": "200 — Disputes List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n      \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"category\": \"fare_dispute\",\n      \"category_label\": \"Fare Dispute\",\n      \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n      \"status\": \"open\",\n      \"status_label\": \"Open\",\n      \"reported_by\": {\n        \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\",\n        \"email\": \"john@example.com\",\n        \"type\": \"passenger\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"status\": \"completed\"\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Disputes — Filter by Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes?status=open",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "open",
+                      "description": "Filter: open disputes only"
+                    }
+                  ]
+                },
+                "description": "Filter disputes by status. Returns only disputes with the specified status."
+              },
+              "response": []
+            },
+            {
+              "name": "List Disputes — Filter by Category",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes?category=fare_dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "category",
+                      "value": "fare_dispute",
+                      "description": "Filter: fare disputes only"
+                    }
+                  ]
+                },
+                "description": "Filter disputes by category."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Dispute Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}"
+                  ]
+                },
+                "description": "Return full dispute details including the ride with passenger, driver, vehicle class, city, and payment information."
+              },
+              "response": [
+                {
+                  "name": "200 — Dispute Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\",\n      \"pickup_address\": \"123 Main Street, Abuja\",\n      \"destination_address\": \"456 Airport Road, Abuja\",\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"passenger\": {\n        \"id\": \"...\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\"\n      },\n      \"driver\": {\n        \"id\": \"...\",\n        \"first_name\": \"Jane\",\n        \"last_name\": \"Smith\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"...\",\n        \"name\": \"comfort\",\n        \"display_name\": \"Comfort\"\n      },\n      \"city\": {\n        \"id\": \"...\",\n        \"name\": \"Abuja\"\n      },\n      \"payment\": {\n        \"id\": \"...\",\n        \"amount\": \"4200.00\",\n        \"currency\": \"NGN\",\n        \"method\": \"card\",\n        \"status\": \"captured\"\n      }\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resolve Dispute",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Fare adjusted. Partial refund of \\u20a6500 issued to passenger account.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "resolve"
+                  ]
+                },
+                "description": "Resolve or dismiss a dispute. Creates an audit log entry.\n\n**Request fields:**\n- `status`: `resolved` or `dismissed`\n- `resolution_notes`: required, 10–2000 characters\n\n**Validation:**\n- Cannot resolve/dismiss a dispute already in a terminal state"
+              },
+              "response": [
+                {
+                  "name": "200 — Dispute Resolved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute resolved successfully.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": \"Fare adjusted. Partial refund of \\u20a6500 issued to passenger account.\",\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"resolved_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"type\": \"admin\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\"\n    },\n    \"resolved_at\": \"2026-10-09T14:00:00.000000Z\",\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T14:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Dismiss Dispute",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"dismissed\",\n  \"resolution_notes\": \"Investigation found no merit to the claim. Fare matches route distance and pricing config.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "resolve"
+                  ]
+                },
+                "description": "Dismiss a dispute (same endpoint as resolve, different status value)."
+              },
+              "response": [
+                {
+                  "name": "200 — Dispute Dismissed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute resolved successfully.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"status\": \"dismissed\",\n    \"status_label\": \"Dismissed\",\n    \"resolution_notes\": \"Investigation found no merit to the claim. Fare matches route distance and pricing config.\",\n    \"resolved_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"type\": \"admin\"\n    },\n    \"resolved_at\": \"2026-10-09T14:00:00.000000Z\",\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T14:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resolve Dispute — Already Resolved (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Trying to resolve again.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "resolve"
+                  ]
+                },
+                "description": "Attempting to resolve/dismiss a dispute that is already in a terminal state returns a 422 validation error."
+              },
+              "response": [
+                {
+                  "name": "422 — Already Resolved",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This dispute has already been resolved or dismissed.\",\n  \"errors\": {\n    \"status\": [\n      \"This dispute has already been resolved or dismissed.\"\n    ]\n  }\n}"
                 }
               ]
             }

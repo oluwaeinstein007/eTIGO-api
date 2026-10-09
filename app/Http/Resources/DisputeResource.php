@@ -19,7 +19,7 @@ class DisputeResource extends JsonResource
             'status_label' => $this->status->label(),
             'resolution_notes' => $this->when(
                 $this->resolution_notes !== null,
-                $this->resolution_notes,
+                fn () => $this->resolution_notes,
             ),
             'reported_by' => new UserResource($this->whenLoaded('reportedBy')),
             'resolved_by' => new UserResource($this->whenLoaded('resolvedBy')),

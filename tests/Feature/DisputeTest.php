@@ -131,6 +131,16 @@ describe('POST /rides/{ride}/dispute', function () {
         $response->assertStatus(422)
             ->assertJsonValidationErrors('description');
     });
+
+    it('requires authentication', function () {
+        $this->postJson(
+            "/api/v1/rides/{$this->completedRide->id}/dispute",
+            [
+                'category' => DisputeCategory::FareDispute->value,
+                'description' => 'Unauthenticated dispute attempt.',
+            ],
+        )->assertStatus(401);
+    });
 });
 
 describe('Admin Disputes API', function () {
@@ -166,6 +176,46 @@ describe('Admin Disputes API', function () {
 
         $response = $this->getJson(
             '/api/v1/admin/disputes?category=fare_dispute',
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'disputes');
+    });
+
+    it('filters disputes by date range', function () {
+        Dispute::factory()->create(['created_at' => now()->subDays(10)]);
+        Dispute::factory()->create(['created_at' => now()->subDay()]);
+
+        $from = now()->subDays(2)->toDateString();
+        $to = now()->toDateString();
+
+        $response = $this->getJson(
+            "/api/v1/admin/disputes?from={$from}&to={$to}",
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'disputes');
+    });
+
+    it('searches disputes by description or reporter name', function () {
+        $reporter = User::factory()->create([
+            'first_name' => 'Unique',
+            'last_name' => 'Reporter',
+            'type' => UserType::Passenger,
+        ]);
+
+        Dispute::factory()->create([
+            'reported_by_user_id' => $reporter->id,
+            'description' => 'Some generic issue.',
+        ]);
+        Dispute::factory()->create([
+            'description' => 'Another unrelated dispute.',
+        ]);
+
+        $response = $this->getJson(
+            '/api/v1/admin/disputes?search=Unique',
             ['Authorization' => "Bearer {$this->adminToken}"],
         );
 

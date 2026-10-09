@@ -5046,13 +5046,16 @@ List all disputes with optional filters and pagination.
 
 **Query Parameters:**
 
-| Parameter  | Type   | Description                          |
-|------------|--------|--------------------------------------|
-| `status`   | string | Filter by dispute status             |
-| `category` | string | Filter by dispute category           |
-| `from`     | date   | Filter disputes created on or after  |
-| `to`       | date   | Filter disputes created on or before |
-| `per_page` | int    | Items per page (default: 15)         |
+| Parameter  | Type   | Description                                     |
+|------------|--------|-------------------------------------------------|
+| `status`   | string | Filter by status: `open`, `under_review`, `resolved`, `dismissed` |
+| `category` | string | Filter by category (see `DisputeCategory` enum) |
+| `ride_id`  | uuid   | Filter by specific ride ID                      |
+| `search`   | string | Search by description or reporter name/email    |
+| `from`     | date   | Filter disputes created on or after (YYYY-MM-DD) |
+| `to`       | date   | Filter disputes created on or before (YYYY-MM-DD) |
+| `per_page` | int    | Items per page (default: 15)                    |
+| `page`     | int    | Page number                                     |
 
 **Response: `200 OK`**
 ```json
@@ -5094,22 +5097,34 @@ Return full dispute details including ride, passenger, driver, vehicle class, ci
 ```json
 {
   "dispute": {
-    "id": "...",
-    "ride_id": "...",
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
     "category": "fare_dispute",
     "category_label": "Fare Dispute",
-    "description": "...",
+    "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "open",
     "status_label": "Open",
-    "reported_by": { "..." },
+    "reported_by": {
+      "id": "f1a2b3c4-d5e6-7890-abcd-111111111111",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "type": "passenger"
+    },
     "ride": {
-      "id": "...",
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
       "status": "completed",
-      "passenger": { "..." },
-      "driver": { "..." },
-      "vehicle_class": { "..." },
-      "city": { "..." },
-      "payment": { "..." }
+      "pickup_address": "123 Main Street, Abuja",
+      "destination_address": "456 Airport Road, Abuja",
+      "fare_estimate_amount": "3500.00",
+      "final_fare_amount": "4200.00",
+      "fare_currency": "NGN",
+      "payment_method": "card",
+      "passenger": { "id": "...", "first_name": "John", "last_name": "Doe" },
+      "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith" },
+      "vehicle_class": { "id": "...", "name": "comfort", "display_name": "Comfort" },
+      "city": { "id": "...", "name": "Abuja" },
+      "payment": { "id": "...", "amount": "4200.00", "method": "card", "status": "captured" }
     },
     "resolved_at": null,
     "created_at": "2026-10-09T12:00:00.000000Z",
@@ -5146,12 +5161,20 @@ Resolve or dismiss a dispute. Creates an audit log entry.
 {
   "message": "Dispute resolved successfully.",
   "dispute": {
-    "id": "...",
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "category": "fare_dispute",
+    "category_label": "Fare Dispute",
+    "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "resolved",
     "status_label": "Resolved",
     "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account.",
-    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User" },
-    "resolved_at": "2026-10-09T14:00:00.000000Z"
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
+    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
+    "resolved_at": "2026-10-09T14:00:00.000000Z",
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-09T14:00:00.000000Z"
   }
 }
 ```

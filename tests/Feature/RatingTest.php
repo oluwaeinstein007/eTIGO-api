@@ -107,14 +107,24 @@ describe('POST /rides/{ride}/rating', function () {
     });
 
     it('validates score is between 1 and 5', function () {
-        $response = $this->postJson(
+        $this->postJson(
             "/api/v1/rides/{$this->completedRide->id}/rating",
             ['score' => 6],
             ['Authorization' => "Bearer {$this->passengerToken}"],
-        );
+        )->assertStatus(422)->assertJsonValidationErrors('score');
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors('score');
+        $this->postJson(
+            "/api/v1/rides/{$this->completedRide->id}/rating",
+            ['score' => 0],
+            ['Authorization' => "Bearer {$this->passengerToken}"],
+        )->assertStatus(422)->assertJsonValidationErrors('score');
+    });
+
+    it('requires authentication', function () {
+        $this->postJson(
+            "/api/v1/rides/{$this->completedRide->id}/rating",
+            ['score' => 5],
+        )->assertStatus(401);
     });
 
     it('validates comment max length', function () {
