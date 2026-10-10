@@ -6,7 +6,9 @@ use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Enums\WalletTransactionStatus;
 use App\Models\Account;
+use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Notifications\WalletTopupNotification;
 use App\Services\LedgerService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -70,6 +72,11 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
                     'completed_at' => now(),
                     'abandoned_at' => null,
                 ]);
+
+            if ($account && $account->owner_type === 'App\\Models\\User') {
+                $user = User::find($account->owner_id);
+                $user?->notify(new WalletTopupNotification($this->amountKobo, true));
+            }
 
             Log::info("Wallet top-up processed: {$this->reference}, amount: {$this->amountKobo}");
         } else {

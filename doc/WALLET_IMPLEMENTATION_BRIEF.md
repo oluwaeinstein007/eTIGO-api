@@ -1,7 +1,7 @@
 # E-tiGo Wallet Implementation Brief
 
 **Date:** 10 October 2026
-**Version:** 1.0
+**Version:** 2.0
 **Prepared for:** E-tiGo Product & Client Team
 
 ---
@@ -147,7 +147,105 @@ All wallet behavior is controlled via `config/wallet.php` with environment varia
 
 ---
 
-## 5. Tasks Completed
+## 5. Open Questions — Additional Decisions (v2.0)
+
+### OQ-28: Driver Earnings Settlement Delay
+
+**Question:** Should driver earnings be available immediately, or held for 24 hours / weekly?
+
+**Decision:** All three options supported, configurable via `config('wallet.settlement_delay')`. Default is `instant`.
+
+**How it works:**
+- **instant** (default) — Earnings go directly to `DriverEarningsAvailable` on ride completion. No pending period.
+- **24h** — Earnings go to `DriverEarningsPending`. `SettleDriverEarningsJob` (runs hourly) moves entries older than 24 hours to `DriverEarningsAvailable`.
+- **weekly** — Same as 24h but with a 7-day holding period.
+- Cash rides always go directly to `DriverEarningsAvailable` regardless of setting (driver already has the cash; only commission is debited).
+
+**Runtime configurable:** Admins can change the delay at `PUT /admin/settings/wallet` without code changes.
+
+---
+
+### OQ-29: Cash-Ride Commission Policy
+
+**Question:** How are commissions handled when the driver collects cash directly from the passenger?
+
+**Decision:** Debit commission from `DriverEarningsAvailable`. Allow negative balance up to configurable threshold.
+
+**How it works:**
+1. When a cash ride completes, the driver has already collected the full fare in person.
+2. The platform debits commission from `DriverEarningsAvailable` — this can push the balance negative.
+3. A configurable threshold (`max_negative_balance`, default −₦5,000) triggers a warning log.
+4. `hasExcessiveNegativeBalance()` helper is available for ride-blocking logic in future.
+5. `NegativeDriverBalanceReportJob` runs weekly (Mondays 08:00) and logs all drivers with negative balances for finance review.
+
+**Edge cases handled:**
+- Driver with no prior card/wallet ride earnings: balance goes negative from first cash ride commission. This is expected and tracked.
+- Multiple cash rides in succession: balance becomes progressively negative. The threshold warning fires each time.
+- Mixed payment methods: card/wallet rides build up available balance; cash rides debit commission against it.
+
+---
+
+## 6. Reconciliation & Monitoring
+
+### Daily Reconciliation (BE-WADM-21)
+
+`DailyReconciliationJob` runs at 02:00 daily. It compares:
+- **Charges:** Flutterwave `charge.completed` webhook amounts vs ledger credits to passenger wallets
+- **Transfers:** Flutterwave `transfer.completed` webhook amounts vs payout records marked paid
+
+Results are stored in `reconciliation_reports` with status `clean` or `mismatched`. Mismatches include the type (charges/transfers), gateway total, ledger total, and difference.
+
+**Admin endpoint:** `GET /admin/reports/reconciliation?date=YYYY-MM-DD`
+
+### Stuck Transaction Sweeper (BE-WADM-22)
+
+`StuckTransactionSweeperJob` runs every 30 minutes. For any `WalletTransaction` still `pending` beyond the abandoned threshold (default 30 min):
+1. Calls Flutterwave Verify Transaction API
+2. If successful: credits the wallet and marks completed
+3. If failed/error: marks as abandoned or failed
+
+This recovers funds from missed webhooks without manual intervention.
+
+### Negative Balance Report (BE-WADM-23)
+
+`NegativeDriverBalanceReportJob` runs weekly (Monday 08:00). Logs all drivers with negative `DriverEarningsAvailable` balance, highlighting those exceeding the threshold.
+
+---
+
+## 7. Wallet Notifications (BE-WADM-26/27)
+
+The `NotificationType` enum now includes all wallet events. Four notification classes dispatch on key wallet lifecycle events:
+
+| Event | Notification Class | Trigger Point |
+|-------|-------------------|---------------|
+| Top-up success | `WalletTopupNotification` | `ProcessTopupWebhookJob` on journal credit |
+| Top-up failed | `WalletTopupNotification` | Available for manual dispatch |
+| Ride wallet payment | `WalletRidePaymentNotification` | `WalletPaymentService@settle()` after transaction |
+| Wallet refund | `WalletRefundNotification` | `WalletRefundService@refundToWallet()` |
+| Payout approved | `PayoutStatusNotification` | `AdminPayoutController@approve()` |
+| Payout paid | `PayoutStatusNotification` | `ProcessPayoutWebhookJob` on success |
+| Payout failed | `PayoutStatusNotification` | `ProcessPayoutWebhookJob` on failure |
+
+All notifications use the `database` channel (stored in `notifications` table). Push notification delivery via Firebase is available but depends on FCM credentials being configured.
+
+---
+
+## 8. Fraud Guardrails (BE-WADM-29)
+
+| Guardrail | Limit | Enforcement |
+|-----------|-------|-------------|
+| Top-ups per hour | 5 | Cache counter in `WalletTopupController` |
+| Top-ups per day | 10 | Cache counter in `WalletTopupController` |
+| Daily top-up amount | ₦100,000 | Cache + validation in `StoreTopupRequest` |
+| Max wallet balance | ₦500,000 | Pre-top-up balance check |
+| Route rate limit (top-up) | 10 req/min | `throttle:10,1` middleware |
+| Route rate limit (payout) | 3 req/min | `throttle:3,1` middleware |
+
+All limits are configurable via `config/wallet.php` and overridable at runtime via the Admin Wallet Settings endpoint.
+
+---
+
+## 9. Tasks Completed
 
 | Task ID | Description | Status |
 |---------|-------------|--------|
@@ -155,34 +253,52 @@ All wallet behavior is controlled via `config/wallet.php` with environment varia
 | BE-WAL-12 | Insufficient balance handling with partial settlement | Done |
 | BE-WAL-14 | Wallet payment integration in ride creation with hold placement | Done |
 | BE-WAL-15 | Wallet settlement in ride completion flow | Done |
+| BE-EARN-04 | SettleDriverEarningsJob — configurable settlement delay | Done |
+| BE-EARN-05 | Cash-ride commission handling with negative balance threshold | Done |
+| BE-EARN-06 | Driver earnings endpoint with balances and summaries | Done |
+| BE-EARN-07 | Per-ride earnings breakdown endpoint | Done |
+| BE-WADM-20 | Admin wallet settings endpoint (runtime config) | Done |
+| BE-WADM-21 | Daily reconciliation job with mismatch detection | Done |
+| BE-WADM-22 | Stuck transaction sweeper with gateway verification | Done |
+| BE-WADM-23 | Negative driver balance weekly report | Done |
+| BE-WADM-24 | Admin reconciliation report endpoint | Done |
+| BE-WADM-26 | NotificationType enum with all wallet events | Done |
+| BE-WADM-27 | Wallet notification dispatches integrated into services | Done |
+| BE-WADM-28 | Rate limiting on funding and payout endpoints | Done |
+| BE-WADM-29 | Fraud guardrails (velocity + amount limits) | Done |
+| BE-WADM-30 | RBAC verification for all wallet admin routes | Done |
 
 **Additional integration work:**
 - Wallet hold release on ride cancellation
 - Wallet hold release on matching timeout (no driver found)
 - Wallet arm in `PaymentService::processRidePayment()`
 - `WalletTransaction` model and migration for top-up tracking
-- Job scheduling for `ExpireStaleHoldsJob` (hourly) and `ExpireAbandonedTopupsJob` (every 15 min)
-- 11 feature tests covering the full wallet ride payment lifecycle
+- Job scheduling for all 6 scheduled jobs
+- `AppSetting` model for runtime-configurable wallet settings
+- `ReconciliationReport` model and migration
+- 22 feature tests covering wallet ride payments and admin functionality
 
 ---
 
-## 6. Remaining Wallet Tasks
+## 10. Scheduled Jobs Summary
 
-The following tasks from Section 19 of the task breakdown are not yet started:
-
-| Task ID | Description | Priority |
-|---------|-------------|----------|
-| BE-WAL-16 | Wallet refund flow | P-15 |
-| BE-WAL-17 | Wallet statement export (CSV/PDF) | P-20 |
-| BE-EARN-01–15 | Driver earnings & payout system | P-15 |
-| BE-WADM-01–25 | Admin wallet management dashboard | P-20 |
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| `ExpireStaleHoldsJob` | Hourly | Releases holds older than 4 hours with no active ride |
+| `ExpireAbandonedTopupsJob` | Every 15 min | Marks pending top-ups older than 30 min as abandoned |
+| `SettleDriverEarningsJob` | Hourly | Moves pending earnings to available (when delay is 24h/weekly) |
+| `StuckTransactionSweeperJob` | Every 30 min | Verifies stuck pending transactions with gateway |
+| `DailyReconciliationJob` | Daily at 02:00 | Compares gateway vs ledger totals |
+| `NegativeDriverBalanceReportJob` | Weekly Mon 08:00 | Reports drivers with negative earnings balance |
 
 ---
 
-## 7. Client Action Items
+## 11. Client Action Items
 
 1. **Review wallet limits** (OQ-25) — Confirm min top-up (₦500), max balance (₦500,000), daily cap (₦100,000)
 2. **Refund policy** (OQ-27) — Wallet credit only, or refund to original payment method?
 3. **Wallet tips** (OQ-32) — Include in V1 launch or defer to Phase 2?
 4. **Regulatory check** (OQ-33) — Confirm closed-loop wallet model satisfies CBN requirements
 5. **Shortfall policy** (OQ-26) — Current: partial settlement + admin flag. Future: consider card fallback auto-charge?
+6. **Settlement delay** (OQ-28) — Default is `instant`. Confirm whether 24h or weekly delay is preferred for launch.
+7. **Negative balance threshold** (OQ-29) — Default −₦5,000. Confirm acceptable threshold for cash-ride commission debt.

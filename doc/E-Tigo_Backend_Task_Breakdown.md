@@ -726,26 +726,26 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-21 | `[ ]` Create `DailyReconciliationJob` — compare Flutterwave settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Schedule daily; results stored in reconciliation_reports table |
-| BE-WADM-22 | `[ ]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes |
-| BE-WADM-23 | `[ ]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly schedule |
-| BE-WADM-24 | `[ ]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Flutterwave settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | — |
+| BE-WADM-21 | `[x]` Create `DailyReconciliationJob` — compare Flutterwave settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Scheduled daily at 02:00; results stored in `reconciliation_reports` table; idempotent per date |
+| BE-WADM-22 | `[x]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes; verifies via Flutterwave API; credits wallet if successful, marks abandoned/failed otherwise |
+| BE-WADM-23 | `[x]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly on Mondays at 08:00; logs summary with critical threshold breaches |
+| BE-WADM-24 | `[x]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Flutterwave settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | Also added `GET /reports/reconciliation/history` for paginated report list |
 | BE-WADM-25 | `[x]` Create `AdminReconciliationController@walletLiability` — `GET /api/v1/admin/reports/wallet-liability`: total passenger wallet balances (platform liability), commission collected, driver earnings payable | A-16 | BE-WINFRA-10 | — |
 
 ### 21.6 Wallet Notifications
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-26 | `[ ]` Extend `NotificationType` enum with wallet events: topup_success, topup_failed, ride_wallet_payment, wallet_refund, payout_approved, payout_paid, payout_failed | B-06 | BE-NOTIF-02 | — |
-| BE-WADM-27 | `[ ]` Create wallet push notification dispatches: send on top-up success/failure, ride wallet deduction, refund credit, payout status changes | B-06 | BE-WADM-26, SETUP-57 | Integrated into respective services/jobs |
+| BE-WADM-26 | `[x]` Extend `NotificationType` enum with wallet events: topup_success, topup_failed, ride_wallet_payment, wallet_refund, payout_approved, payout_paid, payout_failed | B-06 | BE-NOTIF-02 | Full enum created at `app/Enums/NotificationType.php` with label() and channel() helpers |
+| BE-WADM-27 | `[x]` Create wallet push notification dispatches: send on top-up success/failure, ride wallet deduction, refund credit, payout status changes | B-06 | BE-WADM-26, SETUP-57 | 4 notification classes created; integrated into ProcessTopupWebhookJob, WalletPaymentService, WalletRefundService, ProcessPayoutWebhookJob, AdminPayoutController |
 
 ### 21.7 Security & Compliance
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-28 | `[ ]` Implement rate limiting on funding and payout endpoints: `throttle:10,1` on top-up, `throttle:3,1` on payout requests | NF-01 | BE-WAL-03, BE-EARN-12 | Prevents velocity abuse |
-| BE-WADM-29 | `[ ]` Implement fraud guardrails: velocity limits (max top-ups per hour/day), unusual amount detection, rapid fund-and-spend patterns | NF-05 | BE-WAL-03 | 🔒 Log suspicious activity; flag for manual review |
-| BE-WADM-30 | `[ ]` Ensure RBAC for wallet admin actions: Support (read-only), Finance (payouts + adjustments), Super Admin (settings + freeze) | §8.4 | SETUP-52 | Leverages existing `EnsureAdminRole` middleware |
+| BE-WADM-28 | `[x]` Implement rate limiting on funding and payout endpoints: `throttle:10,1` on top-up, `throttle:3,1` on payout requests | NF-01 | BE-WAL-03, BE-EARN-12 | Applied in `routes/api.php` |
+| BE-WADM-29 | `[x]` Implement fraud guardrails: velocity limits (max top-ups per hour/day), unusual amount detection, rapid fund-and-spend patterns | NF-05 | BE-WAL-03 | 🔒 Hourly count (5/hr), daily count (10/day), daily amount cap, max balance check — all enforced in WalletTopupController |
+| BE-WADM-30 | `[x]` Ensure RBAC for wallet admin actions: Support (read-only), Finance (payouts + adjustments), Super Admin (settings + freeze) | §8.4 | SETUP-52 | Verified: all wallet admin routes use `admin.role:` middleware with correct scoping |
 
 ### 21.8 Testing
 

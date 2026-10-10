@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Enums\NotificationType;
 use App\Enums\PayoutStatus;
 use App\Models\Payout;
+use App\Notifications\PayoutStatusNotification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
@@ -52,12 +54,22 @@ class ProcessPayoutWebhookJob implements ShouldQueue
                 'status' => PayoutStatus::Paid,
                 'paid_at' => now(),
             ]);
+            $payout->driver?->user?->notify(new PayoutStatusNotification(
+                $payout->amount,
+                NotificationType::PayoutPaid,
+            ));
             Log::info("Payout {$payout->id} marked as paid.");
         } else {
             $payout->update([
                 'status' => PayoutStatus::Failed,
                 'failure_reason' => $this->reason,
             ]);
+
+            $payout->driver?->user?->notify(new PayoutStatusNotification(
+                $payout->amount,
+                NotificationType::PayoutFailed,
+                $this->reason,
+            ));
 
             PayoutFailureReversalJob::dispatch($payout->id);
 

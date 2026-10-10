@@ -6789,6 +6789,61 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 
 **Response 422:** Validation error.
 
+### Daily Reconciliation Report
+
+```
+GET /admin/reports/reconciliation?date=2026-10-09
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns the daily reconciliation report comparing Flutterwave gateway settlements against ledger entries.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `date` | string | No | Date in `YYYY-MM-DD` format (default: yesterday) |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "id": "uuid",
+    "report_date": "2026-10-09",
+    "gateway_charges_total": 500000,
+    "ledger_credits_total": 500000,
+    "gateway_transfers_total": 200000,
+    "ledger_payouts_total": 200000,
+    "mismatches_count": 0,
+    "mismatches": null,
+    "status": "clean",
+    "generated_at": "2026-10-10T02:00:00Z"
+  }
+}
+```
+
+**Response 404:** No report generated for that date.
+
+### Reconciliation Report History
+
+```
+GET /admin/reports/reconciliation/history?status=mismatched&per_page=15
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns paginated list of reconciliation reports, newest first.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by `clean` or `mismatched` |
+| `per_page` | integer | No | Items per page (default 15) |
+
 ### Reconciliation — Wallet Liability
 
 ```

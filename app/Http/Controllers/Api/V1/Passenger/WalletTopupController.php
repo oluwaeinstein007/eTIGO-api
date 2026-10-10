@@ -56,6 +56,12 @@ class WalletTopupController extends Controller
             return response()->json(['message' => 'Too many top-up attempts. Please wait.'], 429);
         }
 
+        $dailyCountKey = "topup_daily_count:{$user->id}:".now()->toDateString();
+        $dailyCount = Cache::get($dailyCountKey, 0);
+        if ($dailyCount >= config('wallet.max_topups_per_day', 10)) {
+            return response()->json(['message' => 'Daily top-up attempt limit reached.'], 429);
+        }
+
         $txRef = 'TOPUP-'.strtoupper(Str::random(12));
 
         try {
@@ -88,6 +94,8 @@ class WalletTopupController extends Controller
 
         Cache::increment($hourlyKey);
         Cache::put($hourlyKey, Cache::get($hourlyKey, 1), now()->addHour());
+        Cache::increment($dailyCountKey);
+        Cache::put($dailyCountKey, Cache::get($dailyCountKey, 1), now()->endOfDay());
 
         return response()->json([
             'message' => 'Top-up initialized.',

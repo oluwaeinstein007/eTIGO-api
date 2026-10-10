@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\NotificationType;
 use App\Enums\PayoutStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PayoutResource;
 use App\Jobs\ProcessPayoutTransferJob;
 use App\Models\AuditLog;
 use App\Models\Payout;
+use App\Notifications\PayoutStatusNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +73,11 @@ class AdminPayoutController extends Controller
         });
 
         ProcessPayoutTransferJob::dispatch($payout->id);
+
+        $payout->driver?->user?->notify(new PayoutStatusNotification(
+            $payout->amount,
+            NotificationType::PayoutApproved,
+        ));
 
         return response()->json([
             'message' => 'Payout approved and transfer initiated.',

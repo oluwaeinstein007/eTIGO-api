@@ -11,6 +11,7 @@ use App\Models\Driver;
 use App\Models\Hold;
 use App\Models\Ride;
 use App\Models\User;
+use App\Notifications\WalletRidePaymentNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -159,6 +160,13 @@ class WalletPaymentService
                 'shortfall' => $shortfall,
             ];
         });
+
+        if ($result['amount_charged'] > 0) {
+            $passenger = User::find($ride->passenger_id);
+            $passenger?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged']));
+        }
+
+        return $result;
     }
 
     /**

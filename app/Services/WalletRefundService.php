@@ -7,6 +7,8 @@ use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\Driver;
 use App\Models\Ride;
+use App\Models\User;
+use App\Notifications\WalletRefundNotification;
 use Illuminate\Support\Str;
 
 class WalletRefundService
@@ -38,6 +40,9 @@ class WalletRefundService
                 'refund_amount_kobo' => $amountKobo,
             ],
         ]);
+
+        $passenger = User::find($ride->passenger_id);
+        $passenger?->notify(new WalletRefundNotification($ride->id, $amountKobo));
     }
 
     public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null): void

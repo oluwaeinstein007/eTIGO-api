@@ -435,6 +435,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     });
 
     Route::middleware('admin.role:finance')->prefix('reports')->group(function () {
+        Route::get('/reconciliation', [AdminReconciliationController::class, 'show']);
+        Route::get('/reconciliation/history', [AdminReconciliationController::class, 'index']);
         Route::get('/reconciliation/wallet-liability', [AdminReconciliationController::class, 'walletLiability']);
     });
 });
