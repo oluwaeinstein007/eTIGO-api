@@ -370,8 +370,11 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{fleetAgreement}', [AdminFleetAgreementController::class, 'show']);
         Route::put('/{fleetAgreement}', [AdminFleetAgreementController::class, 'update']);
         Route::post('/{fleetAgreement}/terminate', [AdminFleetAgreementController::class, 'terminate']);
+        Route::post('/{fleetAgreement}/terminate-settle', [AdminFleetAgreementController::class, 'terminateWithSettlement']);
         Route::post('/{fleetAgreement}/pause', [AdminFleetAgreementController::class, 'pause']);
         Route::post('/{fleetAgreement}/resume', [AdminFleetAgreementController::class, 'resume']);
+        Route::post('/{fleetAgreement}/swap', [AdminFleetAgreementController::class, 'swap']);
+        Route::post('/{fleetAgreement}/remittances/{remittance}/excuse', [AdminFleetAgreementController::class, 'excuseDay']);
     });
 
     Route::middleware('admin.role:operations')->prefix('gamification')->group(function () {

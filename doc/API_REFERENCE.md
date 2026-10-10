@@ -2507,6 +2507,9 @@ GET /admin/fleet-agreements
       "agreement_start_date": "2026-10-09",
       "status": "active",
       "shortfall_streak_days": 0,
+      "shortfall_flag": null,
+      "outstanding_amount": "0.00",
+      "settlement_amount": "0.00",
       "driver": { "...": "..." },
       "vehicle": { "...": "..." },
       "created_at": "2026-10-09T12:00:00.000000Z",
@@ -2522,7 +2525,7 @@ GET /admin/fleet-agreements
 }
 ```
 
-> **Note:** `total_vehicle_cost`, `remaining_amount`, and full financial details are only included in admin responses. Driver-facing endpoints hide these fields per business decision (Q7).
+> **Note:** `total_vehicle_cost` and `remaining_amount` are visible to both admin and driver users (Q7 reversal — hire-purchase disclosure requirements). Additional admin-only fields: `shortfall_flag`, `outstanding_amount`, `settlement_amount`. Conditional fields only present when non-null: `shortfall_flagged_at`, `vehicle_return_status`, `settlement_notes`.
 
 ---
 
@@ -2604,8 +2607,13 @@ Returns agreement detail with the 30 most recent daily remittance records.
     "agreement_start_date": "2026-10-09",
     "status": "active",
     "shortfall_streak_days": 2,
+    "shortfall_flag": "warning",
+    "shortfall_flagged_at": "2026-10-08T04:00:00.000000Z",
+    "outstanding_amount": "0.00",
+    "settlement_amount": "0.00",
     "driver": { "...": "..." },
     "vehicle": { "...": "..." },
+    "daily_remittances": [ "..." ],
     "created_at": "2026-10-09T12:00:00.000000Z",
     "updated_at": "2026-10-09T12:00:00.000000Z"
   }
@@ -2714,6 +2722,156 @@ Resumes a paused agreement. Only paused agreements can be resumed.
   }
 }
 ```
+
+---
+
+### Swap Fleet Vehicle
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/swap
+```
+
+Swaps the vehicle on an active agreement. This terminates the current agreement and creates a new one with the replacement vehicle. Optionally carries over the total remitted amount from the old agreement.
+
+| Field                   | Type           | Required | Validation                      | Description                                        |
+|-------------------------|----------------|----------|---------------------------------|----------------------------------------------------|
+| new_vehicle_id          | string (UUID)  | Yes      | Must exist in `vehicles`         | Replacement fleet vehicle (must be unassigned)      |
+| reason                  | string         | Yes      | max: 1000                       | Reason for the swap                                |
+| carry_over_remitted     | boolean        | Yes      |                                 | Whether to carry over `total_remitted` to new agreement |
+| daily_remittance_target | number         | No       | min: 1000                       | New daily target (defaults to previous agreement's) |
+| total_vehicle_cost      | number         | No       | min: 100000                     | New total cost (defaults to previous agreement's)  |
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle swapped successfully. Previous agreement terminated, new agreement created.",
+  "agreement": {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+    "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
+    "vehicle_id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "daily_remittance_target": "40000.00",
+    "total_remitted": "500000.00",
+    "progress_percentage": 10.0,
+    "remaining_amount": "4500000.00",
+    "total_vehicle_cost": "5000000.00",
+    "status": "active",
+    "shortfall_streak_days": 0,
+    "driver": { "...": "..." },
+    "vehicle": { "...": "..." },
+    "created_at": "2026-10-10T14:00:00.000000Z",
+    "updated_at": "2026-10-10T14:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Cannot swap vehicle on a non-active agreement."
+}
+```
+
+**How it works:**
+1. The current agreement is terminated with the reason provided
+2. The old vehicle is unassigned from the driver
+3. The new vehicle is assigned to the driver
+4. A new agreement is created — if `carry_over_remitted` is `true`, `total_remitted` from the old agreement carries over; otherwise starts at `0.00`
+5. Audit log records the swap with both old and new agreement IDs
+
+---
+
+### Terminate with Settlement
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/terminate-settle
+```
+
+Terminates an agreement with full settlement details including vehicle return status and financial reconciliation. Use this instead of the basic terminate endpoint when you need to record settlement information.
+
+| Field                | Type   | Required | Validation                                              | Description                                              |
+|----------------------|--------|----------|---------------------------------------------------------|----------------------------------------------------------|
+| reason               | string | Yes      | max: 1000                                               | Reason for termination                                   |
+| vehicle_return_status| string | No       | `returned`, `pending_return`, `not_returned`, `damaged`  | Status of vehicle return                                 |
+| outstanding_amount   | number | No       | min: 0                                                  | Outstanding amount owed by driver                        |
+| settlement_amount    | number | No       | min: 0                                                  | Amount settled/agreed upon                               |
+| settlement_notes     | string | No       | max: 2000                                               | Free-text notes about the settlement                     |
+
+**Response 200:**
+```json
+{
+  "message": "Fleet agreement terminated with settlement recorded.",
+  "agreement": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "status": "terminated",
+    "terminated_reason": "Driver quit voluntarily",
+    "terminated_at": "2026-10-10T14:30:00.000000Z",
+    "vehicle_return_status": "returned",
+    "outstanding_amount": "150000.00",
+    "settlement_amount": "50000.00",
+    "settlement_notes": "Driver paid partial settlement. Remaining waived per HR decision.",
+    "settled_at": "2026-10-10T14:30:00.000000Z",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Agreement is already terminated."
+}
+```
+
+---
+
+### Excuse Remittance Day
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/remittances/{remittance_id}/excuse
+```
+
+Marks a settled remittance day as excused. This decrements the driver's shortfall streak by 1 (if > 0) since excused days should not count toward shortfall escalation.
+
+| Field  | Type   | Required | Validation                                                           | Description                          |
+|--------|--------|----------|----------------------------------------------------------------------|--------------------------------------|
+| reason | string | Yes      | `approved_leave`, `vehicle_downtime`, `low_demand`, `payment_failure`, `other` | Category of excuse                   |
+| notes  | string | No       | max: 1000                                                            | Additional context                   |
+
+**Response 200:**
+```json
+{
+  "message": "Remittance day marked as excused.",
+  "remittance": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "date": "2026-10-08",
+    "target_amount": "40000.00",
+    "remitted_amount": "20000.00",
+    "shortfall_amount": "20000.00",
+    "target_met": false,
+    "target_met_at": null,
+    "ride_count": 5,
+    "total_fares": "20000.00",
+    "driver_earnings": "0.00",
+    "settled": true,
+    "excused_reason": "vehicle_downtime: Vehicle was in maintenance",
+    "created_at": "2026-10-08T06:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Remittance does not belong to this agreement."
+}
+```
+
+**Excused day categories:**
+
+| Value              | Description                                           |
+|--------------------|-------------------------------------------------------|
+| `approved_leave`   | Driver on approved leave                              |
+| `vehicle_downtime` | Vehicle under maintenance or repair                   |
+| `low_demand`       | Low ride demand day (admin discretion)                |
+| `payment_failure`  | Payment system issue preventing ride completions      |
+| `other`            | Other reason (requires notes)                         |
 
 ---
 
@@ -2836,7 +2994,7 @@ Paginated list of daily remittance records, most recent first.
 GET /driver/fleet-agreement
 ```
 
-Returns the driver's active fleet agreement. **Does not include `total_vehicle_cost` or `remaining_amount`** — the driver sees only percentage progress.
+Returns the driver's active fleet agreement. **Now includes `total_vehicle_cost` and `remaining_amount`** per hire-purchase disclosure requirements (Q7 reversal). The UI should emphasise percentage progress but drivers must have access to the full financial terms.
 
 **Response 200 (active agreement):**
 ```json
@@ -2846,7 +3004,9 @@ Returns the driver's active fleet agreement. **Does not include `total_vehicle_c
     "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
     "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
     "daily_remittance_target": "40000.00",
+    "total_vehicle_cost": "5000000.00",
     "total_remitted": "1250000.00",
+    "remaining_amount": "3750000.00",
     "progress_percentage": 25.0,
     "agreement_start_date": "2026-10-09",
     "status": "active",

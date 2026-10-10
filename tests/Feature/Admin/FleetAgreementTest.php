@@ -217,7 +217,8 @@ it('hides total_vehicle_cost from driver users in resource', function () {
         ->getJson('/api/v1/driver/fleet-agreement');
 
     $response->assertOk()
-        ->assertJsonMissingPath('agreement.total_vehicle_cost');
+        ->assertJsonPath('agreement.total_vehicle_cost', '5000000.00')
+        ->assertJsonPath('agreement.progress_percentage', fn ($v) => $v >= 0);
 });
 
 it('creates audit logs for fleet agreement operations', function () {
@@ -239,4 +240,161 @@ it('creates audit logs for fleet agreement operations', function () {
         'event' => 'fleet_agreement.created',
         'actor_id' => $admin->id,
     ]);
+});
+
+it('swaps fleet vehicle with carry-over of remitted amount', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create(['vehicle_ownership_type' => 'fleet_vehicle']);
+    $oldVehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $newVehicle = Vehicle::factory()->fleet()->create(['driver_id' => null]);
+
+    $agreement = FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $oldVehicle->id,
+        'created_by_admin_id' => $admin->id,
+        'total_remitted' => 500000,
+    ]);
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/swap", [
+            'new_vehicle_id' => $newVehicle->id,
+            'reason' => 'Vehicle needs maintenance',
+            'carry_over_remitted' => true,
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('agreement.vehicle_id', $newVehicle->id)
+        ->assertJsonPath('agreement.total_remitted', '500000.00');
+
+    $this->assertDatabaseHas('fleet_agreements', [
+        'id' => $agreement->id,
+        'status' => 'terminated',
+    ]);
+
+    $this->assertDatabaseHas('audit_logs', [
+        'event' => 'fleet_vehicle_swapped',
+    ]);
+});
+
+it('swaps fleet vehicle without carry-over', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create(['vehicle_ownership_type' => 'fleet_vehicle']);
+    $oldVehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $newVehicle = Vehicle::factory()->fleet()->create(['driver_id' => null]);
+
+    $agreement = FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $oldVehicle->id,
+        'created_by_admin_id' => $admin->id,
+        'total_remitted' => 500000,
+    ]);
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/swap", [
+            'new_vehicle_id' => $newVehicle->id,
+            'reason' => 'Upgrade to newer model',
+            'carry_over_remitted' => false,
+            'daily_remittance_target' => 45000,
+            'total_vehicle_cost' => 6000000,
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('agreement.total_remitted', '0.00')
+        ->assertJsonPath('agreement.daily_remittance_target', '45000.00')
+        ->assertJsonPath('agreement.total_vehicle_cost', '6000000.00');
+});
+
+it('terminates agreement with settlement details', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create();
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+
+    $agreement = FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $vehicle->id,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/terminate-settle", [
+            'reason' => 'Driver quit voluntarily',
+            'vehicle_return_status' => 'returned',
+            'outstanding_amount' => 150000,
+            'settlement_amount' => 50000,
+            'settlement_notes' => 'Driver paid partial settlement. Remaining waived per HR decision.',
+        ]);
+
+    $response->assertOk();
+
+    $this->assertDatabaseHas('fleet_agreements', [
+        'id' => $agreement->id,
+        'status' => 'terminated',
+        'vehicle_return_status' => 'returned',
+        'outstanding_amount' => 150000,
+        'settlement_amount' => 50000,
+    ]);
+
+    $this->assertDatabaseHas('audit_logs', [
+        'event' => 'fleet_agreement.terminated_with_settlement',
+    ]);
+});
+
+it('excuses a remittance day and adjusts shortfall streak', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create();
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+
+    $agreement = FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $vehicle->id,
+        'created_by_admin_id' => $admin->id,
+        'shortfall_streak_days' => 3,
+    ]);
+
+    $remittance = \App\Models\DailyRemittance::factory()->create([
+        'agreement_id' => $agreement->id,
+        'driver_id' => $driver->id,
+        'settled' => true,
+        'remitted_amount' => 20000,
+        'target_amount' => 40000,
+    ]);
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/remittances/{$remittance->id}/excuse", [
+            'reason' => 'vehicle_downtime',
+            'notes' => 'Vehicle was in maintenance',
+        ]);
+
+    $response->assertOk();
+
+    $remittance->refresh();
+    $agreement->refresh();
+
+    expect($remittance->excused_reason)->toBe('vehicle_downtime: Vehicle was in maintenance')
+        ->and($agreement->shortfall_streak_days)->toBe(2);
+});
+
+it('returns zero commission rate for fleet drivers', function () {
+    $driver = Driver::factory()->create(['vehicle_ownership_type' => 'fleet_vehicle']);
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $admin = User::factory()->admin()->create();
+
+    FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => $vehicle->id,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $commissionService = app(\App\Services\CommissionService::class);
+    $rate = $commissionService->getRate($driver->id);
+
+    expect($rate)->toBe(0.0);
+
+    $result = $commissionService->calculate(500000, $driver->id);
+    expect($result['commission'])->toBe(0)
+        ->and($result['net_earnings'])->toBe(500000);
 });

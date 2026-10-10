@@ -119,7 +119,7 @@ describe('ProcessPaymentJob', function () {
         Payment::factory()->captured()->create(['ride_id' => $ride->id]);
 
         $job = new ProcessPaymentJob($ride->id);
-        $job->handle(app(PaymentService::class));
+        $job->handle(app(PaymentService::class), app(\App\Services\FleetRemittanceService::class));
 
         expect(Payment::where('ride_id', $ride->id)->count())->toBe(1);
     });

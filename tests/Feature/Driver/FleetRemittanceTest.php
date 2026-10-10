@@ -73,7 +73,7 @@ it('shows remittance history for driver', function () {
         ->assertJsonStructure(['remittances', 'meta']);
 });
 
-it('shows driver fleet agreement without total_vehicle_cost', function () {
+it('shows driver fleet agreement with full financial terms', function () {
     [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
 
     $response = $this->withToken($token)
@@ -82,7 +82,8 @@ it('shows driver fleet agreement without total_vehicle_cost', function () {
     $response->assertOk()
         ->assertJsonPath('agreement.status', 'active')
         ->assertJsonPath('agreement.daily_remittance_target', '40000.00')
-        ->assertJsonMissingPath('agreement.total_vehicle_cost');
+        ->assertJsonPath('agreement.total_vehicle_cost', '5000000.00')
+        ->assertJsonPath('agreement.progress_percentage', fn ($v) => $v >= 0);
 });
 
 it('records ride remittance toward daily target', function () {
@@ -180,4 +181,67 @@ it('computes progress percentage correctly', function () {
     ]);
 
     expect($agreement->progressPercentage())->toBe(25.0);
+});
+
+it('does not increment shortfall streak for excused days', function () {
+    [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
+    $agreement->update(['shortfall_streak_days' => 2]);
+
+    $service = app(FleetRemittanceService::class);
+    $remittance = $service->getOrCreateTodayRemittance($agreement);
+    $remittance->update(['excused_reason' => 'vehicle_downtime']);
+
+    $service->settleDay($remittance);
+
+    $agreement->refresh();
+    expect($agreement->shortfall_streak_days)->toBe(2);
+});
+
+it('flags agreements at shortfall escalation thresholds', function () {
+    $admin = \App\Models\User::factory()->admin()->create();
+
+    $agreement3 = FleetAgreement::factory()->create([
+        'shortfall_streak_days' => 3,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $agreement7 = FleetAgreement::factory()->create([
+        'shortfall_streak_days' => 7,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $agreement14 = FleetAgreement::factory()->create([
+        'shortfall_streak_days' => 14,
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $job = new \App\Jobs\RemittanceShortfallAlertJob;
+    $job->handle();
+
+    $agreement3->refresh();
+    $agreement7->refresh();
+    $agreement14->refresh();
+
+    expect($agreement3->shortfall_flag)->toBe('warning')
+        ->and($agreement7->shortfall_flag)->toBe('review')
+        ->and($agreement14->shortfall_flag)->toBe('escalated');
+});
+
+it('does not re-flag agreements already at the correct escalation level', function () {
+    $admin = \App\Models\User::factory()->admin()->create();
+
+    $agreement = FleetAgreement::factory()->create([
+        'shortfall_streak_days' => 3,
+        'shortfall_flag' => 'warning',
+        'shortfall_flagged_at' => now()->subDay(),
+        'created_by_admin_id' => $admin->id,
+    ]);
+
+    $originalFlaggedAt = $agreement->shortfall_flagged_at;
+
+    $job = new \App\Jobs\RemittanceShortfallAlertJob;
+    $job->handle();
+
+    $agreement->refresh();
+    expect($agreement->shortfall_flagged_at->toDateTimeString())->toBe($originalFlaggedAt->toDateTimeString());
 });

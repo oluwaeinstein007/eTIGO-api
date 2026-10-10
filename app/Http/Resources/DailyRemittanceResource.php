@@ -24,6 +24,7 @@ class DailyRemittanceResource extends JsonResource
             'total_fares' => $this->total_fares,
             'driver_earnings' => $this->driver_earnings,
             'settled' => $this->settled,
+            'excused_reason' => $this->when($this->excused_reason !== null, $this->excused_reason),
             'created_at' => $this->created_at,
         ];
     }
