@@ -46,7 +46,7 @@
       },
       {
         "key": "reverb_port",
-        "value": "8080",
+        "value": "443",
         "type": "default",
         "enabled": true
       },
