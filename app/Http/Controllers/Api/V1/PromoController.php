@@ -75,12 +75,7 @@ class PromoController extends Controller
             ->get();
 
         $eligible = $promos->filter(function (PromoCode $promo) use ($user) {
-            $result = $this->validationService->validate(
-                code: $promo->code,
-                userId: $user->id,
-            );
-
-            return $result['valid'];
+            return $this->validationService->isUserEligible($promo, $user->id);
         })->values();
 
         return response()->json([

@@ -42,7 +42,12 @@ class PromoCodeResource extends JsonResource
                 'id' => $this->createdByAdmin->id,
                 'name' => $this->createdByAdmin->first_name.' '.$this->createdByAdmin->last_name,
             ])),
-            'total_redemptions' => $this->when($isAdmin && $this->relationLoaded('redemptions'), fn () => $this->redemptions->count()),
+            'total_redemptions' => $this->when(
+                $isAdmin && ($this->relationLoaded('redemptions') || isset($this->redemptions_count)),
+                fn () => $this->relationLoaded('redemptions')
+                    ? $this->redemptions->count()
+                    : $this->redemptions_count,
+            ),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

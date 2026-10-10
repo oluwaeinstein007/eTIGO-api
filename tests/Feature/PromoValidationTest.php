@@ -243,6 +243,69 @@ it('accepts promo when user tier meets minimum', function () {
         ->assertJsonPath('valid', true);
 });
 
+it('rejects city-restricted promo when no city context provided', function () {
+    $city = City::factory()->create();
+    PromoCode::factory()->create([
+        'code' => 'CITYNOCTX',
+        'city_id' => $city->id,
+    ]);
+
+    $response = $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', [
+            'code' => 'CITYNOCTX',
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonPath('valid', false)
+        ->assertJsonPath('message', 'This promo code is not valid in your city.');
+});
+
+it('rejects geo-fenced promo when no pickup coords provided', function () {
+    PromoCode::factory()->create([
+        'code' => 'GEONOCTX',
+        'geo_fence' => ['center_lat' => 9.0, 'center_lng' => 7.5, 'radius_km' => 10],
+    ]);
+
+    $response = $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', [
+            'code' => 'GEONOCTX',
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonPath('valid', false)
+        ->assertJsonPath('message', 'This promo code is not valid in your area.');
+});
+
+it('accepts city-restricted promo when matching city provided', function () {
+    $city = City::factory()->create();
+    PromoCode::factory()->create([
+        'code' => 'CITYOK',
+        'city_id' => $city->id,
+    ]);
+
+    $response = $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', [
+            'code' => 'CITYOK',
+            'city_id' => $city->id,
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('valid', true);
+});
+
+it('shows city-restricted promos in available list via user eligibility', function () {
+    $city = City::factory()->create();
+    PromoCode::factory()->create(['code' => 'UNIVERSAL']);
+    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
+
+    $response = $this->withToken($this->token)
+        ->getJson('/api/v1/promos/available');
+
+    $response->assertOk();
+    $codes = collect($response->json('promos'))->pluck('code')->all();
+    expect($codes)->toContain('UNIVERSAL');
+});
+
 it('is case-insensitive on promo code input', function () {
     PromoCode::factory()->create(['code' => 'UPPER']);
 

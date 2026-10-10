@@ -44,22 +44,24 @@ class PromoValidationService
             return $this->reject('This promo code has expired.');
         }
 
-        if ($promo->city_id && $cityId && $promo->city_id !== $cityId) {
+        if ($promo->city_id && ($cityId === null || $promo->city_id !== $cityId)) {
             return $this->reject('This promo code is not valid in your city.');
         }
 
-        if ($promo->vehicle_class_id && $vehicleClassId && $promo->vehicle_class_id !== $vehicleClassId) {
+        if ($promo->vehicle_class_id && ($vehicleClassId === null || $promo->vehicle_class_id !== $vehicleClassId)) {
             return $this->reject('This promo code is not valid for the selected vehicle class.');
         }
 
-        if ($promo->minimum_fare_amount && $fareAmount !== null && $fareAmount < (float) $promo->minimum_fare_amount) {
+        if ($promo->minimum_fare_amount && ($fareAmount === null || $fareAmount < (float) $promo->minimum_fare_amount)) {
             return $this->reject("Minimum fare of {$promo->minimum_fare_amount} required to use this code.");
         }
 
-        if ($promo->geo_fence && $pickupLat !== null && $pickupLng !== null) {
-            if (! $this->isWithinGeoFence($pickupLat, $pickupLng, $promo->geo_fence)) {
-                return $this->reject('This promo code is not valid in your area.');
-            }
+        if ($promo->geo_fence && (
+            $pickupLat === null
+            || $pickupLng === null
+            || ! $this->isWithinGeoFence($pickupLat, $pickupLng, $promo->geo_fence)
+        )) {
+            return $this->reject('This promo code is not valid in your area.');
         }
 
         if (! $this->checkPeakConstraint($promo)) {
@@ -96,6 +98,45 @@ class PromoValidationService
         }
 
         return ['valid' => true, 'promo' => $promo, 'reason' => null];
+    }
+
+    /**
+     * Check user-level eligibility only (tier, order count, redemption limits).
+     * Skips ride-context checks (city, vehicle class, fare, geo-fence, peak/off-peak).
+     * Used by the available promos listing where ride context is unknown.
+     */
+    public function isUserEligible(PromoCode $promo, string $userId): bool
+    {
+        if (! $promo->is_active || ! $promo->isWithinTimeWindow()) {
+            return false;
+        }
+
+        if ($promo->min_tier_level) {
+            $userTier = $this->tierGateService->getUserTierLevel($userId);
+            if ($userTier < $promo->min_tier_level) {
+                return false;
+            }
+        }
+
+        $userCompletedRides = $this->getUserCompletedRideCount($userId);
+
+        if ($promo->min_order_count !== null && $userCompletedRides < $promo->min_order_count) {
+            return false;
+        }
+
+        if ($promo->max_order_count !== null && $userCompletedRides > $promo->max_order_count) {
+            return false;
+        }
+
+        if ($promo->hasReachedUserLimit($userId)) {
+            return false;
+        }
+
+        if ($promo->hasReachedGlobalLimit()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
