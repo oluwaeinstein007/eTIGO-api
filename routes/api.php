@@ -395,8 +395,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance,support')->prefix('wallets')->group(function () {
         Route::get('/', [AdminWalletController::class, 'index']);
         Route::get('/{account}', [AdminWalletController::class, 'show']);
-        Route::post('/{account}/freeze', [AdminWalletController::class, 'freeze'])->middleware('admin.role:finance,super_admin');
-        Route::post('/{account}/unfreeze', [AdminWalletController::class, 'unfreeze'])->middleware('admin.role:finance,super_admin');
+        Route::post('/{account}/freeze', [AdminWalletController::class, 'freeze'])->middleware('admin.role:finance');
+        Route::post('/{account}/unfreeze', [AdminWalletController::class, 'unfreeze'])->middleware('admin.role:finance');
     });
 
     Route::middleware('admin.role:finance,support')->prefix('driver-ledgers')->group(function () {
@@ -428,7 +428,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{ride}/refund', [AdminRefundController::class, 'refundToWallet']);
     });
 
-    Route::middleware('admin.role:finance,super_admin')->prefix('settings')->group(function () {
+    Route::middleware('admin.role:finance')->prefix('settings')->group(function () {
         Route::get('/commission', [AdminCommissionController::class, 'show']);
         Route::put('/commission', [AdminCommissionController::class, 'update']);
         Route::get('/wallet', [AdminWalletSettingsController::class, 'show']);

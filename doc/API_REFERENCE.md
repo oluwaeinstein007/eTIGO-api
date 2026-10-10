@@ -6646,7 +6646,9 @@ Requests a withdrawal from driver earnings to their primary bank account via Flu
 
 ## Admin — Wallet & Ledger Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`
+**Middleware:** `auth:sanctum`, `user.type:admin`, role-based (see individual endpoints)
+
+Wallet and ledger endpoints use granular role-based access. Super Admin always has access to all endpoints.
 
 ### List Wallets
 
@@ -6673,7 +6675,7 @@ POST /admin/wallets/{account}/freeze
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Super Admin
+**Allowed Roles:** Finance
 
 **Request Body:**
 
@@ -6688,7 +6690,7 @@ POST /admin/wallets/{account}/unfreeze
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Super Admin
+**Allowed Roles:** Finance
 
 **Request Body:**
 
@@ -6758,7 +6760,7 @@ PUT /admin/settings/commission
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Super Admin
+**Allowed Roles:** Finance
 
 ### Wallet Settings
 
@@ -6767,7 +6769,7 @@ GET /admin/settings/wallet
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Super Admin
+**Allowed Roles:** Finance
 
 Returns current wallet configuration (merged from database overrides and config file defaults).
 
@@ -6804,7 +6806,7 @@ PUT /admin/settings/wallet
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Super Admin
+**Allowed Roles:** Finance
 
 Updates wallet configuration. Only provided fields are updated; omitted fields retain their current values.
 
@@ -6899,7 +6901,9 @@ Authorization: Bearer {admin_token}
 
 ## Admin Reporting API
 
-All reporting endpoints are accessible to **Operations** and **Finance** admin roles.
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+**Allowed Roles:** Operations, Finance (Super Admin always has access)
 
 ### Ride Volume Report
 
@@ -7203,14 +7207,22 @@ Super Admins always bypass role checks and have full access.
 | `/admin/vehicle-classes` | Yes | — | — | — |
 | `/admin/pricing` | Yes | — | Yes | — |
 | `/admin/surge-rules` | Yes | — | — | — |
-| `/admin/rides` | Yes | — | — | — |
+| `/admin/rides` (assign) | Yes | — | — | — |
+| `/admin/rides` (refund) | — | — | Yes | — |
 | `/admin/fleet-vehicles` | Yes | — | Yes | — |
 | `/admin/fleet-agreements` | Yes | — | Yes | — |
 | `/admin/gamification` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
 | `/admin/disputes` | — | Yes | — | — |
-| `/admin/settings/wallet` | — | — | Yes | — |
-| `/admin/settings/commission` | — | — | Yes | — |
+| `/admin/wallets` | — | Yes | Yes | — |
+| `/admin/wallets` (freeze) | — | — | Yes | — |
+| `/admin/driver-ledgers` | — | Yes | Yes | — |
+| `/admin/ledger` | — | — | Yes | — |
+| `/admin/adjustments` | — | — | Yes | — |
+| `/admin/payouts` | — | — | Yes | — |
+| `/admin/settings` | — | — | Yes | — |
+| `/admin/reports` (financial) | — | — | Yes | — |
+| `/admin/reports` (operational) | Yes | — | Yes | — |
 | `/admin/admins` | — | — | — | — |
 
 ### Driver Status
