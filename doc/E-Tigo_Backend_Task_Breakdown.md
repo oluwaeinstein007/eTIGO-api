@@ -553,12 +553,12 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-RPT-01 | `[ ]` Create `AdminReportController@rideVolume` — `GET /api/v1/admin/reports/ride-volume`: total rides, rides by status, by city, by vehicle class; date-range filters | A-16 | SETUP-52 | — |
-| BE-RPT-02 | `[ ]` Create `AdminReportController@completionRate` — `GET /api/v1/admin/reports/completion-rate`: completed vs cancelled, cancellation reasons breakdown | A-16 | SETUP-52 | — |
-| BE-RPT-03 | `[ ]` Create `AdminReportController@revenue` — `GET /api/v1/admin/reports/revenue`: total revenue, by city, by payment method, average fare | A-16 | SETUP-52 | — |
-| BE-RPT-04 | `[ ]` Create `AdminReportController@driverUtilisation` — `GET /api/v1/admin/reports/driver-utilisation`: online hours, trips per driver, earnings per driver | A-16 | SETUP-52 | — |
-| BE-RPT-05 | `[ ]` Create `ReportExportService` — generate CSV export for any report type; stream large datasets | A-16 | BE-RPT-01 through BE-RPT-04 | ⚠ Confirm export format with Client (CSV assumed) |
-| BE-RPT-06 | `[ ]` Create `AdminReportController@export` — `GET /api/v1/admin/reports/export`: accept report type + filters, return CSV download | A-16 | BE-RPT-05 | — |
+| BE-RPT-01 | `[x]` Create `AdminReportController@rideVolume` — `GET /api/v1/admin/reports/ride-volume`: total rides, rides by status, by city, by vehicle class; date-range filters; optional daily/weekly/monthly trend via `group_by` param | A-16 | SETUP-52 | City filter via `city_id` param |
+| BE-RPT-02 | `[x]` Create `AdminReportController@completionRate` — `GET /api/v1/admin/reports/completion-rate`: completed vs cancelled, cancellation reasons breakdown, cancelled-by-role breakdown, completion/cancellation rates | A-16 | SETUP-52 | — |
+| BE-RPT-03 | `[x]` Create `AdminReportController@revenue` — `GET /api/v1/admin/reports/revenue`: total revenue, total tips, by city, by payment method, average fare; optional trend via `group_by` param | A-16 | SETUP-52 | — |
+| BE-RPT-04 | `[x]` Create `AdminReportController@driverUtilisation` — `GET /api/v1/admin/reports/driver-utilisation`: active drivers, trips per driver, earnings per driver, average trip duration, top drivers leaderboard | A-16 | SETUP-52 | Online hours tracking deferred (no session table yet) |
+| BE-RPT-05 | `[x]` Create `ReportExportService` — generic CSV export service with `streamCsv()` and `streamFromQuery()` methods; memory-efficient chunked streaming via `response()->streamDownload()` | A-16 | BE-RPT-01 through BE-RPT-04 | CSV format confirmed |
+| BE-RPT-06 | `[x]` Create `AdminReportController@export` — `GET /api/v1/admin/reports/export`: accept `type` (ride_volume/completion_rate/revenue/driver_utilisation) + `from`/`to` date range + optional `city_id`, return streamed CSV download | A-16 | BE-RPT-05 | — |
 
 ---
 

@@ -6897,6 +6897,236 @@ Authorization: Bearer {admin_token}
 
 ---
 
+## Admin Reporting API
+
+All reporting endpoints are accessible to **Operations** and **Finance** admin roles.
+
+### Ride Volume Report
+
+```
+GET /admin/reports/ride-volume
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param      | Type   | Description                                            |
+|------------|--------|--------------------------------------------------------|
+| `from`     | date   | Start date (inclusive), e.g. `2026-10-01`              |
+| `to`       | date   | End date (inclusive), e.g. `2026-10-31`                |
+| `city_id`  | uuid   | Filter by city                                         |
+| `group_by` | string | Trend grouping: `day`, `week`, or `month`              |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "ride_volume",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "total_rides": 1250,
+    "by_status": {
+      "completed": 980,
+      "cancelled": 150,
+      "no_driver_found": 45,
+      "requested": 30,
+      "searching": 15,
+      "in_progress": 30
+    },
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "count": 800 },
+      { "city_id": "uuid", "city_name": "Abuja", "count": 450 }
+    ],
+    "by_vehicle_class": [
+      { "vehicle_class_id": "uuid", "vehicle_class": "Comfort", "count": 600 },
+      { "vehicle_class_id": "uuid", "vehicle_class": "Lite", "count": 400 }
+    ],
+    "trend": [
+      { "period": "2026-10-01", "count": 42 },
+      { "period": "2026-10-02", "count": 55 }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+`trend` is only included when `group_by` is specified.
+
+---
+
+### Completion Rate Report
+
+```
+GET /admin/reports/completion-rate
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param     | Type | Description                               |
+|-----------|------|-------------------------------------------|
+| `from`    | date | Start date (inclusive)                     |
+| `to`      | date | End date (inclusive)                       |
+| `city_id` | uuid | Filter by city                            |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "completion_rate",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "total_rides": 1250,
+    "completed": 980,
+    "cancelled": 150,
+    "no_driver_found": 45,
+    "completion_rate": 78.4,
+    "cancellation_rate": 12.0,
+    "cancellation_reasons": {
+      "changed_mind": 50,
+      "driver_too_far": 35,
+      "wait_too_long": 25,
+      "passenger_no_show": 20,
+      "other": 20
+    },
+    "cancelled_by_role": {
+      "passenger": 100,
+      "driver": 50
+    },
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+---
+
+### Revenue Report
+
+```
+GET /admin/reports/revenue
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param      | Type   | Description                               |
+|------------|--------|-------------------------------------------|
+| `from`     | date   | Start date (inclusive)                     |
+| `to`       | date   | End date (inclusive)                       |
+| `city_id`  | uuid   | Filter by city                            |
+| `group_by` | string | Trend grouping: `day`, `week`, or `month` |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "revenue",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "currency": "NGN",
+    "total_revenue": 4900000.00,
+    "total_tips": 125000.00,
+    "ride_count": 980,
+    "average_fare": 5000.00,
+    "by_payment_method": [
+      { "method": "cash", "count": 400, "total": 2000000.00 },
+      { "method": "card", "count": 350, "total": 1750000.00 },
+      { "method": "wallet", "count": 230, "total": 1150000.00 }
+    ],
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "count": 600, "total": 3000000.00 },
+      { "city_id": "uuid", "city_name": "Abuja", "count": 380, "total": 1900000.00 }
+    ],
+    "trend": [
+      { "period": "2026-10", "count": 980, "total": 4900000.00 }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+`trend` is only included when `group_by` is specified.
+
+---
+
+### Driver Utilisation Report
+
+```
+GET /admin/reports/driver-utilisation
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param     | Type    | Description                              |
+|-----------|---------|------------------------------------------|
+| `from`    | date    | Start date (inclusive)                    |
+| `to`      | date    | End date (inclusive)                      |
+| `city_id` | uuid    | Filter by city                           |
+| `limit`   | integer | Top drivers limit (1–100, default 20)    |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "driver_utilisation",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "currency": "NGN",
+    "total_active_drivers": 85,
+    "total_trips": 980,
+    "average_trips_per_driver": 11.53,
+    "total_earnings": 4900000.00,
+    "average_earnings_per_driver": 57647.06,
+    "average_trip_duration_minutes": 22.5,
+    "top_drivers": [
+      {
+        "driver_id": "uuid",
+        "driver_name": "John Doe",
+        "trip_count": 45,
+        "total_earnings": 225000.00,
+        "average_fare": 5000.00
+      }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+---
+
+### Report Export (CSV)
+
+```
+GET /admin/reports/export
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters (all required):**
+
+| Param     | Type   | Description                                                            |
+|-----------|--------|------------------------------------------------------------------------|
+| `type`    | string | Report type: `ride_volume`, `completion_rate`, `revenue`, `driver_utilisation` |
+| `from`    | date   | Start date (inclusive)                                                 |
+| `to`      | date   | End date (inclusive)                                                   |
+| `city_id` | uuid   | Optional city filter                                                   |
+
+**Response 200:** Streamed CSV file download. Content-Type: `text/csv`.
+
+CSV columns per report type:
+- **ride_volume:** Ride ID, Status, City, Vehicle Class, Fare Estimate, Final Fare, Payment Method, Created At, Completed At
+- **completion_rate:** Ride ID, Status, City, Cancellation Reason, Cancelled By, Created At
+- **revenue:** Ride ID, City, Vehicle Class, Final Fare, Tip, Payment Method, Payment Status, Completed At
+- **driver_utilisation:** Driver ID, Driver Name, Trip Count, Total Earnings, Average Fare, First Trip, Last Trip
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:

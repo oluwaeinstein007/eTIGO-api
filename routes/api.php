@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
 use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
+use App\Http\Controllers\Api\V1\Admin\AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
@@ -438,5 +439,13 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/reconciliation', [AdminReconciliationController::class, 'show']);
         Route::get('/reconciliation/history', [AdminReconciliationController::class, 'index']);
         Route::get('/reconciliation/wallet-liability', [AdminReconciliationController::class, 'walletLiability']);
+    });
+
+    Route::middleware('admin.role:operations,finance')->prefix('reports')->group(function () {
+        Route::get('/ride-volume', [AdminReportController::class, 'rideVolume']);
+        Route::get('/completion-rate', [AdminReportController::class, 'completionRate']);
+        Route::get('/revenue', [AdminReportController::class, 'revenue']);
+        Route::get('/driver-utilisation', [AdminReportController::class, 'driverUtilisation']);
+        Route::get('/export', [AdminReportController::class, 'export']);
     });
 });
