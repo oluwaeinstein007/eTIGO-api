@@ -388,19 +388,19 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-PROMO-01 | `[ ]` Create `PromoCode`, `PromoRedemption` Eloquent models with relationships | — | SETUP-21, SETUP-22 | — |
-| BE-PROMO-02 | `[ ]` Create `AdminPromoController@store` — `POST /api/v1/admin/promos`: create promo with discount type, value, cap, limits, eligibility rules | A-20–A-22 | BE-PROMO-01, SETUP-52 | — |
-| BE-PROMO-03 | `[ ]` Create `StorePromoFormRequest` — validate code uniqueness, discount type/value, cap, dates, geo-fence format, tier level | A-20 | BE-PROMO-02 | — |
-| BE-PROMO-04 | `[ ]` Create `AdminPromoController@index` — `GET /api/v1/admin/promos`: list promos with filters (active/expired/all), pagination | A-20 | BE-PROMO-01 | — |
-| BE-PROMO-05 | `[ ]` Create `AdminPromoController@update` — `PUT /api/v1/admin/promos/{promo}`: update config | A-20 | BE-PROMO-02 | — |
-| BE-PROMO-06 | `[ ]` Create `PromoValidationService` — validate code against all rules atomically: exists, active, within time window, within geo-fence, per-user cap, global cap, order history, tier requirement, peak/off-peak | B-13, PR-01 | BE-PROMO-01, BE-GAME-08 | Use DB transaction + row locking to prevent race-condition over-redemption; idempotency key |
-| BE-PROMO-07 | `[ ]` Create `PromoController@validate` — `POST /api/v1/promos/validate`: validate promo code at checkout; return discount amount or rejection reason | PR-01 | BE-PROMO-06 | — |
-| BE-PROMO-08 | `[ ]` Create `ValidatePromoFormRequest` — validate code, ride context (city, vehicle class, pickup coords) | PR-01 | BE-PROMO-07 | — |
-| BE-PROMO-09 | `[ ]` Implement redemption cap enforcement: row-level locking (SELECT FOR UPDATE) on promo_codes + count check on promo_redemptions within transaction | B-14, NF-10 | BE-PROMO-06 | — |
-| BE-PROMO-10 | `[ ]` Create `PromoApplicationService` — calculate discount amount, apply cap, subtract from fare, create redemption record, include in receipt breakdown | B-15 | BE-PROMO-09, BE-PRICE-05 | — |
-| BE-PROMO-11 | `[ ]` Create `AdminPromoController@performance` — `GET /api/v1/admin/promos/{promo}/performance`: redemption count, total discount, revenue impact | A-23 | SETUP-22 | — |
-| BE-PROMO-12 | `[ ]` Create `PromoController@available` — `GET /api/v1/promos/available`: return promos the user is eligible for (no code needed) | PR-04 | BE-PROMO-06, BE-GAME-08 | ⚠ OQ-12: Auto-apply vs. code-entry-only — confirm scope |
-| BE-PROMO-13 | `[ ]` Create `PromoCodeResource`, `PromoRedemptionResource` API resources | — | BE-PROMO-01 | — |
+| BE-PROMO-01 | `[x]` Create `PromoCode`, `PromoRedemption` Eloquent models with relationships; `DiscountType` enum; factories with state helpers (flat, percentage, expired, future, inactive, unlimited, newUsersOnly, tierRestricted) | — | SETUP-21, SETUP-22 | Models use HasUuids; PromoCode has scopes: active(), byCode(); helpers: isWithinTimeWindow(), hasReachedGlobalLimit(), hasReachedUserLimit() |
+| BE-PROMO-02 | `[x]` Create `AdminPromoController@store` — `POST /api/v1/admin/promos`: create promo with discount type, value, cap, limits, eligibility rules, city/vehicle class restrictions; audit log | A-20–A-22 | BE-PROMO-01, SETUP-52 | Also supports description, minimum_fare_amount, geo_fence (radius or polygon) |
+| BE-PROMO-03 | `[x]` Create `StorePromoFormRequest` — validate code uniqueness (auto-uppercased), discount type/value (percentage capped at 100%), cap, dates, geo-fence format (center+radius or polygon), tier level, peak/off-peak mutual exclusion | A-20 | BE-PROMO-02 | Also created `UpdatePromoFormRequest` for PUT |
+| BE-PROMO-04 | `[x]` Create `AdminPromoController@index` — `GET /api/v1/admin/promos`: list promos with filters (active/expired/inactive/scheduled), search by code/description, city filter, pagination | A-20 | BE-PROMO-01 | Includes redemption count via withCount |
+| BE-PROMO-05 | `[x]` Create `AdminPromoController@update` — `PUT /api/v1/admin/promos/{promo}`: update config; audit log with old/new values | A-20 | BE-PROMO-02 | — |
+| BE-PROMO-06 | `[x]` Create `PromoValidationService` — validate code against all rules atomically: exists, active, within time window, within geo-fence (haversine radius + point-in-polygon), per-user cap, global cap, order history, tier requirement, peak/off-peak, city/vehicle class, minimum fare | B-13, PR-01 | BE-PROMO-01, BE-GAME-08 | Uses DB transaction + row locking (lockForUpdate) via validateAndLock(); peak hours configurable via `config/promo.php` |
+| BE-PROMO-07 | `[x]` Create `PromoController@validate` — `POST /api/v1/promos/validate`: validate promo code at checkout; return discount preview with amount or rejection reason | PR-01 | BE-PROMO-06 | Returns discount_preview when fare_amount provided |
+| BE-PROMO-08 | `[x]` Create `ValidatePromoFormRequest` — validate code, ride context (city_id, vehicle_class_id, pickup coords, fare_amount) | PR-01 | BE-PROMO-07 | Auto-uppercases code input |
+| BE-PROMO-09 | `[x]` Implement redemption cap enforcement: row-level locking (SELECT FOR UPDATE) on promo_codes + count check on promo_redemptions within DB::transaction in PromoApplicationService | B-14, NF-10 | BE-PROMO-06 | Unique constraint (promo_code_id, user_id, ride_id) prevents double-redeem at DB level |
+| BE-PROMO-10 | `[x]` Create `PromoApplicationService` — calculate discount amount (percentage with cap or flat), apply cap, create redemption record atomically; apply() method for ride integration | B-15 | BE-PROMO-09, BE-PRICE-05 | Discount capped at fare amount; calculateDiscount() available standalone |
+| BE-PROMO-11 | `[x]` Create `AdminPromoController@performance` — `GET /api/v1/admin/promos/{promo}/performance`: redemption count, unique users, total discount, average discount, remaining redemptions, daily breakdown, recent 20 redemptions | A-23 | SETUP-22 | — |
+| BE-PROMO-12 | `[x]` Create `PromoController@available` — `GET /api/v1/promos/available`: return promos the user is eligible for (filters by active window, user eligibility, per-user limits) | PR-04 | BE-PROMO-06, BE-GAME-08 | Code-entry model; auto-apply can be layered via ride creation flow |
+| BE-PROMO-13 | `[x]` Create `PromoCodeResource`, `PromoRedemptionResource` API resources | — | BE-PROMO-01 | Admin-only fields: total_redemption_limit, geo_fence, order count rules, created_by, total_redemptions |
 
 ---
 
