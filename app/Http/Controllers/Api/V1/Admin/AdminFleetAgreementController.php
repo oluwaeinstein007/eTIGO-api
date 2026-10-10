@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Fleet\ExcuseRemittanceDayRequest;
 use App\Http\Requests\Admin\Fleet\StoreFleetAgreementRequest;
+use App\Http\Requests\Admin\Fleet\SwapFleetVehicleRequest;
 use App\Http\Requests\Admin\Fleet\TerminateFleetAgreementRequest;
+use App\Http\Requests\Admin\Fleet\TerminateWithSettlementRequest;
 use App\Http\Requests\Admin\Fleet\UpdateFleetAgreementRequest;
 use App\Http\Resources\FleetAgreementResource;
+use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
 use App\Models\Vehicle;
@@ -143,6 +147,78 @@ class AdminFleetAgreementController extends Controller
         return response()->json([
             'message' => 'Fleet agreement resumed.',
             'agreement' => new FleetAgreementResource($agreement),
+        ]);
+    }
+
+    public function swap(SwapFleetVehicleRequest $request, FleetAgreement $fleetAgreement): JsonResponse
+    {
+        $newVehicle = Vehicle::findOrFail($request->validated('new_vehicle_id'));
+
+        try {
+            $agreement = $this->service->swapVehicle(
+                currentAgreement: $fleetAgreement,
+                newVehicle: $newVehicle,
+                reason: $request->validated('reason'),
+                carryOverRemitted: $request->boolean('carry_over_remitted'),
+                newDailyTarget: $request->validated('daily_remittance_target'),
+                newTotalCost: $request->validated('total_vehicle_cost'),
+                admin: $request->user(),
+            );
+        } catch (\DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $agreement->load(['driver.user', 'vehicle']);
+
+        return response()->json([
+            'message' => 'Vehicle swapped successfully. Previous agreement terminated, new agreement created.',
+            'agreement' => new FleetAgreementResource($agreement),
+        ]);
+    }
+
+    public function terminateWithSettlement(
+        TerminateWithSettlementRequest $request,
+        FleetAgreement $fleetAgreement,
+    ): JsonResponse {
+        try {
+            $agreement = $this->service->terminateWithSettlement(
+                agreement: $fleetAgreement,
+                reason: $request->validated('reason'),
+                admin: $request->user(),
+                vehicleReturnStatus: $request->validated('vehicle_return_status'),
+                outstandingAmount: (float) $request->validated('outstanding_amount', 0),
+                settlementAmount: (float) $request->validated('settlement_amount', 0),
+                settlementNotes: $request->validated('settlement_notes'),
+            );
+        } catch (\DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Fleet agreement terminated with settlement recorded.',
+            'agreement' => new FleetAgreementResource($agreement),
+        ]);
+    }
+
+    public function excuseDay(
+        ExcuseRemittanceDayRequest $request,
+        FleetAgreement $fleetAgreement,
+        DailyRemittance $remittance,
+    ): JsonResponse {
+        if ($remittance->agreement_id !== $fleetAgreement->id) {
+            return response()->json(['message' => 'Remittance does not belong to this agreement.'], 422);
+        }
+
+        $reason = $request->validated('reason');
+        if ($request->validated('notes')) {
+            $reason .= ': '.$request->validated('notes');
+        }
+
+        $remittance = $this->service->excuseDay($remittance, $reason, $request->user());
+
+        return response()->json([
+            'message' => 'Remittance day marked as excused.',
+            'remittance' => $remittance,
         ]);
     }
 }

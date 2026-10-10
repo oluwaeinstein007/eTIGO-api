@@ -248,10 +248,33 @@ class FleetRemittanceService
 
             $agreement = $remittance->agreement;
 
+            if ($remittance->isExcused()) {
+                return $remittance->fresh();
+            }
+
             if ($remittance->shortfall() > 0) {
                 $agreement->increment('shortfall_streak_days');
             } else {
                 $agreement->update(['shortfall_streak_days' => 0]);
+            }
+
+            return $remittance->fresh();
+        });
+    }
+
+    public function excuseDay(DailyRemittance $remittance, string $reason, User $admin): DailyRemittance
+    {
+        return DB::transaction(function () use ($remittance, $reason, $admin) {
+            $remittance->update(['excused_reason' => $reason]);
+
+            AuditLog::record($remittance->agreement, 'remittance_day_excused', $admin, null, [
+                'date' => $remittance->date->toDateString(),
+                'reason' => $reason,
+            ]);
+
+            if ($remittance->settled && $remittance->shortfall() > 0) {
+                $agreement = $remittance->agreement;
+                $agreement->decrement('shortfall_streak_days');
             }
 
             return $remittance->fresh();
@@ -269,6 +292,102 @@ class FleetRemittanceService
             'total_remitted' => $agreement->total_remitted,
             'total_vehicle_cost' => $agreement->total_vehicle_cost,
         ]);
+    }
+
+    public function swapVehicle(
+        FleetAgreement $currentAgreement,
+        Vehicle $newVehicle,
+        string $reason,
+        bool $carryOverRemitted,
+        ?float $newDailyTarget,
+        ?float $newTotalCost,
+        User $admin,
+    ): FleetAgreement {
+        return DB::transaction(function () use (
+            $currentAgreement, $newVehicle, $reason,
+            $carryOverRemitted, $newDailyTarget, $newTotalCost, $admin,
+        ) {
+            $newVehicle = Vehicle::lockForUpdate()->findOrFail($newVehicle->id);
+
+            if (! $newVehicle->is_fleet) {
+                throw new \DomainException('Replacement vehicle must be a fleet vehicle.');
+            }
+
+            if ($newVehicle->isAssigned()) {
+                throw new \DomainException('Replacement vehicle is already assigned.');
+            }
+
+            $driver = $currentAgreement->driver;
+            $oldVehicle = $currentAgreement->vehicle;
+
+            $this->terminateAgreement($currentAgreement, "Vehicle swap: {$reason}", $admin);
+
+            $oldVehicle->update(['driver_id' => null]);
+            $newVehicle->update(['driver_id' => $driver->id]);
+
+            $newAgreement = $this->createAgreement(
+                driver: $driver,
+                vehicle: $newVehicle,
+                dailyTarget: $newDailyTarget ?? $currentAgreement->daily_remittance_target,
+                totalVehicleCost: $newTotalCost ?? $currentAgreement->total_vehicle_cost,
+                startDate: now()->toDateString(),
+                admin: $admin,
+            );
+
+            if ($carryOverRemitted) {
+                $newAgreement->update(['total_remitted' => $currentAgreement->total_remitted]);
+            }
+
+            AuditLog::record($newAgreement, 'fleet_vehicle_swapped', $admin, null, [
+                'previous_agreement_id' => $currentAgreement->id,
+                'previous_vehicle_id' => $oldVehicle->id,
+                'new_vehicle_id' => $newVehicle->id,
+                'reason' => $reason,
+                'remitted_carried_over' => $carryOverRemitted,
+                'carried_amount' => $carryOverRemitted ? $currentAgreement->total_remitted : 0,
+            ]);
+
+            return $newAgreement->fresh();
+        });
+    }
+
+    public function terminateWithSettlement(
+        FleetAgreement $agreement,
+        string $reason,
+        User $admin,
+        ?string $vehicleReturnStatus = null,
+        float $outstandingAmount = 0,
+        float $settlementAmount = 0,
+        ?string $settlementNotes = null,
+    ): FleetAgreement {
+        if ($agreement->isCompleted() || $agreement->isTerminated()) {
+            throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
+        }
+
+        return DB::transaction(function () use (
+            $agreement, $reason, $admin,
+            $vehicleReturnStatus, $outstandingAmount, $settlementAmount, $settlementNotes,
+        ) {
+            $agreement->update([
+                'status' => FleetAgreementStatus::Terminated,
+                'terminated_reason' => $reason,
+                'terminated_at' => now(),
+                'vehicle_return_status' => $vehicleReturnStatus,
+                'outstanding_amount' => $outstandingAmount,
+                'settlement_amount' => $settlementAmount,
+                'settlement_notes' => $settlementNotes,
+                'settled_at' => $settlementAmount > 0 ? now() : null,
+            ]);
+
+            AuditLog::record($agreement, 'fleet_agreement.terminated_with_settlement', $admin, null, [
+                'reason' => $reason,
+                'vehicle_return_status' => $vehicleReturnStatus,
+                'outstanding_amount' => $outstandingAmount,
+                'settlement_amount' => $settlementAmount,
+            ]);
+
+            return $agreement->fresh();
+        });
     }
 
     public function getDriverTodayRemittance(Driver $driver): ?DailyRemittance

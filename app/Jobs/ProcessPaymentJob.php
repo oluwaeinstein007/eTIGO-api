@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\Driver;
 use App\Models\Ride;
+use App\Services\FleetRemittanceService;
 use App\Services\PaymentService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -32,7 +34,7 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
         return $this->rideId;
     }
 
-    public function handle(PaymentService $paymentService): void
+    public function handle(PaymentService $paymentService, FleetRemittanceService $fleetService): void
     {
         $ride = DB::transaction(function () {
             $ride = Ride::with('passenger')->lockForUpdate()->find($this->rideId);
@@ -72,6 +74,41 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
             ]);
 
             throw $e;
+        }
+
+        $this->recordFleetRemittance($ride, $fleetService);
+    }
+
+    private function recordFleetRemittance(Ride $ride, FleetRemittanceService $fleetService): void
+    {
+        try {
+            $driver = Driver::where('user_id', $ride->driver_id)->first();
+
+            if (! $driver || ! $driver->isFleetVehicle()) {
+                return;
+            }
+
+            $agreement = $driver->activeFleetAgreement;
+
+            if (! $agreement) {
+                return;
+            }
+
+            $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
+
+            $fleetService->recordRideRemittance($agreement, $fareAmount);
+
+            Log::info('Fleet remittance recorded', [
+                'ride_id' => $ride->id,
+                'driver_id' => $driver->id,
+                'agreement_id' => $agreement->id,
+                'fare_amount' => $fareAmount,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Fleet remittance recording failed', [
+                'ride_id' => $ride->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

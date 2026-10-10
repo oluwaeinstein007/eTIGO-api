@@ -762,7 +762,7 @@
 
 **PRD refs:** Fleet hire-to-own model — remittance-first per-ride allocation
 
-**Design note:** First ₦X of each ride fare goes to E-tiGo until the vehicle cost is fully remitted; remainder goes to the driver. Drivers see progress percentage only (total_vehicle_cost hidden per business decision). Daily settlement job tracks shortfall streaks.
+**Design note:** First ₦X of each ride fare goes to E-tiGo until the vehicle cost is fully remitted; remainder goes to the driver. Drivers see full financial terms including total_vehicle_cost (Q7 reversal — hire-purchase disclosure). Daily settlement job at 4 AM WAT tracks shortfall streaks with 3-7-14 day tiered escalation.
 
 ### 22.1 Schema & Migrations
 
@@ -811,13 +811,13 @@
 |----|------|---------|------|-------|
 | BE-FLEET-22 | `[x]` Create `DriverRemittanceController@today` — `GET /api/v1/driver/remittance/today`: daily remittance progress | — | BE-FLEET-15 | Returns null when no active agreement |
 | BE-FLEET-23 | `[x]` Create `DriverRemittanceController@history` — `GET /api/v1/driver/remittance/history`: paginated remittance history | — | BE-FLEET-15 | — |
-| BE-FLEET-24 | `[x]` Create `DriverRemittanceController@fleetAgreement` — `GET /api/v1/driver/fleet-agreement`: agreement summary without total_vehicle_cost | — | BE-FLEET-04 | total_vehicle_cost and remaining_amount hidden from drivers |
+| BE-FLEET-24 | `[x]` Create `DriverRemittanceController@fleetAgreement` — `GET /api/v1/driver/fleet-agreement`: agreement summary with full financial terms | — | BE-FLEET-04 | Q7 reversed: total_vehicle_cost and remaining_amount now visible to drivers (hire-purchase disclosure) |
 
 ### 22.6 Resources & Background Jobs
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-FLEET-25 | `[x]` Create `FleetAgreementResource` — conditional total_vehicle_cost/remaining_amount (admin-only); includes daily_remittances when loaded | — | BE-FLEET-04 | Uses `$request->user()->isAdmin()` check |
+| BE-FLEET-25 | `[x]` Create `FleetAgreementResource` — total_vehicle_cost/remaining_amount visible to all (Q7 reversal); admin-only fields: shortfall_flag, vehicle_return_status, outstanding_amount, settlement_amount, settlement_notes; includes daily_remittances when loaded | — | BE-FLEET-04 | Uses `$request->user()->isAdmin()` for admin-only settlement fields |
 | BE-FLEET-26 | `[x]` Create `DailyRemittanceResource` | — | BE-FLEET-05 | — |
 | BE-FLEET-27 | `[x]` Create `DailyRemittanceSettlementJob` — ensures every active agreement has a DailyRemittance row for the date (including zero-ride days), then settles all unsettled remittances | — | BE-FLEET-14 | 3 retries; creates missing rows before settlement to capture zero-ride shortfalls |
 
@@ -825,8 +825,62 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-FLEET-28 | `[x]` Create admin fleet agreement tests (12 tests): CRUD, validation, audit logs, status transitions, admin exposes total_vehicle_cost, driver hides total_vehicle_cost | — | BE-FLEET-16 through BE-FLEET-21 | — |
-| BE-FLEET-29 | `[x]` Create driver remittance tests (12 tests): today, history, ride accumulation, driver earnings after target met, auto-completion, shortfall streaks, shortfall reset, non-active rejection, progress percentage, hidden-field assertion via assertJsonMissingPath | — | BE-FLEET-22 through BE-FLEET-24, BE-FLEET-13 | — |
+| BE-FLEET-28 | `[x]` Create admin fleet agreement tests (18 tests): CRUD, validation, audit logs, status transitions, Q7 financial transparency, vehicle swap with/without carry-over, terminate with settlement, excuse day, zero commission | — | BE-FLEET-16 through BE-FLEET-21, BE-FLEET-30 through BE-FLEET-40 | Updated from 12 to 18 tests for Phase 1.5 |
+| BE-FLEET-29 | `[x]` Create driver remittance tests (14 tests): today, history, ride accumulation, driver earnings after target met, auto-completion, shortfall streaks, shortfall reset, non-active rejection, progress percentage, Q7 financial terms visible, excused days don't increment streak, shortfall escalation flags, no re-flagging | — | BE-FLEET-22 through BE-FLEET-24, BE-FLEET-13, BE-FLEET-35 | Updated from 12 to 14 tests for Phase 1.5 |
+
+### 22.8 Phase 1.5 — Client Decision Response Implementation
+
+**Context:** Following the client's Fleet Decisions Report (October 2026), several features were identified as immediately implementable. The Chairman directed the team to follow industry standard practices.
+
+#### 22.8.1 Schema Updates
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-30 | `[x]` Create migration: add `excused_reason` (text nullable) to `daily_remittances` table | Client Q2 | BE-FLEET-02 | Tracks why a day was excused (e.g., vehicle_downtime, approved_leave) |
+| BE-FLEET-31 | `[x]` Create migration: add to `fleet_agreements` — `shortfall_flag` (string nullable), `shortfall_flagged_at` (timestamp nullable), `vehicle_return_status` (string nullable), `outstanding_amount` (decimal 14,2 nullable), `settlement_amount` (decimal 14,2 nullable), `settlement_notes` (text nullable), `settled_at` (timestamp nullable) | Client Q2,Q4 | BE-FLEET-01 | Supports escalation flagging and settlement tracking |
+
+#### 22.8.2 Configuration
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-32 | `[x]` Create `config/fleet.php` — configurable daily_reset_time (default 04:00), shortfall thresholds (3/7/14 days), default_daily_target (40000) | Client Q2 | — | All values env-overridable |
+
+#### 22.8.3 Service Layer Updates
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-33 | `[x]` Wire `FleetRemittanceService@recordRideRemittance()` into `ProcessPaymentJob@handle()` — automatic per-ride fleet remittance recording after payment processing | Critical gap | BE-FLEET-13 | Without this the fleet system was inert — fares were not being recorded |
+| BE-FLEET-34 | `[x]` Add zero-commission enforcement in `CommissionService@getRate()` — return 0.0 for drivers with active fleet agreements | Client Q6 | BE-FLEET-04 | Early return before override/global/default logic |
+| BE-FLEET-35 | `[x]` Update `FleetRemittanceService@settleDay()` to skip excused days (no streak increment/reset) | Client Q2 | BE-FLEET-30 | Excused days are neutral — streak stays unchanged |
+| BE-FLEET-36 | `[x]` Create `FleetRemittanceService@excuseDay()` — mark remittance as excused, decrement streak by 1, create audit log | Client Q2 | BE-FLEET-30 | Admin action with reason categories |
+| BE-FLEET-37 | `[x]` Create `FleetRemittanceService@swapVehicle()` — terminate current agreement, unassign old vehicle, assign new vehicle, create new agreement with optional carry-over of total_remitted | Client Q3 | BE-FLEET-11 | Single transaction; audit log records old and new agreement IDs |
+| BE-FLEET-38 | `[x]` Create `FleetRemittanceService@terminateWithSettlement()` — terminate with vehicle_return_status, outstanding_amount, settlement_amount, settlement_notes | Client Q4 | BE-FLEET-11 | Full settlement audit trail |
+
+#### 22.8.4 Background Jobs
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-39 | `[x]` Create `RemittanceShortfallAlertJob` — check active agreements against shortfall thresholds, assign flags: warning (3+ days), review (7+ days), escalated (14+ days); create audit log entries | Client Q2 | BE-FLEET-31, BE-FLEET-32 | Only updates if flag level changed; runs daily at fleet reset time |
+| BE-FLEET-40 | `[x]` Schedule `DailyRemittanceSettlementJob` and `RemittanceShortfallAlertJob` at configurable time (4 AM WAT default) via `routes/console.php` | Client Q2 | BE-FLEET-27, BE-FLEET-39 | Uses `config('fleet.daily_reset_time')`, timezone `Africa/Lagos` |
+
+#### 22.8.5 Admin Endpoints (Phase 1.5)
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-41 | `[x]` Create `AdminFleetAgreementController@swap` — `POST /api/v1/admin/fleet-agreements/{id}/swap` | Client Q3 | BE-FLEET-37 | Validates via `SwapFleetVehicleRequest` |
+| BE-FLEET-42 | `[x]` Create `AdminFleetAgreementController@terminateWithSettlement` — `POST /api/v1/admin/fleet-agreements/{id}/terminate-settle` | Client Q4 | BE-FLEET-38 | Validates via `TerminateWithSettlementRequest` |
+| BE-FLEET-43 | `[x]` Create `AdminFleetAgreementController@excuseDay` — `POST /api/v1/admin/fleet-agreements/{id}/remittances/{remittance_id}/excuse` | Client Q2 | BE-FLEET-36 | Validates via `ExcuseRemittanceDayRequest`; verifies remittance belongs to agreement |
+| BE-FLEET-44 | `[x]` Create `SwapFleetVehicleRequest`, `TerminateWithSettlementRequest`, `ExcuseRemittanceDayRequest` form requests | — | BE-FLEET-41 through BE-FLEET-43 | — |
+
+#### 22.8.6 Resource & Model Updates
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-FLEET-45 | `[x]` Update `FleetAgreementResource` — remove admin-only restriction on total_vehicle_cost/remaining_amount (Q7 reversal); add admin-only shortfall_flag, vehicle_return_status, settlement fields | Client Q7 | BE-FLEET-25, BE-FLEET-31 | Hire-purchase disclosure requirement |
+| BE-FLEET-46 | `[x]` Update `DailyRemittanceResource` — add `excused_reason` (conditionally shown when not null) | — | BE-FLEET-30, BE-FLEET-26 | — |
+| BE-FLEET-47 | `[x]` Update `FleetAgreementStatus::Completed` label to "Financially Complete"; add `isFinished()` helper | Client Q8 | BE-FLEET-03 | Separates payment completion from ownership transfer |
+| BE-FLEET-48 | `[x]` Update `DailyRemittance` model — add `excused_reason` to fillable, add `isExcused()`, `scopeExcused()`, `scopeNotExcused()` | — | BE-FLEET-30 | — |
+| BE-FLEET-49 | `[x]` Update `FleetAgreement` model — add new fields to fillable and casts | — | BE-FLEET-31 | — |
 
 ---
 

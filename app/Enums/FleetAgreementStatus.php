@@ -14,8 +14,13 @@ enum FleetAgreementStatus: string
         return match ($this) {
             self::Active => 'Active',
             self::Paused => 'Paused',
-            self::Completed => 'Completed',
+            self::Completed => 'Financially Complete',
             self::Terminated => 'Terminated',
         };
+    }
+
+    public function isFinished(): bool
+    {
+        return in_array($this, [self::Completed, self::Terminated]);
     }
 }

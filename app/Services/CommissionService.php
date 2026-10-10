@@ -3,15 +3,18 @@
 namespace App\Services;
 
 use App\Models\CommissionConfig;
+use App\Models\Driver;
 
 class CommissionService
 {
-    /**
-     * Get the effective commission rate for a driver.
-     * Returns per-driver override if active, else the global default.
-     */
     public function getRate(string $driverId): float
     {
+        $driver = Driver::find($driverId);
+
+        if ($driver?->isFleetVehicle() && $driver->activeFleetAgreement()->exists()) {
+            return 0.0;
+        }
+
         $override = CommissionConfig::active()
             ->forDriver($driverId)
             ->first();

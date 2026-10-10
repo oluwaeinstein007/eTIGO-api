@@ -24,6 +24,7 @@ class DailyRemittance extends Model
         'total_fares',
         'driver_earnings',
         'settled',
+        'excused_reason',
     ];
 
     protected function casts(): array
@@ -74,5 +75,20 @@ class DailyRemittance extends Model
     public function shortfall(): float
     {
         return max(0, $this->target_amount - $this->remitted_amount);
+    }
+
+    public function isExcused(): bool
+    {
+        return $this->excused_reason !== null;
+    }
+
+    public function scopeExcused(Builder $query): void
+    {
+        $query->whereNotNull('excused_reason');
+    }
+
+    public function scopeNotExcused(Builder $query): void
+    {
+        $query->whereNull('excused_reason');
     }
 }
