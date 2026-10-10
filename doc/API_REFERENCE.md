@@ -6431,6 +6431,217 @@ Content-Type: application/json
 
 ---
 
+## Promo / Discount Engine
+
+**Middleware:** `auth:sanctum`, `user.type:passenger`
+
+### Validate Promo Code
+
+`POST /api/v1/promos/validate`
+
+Validates a promo code against all eligibility rules. Returns discount preview when `fare_amount` is provided.
+
+**Request:**
+```json
+{
+  "code": "WELCOME20",
+  "city_id": "uuid (optional)",
+  "vehicle_class_id": "uuid (optional)",
+  "pickup_lat": 9.0579 (optional),
+  "pickup_lng": 7.4951 (optional),
+  "fare_amount": 5000.00 (optional)
+}
+```
+
+**Response (200 — valid):**
+```json
+{
+  "valid": true,
+  "promo": {
+    "id": "uuid",
+    "code": "WELCOME20",
+    "description": "Welcome discount for new riders",
+    "discount_type": "percentage",
+    "discount_type_label": "Percentage",
+    "discount_value": "20.00",
+    "max_discount_cap": "2000.00",
+    "per_user_limit": 1,
+    "starts_at": "2026-10-01T00:00:00.000Z",
+    "expires_at": "2026-11-01T00:00:00.000Z",
+    "min_tier_level": null,
+    "peak_only": false,
+    "off_peak_only": false,
+    "city_id": null,
+    "vehicle_class_id": null,
+    "minimum_fare_amount": null,
+    "is_active": true
+  },
+  "discount_preview": {
+    "discount_amount": 1000,
+    "discount_type": "percentage",
+    "discount_value": "20.00",
+    "max_discount_cap": "2000.00"
+  }
+}
+```
+
+**Response (422 — invalid):**
+```json
+{
+  "valid": false,
+  "message": "This promo code has expired."
+}
+```
+
+**Validation rules checked (in order):**
+1. Code exists
+2. Code is active
+3. Within time window (starts_at ≤ now < expires_at)
+4. City restriction (if set)
+5. Vehicle class restriction (if set)
+6. Minimum fare requirement (if set)
+7. Geo-fence (radius or polygon, if set)
+8. Peak/off-peak constraint (if set)
+9. Tier level requirement (if set)
+10. Completed ride count (min_order_count / max_order_count)
+11. Per-user redemption limit
+12. Global redemption limit
+
+### Available Promos
+
+`GET /api/v1/promos/available`
+
+Returns promo codes the authenticated user is currently eligible to use.
+
+**Response (200):**
+```json
+{
+  "promos": [
+    {
+      "id": "uuid",
+      "code": "WELCOME20",
+      "description": "Welcome discount",
+      "discount_type": "percentage",
+      "discount_value": "20.00",
+      "max_discount_cap": "2000.00",
+      "per_user_limit": 1,
+      "starts_at": "...",
+      "expires_at": "..."
+    }
+  ]
+}
+```
+
+---
+
+## Admin — Promo Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+### List Promos
+
+`GET /api/v1/admin/promos`
+
+**Query parameters:**
+- `status` — `active`, `expired`, `inactive`, `scheduled`
+- `city_id` — filter by city
+- `search` — search by code or description
+- `per_page` — pagination size (default 20, max 100)
+
+**Response (200):**
+```json
+{
+  "promos": [...],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 5
+  }
+}
+```
+
+### Create Promo
+
+`POST /api/v1/admin/promos`
+
+**Request:**
+```json
+{
+  "code": "WELCOME20",
+  "description": "20% off for new riders",
+  "discount_type": "percentage",
+  "discount_value": 20,
+  "max_discount_cap": 2000,
+  "total_redemption_limit": 500,
+  "per_user_limit": 1,
+  "starts_at": "2026-10-01T00:00:00Z",
+  "expires_at": "2026-11-01T00:00:00Z",
+  "city_id": "uuid (optional)",
+  "vehicle_class_id": "uuid (optional)",
+  "minimum_fare_amount": 1500 (optional),
+  "min_tier_level": 2 (optional, 1-5),
+  "min_order_count": 0 (optional),
+  "max_order_count": 5 (optional, for new-user promos),
+  "peak_only": false,
+  "off_peak_only": false,
+  "geo_fence": {
+    "center_lat": 9.0579,
+    "center_lng": 7.4951,
+    "radius_km": 10
+  }
+}
+```
+
+**Response (201):**
+```json
+{
+  "message": "Promo code created successfully.",
+  "promo": { ... }
+}
+```
+
+### Show Promo
+
+`GET /api/v1/admin/promos/{promo}`
+
+### Update Promo
+
+`PUT /api/v1/admin/promos/{promo}`
+
+All fields from create are accepted; only provided fields are updated.
+
+### Toggle Promo Status
+
+`PATCH /api/v1/admin/promos/{promo}/status`
+
+Activates or deactivates the promo. Audit logged.
+
+### Promo Performance Analytics
+
+`GET /api/v1/admin/promos/{promo}/performance`
+
+**Response (200):**
+```json
+{
+  "promo": { ... },
+  "performance": {
+    "total_redemptions": 42,
+    "unique_users": 38,
+    "total_discount_given": 84000.00,
+    "average_discount": 2000.00,
+    "remaining_redemptions": 458,
+    "redemptions_by_day": {
+      "2026-10-05": { "count": 12, "total_discount": 24000.00 },
+      "2026-10-06": { "count": 30, "total_discount": 60000.00 }
+    }
+  },
+  "recent_redemptions": [...]
+}
+```
+
+---
+
 ## Passenger — Wallet
 
 **Middleware:** `auth:sanctum`, `user.type:passenger`
@@ -7392,6 +7603,12 @@ Super Admins always bypass role checks and have full access.
 | `failed`             | Payment failed                           |
 | `pending_collection` | Cash payment awaiting driver collection  |
 | `collected`          | Cash payment collected by driver         |
+
+### Discount Type
+| Value        | Description                                |
+|--------------|---------------------------------------------|
+| `percentage` | Percentage of fare (capped by max_discount_cap) |
+| `flat`       | Fixed amount subtracted from fare            |
 
 ### Dispute Category
 | Value                | Description                              |

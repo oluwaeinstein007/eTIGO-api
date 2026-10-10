@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
@@ -51,6 +52,7 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
+use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideCancellationReasonController;
 use App\Http\Controllers\Api\V1\RideController;
@@ -178,6 +180,16 @@ Route::middleware('auth:sanctum')->prefix('gamification')->group(function () {
     Route::get('/carbon-history', [GamificationController::class, 'carbonHistory']);
     Route::get('/tiers', [GamificationController::class, 'tiers']);
     Route::get('/leaderboard', [GamificationController::class, 'leaderboard']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Promo Routes (Authenticated — Passenger)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('promos')->group(function () {
+    Route::post('/validate', [PromoController::class, 'validate']);
+    Route::get('/available', [PromoController::class, 'available']);
 });
 
 /*
@@ -369,6 +381,15 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/tiers', [AdminGamificationController::class, 'updateTiers']);
         Route::get('/multipliers', [AdminGamificationController::class, 'multipliers']);
         Route::put('/multipliers', [AdminGamificationController::class, 'updateMultipliers']);
+    });
+
+    Route::middleware('admin.role:operations,finance')->prefix('promos')->group(function () {
+        Route::get('/', [AdminPromoController::class, 'index']);
+        Route::post('/', [AdminPromoController::class, 'store']);
+        Route::get('/{promo}', [AdminPromoController::class, 'show']);
+        Route::put('/{promo}', [AdminPromoController::class, 'update']);
+        Route::patch('/{promo}/status', [AdminPromoController::class, 'toggleStatus']);
+        Route::get('/{promo}/performance', [AdminPromoController::class, 'performance']);
     });
 
     Route::middleware('admin.role:support')->prefix('disputes')->group(function () {
