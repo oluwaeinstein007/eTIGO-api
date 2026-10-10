@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo — Local** or **E-tiGo — Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max ₦2,000) | Active | 1 use per user |\n| `RIDE500` | ₦500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | — |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP → Verify OTP → (if new user) Complete Registration → Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password → Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone → returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` → logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\neTiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access |\n| Operations | `operations` | Drivers, vehicles, cities, trips, pricing, surge, fleet, gamification |\n| Support | `support` | Passengers, disputes |\n| Finance | `finance` | Pricing (view/manage), fleet agreements |\n| Safety | `safety_operator` | Drivers (suspend/reactivate), passengers, safety investigations |\n\n**Permission Matrix:**\n\n| Endpoint Group | Operations | Support | Finance | Safety |\n|----------------|:----------:|:-------:|:-------:|:------:|\n| Drivers | ✅ | — | — | ✅ |\n| Cities | ✅ | — | — | — |\n| Vehicle Classes | ✅ | — | — | — |\n| Pricing | ✅ | — | ✅ | — |\n| Surge Rules | ✅ | — | — | — |\n| Rides | ✅ | — | — | — |\n| Fleet Vehicles | ✅ | — | ✅ | — |\n| Fleet Agreements | ✅ | — | ✅ | — |\n| Gamification | ✅ | — | — | — |\n| Passengers | — | ✅ | — | ✅ |\n| Disputes | — | ✅ | — | — |\n| Admin Management | — | — | — | — |\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo — Local** or **E-tiGo — Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max ₦2,000) | Active | 1 use per user |\n| `RIDE500` | ₦500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | — |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP → Verify OTP → (if new user) Complete Registration → Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password → Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone → returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` → logs in or prompts registration\n\n**Production always generates random codes and delivers via SMS.**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\neTiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access |\n| Operations | `operations` | Drivers, vehicles, cities, trips, pricing, surge, fleet, gamification |\n| Support | `support` | Passengers, disputes |\n| Finance | `finance` | Pricing (view/manage), fleet agreements |\n| Safety | `safety_operator` | Drivers (suspend/reactivate), passengers, safety investigations |\n\n**Permission Matrix:**\n\n| Endpoint Group | Operations | Support | Finance | Safety |\n|----------------|:----------:|:-------:|:-------:|:------:|\n| Drivers | ✅ | — | — | ✅ |\n| Cities | ✅ | — | — | — |\n| Vehicle Classes | ✅ | — | — | — |\n| Pricing | ✅ | — | ✅ | — |\n| Surge Rules | ✅ | — | — | — |\n| Rides (assign) | ✅ | — | — | — |\n| Rides (refund) | — | — | ✅ | — |\n| Fleet Vehicles | ✅ | — | ✅ | — |\n| Fleet Agreements | ✅ | — | ✅ | — |\n| Gamification | ✅ | — | — | — |\n| Passengers | — | ✅ | — | ✅ |\n| Disputes | — | ✅ | — | — |\n| Wallets | — | ✅ | ✅ | — |\n| Wallets (freeze) | — | — | ✅ | — |\n| Driver Ledgers | — | ✅ | ✅ | — |\n| Ledger Explorer | — | — | ✅ | — |\n| Adjustments | — | — | ✅ | — |\n| Payouts | — | — | ✅ | — |\n| Settings | — | — | ✅ | — |\n| Reports (financial) | — | — | ✅ | — |\n| Reports (operational) | ✅ | — | ✅ | — |\n| Admin Management | — | — | — | — |\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -9759,7 +9759,337 @@
                 }
               ]
             }
-          ]
+          ],
+          "description": "**Required Role(s):** Operations (Super Admin always has access)"
+        },
+        {
+          "name": "Admin — Reporting",
+          "item": [
+            {
+              "name": "Ride Volume Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/ride-volume?from=2026-10-01&to=2026-10-31&group_by=day",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "ride-volume"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date (inclusive)"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date (inclusive)"
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "group_by",
+                      "value": "day",
+                      "description": "Trend grouping: day, week, or month",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns ride volume statistics: total rides, breakdown by status, city, and vehicle class. Optional trend data when group_by is specified. Accessible to Operations and Finance admins."
+              },
+              "response": [
+                {
+                  "name": "200 — Ride Volume Report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"report\": {\n    \"type\": \"ride_volume\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"by_status\": {\n      \"completed\": 980,\n      \"cancelled\": 150,\n      \"no_driver_found\": 45,\n      \"in_progress\": 30,\n      \"searching\": 15,\n      \"requested\": 30\n    },\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 800\n      }\n    ],\n    \"by_vehicle_class\": [\n      {\n        \"vehicle_class_id\": \"uuid\",\n        \"vehicle_class\": \"Comfort\",\n        \"count\": 600\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Completion Rate Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/completion-rate?from=2026-10-01&to=2026-10-31",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "completion-rate"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date"
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns completion and cancellation rate statistics: completed vs cancelled counts, cancellation reasons breakdown, cancelled-by-role breakdown. Accessible to Operations and Finance admins."
+              },
+              "response": [
+                {
+                  "name": "200 — Completion Rate Report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"report\": {\n    \"type\": \"completion_rate\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"completed\": 980,\n    \"cancelled\": 150,\n    \"no_driver_found\": 45,\n    \"completion_rate\": 78.4,\n    \"cancellation_rate\": 12.0,\n    \"cancellation_reasons\": {\n      \"changed_mind\": 50,\n      \"driver_too_far\": 35,\n      \"wait_too_long\": 25\n    },\n    \"cancelled_by_role\": {\n      \"passenger\": 100,\n      \"driver\": 50\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Revenue Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/revenue?from=2026-10-01&to=2026-10-31&group_by=month",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "revenue"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date"
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "group_by",
+                      "value": "month",
+                      "description": "Trend grouping: day, week, or month",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns revenue statistics: total revenue, total tips, average fare, breakdown by payment method and city. Optional trend data when group_by is specified. Accessible to Operations and Finance admins."
+              },
+              "response": [
+                {
+                  "name": "200 — Revenue Report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"report\": {\n    \"type\": \"revenue\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_revenue\": 4900000.0,\n    \"total_tips\": 125000.0,\n    \"ride_count\": 980,\n    \"average_fare\": 5000.0,\n    \"by_payment_method\": [\n      {\n        \"method\": \"cash\",\n        \"count\": 400,\n        \"total\": 2000000.0\n      }\n    ],\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 600,\n        \"total\": 3000000.0\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Driver Utilisation Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/driver-utilisation?from=2026-10-01&to=2026-10-31&limit=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "driver-utilisation"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date"
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Top drivers limit (1-100, default 20)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns driver utilisation statistics: active drivers count, trips per driver, earnings per driver, average trip duration, top drivers leaderboard. Accessible to Operations and Finance admins."
+              },
+              "response": [
+                {
+                  "name": "200 — Driver Utilisation Report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"report\": {\n    \"type\": \"driver_utilisation\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_active_drivers\": 85,\n    \"total_trips\": 980,\n    \"average_trips_per_driver\": 11.53,\n    \"total_earnings\": 4900000.0,\n    \"average_earnings_per_driver\": 57647.06,\n    \"average_trip_duration_minutes\": 22.5,\n    \"top_drivers\": [\n      {\n        \"driver_id\": \"uuid\",\n        \"driver_name\": \"John Doe\",\n        \"trip_count\": 45,\n        \"total_earnings\": 225000.0,\n        \"average_fare\": 5000.0\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Export Report (CSV)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/csv"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/export?type=ride_volume&from=2026-10-01&to=2026-10-31",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "export"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "ride_volume",
+                      "description": "Report type: ride_volume, completion_rate, revenue, driver_utilisation"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date (required)"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date (required)"
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Optional city filter",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Export any report type as a streamed CSV file. Requires type, from, and to parameters. Accessible to Operations and Finance admins."
+              },
+              "response": [
+                {
+                  "name": "200 — CSV Download",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "text/csv"
+                    }
+                  ],
+                  "body": "Ride ID,Status,City,Vehicle Class,Fare Estimate,Final Fare,Payment Method,Created At,Completed At\nuuid-1,completed,Lagos,Comfort,5000.00,5200.00,cash,2026-10-05T10:00:00+01:00,2026-10-05T10:35:00+01:00"
+                }
+              ]
+            }
+          ],
+          "description": "**Required Role(s):** Operations, Finance (Super Admin always has access)"
         }
       ],
       "description": "Endpoints for authenticated admin users. Requires `user.type:admin` middleware."
