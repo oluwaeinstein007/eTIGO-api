@@ -2,19 +2,21 @@
 
 namespace App\Providers;
 
+use App\Contracts\FlutterwaveWalletGateway;
 use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
+use App\Gateways\FlutterwaveWalletPaymentGateway;
 use App\Models\PersonalAccessToken;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
 use App\Services\HaversineMapsGateway;
-use App\Services\MapboxGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
+use App\Services\MapboxGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
@@ -40,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPushNotificationGateway();
         $this->registerPaymentGateway();
         $this->registerKycGateway();
+        $this->registerFlutterwaveWalletGateway();
     }
 
     public function boot(): void
@@ -84,6 +87,19 @@ class AppServiceProvider extends ServiceProvider
                 config('services.qoreid.client_id', ''),
                 config('services.qoreid.secret_key', ''),
             );
+        });
+    }
+
+    private function registerFlutterwaveWalletGateway(): void
+    {
+        $this->app->bind(FlutterwaveWalletGateway::class, function () {
+            $secretKey = config('wallet.flutterwave.secret_key');
+
+            if (! $secretKey) {
+                throw new \RuntimeException('Flutterwave secret key is not configured. Set FLUTTERWAVE_SECRET_KEY in your environment.');
+            }
+
+            return new FlutterwaveWalletPaymentGateway($secretKey);
         });
     }
 

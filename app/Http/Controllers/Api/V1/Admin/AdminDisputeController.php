@@ -7,11 +7,17 @@ use App\Http\Requests\Dispute\ResolveDisputeFormRequest;
 use App\Http\Resources\DisputeResource;
 use App\Models\AuditLog;
 use App\Models\Dispute;
+use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminDisputeController extends Controller
 {
+    public function __construct(
+        private readonly PaymentService $paymentService,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Dispute::with(['reportedBy', 'resolvedBy', 'ride']);
@@ -83,25 +89,49 @@ class AdminDisputeController extends Controller
     {
         $admin = $request->user();
         $oldStatus = $dispute->status;
+        $refundAmount = $request->validated('refund_amount');
 
-        $dispute->update([
+        DB::transaction(function () use ($dispute, $request, $admin, $refundAmount) {
+            $updateData = [
+                'status' => $request->validated('status'),
+                'resolution_notes' => $request->validated('resolution_notes'),
+                'resolved_by_admin_id' => $admin->id,
+                'resolved_at' => now(),
+            ];
+
+            if ($refundAmount) {
+                $payment = $dispute->ride->payment;
+                $this->paymentService->refundPayment($payment, (float) $refundAmount);
+
+                $updateData['refund_amount'] = $refundAmount;
+                $updateData['refund_currency'] = $payment->currency;
+            }
+
+            $dispute->update($updateData);
+        });
+
+        $auditNewState = [
             'status' => $request->validated('status'),
             'resolution_notes' => $request->validated('resolution_notes'),
-            'resolved_by_admin_id' => $admin->id,
-            'resolved_at' => now(),
-        ]);
+        ];
+
+        if ($refundAmount) {
+            $auditNewState['refund_amount'] = $refundAmount;
+        }
 
         AuditLog::record($dispute, 'dispute_resolved', $admin, [
             'status' => $oldStatus->value,
-        ], [
-            'status' => $request->validated('status'),
-            'resolution_notes' => $request->validated('resolution_notes'),
-        ]);
+        ], $auditNewState);
 
         $dispute->load(['reportedBy', 'resolvedBy', 'ride']);
 
+        $message = 'Dispute resolved successfully.';
+        if ($refundAmount) {
+            $message = "Dispute resolved successfully. Refund of {$dispute->refund_currency} ".number_format($refundAmount, 2).' issued.';
+        }
+
         return response()->json([
-            'message' => 'Dispute resolved successfully.',
+            'message' => $message,
             'dispute' => new DisputeResource($dispute),
         ]);
     }

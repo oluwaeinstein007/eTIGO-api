@@ -3971,7 +3971,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lat    | number  | Yes      | Destination latitude                |
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
-| payment_method     | string  | Yes      | `cash` or `card`                    |
+| payment_method     | string  | Yes      | `cash`, `card`, or `wallet`         |
 
 **Response 201:**
 ```json
@@ -5742,6 +5742,43 @@ POST /webhooks/flutterwave
 }
 ```
 
+### Flutterwave Wallet Webhook
+
+```
+POST /webhooks/flutterwave-wallet
+```
+
+**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_WEBHOOK_HASH`. Receives wallet-specific payment events (top-ups, transfers) from Flutterwave.
+
+**Handled Events:**
+
+- `charge.completed` — Dispatches `ProcessTopupWebhookJob` for TOPUP- references
+- `transfer.completed` — Dispatches `ProcessPayoutWebhookJob` with status `paid`
+- `transfer.failed` — Dispatches `ProcessPayoutWebhookJob` with status `failed`
+
+Duplicate events are deduplicated via the `webhook_events` table.
+
+**Response 200:**
+```json
+{
+  "message": "Webhook received."
+}
+```
+
+**Response 200 (duplicate):**
+```json
+{
+  "message": "Already processed."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Invalid signature."
+}
+```
+
 ---
 
 ## Ratings
@@ -5945,29 +5982,46 @@ Return full dispute details including ride, passenger, driver, vehicle class, ci
 
 `POST /api/v1/admin/disputes/{dispute}/resolve`
 
-Resolve or dismiss a dispute. Creates an audit log entry.
+Resolve or dismiss a dispute. Optionally issue a card refund (full or partial) when resolving. Creates an audit log entry.
 
 **Auth:** Bearer token (admin)
 
 **Request Body:**
 
-| Field              | Type   | Required | Rules                           |
-|--------------------|--------|----------|---------------------------------|
-| `status`           | string | Yes      | `resolved` or `dismissed`       |
-| `resolution_notes` | string | Yes      | 10–2000 characters              |
+| Field              | Type    | Required | Rules                                                     |
+|--------------------|---------|----------|-----------------------------------------------------------|
+| `status`           | string  | Yes      | `resolved` or `dismissed`                                 |
+| `resolution_notes` | string  | Yes      | 10–2000 characters                                        |
+| `refund_amount`    | numeric | No       | Min 1. Must not exceed ride payment. Card payments only.  |
 
-**Example Request:**
+**Notes on `refund_amount`:**
+- Only valid when `status` is `resolved` (cannot refund on dismissal)
+- Only card payments can be refunded — cash payments return a 422 error
+- Supports partial refunds (e.g., refund ₦500 of a ₦3,000 fare)
+- The refund is processed via the payment gateway immediately
+- When the Wallet Infrastructure is built, refunds will support wallet credits and driver clawbacks
+
+**Example Request (resolve with refund):**
 ```json
 {
   "status": "resolved",
-  "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account."
+  "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
+  "refund_amount": 500.00
 }
 ```
 
-**Response: `200 OK`**
+**Example Request (resolve without refund):**
 ```json
 {
-  "message": "Dispute resolved successfully.",
+  "status": "resolved",
+  "resolution_notes": "Driver behaviour addressed. Warning issued to driver."
+}
+```
+
+**Response: `200 OK` (with refund)**
+```json
+{
+  "message": "Dispute resolved successfully. Refund of NGN 500.00 issued.",
   "dispute": {
     "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
     "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
@@ -5976,19 +6030,44 @@ Resolve or dismiss a dispute. Creates an audit log entry.
     "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "resolved",
     "status_label": "Resolved",
-    "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account.",
+    "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
+    "refund_amount": "500.00",
+    "refund_currency": "NGN",
     "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
     "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
     "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
-    "resolved_at": "2026-10-09T14:00:00.000000Z",
+    "resolved_at": "2026-10-10T14:00:00.000000Z",
     "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-09T14:00:00.000000Z"
+    "updated_at": "2026-10-10T14:00:00.000000Z"
+  }
+}
+```
+
+**Response: `200 OK` (without refund)**
+```json
+{
+  "message": "Dispute resolved successfully.",
+  "dispute": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "category": "driver_behaviour",
+    "category_label": "Driver Behaviour",
+    "description": "Driver was rude during the ride.",
+    "status": "resolved",
+    "status_label": "Resolved",
+    "resolution_notes": "Driver behaviour addressed. Warning issued to driver.",
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
+    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
+    "resolved_at": "2026-10-10T14:00:00.000000Z",
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-10T14:00:00.000000Z"
   }
 }
 ```
 
 **Error Responses:**
-- `422` — Dispute already resolved/dismissed, or missing resolution notes
+- `422` — Dispute already resolved/dismissed, missing resolution notes, refund on dismissal, refund exceeds payment, or cash payment refund attempted
 
 ---
 
@@ -6293,6 +6372,765 @@ Content-Type: application/json
 
 ---
 
+## Passenger — Wallet
+
+**Middleware:** `auth:sanctum`, `user.type:passenger`
+
+### View Wallet
+
+```
+GET /passenger/wallet
+Authorization: Bearer {passenger_token}
+```
+
+**Response 200:**
+```json
+{
+  "wallet": {
+    "id": "uuid",
+    "balance": 500000,
+    "balance_formatted": "₦5,000.00",
+    "status": "active",
+    "currency": "NGN"
+  }
+}
+```
+
+### Wallet Transaction History
+
+```
+GET /passenger/wallet/transactions?per_page=20
+Authorization: Bearer {passenger_token}
+```
+
+Returns paginated ledger entries for the passenger's wallet.
+
+### Initialize Top-up
+
+```
+POST /passenger/wallet/topup
+Authorization: Bearer {passenger_token}
+Content-Type: application/json
+```
+
+Initializes a Flutterwave payment for wallet top-up. Amounts are in kobo.
+
+**Request Body:**
+
+| Field          | Type    | Required | Rules                                |
+|----------------|---------|----------|--------------------------------------|
+| `amount`       | integer | Yes      | Min: 50000 (₦500)                   |
+| `callback_url` | string  | Yes      | Valid URL for redirect after payment |
+
+**Example Request:**
+```json
+{
+  "amount": 500000,
+  "callback_url": "https://app.etigo.ng/wallet/callback"
+}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Top-up initialized.",
+  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "tx_ref": "TOPUP-ABCD1234EFGH"
+}
+```
+
+**Response 422:** Wallet frozen, exceeds max balance, or daily limit exceeded.
+**Response 429:** Too many top-up attempts (max 5/hour).
+
+### Verify Top-up
+
+```
+GET /passenger/wallet/topup/{transactionId}/verify
+Authorization: Bearer {passenger_token}
+```
+
+Verifies a Flutterwave transaction by its transaction ID (returned by Flutterwave after payment, not the tx_ref). On success, dispatches `ProcessTopupWebhookJob`.
+
+**Response 200:**
+```json
+{
+  "message": "Top-up is being processed."
+}
+```
+
+**Response 422:** Transaction was not successful.
+**Response 502:** Unable to verify transaction with Flutterwave.
+
+---
+
+## Driver — Bank Account
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Add Bank Account
+
+```
+POST /driver/bank-account
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Verifies the bank account via Flutterwave account resolution and saves it as the driver's primary bank account.
+
+**Request Body:**
+
+| Field            | Type   | Required | Rules              |
+|------------------|--------|----------|--------------------|
+| `account_number` | string | Yes      | 10-digit NUBAN     |
+| `bank_code`      | string | Yes      | Valid bank code     |
+
+**Response 201:**
+```json
+{
+  "message": "Bank account added and verified.",
+  "bank_account": {
+    "id": "uuid",
+    "bank_code": "058",
+    "account_number": "0123456789",
+    "account_name": "JOHN DOE",
+    "is_verified": true,
+    "is_primary": true
+  }
+}
+```
+
+### View Bank Account
+
+```
+GET /driver/bank-account
+Authorization: Bearer {driver_token}
+```
+
+**Response 200:** Returns the driver's primary bank account.
+**Response 404:** No bank account on file.
+
+---
+
+## Driver — Earnings
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Earnings Overview
+
+```
+GET /driver/earnings
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's earnings balances and period summaries.
+
+**Response 200:**
+```json
+{
+  "earnings": {
+    "balances": {
+      "pending_kobo": 0,
+      "available_kobo": 300000,
+      "total_paid_kobo": 150000
+    },
+    "summaries": {
+      "today": 2500,
+      "this_week": 12000,
+      "this_month": 45000
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pending_kobo` | integer | Earnings awaiting settlement (held during settlement delay) |
+| `available_kobo` | integer | Earnings available for payout |
+| `total_paid_kobo` | integer | Total paid out to driver's bank account |
+| `today` | integer | Sum of `final_fare_amount` for rides completed today (in ₦) |
+| `this_week` | integer | Sum for current week |
+| `this_month` | integer | Sum for current month |
+
+### Ride Earnings Breakdown
+
+```
+GET /driver/earnings/rides/{ride}
+Authorization: Bearer {driver_token}
+```
+
+Returns the earnings breakdown for a specific completed ride. Driver can only view their own rides.
+
+**Response 200:**
+```json
+{
+  "breakdown": {
+    "ride_id": "uuid",
+    "fare_amount": 2000,
+    "fare_kobo": 200000,
+    "commission_rate": 0.2,
+    "commission_kobo": 40000,
+    "net_earnings_kobo": 160000,
+    "payment_method": "cash",
+    "tip_amount": 0,
+    "completed_at": "2026-10-10T14:30:00Z"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fare_amount` | integer | Final fare in ₦ |
+| `fare_kobo` | integer | Final fare in kobo |
+| `commission_rate` | float | Commission rate applied (e.g. 0.2 = 20%) |
+| `commission_kobo` | integer | Commission amount deducted (kobo) |
+| `net_earnings_kobo` | integer | Driver's net earnings after commission (kobo) |
+| `payment_method` | string | `cash`, `card`, or `wallet` |
+| `tip_amount` | integer | Tip amount in ₦ (0 if no tip) |
+| `completed_at` | string | ISO 8601 timestamp of ride completion |
+
+**Response 403:** Ride does not belong to the authenticated driver.
+**Response 404:** Ride not found.
+
+---
+
+## Driver — Ledger & Payouts
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Ledger Summary
+
+```
+GET /driver/ledger/summary
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's earnings account balance and summary.
+
+### Ledger Transactions
+
+```
+GET /driver/ledger/transactions?per_page=20
+Authorization: Bearer {driver_token}
+```
+
+Returns paginated ledger entries for the driver's earnings account.
+
+### List Payouts
+
+```
+GET /driver/payouts
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's payout history.
+
+### Request Payout
+
+```
+POST /driver/payouts
+Authorization: Bearer {driver_token}
+```
+
+Requests a withdrawal from driver earnings to their primary bank account via Flutterwave transfer. Requires an approved bank account. Payout goes through admin approval before transfer is initiated.
+
+**Request Body:**
+
+| Field    | Type    | Required | Rules                         |
+|----------|---------|----------|-------------------------------|
+| `amount` | integer | Yes      | Min: 100000 (₦1,000), in kobo |
+
+**Response 201:** Payout request created, pending admin approval.
+**Response 422:** Insufficient balance, no bank account, or wallet frozen.
+
+---
+
+## Admin — Wallet & Ledger Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, role-based (see individual endpoints)
+
+Wallet and ledger endpoints use granular role-based access. Super Admin always has access to all endpoints.
+
+### List Wallets
+
+```
+GET /admin/wallets?search=john&status=active&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### View Wallet
+
+```
+GET /admin/wallets/{account}
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### Freeze Wallet
+
+```
+POST /admin/wallets/{account}/freeze
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+**Request Body:**
+
+| Field    | Type   | Required | Rules          |
+|----------|--------|----------|----------------|
+| `reason` | string | Yes      | Max 500 chars  |
+
+### Unfreeze Wallet
+
+```
+POST /admin/wallets/{account}/unfreeze
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+**Request Body:**
+
+| Field    | Type   | Required | Rules          |
+|----------|--------|----------|----------------|
+| `reason` | string | Yes      | Max 500 chars  |
+
+### Driver Ledgers
+
+```
+GET /admin/driver-ledgers
+GET /admin/driver-ledgers/{account}
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+### Ledger Explorer
+
+```
+GET /admin/ledger?per_page=50
+GET /admin/ledger/export?format=csv
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Adjustments
+
+```
+GET /admin/adjustments
+POST /admin/adjustments
+POST /admin/adjustments/{adjustment}/approve
+POST /admin/adjustments/{adjustment}/reject
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Payouts
+
+```
+GET /admin/payouts?status=pending
+POST /admin/payouts/{payout}/approve
+POST /admin/payouts/{payout}/reject
+POST /admin/payouts/{payout}/retry
+GET /admin/payouts/export?format=csv
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Refund to Wallet
+
+```
+POST /admin/rides/{ride}/refund
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Commission Settings
+
+```
+GET /admin/settings/commission
+PUT /admin/settings/commission
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+### Wallet Settings
+
+```
+GET /admin/settings/wallet
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns current wallet configuration (merged from database overrides and config file defaults).
+
+**Response 200:**
+```json
+{
+  "settings": {
+    "currency": "NGN",
+    "min_topup": 50000,
+    "max_balance": 50000000,
+    "daily_topup_cap": 10000000,
+    "min_payout": 100000,
+    "settlement_delay": "instant",
+    "max_negative_balance": -500000,
+    "hold_expiry_hours": 4,
+    "abandoned_topup_minutes": 30
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `min_topup` | integer | Minimum top-up amount (kobo) |
+| `max_balance` | integer | Maximum wallet balance (kobo) |
+| `daily_topup_cap` | integer | Daily top-up limit per user (kobo) |
+| `min_payout` | integer | Minimum payout amount (kobo) |
+| `settlement_delay` | string | `instant`, `24h`, or `weekly` |
+| `max_negative_balance` | integer | Max negative balance for driver cash-ride commission (kobo, ≤ 0) |
+| `hold_expiry_hours` | integer | Hours before an unreleased hold expires (1–48) |
+| `abandoned_topup_minutes` | integer | Minutes before a pending top-up is marked abandoned (5–1440) |
+
+```
+PUT /admin/settings/wallet
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Updates wallet configuration. Only provided fields are updated; omitted fields retain their current values.
+
+**Request Body:** (all fields optional)
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `min_topup` | integer | Min: 1000 |
+| `max_balance` | integer | Min: 100000 |
+| `daily_topup_cap` | integer | Min: 100000 |
+| `min_payout` | integer | Min: 10000 |
+| `settlement_delay` | string | `instant`, `24h`, or `weekly` |
+| `max_negative_balance` | integer | Max: 0 (must be ≤ 0) |
+| `hold_expiry_hours` | integer | 1–48 |
+| `abandoned_topup_minutes` | integer | 5–1440 |
+
+**Response 200:**
+```json
+{
+  "message": "Wallet settings updated.",
+  "settings": { /* same shape as GET response */ }
+}
+```
+
+**Response 422:** Validation error.
+
+### Daily Reconciliation Report
+
+```
+GET /admin/reports/reconciliation?date=2026-10-09
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns the daily reconciliation report comparing Flutterwave gateway settlements against ledger entries.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `date` | string | No | Date in `YYYY-MM-DD` format (default: yesterday) |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "id": "uuid",
+    "report_date": "2026-10-09",
+    "gateway_charges_total": 500000,
+    "ledger_credits_total": 500000,
+    "gateway_transfers_total": 200000,
+    "ledger_payouts_total": 200000,
+    "mismatches_count": 0,
+    "mismatches": null,
+    "status": "clean",
+    "generated_at": "2026-10-10T02:00:00Z"
+  }
+}
+```
+
+**Response 404:** No report generated for that date.
+
+### Reconciliation Report History
+
+```
+GET /admin/reports/reconciliation/history?status=mismatched&per_page=15
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns paginated list of reconciliation reports, newest first.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by `clean` or `mismatched` |
+| `per_page` | integer | No | Items per page (default 15) |
+
+### Reconciliation — Wallet Liability
+
+```
+GET /admin/reports/reconciliation/wallet-liability
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+---
+
+## Admin Reporting API
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
+
+**Allowed Roles:** Operations, Finance (Super Admin always has access)
+
+### Ride Volume Report
+
+```
+GET /admin/reports/ride-volume
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param      | Type   | Description                                            |
+|------------|--------|--------------------------------------------------------|
+| `from`     | date   | Start date (inclusive), e.g. `2026-10-01`              |
+| `to`       | date   | End date (inclusive), e.g. `2026-10-31`                |
+| `city_id`  | uuid   | Filter by city                                         |
+| `group_by` | string | Trend grouping: `day`, `week`, or `month`              |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "ride_volume",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "total_rides": 1250,
+    "by_status": {
+      "completed": 980,
+      "cancelled": 150,
+      "no_driver_found": 45,
+      "requested": 30,
+      "searching": 15,
+      "in_progress": 30
+    },
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "count": 800 },
+      { "city_id": "uuid", "city_name": "Abuja", "count": 450 }
+    ],
+    "by_vehicle_class": [
+      { "vehicle_class_id": "uuid", "vehicle_class": "Comfort", "count": 600 },
+      { "vehicle_class_id": "uuid", "vehicle_class": "Lite", "count": 400 }
+    ],
+    "trend": [
+      { "period": "2026-10-01", "count": 42 },
+      { "period": "2026-10-02", "count": 55 }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+`trend` is only included when `group_by` is specified.
+
+---
+
+### Completion Rate Report
+
+```
+GET /admin/reports/completion-rate
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param     | Type | Description                               |
+|-----------|------|-------------------------------------------|
+| `from`    | date | Start date (inclusive)                     |
+| `to`      | date | End date (inclusive)                       |
+| `city_id` | uuid | Filter by city                            |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "completion_rate",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "total_rides": 1250,
+    "completed": 980,
+    "cancelled": 150,
+    "no_driver_found": 45,
+    "completion_rate": 78.4,
+    "cancellation_rate": 12.0,
+    "cancellation_reasons": {
+      "changed_mind": 50,
+      "driver_too_far": 35,
+      "wait_too_long": 25,
+      "passenger_no_show": 20,
+      "other": 20
+    },
+    "cancelled_by_role": {
+      "passenger": 100,
+      "driver": 50
+    },
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+---
+
+### Revenue Report
+
+```
+GET /admin/reports/revenue
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param      | Type   | Description                               |
+|------------|--------|-------------------------------------------|
+| `from`     | date   | Start date (inclusive)                     |
+| `to`       | date   | End date (inclusive)                       |
+| `city_id`  | uuid   | Filter by city                            |
+| `group_by` | string | Trend grouping: `day`, `week`, or `month` |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "revenue",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "currency": "NGN",
+    "total_revenue": 4900000.00,
+    "total_tips": 125000.00,
+    "ride_count": 980,
+    "average_fare": 5000.00,
+    "by_payment_method": [
+      { "method": "cash", "count": 400, "total": 2000000.00 },
+      { "method": "card", "count": 350, "total": 1750000.00 },
+      { "method": "wallet", "count": 230, "total": 1150000.00 }
+    ],
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "count": 600, "total": 3000000.00 },
+      { "city_id": "uuid", "city_name": "Abuja", "count": 380, "total": 1900000.00 }
+    ],
+    "trend": [
+      { "period": "2026-10", "count": 980, "total": 4900000.00 }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+`trend` is only included when `group_by` is specified.
+
+---
+
+### Driver Utilisation Report
+
+```
+GET /admin/reports/driver-utilisation
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters:**
+
+| Param     | Type    | Description                              |
+|-----------|---------|------------------------------------------|
+| `from`    | date    | Start date (inclusive)                    |
+| `to`      | date    | End date (inclusive)                      |
+| `city_id` | uuid    | Filter by city                           |
+| `limit`   | integer | Top drivers limit (1–100, default 20)    |
+
+**Response 200:**
+```json
+{
+  "report": {
+    "type": "driver_utilisation",
+    "period": { "from": "2026-10-01", "to": "2026-10-31" },
+    "currency": "NGN",
+    "total_active_drivers": 85,
+    "total_trips": 980,
+    "average_trips_per_driver": 11.53,
+    "total_earnings": 4900000.00,
+    "average_earnings_per_driver": 57647.06,
+    "average_trip_duration_minutes": 22.5,
+    "top_drivers": [
+      {
+        "driver_id": "uuid",
+        "driver_name": "John Doe",
+        "trip_count": 45,
+        "total_earnings": 225000.00,
+        "average_fare": 5000.00
+      }
+    ],
+    "generated_at": "2026-10-10T14:30:00+01:00"
+  }
+}
+```
+
+---
+
+### Report Export (CSV)
+
+```
+GET /admin/reports/export
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Operations, Finance
+
+**Query Parameters (all required):**
+
+| Param     | Type   | Description                                                            |
+|-----------|--------|------------------------------------------------------------------------|
+| `type`    | string | Report type: `ride_volume`, `completion_rate`, `revenue`, `driver_utilisation` |
+| `from`    | date   | Start date (inclusive)                                                 |
+| `to`      | date   | End date (inclusive)                                                   |
+| `city_id` | uuid   | Optional city filter                                                   |
+
+**Response 200:** Streamed CSV file download. Content-Type: `text/csv`.
+
+CSV columns per report type:
+- **ride_volume:** Ride ID, Status, City, Vehicle Class, Fare Estimate, Final Fare, Payment Method, Created At, Completed At
+- **completion_rate:** Ride ID, Status, City, Cancellation Reason, Cancelled By, Created At
+- **revenue:** Ride ID, City, Vehicle Class, Final Fare, Tip, Payment Method, Payment Status, Completed At
+- **driver_utilisation:** Driver ID, Driver Name, Trip Count, Total Earnings, Average Fare, First Trip, Last Trip
+
+---
+
 ## Error Responses
 
 All API errors return structured JSON with a machine-readable `error_code`:
@@ -6369,12 +7207,22 @@ Super Admins always bypass role checks and have full access.
 | `/admin/vehicle-classes` | Yes | — | — | — |
 | `/admin/pricing` | Yes | — | Yes | — |
 | `/admin/surge-rules` | Yes | — | — | — |
-| `/admin/rides` | Yes | — | — | — |
+| `/admin/rides` (assign) | Yes | — | — | — |
+| `/admin/rides` (refund) | — | — | Yes | — |
 | `/admin/fleet-vehicles` | Yes | — | Yes | — |
 | `/admin/fleet-agreements` | Yes | — | Yes | — |
 | `/admin/gamification` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
 | `/admin/disputes` | — | Yes | — | — |
+| `/admin/wallets` | — | Yes | Yes | — |
+| `/admin/wallets` (freeze) | — | — | Yes | — |
+| `/admin/driver-ledgers` | — | Yes | Yes | — |
+| `/admin/ledger` | — | — | Yes | — |
+| `/admin/adjustments` | — | — | Yes | — |
+| `/admin/payouts` | — | — | Yes | — |
+| `/admin/settings` | — | — | Yes | — |
+| `/admin/reports` (financial) | — | — | Yes | — |
+| `/admin/reports` (operational) | Yes | — | Yes | — |
 | `/admin/admins` | — | — | — | — |
 
 ### Driver Status

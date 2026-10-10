@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DriverStatus;
+use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\VehicleOwnershipType;
 use Illuminate\Database\Eloquent\Builder;
@@ -76,12 +77,27 @@ class Driver extends Model
 
     public function activeFleetAgreement(): HasOne
     {
-        return $this->hasOne(FleetAgreement::class)->where('status', \App\Enums\FleetAgreementStatus::Active);
+        return $this->hasOne(FleetAgreement::class)->where('status', FleetAgreementStatus::Active);
     }
 
     public function dailyRemittances(): HasMany
     {
         return $this->hasMany(DailyRemittance::class);
+    }
+
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(BankAccount::class);
+    }
+
+    public function primaryBankAccount(): HasOne
+    {
+        return $this->hasOne(BankAccount::class)->where('is_primary', true);
+    }
+
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class);
     }
 
     public function isApproved(): bool

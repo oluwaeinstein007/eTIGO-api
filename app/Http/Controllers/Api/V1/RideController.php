@@ -36,30 +36,37 @@ class RideController extends Controller
     {
         $user = $request->user();
 
-        $result = DB::transaction(function () use ($user, $request) {
-            User::lockForUpdate()->find($user->id);
+        try {
+            $result = DB::transaction(function () use ($user, $request) {
+                User::lockForUpdate()->find($user->id);
 
-            $activeRide = Ride::where('passenger_id', $user->id)
-                ->whereIn('status', RideStatus::activeStatuses())
-                ->exists();
+                $activeRide = Ride::where('passenger_id', $user->id)
+                    ->whereIn('status', RideStatus::activeStatuses())
+                    ->exists();
 
-            if ($activeRide) {
-                return null;
-            }
+                if ($activeRide) {
+                    return null;
+                }
 
-            return $this->rideService->createRide(
-                passenger: $user,
-                cityId: $request->input('city_id'),
-                vehicleClassId: $request->input('vehicle_class_id'),
-                pickupLat: (float) $request->input('pickup_lat'),
-                pickupLng: (float) $request->input('pickup_lng'),
-                pickupAddress: $request->input('pickup_address'),
-                destinationLat: (float) $request->input('destination_lat'),
-                destinationLng: (float) $request->input('destination_lng'),
-                destinationAddress: $request->input('destination_address'),
-                paymentMethod: PaymentMethod::from($request->input('payment_method')),
-            );
-        });
+                return $this->rideService->createRide(
+                    passenger: $user,
+                    cityId: $request->input('city_id'),
+                    vehicleClassId: $request->input('vehicle_class_id'),
+                    pickupLat: (float) $request->input('pickup_lat'),
+                    pickupLng: (float) $request->input('pickup_lng'),
+                    pickupAddress: $request->input('pickup_address'),
+                    destinationLat: (float) $request->input('destination_lat'),
+                    destinationLng: (float) $request->input('destination_lng'),
+                    destinationAddress: $request->input('destination_address'),
+                    paymentMethod: PaymentMethod::from($request->input('payment_method')),
+                );
+            });
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => ['payment_method' => [$e->getMessage()]],
+            ], 422);
+        }
 
         if (! $result) {
             return response()->json([

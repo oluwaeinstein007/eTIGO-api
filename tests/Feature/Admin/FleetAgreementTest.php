@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\FleetAgreementStatus;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
 use App\Models\User;

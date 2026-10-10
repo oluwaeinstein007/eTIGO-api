@@ -17,6 +17,7 @@ class PaymentService
 {
     public function __construct(
         private PaymentGateway $paymentGateway,
+        private WalletPaymentService $walletPaymentService,
     ) {}
 
     public function processRidePayment(Ride $ride): Payment
@@ -24,6 +25,7 @@ class PaymentService
         return match ($ride->payment_method) {
             PaymentMethod::Cash => $this->processCashPayment($ride),
             PaymentMethod::Card => $this->processCardPayment($ride),
+            PaymentMethod::Wallet => $this->processWalletPayment($ride),
         };
     }
 
@@ -202,6 +204,54 @@ class PaymentService
         $this->broadcastPaymentUpdate($payment->fresh());
 
         return $payment;
+    }
+
+    public function processWalletPayment(Ride $ride): Payment
+    {
+        $existing = Payment::where('ride_id', $ride->id)
+            ->whereIn('status', [PaymentStatus::Captured, PaymentStatus::Failed])
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $finalFareKobo = (int) round(($ride->final_fare_amount ?? $ride->fare_estimate_amount) * 100);
+
+        try {
+            $result = $this->walletPaymentService->settle($ride, $finalFareKobo);
+        } catch (\DomainException $e) {
+            $existingPayment = Payment::where('ride_id', $ride->id)
+                ->whereIn('status', [PaymentStatus::Captured, PaymentStatus::Failed])
+                ->first();
+
+            if ($existingPayment) {
+                return $existingPayment;
+            }
+
+            return $this->createFailedPayment($ride, $e->getMessage());
+        }
+
+        $status = $result['settled'] ? PaymentStatus::Captured : PaymentStatus::Failed;
+
+        return DB::transaction(function () use ($ride, $finalFareKobo, $status, $result) {
+            $payment = Payment::updateOrCreate(
+                ['ride_id' => $ride->id],
+                [
+                    'amount' => $finalFareKobo / 100,
+                    'currency' => $ride->fare_currency,
+                    'method' => PaymentMethod::Wallet,
+                    'status' => $status,
+                    'failure_reason' => $result['shortfall'] > 0
+                        ? "Wallet shortfall: {$result['shortfall']} kobo"
+                        : null,
+                ],
+            );
+
+            $ride->update(['payment_status' => $status]);
+
+            return $payment;
+        });
     }
 
     private function createFailedPayment(Ride $ride, string $reason): Payment

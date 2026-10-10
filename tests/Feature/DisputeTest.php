@@ -1,12 +1,17 @@
 <?php
 
+use App\Contracts\PaymentGateway;
 use App\Enums\AdminRole;
 use App\Enums\DisputeCategory;
 use App\Enums\DisputeStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Enums\UserType;
 use App\Models\Dispute;
+use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\User;
+use App\Services\FakePaymentGateway;
 
 beforeEach(function () {
     $this->passenger = User::factory()->create(['type' => UserType::Passenger]);
@@ -321,6 +326,208 @@ describe('Admin Disputes API', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors('resolution_notes');
+    });
+
+    it('resolves a dispute with a partial card refund', function () {
+        app()->bind(PaymentGateway::class, fn () => new FakePaymentGateway);
+
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 5000.00,
+        ]);
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'amount' => 5000.00,
+            'currency' => 'NGN',
+            'method' => PaymentMethod::Card->value,
+            'gateway_transaction_id' => 'fake_txn_test123',
+            'tip_amount' => 0,
+            'status' => PaymentStatus::Captured,
+        ]);
+
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $ride->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Fare overcharge confirmed. Partial refund issued.',
+                'refund_amount' => 1500.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('dispute.status', 'resolved')
+            ->assertJsonPath('dispute.refund_amount', '1500.00')
+            ->assertJsonPath('dispute.refund_currency', 'NGN');
+
+        expect($response->json('message'))->toContain('Refund');
+
+        $this->assertDatabaseHas('disputes', [
+            'id' => $dispute->id,
+            'refund_amount' => 1500.00,
+            'refund_currency' => 'NGN',
+        ]);
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'status' => PaymentStatus::Refunded->value,
+        ]);
+    });
+
+    it('resolves a dispute with a full refund', function () {
+        app()->bind(PaymentGateway::class, fn () => new FakePaymentGateway);
+
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 3000.00,
+        ]);
+
+        Payment::create([
+            'ride_id' => $ride->id,
+            'amount' => 3000.00,
+            'currency' => 'NGN',
+            'method' => PaymentMethod::Card->value,
+            'gateway_transaction_id' => 'fake_txn_full_refund',
+            'tip_amount' => 0,
+            'status' => PaymentStatus::Captured,
+        ]);
+
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $ride->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Driver no-show confirmed. Full refund issued.',
+                'refund_amount' => 3000.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('dispute.refund_amount', '3000.00');
+    });
+
+    it('rejects refund exceeding payment amount', function () {
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 2000.00,
+        ]);
+
+        Payment::create([
+            'ride_id' => $ride->id,
+            'amount' => 2000.00,
+            'currency' => 'NGN',
+            'method' => PaymentMethod::Card->value,
+            'gateway_transaction_id' => 'fake_txn_over',
+            'tip_amount' => 0,
+            'status' => PaymentStatus::Captured,
+        ]);
+
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $ride->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Attempting over-refund.',
+                'refund_amount' => 5000.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('refund_amount');
+    });
+
+    it('rejects refund for cash payments', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 2000.00,
+        ]);
+
+        Payment::create([
+            'ride_id' => $ride->id,
+            'amount' => 2000.00,
+            'currency' => 'NGN',
+            'method' => PaymentMethod::Cash->value,
+            'tip_amount' => 0,
+            'status' => PaymentStatus::Collected,
+        ]);
+
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $ride->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Cash ride cannot be refunded via gateway.',
+                'refund_amount' => 500.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('refund_amount');
+    });
+
+    it('rejects refund on dismissed disputes', function () {
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $this->completedRide->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Dismissed->value,
+                'resolution_notes' => 'No merit found. Dismissing.',
+                'refund_amount' => 500.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('refund_amount');
+    });
+
+    it('resolves without refund when refund_amount is omitted', function () {
+        $dispute = Dispute::factory()->create([
+            'ride_id' => $this->completedRide->id,
+            'reported_by_user_id' => $this->passenger->id,
+        ]);
+
+        $response = $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Resolved without financial adjustment.',
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('dispute.status', 'resolved')
+            ->assertJsonMissing(['refund_amount']);
     });
 
     it('rejects non-admin access', function () {

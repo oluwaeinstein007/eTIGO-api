@@ -21,6 +21,14 @@ class DisputeResource extends JsonResource
                 $this->resolution_notes !== null,
                 fn () => $this->resolution_notes,
             ),
+            'refund_amount' => $this->when(
+                $this->refund_amount !== null,
+                fn () => $this->refund_amount,
+            ),
+            'refund_currency' => $this->when(
+                $this->refund_currency !== null,
+                fn () => $this->refund_currency,
+            ),
             'reported_by' => new UserResource($this->whenLoaded('reportedBy')),
             'resolved_by' => new UserResource($this->whenLoaded('resolvedBy')),
             'ride' => new RideResource($this->whenLoaded('ride')),

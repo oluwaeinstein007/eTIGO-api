@@ -16,6 +16,7 @@ use App\Http\Resources\UserResource;
 use App\Http\Resources\VehicleResource;
 use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
+use App\Models\Driver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -398,7 +399,7 @@ class OnboardingController extends Controller
         ]);
     }
 
-    private function getRequiredDocumentTypes(\App\Models\Driver $driver): array
+    private function getRequiredDocumentTypes(Driver $driver): array
     {
         $types = ['driving_licence', 'government_id'];
 

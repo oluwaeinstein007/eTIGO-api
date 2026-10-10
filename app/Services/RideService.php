@@ -31,6 +31,7 @@ class RideService
         private FareEstimationService $fareEstimationService,
         private MapsGateway $mapsGateway,
         private DriverMatchingService $matchingService,
+        private WalletPaymentService $walletPaymentService,
     ) {}
 
     /**
@@ -92,6 +93,11 @@ class RideService
 
             $pin = $this->pinService->generatePin($ride);
 
+            if ($paymentMethod === PaymentMethod::Wallet) {
+                $fareEstimateKobo = (int) round($ride->fare_estimate_amount * 100);
+                $this->walletPaymentService->placeHold($passenger, $ride, $fareEstimateKobo);
+            }
+
             $this->stateMachine->transitionTo(
                 $ride,
                 RideStatus::Searching,
@@ -151,6 +157,10 @@ class RideService
                 'previous_status' => $previousStatus,
             ]);
 
+            if ($ride->payment_method === PaymentMethod::Wallet) {
+                $this->walletPaymentService->releaseHold($ride);
+            }
+
             $this->matchingService->cleanupRideCache($ride);
             Cache::forget("ride:{$ride->id}:pin_code");
 
@@ -177,6 +187,11 @@ class RideService
                 ->where('ride_id', $ride->id)
                 ->where('to_state', RideStatus::Searching->value)
                 ->count();
+
+            if ($ride->payment_method === PaymentMethod::Wallet) {
+                $fareEstimateKobo = (int) round($ride->fare_estimate_amount * 100);
+                $this->walletPaymentService->placeHold($passenger, $ride, $fareEstimateKobo);
+            }
 
             $ride = $this->stateMachine->transitionTo(
                 $ride,
