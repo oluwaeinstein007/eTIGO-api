@@ -302,6 +302,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
+        Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });
 
     Route::middleware('admin.role:operations')->prefix('cities')->group(function () {
