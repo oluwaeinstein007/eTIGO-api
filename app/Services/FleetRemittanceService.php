@@ -9,7 +9,6 @@ use App\Models\Driver;
 use App\Models\FleetAgreement;
 use App\Models\User;
 use App\Models\Vehicle;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class FleetRemittanceService
@@ -120,7 +119,7 @@ class FleetRemittanceService
         User $admin,
     ): FleetAgreement {
         if ($agreement->isCompleted() || $agreement->isTerminated()) {
-            throw new \DomainException('Agreement is already ' . $agreement->status->value . '.');
+            throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
         }
 
         return DB::transaction(function () use ($agreement, $reason, $admin) {

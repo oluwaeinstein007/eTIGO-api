@@ -66,7 +66,7 @@ test('placeHold creates an active hold on passenger wallet', function () {
 
 test('placeHold rejects when insufficient balance', function () {
     $this->service->placeHold($this->passenger, $this->ride, 2000000);
-})->throws(\DomainException::class, 'Insufficient wallet balance');
+})->throws(DomainException::class, 'Insufficient wallet balance');
 
 test('placeHold considers existing holds in available balance', function () {
     Hold::factory()->create([
@@ -75,13 +75,13 @@ test('placeHold considers existing holds in available balance', function () {
     ]);
 
     $this->service->placeHold($this->passenger, $this->ride, 300000);
-})->throws(\DomainException::class, 'Insufficient wallet balance');
+})->throws(DomainException::class, 'Insufficient wallet balance');
 
 test('placeHold rejects frozen wallets', function () {
     $this->passengerAccount->update(['status' => 'frozen']);
 
     $this->service->placeHold($this->passenger, $this->ride, 100000);
-})->throws(\DomainException::class, 'frozen or closed');
+})->throws(DomainException::class, 'frozen or closed');
 
 test('settle captures hold and posts journal entries', function () {
     $this->service->placeHold($this->passenger, $this->ride, 300000);
@@ -110,7 +110,7 @@ test('settle captures hold and posts journal entries', function () {
 
 test('settle throws when no active hold exists', function () {
     $this->service->settle($this->ride, 250000);
-})->throws(\DomainException::class, 'No active hold');
+})->throws(DomainException::class, 'No active hold');
 
 test('releaseHold releases active hold', function () {
     $this->service->placeHold($this->passenger, $this->ride, 300000);

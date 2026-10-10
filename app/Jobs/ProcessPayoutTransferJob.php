@@ -13,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
@@ -83,7 +84,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             ]);
 
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        } catch (ConnectionException $e) {
             Log::error("Payout transfer network error: {$payout->id}", ['error' => $e->getMessage()]);
             throw $e;
         } catch (\Throwable $e) {

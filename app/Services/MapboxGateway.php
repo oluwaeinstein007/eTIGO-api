@@ -79,7 +79,7 @@ class MapboxGateway implements MapsGateway
      */
     public function reverseGeocode(float $lat, float $lng): array
     {
-        $response = Http::get("https://api.mapbox.com/search/geocode/v6/reverse", [
+        $response = Http::get('https://api.mapbox.com/search/geocode/v6/reverse', [
             'longitude' => $lng,
             'latitude' => $lat,
             'access_token' => $this->accessToken,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\FleetAgreementStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Fleet\AssignFleetVehicleRequest;
 use App\Http\Requests\Admin\Fleet\StoreFleetVehicleRequest;
@@ -145,7 +146,7 @@ class AdminFleetVehicleController extends Controller
         }
 
         $activeAgreement = $vehicle->fleetAgreements()
-            ->where('status', \App\Enums\FleetAgreementStatus::Active)
+            ->where('status', FleetAgreementStatus::Active)
             ->first();
 
         if ($activeAgreement) {

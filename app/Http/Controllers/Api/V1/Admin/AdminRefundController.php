@@ -31,7 +31,7 @@ class AdminRefundController extends Controller
         $maxRefundable = ($ride->final_fare ?? $ride->estimated_fare ?? 0) - $previousRefunds;
 
         if ($amountKobo > $maxRefundable) {
-            return response()->json(['message' => "Refund exceeds remaining refundable amount of ₦".number_format($maxRefundable / 100, 2).'.'], 422);
+            return response()->json(['message' => 'Refund exceeds remaining refundable amount of ₦'.number_format($maxRefundable / 100, 2).'.'], 422);
         }
 
         try {

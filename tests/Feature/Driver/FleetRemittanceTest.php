@@ -170,7 +170,7 @@ it('rejects ride remittance on non-active agreement', function () {
     $service = app(FleetRemittanceService::class);
 
     expect(fn () => $service->recordRideRemittance($agreement, 5000))
-        ->toThrow(\DomainException::class, 'Cannot record remittance on a non-active agreement.');
+        ->toThrow(DomainException::class, 'Cannot record remittance on a non-active agreement.');
 });
 
 it('computes progress percentage correctly', function () {
