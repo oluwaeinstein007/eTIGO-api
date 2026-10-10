@@ -214,9 +214,9 @@ class RideService
                 throw new AuthorizationException;
             }
 
-            if ($ride->status !== RideStatus::NoDriverFound && $ride->status !== RideStatus::Searching) {
+            if ($ride->status !== RideStatus::NoDriverFound) {
                 throw ValidationException::withMessages([
-                    'ride' => 'This ride can only be retried while searching or after no driver was found.',
+                    'ride' => 'This ride can only be retried after no driver was found.',
                 ]);
             }
 

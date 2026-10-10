@@ -194,9 +194,9 @@ class RideController extends Controller
             return response()->json(['message' => 'You are not authorized to retry this ride.'], 403);
         }
 
-        if ($ride->status !== RideStatus::NoDriverFound && $ride->status !== RideStatus::Searching) {
+        if ($ride->status !== RideStatus::NoDriverFound) {
             return response()->json([
-                'message' => 'This ride can only be retried while searching or after no driver was found.',
+                'message' => 'This ride can only be retried after no driver was found.',
                 'current_status' => $ride->status->value,
             ], 422);
         }

@@ -24,7 +24,7 @@ class RideStateMachine
      */
     private const TRANSITIONS = [
         'requested' => [RideStatus::Searching, RideStatus::Cancelled],
-        'searching' => [RideStatus::Searching, RideStatus::Matched, RideStatus::NoDriverFound, RideStatus::Cancelled],
+        'searching' => [RideStatus::Matched, RideStatus::NoDriverFound, RideStatus::Cancelled],
         'matched' => [RideStatus::DriverEnRoute, RideStatus::Cancelled],
         'driver_en_route' => [RideStatus::DriverArrived, RideStatus::Cancelled],
         'driver_arrived' => [RideStatus::InProgress, RideStatus::Cancelled],
