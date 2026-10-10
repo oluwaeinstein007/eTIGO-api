@@ -443,3 +443,85 @@ it('returns 200 idempotently if driver onboarding and kyc are already completed'
     $response->assertOk()
         ->assertJson(['message' => 'Driver onboarding and KYC are already completed and approved.']);
 });
+
+it('successfully completes onboarding for legacy driver with null vehicle_ownership_type and existing vehicle', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $city = City::factory()->create();
+    $driver = Driver::factory()->create([
+        'vehicle_ownership_type' => null,
+        'city_id' => $city->id,
+        'licence_number' => 'DL-LEGACY-01',
+        'status' => DriverStatus::PendingReview,
+        'kyc_status' => KycStatus::NotStarted,
+    ]);
+
+    $vehicleClass = VehicleClass::factory()->create();
+    $vehicle = Vehicle::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_class_id' => $vehicleClass->id,
+        'plate_number' => 'LEG-123-XY',
+        'is_fleet' => false,
+    ]);
+
+    foreach (['driving_licence', 'government_id', 'vehicle_registration', 'insurance_certificate'] as $docType) {
+        $driver->documents()->create([
+            'type' => $docType,
+            'file_path' => "docs/{$docType}.pdf",
+            'original_filename' => "{$docType}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+            'status' => DocumentStatus::Approved,
+        ]);
+    }
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/complete-onboarding");
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Driver onboarding and KYC marked as completed successfully.']);
+
+    $driver->refresh();
+    expect($driver->status)->toBe(DriverStatus::Approved);
+    expect($driver->kyc_status)->toBe(KycStatus::Verified);
+    expect($driver->vehicle_ownership_type)->toBe(VehicleOwnershipType::OwnVehicle);
+});
+
+it('allows setting vehicle_ownership_type via complete-onboarding request payload', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
+
+    $city = City::factory()->create();
+    $driver = Driver::factory()->create([
+        'vehicle_ownership_type' => null,
+        'city_id' => $city->id,
+        'licence_number' => 'DL-FLEET-PARAM',
+        'status' => DriverStatus::PendingReview,
+        'kyc_status' => KycStatus::NotStarted,
+    ]);
+
+    foreach (['driving_licence', 'government_id'] as $docType) {
+        $driver->documents()->create([
+            'type' => $docType,
+            'file_path' => "docs/{$docType}.pdf",
+            'original_filename' => "{$docType}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+            'status' => DocumentStatus::Pending,
+        ]);
+    }
+
+    $response = $this->withToken($token)
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/complete-onboarding", [
+            'vehicle_ownership_type' => 'fleet_vehicle',
+        ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Driver onboarding and KYC marked as completed successfully.']);
+
+    $driver->refresh();
+    expect($driver->status)->toBe(DriverStatus::Approved);
+    expect($driver->kyc_status)->toBe(KycStatus::Verified);
+    expect($driver->vehicle_ownership_type)->toBe(VehicleOwnershipType::FleetVehicle);
+});

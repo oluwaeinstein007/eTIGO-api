@@ -7,6 +7,7 @@ use App\Enums\DriverStatus;
 use App\Enums\KycStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
+use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CompleteDriverOnboardingRequest;
 use App\Http\Requests\Admin\ReviewDocumentRequest;
@@ -308,7 +309,11 @@ class DriverManagementController extends Controller
 
         $missingRequirements = [];
 
-        if (! $driver->vehicle_ownership_type) {
+        $ownershipType = $request->input('vehicle_ownership_type')
+            ? VehicleOwnershipType::tryFrom($request->input('vehicle_ownership_type'))
+            : ($driver->vehicle_ownership_type ?? ($driver->vehicle ? ($driver->vehicle->is_fleet ? VehicleOwnershipType::FleetVehicle : VehicleOwnershipType::OwnVehicle) : null));
+
+        if (! $ownershipType) {
             $missingRequirements[] = 'Vehicle ownership type must be selected.';
         }
 
@@ -320,12 +325,15 @@ class DriverManagementController extends Controller
             $missingRequirements[] = 'City must be selected.';
         }
 
-        if ($driver->isOwnVehicle() && ! $driver->vehicle) {
+        $isOwnVehicle = $ownershipType === VehicleOwnershipType::OwnVehicle;
+        $isFleetVehicle = $ownershipType === VehicleOwnershipType::FleetVehicle;
+
+        if ($isOwnVehicle && ! $driver->vehicle) {
             $missingRequirements[] = 'Vehicle details must be provided for own-vehicle drivers.';
         }
 
         $requiredDocTypes = ['driving_licence', 'government_id'];
-        if (! $driver->isFleetVehicle()) {
+        if (! $isFleetVehicle) {
             $requiredDocTypes[] = 'vehicle_registration';
             $requiredDocTypes[] = 'insurance_certificate';
         }
@@ -354,7 +362,7 @@ class DriverManagementController extends Controller
         $notes = $request->input('notes', 'Admin manual onboarding and KYC bypass');
         $providedNin = $request->input('nin');
 
-        DB::transaction(function () use ($driver, $admin, $oldStatus, $oldKycStatus, $notes, $providedNin) {
+        DB::transaction(function () use ($driver, $admin, $oldStatus, $oldKycStatus, $notes, $providedNin, $ownershipType, $isFleetVehicle) {
             $driver->documents()
                 ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Rejected])
                 ->update([
@@ -375,7 +383,7 @@ class DriverManagementController extends Controller
                 KycVerificationType::Nin,
                 KycVerificationType::DriversLicense,
             ];
-            if (! $driver->isFleetVehicle() && $driver->vehicle && ! $driver->vehicle->is_fleet) {
+            if (! $isFleetVehicle && $driver->vehicle && ! $driver->vehicle->is_fleet) {
                 $requiredKycTypes[] = KycVerificationType::VehiclePlate;
             }
 
@@ -421,6 +429,7 @@ class DriverManagementController extends Controller
             }
 
             $driver->update([
+                'vehicle_ownership_type' => $ownershipType,
                 'status' => DriverStatus::Approved,
                 'kyc_status' => KycStatus::Verified,
                 'kyc_verified_at' => now(),

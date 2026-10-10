@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\VehicleOwnershipType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
 
 class CompleteDriverOnboardingRequest extends FormRequest
 {
@@ -19,6 +21,7 @@ class CompleteDriverOnboardingRequest extends FormRequest
         return [
             'notes' => ['nullable', 'string', 'max:500'],
             'nin' => ['nullable', 'string', 'max:20'],
+            'vehicle_ownership_type' => ['nullable', new Enum(VehicleOwnershipType::class)],
         ];
     }
 }
