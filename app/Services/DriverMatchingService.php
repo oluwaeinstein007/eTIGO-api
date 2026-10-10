@@ -17,6 +17,8 @@ class DriverMatchingService
 
     private const RADIUS_STEP_KEY = 'ride:%s:radius_step';
 
+    private const AUTO_RETRY_KEY = 'ride:%s:auto_retry_count';
+
     public function __construct(
         private DriverLocationService $locationService,
     ) {}
@@ -86,7 +88,7 @@ class DriverMatchingService
         $key = sprintf(self::REJECTED_DRIVERS_KEY, $ride->id);
         $rejected = Cache::get($key, []);
         $rejected[] = $driverUserId;
-        Cache::put($key, array_unique($rejected), config('matching.matching_timeout', 180));
+        Cache::put($key, array_unique($rejected), config('matching.matching_timeout', 300));
     }
 
     public function setDispatchedDriver(Ride $ride, string $driverUserId): void
@@ -117,7 +119,7 @@ class DriverMatchingService
     {
         $key = sprintf(self::RADIUS_STEP_KEY, $ride->id);
         $current = Cache::get($key, 0);
-        Cache::put($key, $current + 1, config('matching.matching_timeout', 180));
+        Cache::put($key, $current + 1, config('matching.matching_timeout', 300));
     }
 
     public function cleanupRideCache(Ride $ride): void
@@ -125,21 +127,45 @@ class DriverMatchingService
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
         Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
+        Cache::forget(sprintf(self::AUTO_RETRY_KEY, $ride->id));
     }
 
     public function calculateCurrentRadius(Ride $ride): float
     {
-        $step = Cache::get(sprintf(self::RADIUS_STEP_KEY, $ride->id), 0);
+        $step = (int) Cache::get(sprintf(self::RADIUS_STEP_KEY, $ride->id), 0);
+        $tiers = config('matching.radius_tiers_km', [3.0, 7.0, 15.0]);
 
-        $initial = config('matching.initial_radius_km', 3.0);
-        $stepSize = config('matching.radius_step_km', 2.0);
-        $max = config('matching.max_radius_km', 15.0);
-
-        return min($initial + ($step * $stepSize), $max);
+        return (float) $tiers[min($step, count($tiers) - 1)];
     }
 
     public function hasReachedMaxRadius(Ride $ride): bool
     {
-        return $this->calculateCurrentRadius($ride) >= config('matching.max_radius_km', 15.0);
+        $step = (int) Cache::get(sprintf(self::RADIUS_STEP_KEY, $ride->id), 0);
+        $tiers = config('matching.radius_tiers_km', [3.0, 7.0, 15.0]);
+
+        return $step >= (count($tiers) - 1);
+    }
+
+    public function getAutoRetryCount(Ride $ride): int
+    {
+        return (int) Cache::get(sprintf(self::AUTO_RETRY_KEY, $ride->id), 0);
+    }
+
+    public function canAutoRetry(Ride $ride): bool
+    {
+        $maxRetries = (int) config('matching.max_auto_retries', 1);
+
+        return $this->getAutoRetryCount($ride) < $maxRetries;
+    }
+
+    public function resetForAutoRetry(Ride $ride): void
+    {
+        $currentRetries = $this->getAutoRetryCount($ride);
+        $timeout = config('matching.matching_timeout', 300);
+
+        Cache::put(sprintf(self::AUTO_RETRY_KEY, $ride->id), $currentRetries + 1, $timeout);
+        Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
+        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
     }
 }

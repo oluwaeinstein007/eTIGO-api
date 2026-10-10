@@ -40,6 +40,22 @@ class DispatchRideRequestJob implements ShouldQueue
 
         if (empty($candidates)) {
             if ($matchingService->hasReachedMaxRadius($ride)) {
+                $maxTimeoutSeconds = config('matching.matching_timeout', 300);
+                $isWithinTimeoutWindow = $ride->created_at !== null && $ride->created_at->diffInSeconds(now()) < $maxTimeoutSeconds;
+
+                if ($matchingService->canAutoRetry($ride) && $isWithinTimeoutWindow) {
+                    $matchingService->resetForAutoRetry($ride);
+                    $retryDelay = (int) config('matching.auto_retry_delay_seconds', 10);
+                    Log::info('Auto-retrying matching for ride after expanding through all tiers', [
+                        'ride_id' => $this->rideId,
+                        'retry_count' => $matchingService->getAutoRetryCount($ride),
+                        'delay_seconds' => $retryDelay,
+                    ]);
+                    self::dispatch($this->rideId)->delay(now()->addSeconds($retryDelay));
+
+                    return;
+                }
+
                 MatchingTimeoutJob::dispatch($this->rideId);
 
                 return;

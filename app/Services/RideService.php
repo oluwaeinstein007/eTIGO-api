@@ -112,7 +112,7 @@ class RideService
 
         DispatchRideRequestJob::dispatch($result['ride']->id)->afterCommit();
 
-        $timeout = config('matching.matching_timeout', 180);
+        $timeout = config('matching.matching_timeout', 300);
         MatchingTimeoutJob::dispatch($result['ride']->id)
             ->delay(now()->addSeconds($timeout))
             ->afterCommit();
@@ -168,6 +168,43 @@ class RideService
         });
     }
 
+    public function expireStaleSearch(Ride $ride): Ride
+    {
+        return DB::transaction(function () use ($ride) {
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            if (! in_array($ride->status, [RideStatus::Requested, RideStatus::Searching], true)) {
+                return $ride;
+            }
+
+            if ($ride->status === RideStatus::Requested) {
+                $ride = $this->stateMachine->transitionTo(
+                    $ride,
+                    RideStatus::Searching,
+                    null,
+                    'system',
+                    ['reason' => 'auto_expired_stale_search'],
+                );
+            }
+
+            $ride = $this->stateMachine->transitionTo(
+                $ride,
+                RideStatus::NoDriverFound,
+                null,
+                'system',
+                ['reason' => 'stale_search_timeout'],
+            );
+
+            if ($ride->payment_method === PaymentMethod::Wallet) {
+                $this->walletPaymentService->releaseHold($ride);
+            }
+
+            $this->matchingService->cleanupRideCache($ride);
+
+            return $ride->fresh();
+        });
+    }
+
     public function rebroadcastRide(Ride $ride, User $passenger): Ride
     {
         $ride = DB::transaction(function () use ($ride, $passenger) {
@@ -177,9 +214,9 @@ class RideService
                 throw new AuthorizationException;
             }
 
-            if ($ride->status !== RideStatus::NoDriverFound) {
+            if ($ride->status !== RideStatus::NoDriverFound && $ride->status !== RideStatus::Searching) {
                 throw ValidationException::withMessages([
-                    'ride' => 'This ride can only be retried after no driver was found.',
+                    'ride' => 'This ride can only be retried while searching or after no driver was found.',
                 ]);
             }
 
@@ -208,7 +245,7 @@ class RideService
 
         DispatchRideRequestJob::dispatch($ride->id)->afterCommit();
         MatchingTimeoutJob::dispatch($ride->id)
-            ->delay(now()->addSeconds(config('matching.matching_timeout', 180)))
+            ->delay(now()->addSeconds(config('matching.matching_timeout', 300)))
             ->afterCommit();
 
         return $ride;

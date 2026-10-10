@@ -40,6 +40,16 @@ class RideController extends Controller
             $result = DB::transaction(function () use ($user, $request) {
                 User::lockForUpdate()->find($user->id);
 
+                $timeoutSeconds = config('matching.matching_timeout', 300);
+                $staleRides = Ride::where('passenger_id', $user->id)
+                    ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
+                    ->where('created_at', '<', now()->subSeconds($timeoutSeconds))
+                    ->get();
+
+                foreach ($staleRides as $staleRide) {
+                    $this->rideService->expireStaleSearch($staleRide);
+                }
+
                 $activeRide = Ride::where('passenger_id', $user->id)
                     ->whereIn('status', RideStatus::activeStatuses())
                     ->exists();
@@ -184,9 +194,9 @@ class RideController extends Controller
             return response()->json(['message' => 'You are not authorized to retry this ride.'], 403);
         }
 
-        if ($ride->status !== RideStatus::NoDriverFound) {
+        if ($ride->status !== RideStatus::NoDriverFound && $ride->status !== RideStatus::Searching) {
             return response()->json([
-                'message' => 'This ride can only be retried after no driver was found.',
+                'message' => 'This ride can only be retried while searching or after no driver was found.',
                 'current_status' => $ride->status->value,
             ], 422);
         }

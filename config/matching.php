@@ -11,15 +11,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Radius Expansion
+    | Search Radius Tiers (km)
     |--------------------------------------------------------------------------
     |
-    | After exhausting candidates in the current radius, expand by this step
-    | up to max_radius_km. Each expansion triggers a new GEOSEARCH.
+    | 3 expanding search radius tiers for matching.
     |
     */
-    'radius_step_km' => (float) env('MATCHING_RADIUS_STEP_KM', 2.0),
-    'max_radius_km' => (float) env('MATCHING_MAX_RADIUS_KM', 15.0),
+    'radius_tiers_km' => [
+        (float) env('MATCHING_RADIUS_TIER_1_KM', 3.0),
+        (float) env('MATCHING_RADIUS_TIER_2_KM', 7.0),
+        (float) env('MATCHING_RADIUS_TIER_3_KM', 15.0),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic Search Retries
+    |--------------------------------------------------------------------------
+    |
+    | Number of automatic retries before transitioning to no_driver_found,
+    | and delay in seconds between retry waves.
+    |
+    */
+    'max_auto_retries' => (int) env('MATCHING_MAX_AUTO_RETRIES', 1),
+    'auto_retry_delay_seconds' => (int) env('MATCHING_AUTO_RETRY_DELAY', 10),
 
     /*
     |--------------------------------------------------------------------------
@@ -37,10 +51,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | Maximum wall-clock time from ride creation to finding a match.
-    | After this, the ride transitions to no_driver_found.
+    | After this, the ride transitions to no_driver_found. Default: 5 minutes.
     |
     */
-    'matching_timeout' => (int) env('MATCHING_TIMEOUT', 180),
+    'matching_timeout' => (int) env('MATCHING_TIMEOUT', 300),
 
     /*
     |--------------------------------------------------------------------------

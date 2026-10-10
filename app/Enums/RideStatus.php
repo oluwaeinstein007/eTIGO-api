@@ -66,6 +66,7 @@ enum RideStatus: string
             self::Matched,
             self::DriverEnRoute,
             self::DriverArrived,
+            self::NoDriverFound,
         ]);
     }
 }

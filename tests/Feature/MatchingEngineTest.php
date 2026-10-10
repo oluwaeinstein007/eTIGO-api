@@ -382,27 +382,47 @@ it('ignores stale non-UUID driver locations while matching a ride', function () 
         ->and($eligibleDrivers[0]['driver_id'])->toBe($driver->id);
 });
 
-it('expands search radius using dedicated counter', function () {
+it('expands search radius using dedicated counter across 3 tiers', function () {
     $ride = createSearchingRide($this);
     $service = app(DriverMatchingService::class);
 
     $initialRadius = $service->calculateCurrentRadius($ride);
     expect($initialRadius)->toBe(3.0);
-
-    $service->expandRadius($ride);
-    expect($service->calculateCurrentRadius($ride))->toBe(5.0);
+    expect($service->hasReachedMaxRadius($ride))->toBeFalse();
 
     $service->expandRadius($ride);
     expect($service->calculateCurrentRadius($ride))->toBe(7.0);
-
     expect($service->hasReachedMaxRadius($ride))->toBeFalse();
+
+    $service->expandRadius($ride);
+    expect($service->calculateCurrentRadius($ride))->toBe(15.0);
+    expect($service->hasReachedMaxRadius($ride))->toBeTrue();
+});
+
+it('supports auto-retry cycle and resets for next wave', function () {
+    $ride = createSearchingRide($this);
+    $service = app(DriverMatchingService::class);
+
+    expect($service->getAutoRetryCount($ride))->toBe(0);
+    expect($service->canAutoRetry($ride))->toBeTrue();
+
+    $service->expandRadius($ride);
+    $service->expandRadius($ride);
+    expect($service->hasReachedMaxRadius($ride))->toBeTrue();
+
+    $service->resetForAutoRetry($ride);
+    expect($service->getAutoRetryCount($ride))->toBe(1);
+    expect($service->calculateCurrentRadius($ride))->toBe(3.0);
+    expect($service->hasReachedMaxRadius($ride))->toBeFalse();
+    expect($service->canAutoRetry($ride))->toBeFalse();
 });
 
 // === CONFIG ===
 
 it('has sensible matching config defaults', function () {
     expect(config('matching.initial_radius_km'))->toBe(3.0);
-    expect(config('matching.max_radius_km'))->toBe(15.0);
+    expect(config('matching.radius_tiers_km'))->toBe([3.0, 7.0, 15.0]);
+    expect(config('matching.max_auto_retries'))->toBe(1);
     expect(config('matching.driver_response_timeout'))->toBe(20);
-    expect(config('matching.matching_timeout'))->toBe(180);
+    expect(config('matching.matching_timeout'))->toBe(300);
 });
