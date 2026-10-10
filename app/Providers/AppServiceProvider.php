@@ -10,6 +10,7 @@ use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
 use App\Gateways\FlutterwaveWalletPaymentGateway;
 use App\Models\PersonalAccessToken;
+use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
@@ -83,10 +84,22 @@ class AppServiceProvider extends ServiceProvider
     private function registerKycGateway(): void
     {
         $this->app->bind(KycGateway::class, function () {
-            return new QoreIdKycGateway(
-                config('services.qoreid.client_id', ''),
-                config('services.qoreid.secret_key', ''),
-            );
+            if (config('services.qoreid.skip_verification', false)) {
+                return new FakeKycGateway;
+            }
+
+            $clientId = config('services.qoreid.client_id', '');
+            $secretKey = config('services.qoreid.secret_key', '');
+
+            if ($clientId && $secretKey) {
+                return new QoreIdKycGateway($clientId, $secretKey);
+            }
+
+            if (! $this->app->environment('local', 'testing')) {
+                throw new \RuntimeException('QoreID credentials are not configured. Set QOREID_CLIENT_ID and QOREID_SECRET_KEY in your environment.');
+            }
+
+            return new FakeKycGateway;
         });
     }
 

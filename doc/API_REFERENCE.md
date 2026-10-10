@@ -1449,6 +1449,9 @@ KYC verification uses QoreID as the identity verification provider. Required ver
 
 Vehicle plate verification auto-triggers when a vehicle is registered or the plate number is updated (own_vehicle drivers only).
 
+> **Testing / QA Sandbox Mode (`KYC_SKIP_VERIFICATION`):**
+> When `KYC_SKIP_VERIFICATION=true` is set in `.env`, all calls to the external QoreID provider are skipped and simulated as successful via `FakeKycGateway`. All format validations (11-digit NIN, driver's license length/format, plate length) and duplicate prevention remain fully active.
+
 ### KYC Status
 ```
 GET /driver/kyc/status
