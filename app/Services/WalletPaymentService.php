@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Enums\AccountType;
 use App\Enums\HoldStatus;
 use App\Enums\LedgerEntryType;
+use App\Enums\PaymentStatus;
 use App\Models\Account;
 use App\Models\Driver;
 use App\Models\Hold;
 use App\Models\Ride;
 use App\Models\User;
+use App\Notifications\WalletRidePaymentNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WalletPaymentService
 {
@@ -55,10 +58,16 @@ class WalletPaymentService
 
     /**
      * Settle a ride: capture the hold, post journal entries for fare split.
+     *
+     * When the final fare exceeds the passenger's available balance, charges
+     * whatever balance exists and flags the ride for admin review with the
+     * shortfall amount.
+     *
+     * @return array{settled: bool, amount_charged: int, shortfall: int}
      */
-    public function settle(Ride $ride, int $finalFareKobo): void
+    public function settle(Ride $ride, int $finalFareKobo): array
     {
-        DB::transaction(function () use ($ride, $finalFareKobo) {
+        $result = DB::transaction(function () use ($ride, $finalFareKobo) {
             $hold = Hold::where('ride_id', $ride->id)
                 ->where('status', HoldStatus::Active)
                 ->lockForUpdate()
@@ -70,52 +79,99 @@ class WalletPaymentService
 
             $passengerAccount = Account::whereKey($hold->account_id)->lockForUpdate()->first();
 
-            if ($passengerAccount->balance < $finalFareKobo) {
-                throw new \DomainException('Insufficient wallet balance to settle ride fare.');
+            $otherHoldsTotal = (int) Hold::where('account_id', $passengerAccount->id)
+                ->where('status', HoldStatus::Active)
+                ->where('id', '!=', $hold->id)
+                ->sum('amount');
+            $spendableBalance = max(0, $passengerAccount->balance - $otherHoldsTotal);
+
+            $chargeAmount = $finalFareKobo;
+            $shortfall = 0;
+
+            if ($spendableBalance < $finalFareKobo) {
+                $chargeAmount = $spendableBalance;
+                $shortfall = $finalFareKobo - $chargeAmount;
             }
 
-            $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+            if ($chargeAmount > 0) {
+                $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+                $commission = $this->commissionService->calculate($chargeAmount, $driver->id);
 
-            $commission = $this->commissionService->calculate($finalFareKobo, $driver->id);
+                $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
+                $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
+                    ? AccountType::DriverEarningsAvailable
+                    : AccountType::DriverEarningsPending;
+                $driverAccount = $this->ledgerService->findOrCreateAccount(
+                    Driver::class,
+                    $driver->id,
+                    $earningsAccountType,
+                );
 
-            $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
-            $driverAccount = $this->ledgerService->findOrCreateAccount(
-                'App\\Models\\Driver',
-                $driver->id,
-                AccountType::DriverEarningsAvailable,
-            );
+                $journalLines = array_filter([
+                    ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $chargeAmount],
+                    $commission['commission'] > 0
+                        ? ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']]
+                        : null,
+                    $commission['net_earnings'] > 0
+                        ? ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']]
+                        : null,
+                ]);
 
-            $journalLines = array_filter([
-                ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $finalFareKobo],
-                $commission['commission'] > 0
-                    ? ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']]
-                    : null,
-                $commission['net_earnings'] > 0
-                    ? ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']]
-                    : null,
-            ]);
+                $this->ledgerService->postJournal(array_values($journalLines), [
+                    'description' => "Ride settlement for ride {$ride->id}",
+                    'idempotency_key' => "ride-settlement-{$ride->id}",
+                    'metadata' => [
+                        'ride_id' => $ride->id,
+                        'fare_kobo' => $finalFareKobo,
+                        'charged_kobo' => $chargeAmount,
+                        'shortfall_kobo' => $shortfall,
+                        'commission_rate' => $commission['rate'],
+                        'commission_kobo' => $commission['commission'],
+                        'net_earnings_kobo' => $commission['net_earnings'],
+                    ],
+                ]);
+            }
 
-            $this->ledgerService->postJournal(array_values($journalLines), [
-                'description' => "Ride settlement for ride {$ride->id}",
-                'idempotency_key' => "ride-settlement-{$ride->id}",
-                'metadata' => [
-                    'ride_id' => $ride->id,
-                    'fare_kobo' => $finalFareKobo,
-                    'commission_rate' => $commission['rate'],
-                    'commission_kobo' => $commission['commission'],
-                    'net_earnings_kobo' => $commission['net_earnings'],
-                ],
-            ]);
-
-            // Capture the hold
             $hold->update([
                 'status' => HoldStatus::Captured,
                 'captured_at' => now(),
             ]);
 
-            // If hold was more than final fare, the surplus is already released
-            // because the debit was for finalFareKobo, not hold amount
+            if ($shortfall > 0) {
+                $ride->update([
+                    'payment_status' => PaymentStatus::Failed,
+                    'pricing_snapshot' => array_merge(
+                        is_array($ride->pricing_snapshot) ? $ride->pricing_snapshot : [],
+                        ['wallet_shortfall_kobo' => $shortfall],
+                    ),
+                ]);
+
+                Log::warning('Wallet settlement shortfall — flagged for admin review', [
+                    'ride_id' => $ride->id,
+                    'final_fare_kobo' => $finalFareKobo,
+                    'charged_kobo' => $chargeAmount,
+                    'shortfall_kobo' => $shortfall,
+                ]);
+            }
+
+            return [
+                'settled' => $shortfall === 0,
+                'amount_charged' => $chargeAmount,
+                'shortfall' => $shortfall,
+            ];
         });
+
+        if ($result['amount_charged'] > 0) {
+            try {
+                DB::transaction(function () use ($ride, $result) {
+                    $passenger = User::find($ride->passenger_id);
+                    $passenger?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged']));
+                });
+            } catch (\Throwable) {
+            }
+        }
+
+        return $result;
     }
 
     /**

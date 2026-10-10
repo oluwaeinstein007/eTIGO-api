@@ -2,21 +2,21 @@
 
 namespace App\Providers;
 
+use App\Contracts\FlutterwaveWalletGateway;
 use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
-use App\Contracts\FlutterwaveWalletGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
+use App\Gateways\FlutterwaveWalletPaymentGateway;
 use App\Models\PersonalAccessToken;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
 use App\Services\HaversineMapsGateway;
-use App\Services\MapboxGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
-use App\Gateways\FlutterwaveWalletPaymentGateway;
+use App\Services\MapboxGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Passenger;
 
 use App\Contracts\FlutterwaveWalletGateway;
 use App\Enums\AccountType;
+use App\Enums\WalletTransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreTopupRequest;
 use App\Jobs\ProcessTopupWebhookJob;
+use App\Models\WalletTransaction;
 use App\Services\LedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,9 +51,20 @@ class WalletTopupController extends Controller
         }
 
         $hourlyKey = "topup_hourly:{$user->id}:".now()->format('Y-m-d-H');
-        $hourlyCount = Cache::get($hourlyKey, 0);
-        if ($hourlyCount >= config('wallet.max_topups_per_hour', 5)) {
+        Cache::add($hourlyKey, 0, now()->addHour());
+        if (Cache::increment($hourlyKey) > config('wallet.max_topups_per_hour', 5)) {
+            Cache::decrement($hourlyKey);
+
             return response()->json(['message' => 'Too many top-up attempts. Please wait.'], 429);
+        }
+
+        $dailyCountKey = "topup_daily_count:{$user->id}:".now()->toDateString();
+        Cache::add($dailyCountKey, 0, now()->endOfDay());
+        if (Cache::increment($dailyCountKey) > config('wallet.max_topups_per_day', 10)) {
+            Cache::decrement($dailyCountKey);
+            Cache::decrement($hourlyKey);
+
+            return response()->json(['message' => 'Daily top-up attempt limit reached.'], 429);
         }
 
         $txRef = 'TOPUP-'.strtoupper(Str::random(12));
@@ -77,8 +90,12 @@ class WalletTopupController extends Controller
             return response()->json(['message' => 'Unable to initialize payment. Please try again.'], 502);
         }
 
-        Cache::increment($hourlyKey);
-        Cache::put($hourlyKey, Cache::get($hourlyKey, 1), now()->addHour());
+        WalletTransaction::create([
+            'account_id' => $account->id,
+            'reference' => $txRef,
+            'amount' => $amountKobo,
+            'status' => WalletTransactionStatus::Pending,
+        ]);
 
         return response()->json([
             'message' => 'Top-up initialized.',

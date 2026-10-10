@@ -8,6 +8,7 @@ use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\Journal;
 use App\Models\LedgerEntry;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -104,7 +105,7 @@ class LedgerService
 
                 return $journal;
             });
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             if ($idempotencyKey && (str_contains($e->getMessage(), 'unique') || str_contains($e->getMessage(), 'duplicate'))) {
                 $existing = Journal::where('idempotency_key', $idempotencyKey)->first();
                 if ($existing) {

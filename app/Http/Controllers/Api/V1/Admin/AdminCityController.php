@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\DriverStatus;
+use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\City\StoreCityRequest;
 use App\Http\Requests\Admin\City\UpdateCityRequest;
 use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
-use App\Enums\DriverStatus;
-use App\Enums\RideStatus;
 use App\Models\City;
 use App\Services\AppCacheService;
 use App\Support\NigerianStates;

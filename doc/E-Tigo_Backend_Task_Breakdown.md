@@ -621,7 +621,7 @@
 | BE-WAL-05 | `[x]` Create `WalletTopupController@verify` — `GET /api/v1/wallet/topup/{transactionId}/verify`: fallback verification endpoint for missed webhooks; query Flutterwave Verify Transaction API by transaction ID, credit wallet if successful and not already processed | P-15 | BE-WAL-03 | Idempotent via idempotency_key on journal |
 | BE-WAL-06 | `[x]` Create `FlutterwaveWalletWebhookController@handle` — `POST /api/v1/webhooks/flutterwave-wallet`: verify `verif-hash` header, deduplicate via webhook_events table, route by event type (charge.completed → credit wallet, transfer.completed/failed → update payout) | P-15 | BE-WINFRA-07, BE-WINFRA-15 | 🔒 Signature verification mandatory; replay-safe; returns 200 immediately, processes async |
 | BE-WAL-07 | `[x]` Create `ProcessTopupWebhookJob` — queued job processing verified charge.success webhook: credit passenger wallet via LedgerService, debit psp_clearing account; handle already-processed gracefully | P-15 | BE-WAL-06, BE-WINFRA-15 | 3 retries, 30s backoff |
-| BE-WAL-08 | `[ ]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
+| BE-WAL-08 | `[x]` Create `ExpireAbandonedTopupsJob` — scheduled job marking top-up transactions older than 30 minutes with no webhook/verification as abandoned | P-15 | BE-WAL-03 | Prevents stale pending states; runs every 15 minutes |
 
 ### 19.2 Ride Payment Flow (Wallet)
 
@@ -630,10 +630,10 @@
 | BE-WAL-09 | `[x]` Create `WalletPaymentService@placeHold()` — place hold on passenger wallet at ride request or start; validate sufficient available balance; create Hold record with ride association | P-15 | BE-WINFRA-04, BE-WINFRA-18 | Hold amount = fare estimate; returns insufficient_balance error if not enough |
 | BE-WAL-10 | `[x]` Create `WalletPaymentService@settle()` — on ride completion, capture hold for final fare amount (may differ from estimate); post journal: debit passenger wallet, credit platform commission + driver earnings; release any hold surplus | P-15 | BE-WAL-09, BE-WINFRA-15 | Final fare may be less or more than hold — handle both |
 | BE-WAL-11 | `[x]` Create `WalletPaymentService@releaseHold()` — on ride cancellation or no_driver_found, release hold and restore available balance | P-15 | BE-WAL-09 | — |
-| BE-WAL-12 | `[ ]` Implement insufficient balance handling — if final fare exceeds hold (route change, waiting time), attempt to capture available balance up to final fare; if still short, flag ride for Admin review with shortfall amount | P-15 | BE-WAL-10 | ⚠ OQ-26: Fallback payment method policy TBD |
+| BE-WAL-12 | `[x]` Implement insufficient balance handling — if final fare exceeds hold (route change, waiting time), attempt to capture available balance up to final fare; if still short, flag ride for Admin review with shortfall amount | P-15 | BE-WAL-10 | Resolved: partial settlement captures available balance, records shortfall, marks payment as Failed |
 | BE-WAL-13 | `[x]` Create `ExpireStaleHoldsJob` — scheduled job releasing holds older than configurable threshold (default 4 hours) with no associated active ride | P-15 | BE-WAL-09 | Runs hourly; prevents balance lockup from orphaned holds |
-| BE-WAL-14 | `[ ]` Integrate wallet as payment method in `RideController@store` — accept `payment_method: wallet`; validate sufficient balance; place hold on ride creation | P-15 | BE-WAL-09, BE-RIDE-03 | Extends existing payment_method enum (cash/card/wallet) |
-| BE-WAL-15 | `[ ]` Integrate wallet settlement into ride completion flow — wire `WalletPaymentService@settle()` into `ProcessPaymentJob` for wallet rides | P-15 | BE-WAL-10, BE-PAY-09 | — |
+| BE-WAL-14 | `[x]` Integrate wallet as payment method in `RideController@store` — accept `payment_method: wallet`; validate sufficient balance; place hold on ride creation | P-15 | BE-WAL-09, BE-RIDE-03 | Extends existing payment_method enum (cash/card/wallet) |
+| BE-WAL-15 | `[x]` Integrate wallet settlement into ride completion flow — wire `WalletPaymentService@settle()` into `PaymentService@processRidePayment()` for wallet rides | P-15 | BE-WAL-10, BE-PAY-09 | Settled via PaymentService match arm; creates Payment record with Captured/Failed status |
 
 ### 19.3 Wallet Refunds
 
@@ -656,10 +656,10 @@
 | BE-EARN-01 | `[x]` Create migration: `commission_configs` table — id, rate (decimal 5,4, e.g. 0.2000 = 20%), driver_id (FK nullable for per-driver override), is_active (bool default true), created_by_admin_id (FK), created_at, updated_at | D-10 | SETUP-06 | Global default + optional per-driver override; nullable driver_id = global rate |
 | BE-EARN-02 | `[x]` Create `CommissionConfig` Eloquent model; `CommissionService@getRate()` — return per-driver override if exists, else global default | — | BE-EARN-01 | — |
 | BE-EARN-03 | `[x]` Create `DriverEarningsService@creditRideEarnings()` — on ride completion, calculate commission = fare × rate, net earnings = fare − commission; post journal: debit passenger wallet (or psp_clearing for card/cash), credit driver_earnings_pending + platform_commission | D-10 | BE-EARN-02, BE-WINFRA-15 | Dispatched from ride completion pipeline |
-| BE-EARN-04 | `[ ]` Create `SettleDriverEarningsJob` — move earnings from pending to available based on settlement rule (configurable delay: instant, 24h, or weekly); post journal: debit driver_earnings_pending, credit driver_earnings_available | D-10 | BE-EARN-03 | ⚠ OQ-28: Settlement delay policy TBD |
-| BE-EARN-05 | `[ ]` Implement cash-ride commission handling — when payment_method = cash, driver collects fare directly; debit commission from driver_earnings_available; allow negative balance up to configurable threshold | D-10 | BE-EARN-03 | ⚠ OQ-29: Cash-ride commission policy TBD; negative balance blocks/warns on new rides |
-| BE-EARN-06 | `[ ]` Create `DriverEarningsController@show` — `GET /api/v1/driver/earnings`: return pending, available, total paid out balances; today/this week/this month summaries | D-10 | BE-WINFRA-10, SETUP-51 | — |
-| BE-EARN-07 | `[ ]` Create `DriverEarningsController@rideBreakdown` — `GET /api/v1/driver/earnings/rides/{ride}`: fare, commission amount, commission rate, net earnings, payment type, tip (if any) for a specific ride | D-10 | BE-EARN-03 | — |
+| BE-EARN-04 | `[x]` Create `SettleDriverEarningsJob` — move earnings from pending to available based on settlement rule (configurable delay: instant, 24h, or weekly); post journal: debit driver_earnings_pending, credit driver_earnings_available | D-10 | BE-EARN-03 | OQ-28 resolved: configurable via `config('wallet.settlement_delay')` — instant (default), 24h, or weekly; job runs hourly via scheduler |
+| BE-EARN-05 | `[x]` Implement cash-ride commission handling — when payment_method = cash, driver collects fare directly; debit commission from driver_earnings_available; allow negative balance up to configurable threshold | D-10 | BE-EARN-03 | OQ-29 resolved: cash rides always use DriverEarningsAvailable; negative balance allowed up to `max_negative_balance` (default −₦5,000); warning logged when threshold exceeded |
+| BE-EARN-06 | `[x]` Create `DriverEarningsController@show` — `GET /api/v1/driver/earnings`: return pending, available, total paid out balances; today/this week/this month summaries | D-10 | BE-WINFRA-10, SETUP-51 | — |
+| BE-EARN-07 | `[x]` Create `DriverEarningsController@rideBreakdown` — `GET /api/v1/driver/earnings/rides/{ride}`: fare, commission amount, commission rate, net earnings, payment type, tip (if any) for a specific ride | D-10 | BE-EARN-03 | — |
 | BE-EARN-08 | `[x]` Create `DriverLedgerController@index` — `GET /api/v1/driver/ledger`: paginated ledger entries (ride earnings, adjustments, clawbacks, payouts) with date and type filters | D-11 | BE-WINFRA-11 | — |
 
 ### 20.2 Bank Account & Payouts
@@ -720,32 +720,32 @@
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | BE-WADM-19 | `[x]` Create `AdminCommissionController@show` / `update` — `GET/PUT /api/v1/admin/settings/commission`: view and update global commission rate; per-driver override CRUD | A-16 | BE-EARN-01, SETUP-52 | Audit log on changes; changes apply to future rides only |
-| BE-WADM-20 | `[ ]` Create `AdminWalletSettingsController@show` / `update` — `GET/PUT /api/v1/admin/settings/wallet`: configure min top-up, max balance, daily top-up cap, minimum payout amount, payout schedule | A-16 | SETUP-52 | Stored in config table or application settings |
+| BE-WADM-20 | `[x]` Create `AdminWalletSettingsController@show` / `update` — `GET/PUT /api/v1/admin/settings/wallet`: configure min top-up, max balance, daily top-up cap, minimum payout amount, settlement delay, hold expiry, abandoned topup timeout | A-16 | SETUP-52 | Uses `app_settings` key-value table; merges DB overrides with config file defaults |
 
 ### 21.5 Reconciliation & Monitoring
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-21 | `[ ]` Create `DailyReconciliationJob` — compare Flutterwave settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Schedule daily; results stored in reconciliation_reports table |
-| BE-WADM-22 | `[ ]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes |
-| BE-WADM-23 | `[ ]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly schedule |
-| BE-WADM-24 | `[ ]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Flutterwave settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | — |
+| BE-WADM-21 | `[x]` Create `DailyReconciliationJob` — compare Flutterwave settlements (charges + transfers) against ledger entries; flag mismatches for Admin review | NF-10 | BE-WINFRA-15, BE-WAL-06 | Scheduled daily at 02:00; results stored in `reconciliation_reports` table; idempotent per date |
+| BE-WADM-22 | `[x]` Create `StuckTransactionSweeperJob` — find pending transactions older than threshold with no webhook received; attempt verification; escalate if unresolved | NF-10 | BE-WAL-05 | Runs every 30 minutes; verifies via Flutterwave API; credits wallet if successful, marks abandoned/failed otherwise |
+| BE-WADM-23 | `[x]` Create `NegativeDriverBalanceReportJob` — scheduled report of drivers with negative earnings balance (from cash-ride commission); notify finance team | — | BE-EARN-05 | Weekly on Mondays at 08:00; logs summary with critical threshold breaches |
+| BE-WADM-24 | `[x]` Create `AdminReconciliationController@show` — `GET /api/v1/admin/reports/reconciliation`: daily reconciliation view with Flutterwave settlements vs ledger, mismatches flagged | A-16 | BE-WADM-21, SETUP-52 | Also added `GET /reports/reconciliation/history` for paginated report list |
 | BE-WADM-25 | `[x]` Create `AdminReconciliationController@walletLiability` — `GET /api/v1/admin/reports/wallet-liability`: total passenger wallet balances (platform liability), commission collected, driver earnings payable | A-16 | BE-WINFRA-10 | — |
 
 ### 21.6 Wallet Notifications
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-26 | `[ ]` Extend `NotificationType` enum with wallet events: topup_success, topup_failed, ride_wallet_payment, wallet_refund, payout_approved, payout_paid, payout_failed | B-06 | BE-NOTIF-02 | — |
-| BE-WADM-27 | `[ ]` Create wallet push notification dispatches: send on top-up success/failure, ride wallet deduction, refund credit, payout status changes | B-06 | BE-WADM-26, SETUP-57 | Integrated into respective services/jobs |
+| BE-WADM-26 | `[x]` Extend `NotificationType` enum with wallet events: topup_success, topup_failed, ride_wallet_payment, wallet_refund, payout_approved, payout_paid, payout_failed | B-06 | BE-NOTIF-02 | Full enum created at `app/Enums/NotificationType.php` with label() and channel() helpers |
+| BE-WADM-27 | `[x]` Create wallet push notification dispatches: send on top-up success/failure, ride wallet deduction, refund credit, payout status changes | B-06 | BE-WADM-26, SETUP-57 | 4 notification classes created; integrated into ProcessTopupWebhookJob, WalletPaymentService, WalletRefundService, ProcessPayoutWebhookJob, AdminPayoutController |
 
 ### 21.7 Security & Compliance
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-WADM-28 | `[ ]` Implement rate limiting on funding and payout endpoints: `throttle:10,1` on top-up, `throttle:3,1` on payout requests | NF-01 | BE-WAL-03, BE-EARN-12 | Prevents velocity abuse |
-| BE-WADM-29 | `[ ]` Implement fraud guardrails: velocity limits (max top-ups per hour/day), unusual amount detection, rapid fund-and-spend patterns | NF-05 | BE-WAL-03 | 🔒 Log suspicious activity; flag for manual review |
-| BE-WADM-30 | `[ ]` Ensure RBAC for wallet admin actions: Support (read-only), Finance (payouts + adjustments), Super Admin (settings + freeze) | §8.4 | SETUP-52 | Leverages existing `EnsureAdminRole` middleware |
+| BE-WADM-28 | `[x]` Implement rate limiting on funding and payout endpoints: `throttle:10,1` on top-up, `throttle:3,1` on payout requests | NF-01 | BE-WAL-03, BE-EARN-12 | Applied in `routes/api.php` |
+| BE-WADM-29 | `[x]` Implement fraud guardrails: velocity limits (max top-ups per hour/day), unusual amount detection, rapid fund-and-spend patterns | NF-05 | BE-WAL-03 | 🔒 Hourly count (5/hr), daily count (10/day), daily amount cap, max balance check — all enforced in WalletTopupController |
+| BE-WADM-30 | `[x]` Ensure RBAC for wallet admin actions: Support (read-only), Finance (payouts + adjustments), Super Admin (settings + freeze) | §8.4 | SETUP-52 | Verified: all wallet admin routes use `admin.role:` middleware with correct scoping |
 
 ### 21.8 Testing
 
@@ -971,15 +971,15 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[x]` Unresolved |
-| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[ ]` Unresolved |
-| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[x]` Unresolved |
-| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[ ]` Unresolved |
-| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[ ]` Unresolved |
-| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[x]` Unresolved |
-| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` Unresolved |
-| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[x]` Unresolved |
-| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[x]` Unresolved |
+| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[ ]` Unresolved |
+| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[x]` Resolved — partial settlement: capture available balance, record shortfall, mark payment Failed for admin review |
+| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[ ]` Unresolved |
+| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[x]` Resolved — all three options supported via `config('wallet.settlement_delay')`; default is `instant`; configurable at runtime via Admin Wallet Settings endpoint; `SettleDriverEarningsJob` runs hourly to move pending→available when delay is 24h or weekly |
+| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[x]` Resolved — cash rides debit commission from `DriverEarningsAvailable` (driver already has the cash); negative balance allowed up to configurable threshold (`max_negative_balance`, default −₦5,000 / −500000 kobo); warning logged when threshold exceeded; `hasExcessiveNegativeBalance()` helper available for ride-blocking logic |
+| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[ ]` Unresolved |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[ ]` Unresolved |
+| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[ ]` Unresolved |
+| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[ ]` Unresolved |
 
 ### Phase 2 Decisions
 

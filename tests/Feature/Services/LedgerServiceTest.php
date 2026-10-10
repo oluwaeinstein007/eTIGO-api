@@ -40,7 +40,7 @@ test('postJournal rejects unbalanced entries', function () {
     ], [
         'description' => 'Unbalanced',
     ]);
-})->throws(\DomainException::class, 'does not balance');
+})->throws(DomainException::class, 'does not balance');
 
 test('postJournal rejects zero or negative amounts', function () {
     $this->ledgerService->postJournal([
@@ -49,7 +49,7 @@ test('postJournal rejects zero or negative amounts', function () {
     ], [
         'description' => 'Zero amount',
     ]);
-})->throws(\DomainException::class, 'must be positive');
+})->throws(DomainException::class, 'must be positive');
 
 test('postJournal is idempotent with idempotency_key', function () {
     $options = [
@@ -78,7 +78,7 @@ test('postJournal rejects posting to frozen accounts', function () {
     ], [
         'description' => 'Frozen account test',
     ]);
-})->throws(\DomainException::class, 'frozen');
+})->throws(DomainException::class, 'frozen');
 
 test('postJournal updates running balance on entries', function () {
     $journal = $this->ledgerService->postJournal([
