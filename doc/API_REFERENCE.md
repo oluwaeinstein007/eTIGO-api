@@ -2109,6 +2109,8 @@ POST /admin/drivers/{driver_id}/complete-onboarding
 ```
 Marks a driver's onboarding and KYC as completed and approved in one action without requiring external third-party KYC verification (QoreID).
 
+> **Note:** Testing/QA only. This endpoint is intended for development and onboarding flow testing, and will be removed before production go-live.
+
 **Requirements:**
 The driver must have provided all required onboarding data:
 - Vehicle ownership type selected (`own_vehicle` or `fleet_vehicle`)

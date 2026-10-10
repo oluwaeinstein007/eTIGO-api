@@ -287,6 +287,10 @@ class DriverManagementController extends Controller
         ]);
     }
 
+    /**
+     * Complete driver onboarding and approve KYC without external provider checks.
+     * Note: Testing/QA only. Remove before production go-live.
+     */
     public function completeOnboarding(CompleteDriverOnboardingRequest $request, Driver $driver): JsonResponse
     {
         if ($driver->isSuspended()) {
