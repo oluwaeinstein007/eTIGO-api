@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminWalletSettingsController extends Controller
 {
@@ -41,7 +42,7 @@ class AdminWalletSettingsController extends Controller
             'abandoned_topup_minutes' => ['sometimes', 'integer', 'min:5', 'max:1440'],
         ]);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated) {
             foreach ($validated as $key => $value) {
                 AppSetting::setValue("wallet.{$key}", $value, 'wallet');
             }

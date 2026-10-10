@@ -162,8 +162,13 @@ class WalletPaymentService
         });
 
         if ($result['amount_charged'] > 0) {
-            rescue(fn () => User::find($ride->passenger_id)
-                ?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged'])));
+            try {
+                DB::transaction(function () use ($ride, $result) {
+                    $passenger = User::find($ride->passenger_id);
+                    $passenger?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged']));
+                });
+            } catch (\Throwable) {
+            }
         }
 
         return $result;
