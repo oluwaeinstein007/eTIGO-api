@@ -1,17 +1,26 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
 use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
+use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
+use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
+use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
+use App\Http\Controllers\Api\V1\Admin\AdminWalletSettingsController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
 use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
@@ -19,21 +28,26 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\Driver\BankAccountController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
+use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\NearbyRidesController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
+use App\Http\Controllers\Api\V1\Driver\PayoutController;
 use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
+use App\Http\Controllers\Api\V1\Passenger\WalletController;
+use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\RideController;
@@ -45,21 +59,8 @@ use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
-use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
-use App\Http\Controllers\Api\V1\Passenger\WalletController;
-use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
-use App\Http\Controllers\Api\V1\Driver\BankAccountController;
-use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
-use App\Http\Controllers\Api\V1\Driver\PayoutController;
-use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
-use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
-use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
-use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
-use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
-use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
-use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
-use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
+use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -229,6 +230,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
     Route::get('/stats', [DriverStatsController::class, 'show']);
     Route::get('/earnings', [DriverEarningsController::class, 'show']);
+    Route::get('/earnings/rides/{ride}', [DriverEarningsController::class, 'rideBreakdown']);
     Route::post('/toggle-online', [DriverController::class, 'toggleOnline']);
     Route::get('/location', [DriverController::class, 'location']);
     Route::post('/location', [DriverLocationController::class, 'update']);
@@ -428,6 +430,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance,super_admin')->prefix('settings')->group(function () {
         Route::get('/commission', [AdminCommissionController::class, 'show']);
         Route::put('/commission', [AdminCommissionController::class, 'update']);
+        Route::get('/wallet', [AdminWalletSettingsController::class, 'show']);
+        Route::put('/wallet', [AdminWalletSettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:finance')->prefix('reports')->group(function () {

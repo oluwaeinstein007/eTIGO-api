@@ -8,6 +8,7 @@ use App\Models\Account;
 use App\Models\Driver;
 use App\Models\Ride;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DriverEarningsService
 {
@@ -29,14 +30,28 @@ class DriverEarningsService
         $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
         $pspClearingAccount = $this->ledgerService->systemAccount(AccountType::PspClearing);
 
-        $driverAccount = $this->ledgerService->findOrCreateAccount(
-            'App\\Models\\Driver',
-            $driver->id,
-            AccountType::DriverEarningsAvailable,
-        );
-
         if ($ride->payment_method->value === 'cash') {
+            $driverAccount = $this->ledgerService->findOrCreateAccount(
+                'App\\Models\\Driver',
+                $driver->id,
+                AccountType::DriverEarningsAvailable,
+            );
+
             if ($commission['commission'] > 0) {
+                $maxNegative = config('wallet.max_negative_balance', -500000);
+                $projectedBalance = $driverAccount->balance - $commission['commission'];
+
+                if ($projectedBalance < $maxNegative) {
+                    Log::warning('Cash commission would exceed negative balance threshold', [
+                        'driver_id' => $driver->id,
+                        'ride_id' => $ride->id,
+                        'current_balance' => $driverAccount->balance,
+                        'commission' => $commission['commission'],
+                        'projected' => $projectedBalance,
+                        'threshold' => $maxNegative,
+                    ]);
+                }
+
                 $this->ledgerService->postJournal([
                     ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $commission['commission']],
                     ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']],
@@ -52,6 +67,15 @@ class DriverEarningsService
                 ]);
             }
         } else {
+            $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
+                ? AccountType::DriverEarningsAvailable
+                : AccountType::DriverEarningsPending;
+
+            $driverAccount = $this->ledgerService->findOrCreateAccount(
+                'App\\Models\\Driver',
+                $driver->id,
+                $earningsAccountType,
+            );
             $journalLines = array_values(array_filter([
                 ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $fareAmountKobo],
                 $commission['commission'] > 0
@@ -88,14 +112,34 @@ class DriverEarningsService
             ->where('type', AccountType::DriverEarningsAvailable)
             ->first();
 
+        $pendingAccount = Account::where('owner_type', 'App\\Models\\Driver')
+            ->where('owner_id', $driverId)
+            ->where('type', AccountType::DriverEarningsPending)
+            ->first();
+
         $totalPaid = DB::table('payouts')
             ->where('driver_id', $driverId)
             ->where('status', 'paid')
             ->sum('amount');
 
         return [
+            'pending' => $pendingAccount?->balance ?? 0,
             'available' => $availableAccount?->balance ?? 0,
             'total_paid' => (int) $totalPaid,
         ];
+    }
+
+    public function hasExcessiveNegativeBalance(string $driverId): bool
+    {
+        $account = Account::where('owner_type', 'App\\Models\\Driver')
+            ->where('owner_id', $driverId)
+            ->where('type', AccountType::DriverEarningsAvailable)
+            ->first();
+
+        if (! $account) {
+            return false;
+        }
+
+        return $account->balance < config('wallet.max_negative_balance', -500000);
     }
 }

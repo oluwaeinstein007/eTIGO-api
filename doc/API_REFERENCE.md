@@ -6469,6 +6469,88 @@ Authorization: Bearer {driver_token}
 
 ---
 
+## Driver — Earnings
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Earnings Overview
+
+```
+GET /driver/earnings
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's earnings balances and period summaries.
+
+**Response 200:**
+```json
+{
+  "earnings": {
+    "balances": {
+      "pending_kobo": 0,
+      "available_kobo": 300000,
+      "total_paid_kobo": 150000
+    },
+    "summaries": {
+      "today": 2500,
+      "this_week": 12000,
+      "this_month": 45000
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pending_kobo` | integer | Earnings awaiting settlement (held during settlement delay) |
+| `available_kobo` | integer | Earnings available for payout |
+| `total_paid_kobo` | integer | Total paid out to driver's bank account |
+| `today` | integer | Sum of `final_fare_amount` for rides completed today (in ₦) |
+| `this_week` | integer | Sum for current week |
+| `this_month` | integer | Sum for current month |
+
+### Ride Earnings Breakdown
+
+```
+GET /driver/earnings/rides/{ride}
+Authorization: Bearer {driver_token}
+```
+
+Returns the earnings breakdown for a specific completed ride. Driver can only view their own rides.
+
+**Response 200:**
+```json
+{
+  "breakdown": {
+    "ride_id": "uuid",
+    "fare_amount": 2000,
+    "fare_kobo": 200000,
+    "commission_rate": 0.2,
+    "commission_kobo": 40000,
+    "net_earnings_kobo": 160000,
+    "payment_method": "cash",
+    "tip_amount": 0,
+    "completed_at": "2026-10-10T14:30:00Z"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fare_amount` | integer | Final fare in ₦ |
+| `fare_kobo` | integer | Final fare in kobo |
+| `commission_rate` | float | Commission rate applied (e.g. 0.2 = 20%) |
+| `commission_kobo` | integer | Commission amount deducted (kobo) |
+| `net_earnings_kobo` | integer | Driver's net earnings after commission (kobo) |
+| `payment_method` | string | `cash`, `card`, or `wallet` |
+| `tip_amount` | integer | Tip amount in ₦ (0 if no tip) |
+| `completed_at` | string | ISO 8601 timestamp of ride completion |
+
+**Response 403:** Ride does not belong to the authenticated driver.
+**Response 404:** Ride not found.
+
+---
+
 ## Driver — Ledger & Payouts
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
@@ -6636,6 +6718,77 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance, Super Admin
 
+### Wallet Settings
+
+```
+GET /admin/settings/wallet
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Super Admin
+
+Returns current wallet configuration (merged from database overrides and config file defaults).
+
+**Response 200:**
+```json
+{
+  "settings": {
+    "currency": "NGN",
+    "min_topup": 50000,
+    "max_balance": 50000000,
+    "daily_topup_cap": 50000000,
+    "min_payout": 100000,
+    "settlement_delay": "instant",
+    "max_negative_balance": -500000,
+    "hold_expiry_hours": 2,
+    "abandoned_topup_minutes": 30
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `min_topup` | integer | Minimum top-up amount (kobo) |
+| `max_balance` | integer | Maximum wallet balance (kobo) |
+| `daily_topup_cap` | integer | Daily top-up limit per user (kobo) |
+| `min_payout` | integer | Minimum payout amount (kobo) |
+| `settlement_delay` | string | `instant`, `24h`, or `weekly` |
+| `max_negative_balance` | integer | Max negative balance for driver cash-ride commission (kobo, ≤ 0) |
+| `hold_expiry_hours` | integer | Hours before an unreleased hold expires (1–48) |
+| `abandoned_topup_minutes` | integer | Minutes before a pending top-up is marked abandoned (5–1440) |
+
+```
+PUT /admin/settings/wallet
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Super Admin
+
+Updates wallet configuration. Only provided fields are updated; omitted fields retain their current values.
+
+**Request Body:** (all fields optional)
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `min_topup` | integer | Min: 1000 |
+| `max_balance` | integer | Min: 100000 |
+| `daily_topup_cap` | integer | Min: 100000 |
+| `min_payout` | integer | Min: 10000 |
+| `settlement_delay` | string | `instant`, `24h`, or `weekly` |
+| `max_negative_balance` | integer | Max: 0 (must be ≤ 0) |
+| `hold_expiry_hours` | integer | 1–48 |
+| `abandoned_topup_minutes` | integer | 5–1440 |
+
+**Response 200:**
+```json
+{
+  "message": "Wallet settings updated.",
+  "settings": { /* same shape as GET response */ }
+}
+```
+
+**Response 422:** Validation error.
+
 ### Reconciliation — Wallet Liability
 
 ```
@@ -6729,6 +6882,8 @@ Super Admins always bypass role checks and have full access.
 | `/admin/gamification` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
 | `/admin/disputes` | — | Yes | — | — |
+| `/admin/settings/wallet` | — | — | Yes | — |
+| `/admin/settings/commission` | — | — | Yes | — |
 | `/admin/admins` | — | — | — | — |
 
 ### Driver Status

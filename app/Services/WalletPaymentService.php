@@ -97,10 +97,13 @@ class WalletPaymentService
                 $commission = $this->commissionService->calculate($chargeAmount, $driver->id);
 
                 $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
+                $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
+                    ? AccountType::DriverEarningsAvailable
+                    : AccountType::DriverEarningsPending;
                 $driverAccount = $this->ledgerService->findOrCreateAccount(
                     Driver::class,
                     $driver->id,
-                    AccountType::DriverEarningsAvailable,
+                    $earningsAccountType,
                 );
 
                 $journalLines = array_filter([

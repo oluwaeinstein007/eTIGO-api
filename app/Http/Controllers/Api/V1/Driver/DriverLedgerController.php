@@ -27,6 +27,7 @@ class DriverLedgerController extends Controller
         return response()->json([
             'earnings' => [
                 'currency' => 'NGN',
+                'pending' => $summary['pending'],
                 'available' => $summary['available'],
                 'total_paid' => $summary['total_paid'],
             ],

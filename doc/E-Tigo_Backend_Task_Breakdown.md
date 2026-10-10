@@ -656,10 +656,10 @@
 | BE-EARN-01 | `[x]` Create migration: `commission_configs` table — id, rate (decimal 5,4, e.g. 0.2000 = 20%), driver_id (FK nullable for per-driver override), is_active (bool default true), created_by_admin_id (FK), created_at, updated_at | D-10 | SETUP-06 | Global default + optional per-driver override; nullable driver_id = global rate |
 | BE-EARN-02 | `[x]` Create `CommissionConfig` Eloquent model; `CommissionService@getRate()` — return per-driver override if exists, else global default | — | BE-EARN-01 | — |
 | BE-EARN-03 | `[x]` Create `DriverEarningsService@creditRideEarnings()` — on ride completion, calculate commission = fare × rate, net earnings = fare − commission; post journal: debit passenger wallet (or psp_clearing for card/cash), credit driver_earnings_pending + platform_commission | D-10 | BE-EARN-02, BE-WINFRA-15 | Dispatched from ride completion pipeline |
-| BE-EARN-04 | `[ ]` Create `SettleDriverEarningsJob` — move earnings from pending to available based on settlement rule (configurable delay: instant, 24h, or weekly); post journal: debit driver_earnings_pending, credit driver_earnings_available | D-10 | BE-EARN-03 | ⚠ OQ-28: Settlement delay policy TBD |
-| BE-EARN-05 | `[ ]` Implement cash-ride commission handling — when payment_method = cash, driver collects fare directly; debit commission from driver_earnings_available; allow negative balance up to configurable threshold | D-10 | BE-EARN-03 | ⚠ OQ-29: Cash-ride commission policy TBD; negative balance blocks/warns on new rides |
-| BE-EARN-06 | `[ ]` Create `DriverEarningsController@show` — `GET /api/v1/driver/earnings`: return pending, available, total paid out balances; today/this week/this month summaries | D-10 | BE-WINFRA-10, SETUP-51 | — |
-| BE-EARN-07 | `[ ]` Create `DriverEarningsController@rideBreakdown` — `GET /api/v1/driver/earnings/rides/{ride}`: fare, commission amount, commission rate, net earnings, payment type, tip (if any) for a specific ride | D-10 | BE-EARN-03 | — |
+| BE-EARN-04 | `[x]` Create `SettleDriverEarningsJob` — move earnings from pending to available based on settlement rule (configurable delay: instant, 24h, or weekly); post journal: debit driver_earnings_pending, credit driver_earnings_available | D-10 | BE-EARN-03 | OQ-28 resolved: configurable via `config('wallet.settlement_delay')` — instant (default), 24h, or weekly; job runs hourly via scheduler |
+| BE-EARN-05 | `[x]` Implement cash-ride commission handling — when payment_method = cash, driver collects fare directly; debit commission from driver_earnings_available; allow negative balance up to configurable threshold | D-10 | BE-EARN-03 | OQ-29 resolved: cash rides always use DriverEarningsAvailable; negative balance allowed up to `max_negative_balance` (default −₦5,000); warning logged when threshold exceeded |
+| BE-EARN-06 | `[x]` Create `DriverEarningsController@show` — `GET /api/v1/driver/earnings`: return pending, available, total paid out balances; today/this week/this month summaries | D-10 | BE-WINFRA-10, SETUP-51 | — |
+| BE-EARN-07 | `[x]` Create `DriverEarningsController@rideBreakdown` — `GET /api/v1/driver/earnings/rides/{ride}`: fare, commission amount, commission rate, net earnings, payment type, tip (if any) for a specific ride | D-10 | BE-EARN-03 | — |
 | BE-EARN-08 | `[x]` Create `DriverLedgerController@index` — `GET /api/v1/driver/ledger`: paginated ledger entries (ride earnings, adjustments, clawbacks, payouts) with date and type filters | D-11 | BE-WINFRA-11 | — |
 
 ### 20.2 Bank Account & Payouts
@@ -720,7 +720,7 @@
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | BE-WADM-19 | `[x]` Create `AdminCommissionController@show` / `update` — `GET/PUT /api/v1/admin/settings/commission`: view and update global commission rate; per-driver override CRUD | A-16 | BE-EARN-01, SETUP-52 | Audit log on changes; changes apply to future rides only |
-| BE-WADM-20 | `[ ]` Create `AdminWalletSettingsController@show` / `update` — `GET/PUT /api/v1/admin/settings/wallet`: configure min top-up, max balance, daily top-up cap, minimum payout amount, payout schedule | A-16 | SETUP-52 | Stored in config table or application settings |
+| BE-WADM-20 | `[x]` Create `AdminWalletSettingsController@show` / `update` — `GET/PUT /api/v1/admin/settings/wallet`: configure min top-up, max balance, daily top-up cap, minimum payout amount, settlement delay, hold expiry, abandoned topup timeout | A-16 | SETUP-52 | Uses `app_settings` key-value table; merges DB overrides with config file defaults |
 
 ### 21.5 Reconciliation & Monitoring
 
@@ -974,8 +974,8 @@
 | OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[x]` Unresolved |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[x]` Resolved — partial settlement: capture available balance, record shortfall, mark payment Failed for admin review |
 | OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[x]` Unresolved |
-| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[ ]` Unresolved |
-| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[ ]` Unresolved |
+| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[x]` Resolved — all three options supported via `config('wallet.settlement_delay')`; default is `instant`; configurable at runtime via Admin Wallet Settings endpoint; `SettleDriverEarningsJob` runs hourly to move pending→available when delay is 24h or weekly |
+| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[x]` Resolved — cash rides debit commission from `DriverEarningsAvailable` (driver already has the cash); negative balance allowed up to configurable threshold (`max_negative_balance`, default −₦5,000 / −500000 kobo); warning logged when threshold exceeded; `hasExcessiveNegativeBalance()` helper available for ride-blocking logic |
 | OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[x]` Unresolved |
 | OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` Unresolved |
 | OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[x]` Unresolved |
