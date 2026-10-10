@@ -24,7 +24,10 @@ class RemittanceShortfallAlertJob implements ShouldQueue
         $escalationDays = config('fleet.shortfall_escalation_days', 14);
 
         $agreements = FleetAgreement::active()
-            ->where('shortfall_streak_days', '>=', $warningDays)
+            ->where(function ($q) use ($warningDays) {
+                $q->where('shortfall_streak_days', '>=', $warningDays)
+                    ->orWhereNotNull('shortfall_flag');
+            })
             ->with('driver.user')
             ->get();
 
@@ -45,10 +48,12 @@ class RemittanceShortfallAlertJob implements ShouldQueue
 
             $agreement->update([
                 'shortfall_flag' => $newFlag,
-                'shortfall_flagged_at' => now(),
+                'shortfall_flagged_at' => $newFlag ? now() : null,
             ]);
 
-            AuditLog::record($agreement, "shortfall.{$newFlag}", null, null, [
+            $action = $newFlag ? "shortfall.{$newFlag}" : 'shortfall.cleared';
+
+            AuditLog::record($agreement, $action, null, null, [
                 'streak_days' => $streak,
                 'driver_id' => $agreement->driver_id,
                 'previous_flag' => $currentFlag,

@@ -2508,11 +2508,8 @@ GET /admin/fleet-agreements
       "status": "active",
       "shortfall_streak_days": 0,
       "shortfall_flag": null,
-      "shortfall_flagged_at": null,
-      "vehicle_return_status": null,
-      "outstanding_amount": null,
-      "settlement_amount": null,
-      "settlement_notes": null,
+      "outstanding_amount": "0.00",
+      "settlement_amount": "0.00",
       "driver": { "...": "..." },
       "vehicle": { "...": "..." },
       "created_at": "2026-10-09T12:00:00.000000Z",
@@ -2528,7 +2525,7 @@ GET /admin/fleet-agreements
 }
 ```
 
-> **Note:** `total_vehicle_cost` and `remaining_amount` are visible to both admin and driver users (Q7 reversal — hire-purchase disclosure requirements). Additional admin-only fields: `shortfall_flag`, `shortfall_flagged_at`, `vehicle_return_status`, `outstanding_amount`, `settlement_amount`, `settlement_notes`.
+> **Note:** `total_vehicle_cost` and `remaining_amount` are visible to both admin and driver users (Q7 reversal — hire-purchase disclosure requirements). Additional admin-only fields: `shortfall_flag`, `outstanding_amount`, `settlement_amount`. Conditional fields only present when non-null: `shortfall_flagged_at`, `vehicle_return_status`, `settlement_notes`.
 
 ---
 
@@ -2612,10 +2609,8 @@ Returns agreement detail with the 30 most recent daily remittance records.
     "shortfall_streak_days": 2,
     "shortfall_flag": "warning",
     "shortfall_flagged_at": "2026-10-08T04:00:00.000000Z",
-    "vehicle_return_status": null,
-    "outstanding_amount": null,
-    "settlement_amount": null,
-    "settlement_notes": null,
+    "outstanding_amount": "0.00",
+    "settlement_amount": "0.00",
     "driver": { "...": "..." },
     "vehicle": { "...": "..." },
     "daily_remittances": [ "..." ],

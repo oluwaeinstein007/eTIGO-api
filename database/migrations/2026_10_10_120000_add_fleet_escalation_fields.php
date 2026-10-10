@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('daily_remittances', function (Blueprint $table) {
-            $table->string('excused_reason')->nullable()->after('settled');
+            $table->text('excused_reason')->nullable()->after('settled');
         });
 
         Schema::table('fleet_agreements', function (Blueprint $table) {

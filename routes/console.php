@@ -24,11 +24,9 @@ Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::job(new NegativeDriverBalanceReportJob)->weeklyOn(1, '08:00');
 
 $resetTime = config('fleet.daily_reset_time', '04:00');
-Schedule::job(new DailyRemittanceSettlementJob(now()->subDay()->toDateString()))
+$settlementDate = now('Africa/Lagos')->subDay()->toDateString();
+Schedule::job(new DailyRemittanceSettlementJob($settlementDate))
     ->dailyAt($resetTime)
     ->timezone('Africa/Lagos')
-    ->withoutOverlapping();
-Schedule::job(new RemittanceShortfallAlertJob)
-    ->dailyAt($resetTime)
-    ->timezone('Africa/Lagos')
-    ->withoutOverlapping();
+    ->withoutOverlapping()
+    ->then(fn () => RemittanceShortfallAlertJob::dispatch());

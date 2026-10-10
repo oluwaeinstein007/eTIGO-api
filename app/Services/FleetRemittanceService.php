@@ -9,6 +9,7 @@ use App\Models\Driver;
 use App\Models\FleetAgreement;
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class FleetRemittanceService
@@ -178,13 +179,24 @@ class FleetRemittanceService
         return DailyRemittance::firstOrCreate(
             [
                 'agreement_id' => $agreement->id,
-                'date' => now()->toDateString(),
+                'date' => $this->currentBusinessDate(),
             ],
             [
                 'driver_id' => $agreement->driver_id,
                 'target_amount' => $agreement->daily_remittance_target,
             ],
         );
+    }
+
+    private function currentBusinessDate(): string
+    {
+        $now = Carbon::now('Africa/Lagos');
+        $resetTime = config('fleet.daily_reset_time', '04:00');
+        $reset = $now->copy()->setTimeFromTimeString($resetTime);
+
+        return $now->lt($reset)
+            ? $now->subDay()->toDateString()
+            : $now->toDateString();
     }
 
     public function recordRideRemittance(
@@ -203,7 +215,7 @@ class FleetRemittanceService
 
             $this->getOrCreateTodayRemittance($agreement);
             $remittance = DailyRemittance::where('agreement_id', $agreement->id)
-                ->where('date', now()->toDateString())
+                ->where('date', $this->currentBusinessDate())
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -265,6 +277,12 @@ class FleetRemittanceService
     public function excuseDay(DailyRemittance $remittance, string $reason, User $admin): DailyRemittance
     {
         return DB::transaction(function () use ($remittance, $reason, $admin) {
+            $remittance = DailyRemittance::whereKey($remittance->id)->lockForUpdate()->firstOrFail();
+
+            if ($remittance->isExcused()) {
+                throw new \DomainException('This remittance day is already excused.');
+            }
+
             $remittance->update(['excused_reason' => $reason]);
 
             AuditLog::record($remittance->agreement, 'remittance_day_excused', $admin, null, [
@@ -273,8 +291,10 @@ class FleetRemittanceService
             ]);
 
             if ($remittance->settled && $remittance->shortfall() > 0) {
-                $agreement = $remittance->agreement;
-                $agreement->decrement('shortfall_streak_days');
+                $agreement = FleetAgreement::whereKey($remittance->agreement_id)->lockForUpdate()->firstOrFail();
+                if ($agreement->shortfall_streak_days > 0) {
+                    $agreement->decrement('shortfall_streak_days');
+                }
             }
 
             return $remittance->fresh();
@@ -336,6 +356,11 @@ class FleetRemittanceService
 
             if ($carryOverRemitted) {
                 $newAgreement->update(['total_remitted' => $currentAgreement->total_remitted]);
+
+                if ($currentAgreement->total_remitted >= $newAgreement->total_vehicle_cost) {
+                    $this->completeAgreement($newAgreement->fresh());
+                    $newAgreement->refresh();
+                }
             }
 
             AuditLog::record($newAgreement, 'fleet_vehicle_swapped', $admin, null, [
@@ -399,7 +424,7 @@ class FleetRemittanceService
         }
 
         return DailyRemittance::where('agreement_id', $agreement->id)
-            ->where('date', now()->toDateString())
+            ->where('date', $this->currentBusinessDate())
             ->first();
     }
 

@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Services\FleetRemittanceService;
@@ -67,6 +69,8 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
                 'method' => $payment->method->value,
                 'status' => $payment->status->value,
             ]);
+
+            $this->recordFleetRemittance($ride, $payment, $fleetService);
         } catch (\Throwable $e) {
             Log::error('Payment processing failed', [
                 'ride_id' => $ride->id,
@@ -75,40 +79,41 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
 
             throw $e;
         }
-
-        $this->recordFleetRemittance($ride, $fleetService);
     }
 
-    private function recordFleetRemittance(Ride $ride, FleetRemittanceService $fleetService): void
+    private function recordFleetRemittance(Ride $ride, $payment, FleetRemittanceService $fleetService): void
     {
-        try {
-            $driver = Driver::where('user_id', $ride->driver_id)->first();
+        $isCash = $payment->method === PaymentMethod::Cash;
+        $isCardCaptured = ! $isCash && in_array($payment->status, [
+            PaymentStatus::Captured,
+            PaymentStatus::Settled,
+        ], true);
 
-            if (! $driver || ! $driver->isFleetVehicle()) {
-                return;
-            }
-
-            $agreement = $driver->activeFleetAgreement;
-
-            if (! $agreement) {
-                return;
-            }
-
-            $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
-
-            $fleetService->recordRideRemittance($agreement, $fareAmount);
-
-            Log::info('Fleet remittance recorded', [
-                'ride_id' => $ride->id,
-                'driver_id' => $driver->id,
-                'agreement_id' => $agreement->id,
-                'fare_amount' => $fareAmount,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Fleet remittance recording failed', [
-                'ride_id' => $ride->id,
-                'error' => $e->getMessage(),
-            ]);
+        if (! $isCash && ! $isCardCaptured) {
+            return;
         }
+
+        $driver = Driver::where('user_id', $ride->driver_id)->first();
+
+        if (! $driver || ! $driver->isFleetVehicle()) {
+            return;
+        }
+
+        $agreement = $driver->activeFleetAgreement;
+
+        if (! $agreement) {
+            return;
+        }
+
+        $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
+
+        $fleetService->recordRideRemittance($agreement, $fareAmount);
+
+        Log::info('Fleet remittance recorded', [
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
+            'agreement_id' => $agreement->id,
+            'fare_amount' => $fareAmount,
+        ]);
     }
 }
