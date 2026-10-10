@@ -321,7 +321,7 @@ class AdminReportController extends Controller
                 $ride->id,
                 $ride->status->value,
                 $ride->city?->name,
-                $ride->cancellation_reason?->value,
+                $ride->cancellation_reason,
                 $ride->cancelledByUser ? $ride->cancelledByUser->first_name.' '.$ride->cancelledByUser->last_name : null,
                 $ride->created_at?->toIso8601String(),
             ],
