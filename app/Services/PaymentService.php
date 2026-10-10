@@ -204,6 +204,14 @@ class PaymentService
         try {
             $result = $this->walletPaymentService->settle($ride, $finalFareKobo);
         } catch (\DomainException $e) {
+            $existingPayment = Payment::where('ride_id', $ride->id)
+                ->whereIn('status', [PaymentStatus::Captured, PaymentStatus::Failed])
+                ->first();
+
+            if ($existingPayment) {
+                return $existingPayment;
+            }
+
             return $this->createFailedPayment($ride, $e->getMessage());
         }
 

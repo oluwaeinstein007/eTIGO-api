@@ -186,6 +186,11 @@ class RideService
                 ->where('to_state', RideStatus::Searching->value)
                 ->count();
 
+            if ($ride->payment_method === PaymentMethod::Wallet) {
+                $fareEstimateKobo = (int) round($ride->fare_estimate_amount * 100);
+                $this->walletPaymentService->placeHold($passenger, $ride, $fareEstimateKobo);
+            }
+
             $ride = $this->stateMachine->transitionTo(
                 $ride,
                 RideStatus::Searching,

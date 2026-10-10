@@ -51,11 +51,21 @@ class SettleDriverEarningsJob implements ShouldQueue
                 continue;
             }
 
-            $settleAmount = $entries->sum('amount');
+            $recentCredits = (int) $pendingAccount->entries()
+                ->where('type', LedgerEntryType::Credit)
+                ->where('created_at', '>', $threshold)
+                ->sum('amount');
+
+            $settleAmount = min(
+                (int) $entries->sum('amount'),
+                max(0, $pendingAccount->balance - $recentCredits),
+            );
 
             if ($settleAmount <= 0) {
                 continue;
             }
+
+            $entryIds = $entries->pluck('id')->sort()->implode('-');
 
             $availableAccount = $ledgerService->findOrCreateAccount(
                 $pendingAccount->owner_type,
@@ -68,7 +78,7 @@ class SettleDriverEarningsJob implements ShouldQueue
                 ['account_id' => $availableAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $settleAmount],
             ], [
                 'description' => "Settlement: pending → available for driver {$pendingAccount->owner_id}",
-                'idempotency_key' => "settle-earnings-{$pendingAccount->owner_id}-{$threshold->toDateString()}",
+                'idempotency_key' => "settle-earnings-{$pendingAccount->owner_id}-{$entryIds}",
                 'metadata' => [
                     'driver_id' => $pendingAccount->owner_id,
                     'amount_kobo' => $settleAmount,

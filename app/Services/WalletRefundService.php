@@ -41,8 +41,8 @@ class WalletRefundService
             ],
         ]);
 
-        $passenger = User::find($ride->passenger_id);
-        $passenger?->notify(new WalletRefundNotification($ride->id, $amountKobo));
+        rescue(fn () => User::find($ride->passenger_id)
+            ?->notify(new WalletRefundNotification($ride->id, $amountKobo)));
     }
 
     public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null): void

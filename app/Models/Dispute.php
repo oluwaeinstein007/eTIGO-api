@@ -20,6 +20,8 @@ class Dispute extends Model
         'description',
         'status',
         'resolution_notes',
+        'refund_amount',
+        'refund_currency',
         'resolved_by_admin_id',
         'resolved_at',
     ];
@@ -29,6 +31,7 @@ class Dispute extends Model
         return [
             'category' => DisputeCategory::class,
             'status' => DisputeStatus::class,
+            'refund_amount' => 'decimal:2',
             'resolved_at' => 'datetime',
         ];
     }

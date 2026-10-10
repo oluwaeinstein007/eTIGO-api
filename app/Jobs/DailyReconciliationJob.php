@@ -29,7 +29,8 @@ class DailyReconciliationJob implements ShouldQueue
         $startOfDay = $reportDate->copy()->startOfDay();
         $endOfDay = $reportDate->copy()->endOfDay();
 
-        if (ReconciliationReport::where('report_date', $dateString)->exists()) {
+        $existingReport = ReconciliationReport::where('report_date', $dateString)->first();
+        if ($existingReport) {
             Log::info("Reconciliation report for {$dateString} already exists, skipping.");
 
             return;
@@ -89,16 +90,18 @@ class DailyReconciliationJob implements ShouldQueue
 
         $status = empty($mismatches) ? 'clean' : 'mismatched';
 
-        ReconciliationReport::create([
-            'report_date' => $dateString,
-            'gateway_charges_total' => $gatewayChargesTotal,
-            'ledger_credits_total' => $ledgerCreditsTotal,
-            'gateway_transfers_total' => $gatewayTransfersTotal,
-            'ledger_payouts_total' => $ledgerPayoutsTotal,
-            'mismatches_count' => count($mismatches),
-            'mismatches' => $mismatches ?: null,
-            'status' => $status,
-        ]);
+        ReconciliationReport::firstOrCreate(
+            ['report_date' => $dateString],
+            [
+                'gateway_charges_total' => $gatewayChargesTotal,
+                'ledger_credits_total' => $ledgerCreditsTotal,
+                'gateway_transfers_total' => $gatewayTransfersTotal,
+                'ledger_payouts_total' => $ledgerPayoutsTotal,
+                'mismatches_count' => count($mismatches),
+                'mismatches' => $mismatches ?: null,
+                'status' => $status,
+            ],
+        );
 
         if ($status === 'mismatched') {
             Log::warning("Reconciliation mismatch detected for {$dateString}", [

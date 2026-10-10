@@ -16,7 +16,7 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new ExpireStaleHoldsJob)->hourly();
 Schedule::job(new ExpireAbandonedTopupsJob)->everyFifteenMinutes();
-Schedule::job(new SettleDriverEarningsJob)->hourly();
-Schedule::job(new StuckTransactionSweeperJob)->everyThirtyMinutes();
+Schedule::job(new SettleDriverEarningsJob)->hourly()->withoutOverlapping();
+Schedule::job(new StuckTransactionSweeperJob)->everyThirtyMinutes()->withoutOverlapping();
 Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::job(new NegativeDriverBalanceReportJob)->weeklyOn(1, '08:00');

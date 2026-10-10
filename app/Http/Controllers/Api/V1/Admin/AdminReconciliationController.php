@@ -14,7 +14,8 @@ class AdminReconciliationController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
-        $date = $request->query('date', now()->subDay()->toDateString());
+        $validated = $request->validate(['date' => ['sometimes', 'date_format:Y-m-d']]);
+        $date = $validated['date'] ?? now()->subDay()->toDateString();
 
         $report = ReconciliationReport::where('report_date', $date)->first();
 
@@ -45,7 +46,7 @@ class AdminReconciliationController extends Controller
     {
         $reports = ReconciliationReport::orderByDesc('report_date')
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->paginate($request->integer('per_page', 15));
+            ->paginate(min(max($request->integer('per_page', 15), 1), 100));
 
         return response()->json($reports);
     }

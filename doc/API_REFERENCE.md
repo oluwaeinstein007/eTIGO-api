@@ -5982,29 +5982,46 @@ Return full dispute details including ride, passenger, driver, vehicle class, ci
 
 `POST /api/v1/admin/disputes/{dispute}/resolve`
 
-Resolve or dismiss a dispute. Creates an audit log entry.
+Resolve or dismiss a dispute. Optionally issue a card refund (full or partial) when resolving. Creates an audit log entry.
 
 **Auth:** Bearer token (admin)
 
 **Request Body:**
 
-| Field              | Type   | Required | Rules                           |
-|--------------------|--------|----------|---------------------------------|
-| `status`           | string | Yes      | `resolved` or `dismissed`       |
-| `resolution_notes` | string | Yes      | 10–2000 characters              |
+| Field              | Type    | Required | Rules                                                     |
+|--------------------|---------|----------|-----------------------------------------------------------|
+| `status`           | string  | Yes      | `resolved` or `dismissed`                                 |
+| `resolution_notes` | string  | Yes      | 10–2000 characters                                        |
+| `refund_amount`    | numeric | No       | Min 1. Must not exceed ride payment. Card payments only.  |
 
-**Example Request:**
+**Notes on `refund_amount`:**
+- Only valid when `status` is `resolved` (cannot refund on dismissal)
+- Only card payments can be refunded — cash payments return a 422 error
+- Supports partial refunds (e.g., refund ₦500 of a ₦3,000 fare)
+- The refund is processed via the payment gateway immediately
+- When the Wallet Infrastructure is built, refunds will support wallet credits and driver clawbacks
+
+**Example Request (resolve with refund):**
 ```json
 {
   "status": "resolved",
-  "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account."
+  "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
+  "refund_amount": 500.00
 }
 ```
 
-**Response: `200 OK`**
+**Example Request (resolve without refund):**
 ```json
 {
-  "message": "Dispute resolved successfully.",
+  "status": "resolved",
+  "resolution_notes": "Driver behaviour addressed. Warning issued to driver."
+}
+```
+
+**Response: `200 OK` (with refund)**
+```json
+{
+  "message": "Dispute resolved successfully. Refund of NGN 500.00 issued.",
   "dispute": {
     "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
     "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
@@ -6013,19 +6030,44 @@ Resolve or dismiss a dispute. Creates an audit log entry.
     "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "resolved",
     "status_label": "Resolved",
-    "resolution_notes": "Fare adjusted. Partial refund of ₦500 issued to passenger account.",
+    "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
+    "refund_amount": "500.00",
+    "refund_currency": "NGN",
     "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
     "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
     "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
-    "resolved_at": "2026-10-09T14:00:00.000000Z",
+    "resolved_at": "2026-10-10T14:00:00.000000Z",
     "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-09T14:00:00.000000Z"
+    "updated_at": "2026-10-10T14:00:00.000000Z"
+  }
+}
+```
+
+**Response: `200 OK` (without refund)**
+```json
+{
+  "message": "Dispute resolved successfully.",
+  "dispute": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "category": "driver_behaviour",
+    "category_label": "Driver Behaviour",
+    "description": "Driver was rude during the ride.",
+    "status": "resolved",
+    "status_label": "Resolved",
+    "resolution_notes": "Driver behaviour addressed. Warning issued to driver.",
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
+    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
+    "resolved_at": "2026-10-10T14:00:00.000000Z",
+    "created_at": "2026-10-09T12:00:00.000000Z",
+    "updated_at": "2026-10-10T14:00:00.000000Z"
   }
 }
 ```
 
 **Error Responses:**
-- `422` — Dispute already resolved/dismissed, or missing resolution notes
+- `422` — Dispute already resolved/dismissed, missing resolution notes, refund on dismissal, refund exceeds payment, or cash payment refund attempted
 
 ---
 
@@ -6736,11 +6778,11 @@ Returns current wallet configuration (merged from database overrides and config 
     "currency": "NGN",
     "min_topup": 50000,
     "max_balance": 50000000,
-    "daily_topup_cap": 50000000,
+    "daily_topup_cap": 10000000,
     "min_payout": 100000,
     "settlement_delay": "instant",
     "max_negative_balance": -500000,
-    "hold_expiry_hours": 2,
+    "hold_expiry_hours": 4,
     "abandoned_topup_minutes": 30
   }
 }

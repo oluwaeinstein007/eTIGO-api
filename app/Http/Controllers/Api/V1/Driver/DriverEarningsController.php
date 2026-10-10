@@ -152,6 +152,9 @@ class DriverEarningsController extends Controller
         $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
         $fareKobo = (int) round($fareAmount * 100);
         $driver = $user->driver;
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
         $commission = $this->commissionService->calculate($fareKobo, $driver->id);
 
         $payment = $ride->payment;

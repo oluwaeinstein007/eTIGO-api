@@ -65,13 +65,13 @@ class ProcessPayoutWebhookJob implements ShouldQueue
                 'failure_reason' => $this->reason,
             ]);
 
+            PayoutFailureReversalJob::dispatch($payout->id);
+
             $payout->driver?->user?->notify(new PayoutStatusNotification(
                 $payout->amount,
                 NotificationType::PayoutFailed,
                 $this->reason,
             ));
-
-            PayoutFailureReversalJob::dispatch($payout->id);
 
             Log::warning("Payout {$payout->id} failed: {$this->reason}");
         }

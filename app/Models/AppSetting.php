@@ -38,7 +38,7 @@ class AppSetting extends Model
             'max_balance' => (int) ($settings['wallet.max_balance'] ?? config('wallet.max_balance')),
             'daily_topup_cap' => (int) ($settings['wallet.daily_topup_cap'] ?? config('wallet.daily_topup_cap')),
             'min_payout' => (int) ($settings['wallet.min_payout'] ?? config('wallet.min_payout')),
-            'settlement_delay' => $settings['wallet.settlement_delay'] ?? config('wallet.settlement_delay'),
+            'settlement_delay' => (string) ($settings['wallet.settlement_delay'] ?? config('wallet.settlement_delay', 'instant')),
             'max_negative_balance' => (int) ($settings['wallet.max_negative_balance'] ?? config('wallet.max_negative_balance')),
             'hold_expiry_hours' => (int) ($settings['wallet.hold_expiry_hours'] ?? config('wallet.hold_expiry_hours')),
             'abandoned_topup_minutes' => (int) ($settings['wallet.abandoned_topup_minutes'] ?? config('wallet.abandoned_topup_minutes')),

@@ -41,9 +41,11 @@ class AdminWalletSettingsController extends Controller
             'abandoned_topup_minutes' => ['sometimes', 'integer', 'min:5', 'max:1440'],
         ]);
 
-        foreach ($validated as $key => $value) {
-            AppSetting::setValue("wallet.{$key}", $value, 'wallet');
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($validated) {
+            foreach ($validated as $key => $value) {
+                AppSetting::setValue("wallet.{$key}", $value, 'wallet');
+            }
+        });
 
         $settings = AppSetting::getWalletSettings();
 

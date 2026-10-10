@@ -74,10 +74,10 @@ class AdminPayoutController extends Controller
 
         ProcessPayoutTransferJob::dispatch($payout->id);
 
-        $payout->driver?->user?->notify(new PayoutStatusNotification(
+        rescue(fn () => $payout->driver?->user?->notify(new PayoutStatusNotification(
             $payout->amount,
             NotificationType::PayoutApproved,
-        ));
+        )));
 
         return response()->json([
             'message' => 'Payout approved and transfer initiated.',

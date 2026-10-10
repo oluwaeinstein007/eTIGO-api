@@ -67,7 +67,7 @@ class WalletPaymentService
      */
     public function settle(Ride $ride, int $finalFareKobo): array
     {
-        return DB::transaction(function () use ($ride, $finalFareKobo) {
+        $result = DB::transaction(function () use ($ride, $finalFareKobo) {
             $hold = Hold::where('ride_id', $ride->id)
                 ->where('status', HoldStatus::Active)
                 ->lockForUpdate()
@@ -162,8 +162,8 @@ class WalletPaymentService
         });
 
         if ($result['amount_charged'] > 0) {
-            $passenger = User::find($ride->passenger_id);
-            $passenger?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged']));
+            rescue(fn () => User::find($ride->passenger_id)
+                ?->notify(new WalletRidePaymentNotification($ride->id, $result['amount_charged'])));
         }
 
         return $result;

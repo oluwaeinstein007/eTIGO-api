@@ -51,14 +51,19 @@ class WalletTopupController extends Controller
         }
 
         $hourlyKey = "topup_hourly:{$user->id}:".now()->format('Y-m-d-H');
-        $hourlyCount = Cache::get($hourlyKey, 0);
-        if ($hourlyCount >= config('wallet.max_topups_per_hour', 5)) {
+        Cache::add($hourlyKey, 0, now()->addHour());
+        if (Cache::increment($hourlyKey) > config('wallet.max_topups_per_hour', 5)) {
+            Cache::decrement($hourlyKey);
+
             return response()->json(['message' => 'Too many top-up attempts. Please wait.'], 429);
         }
 
         $dailyCountKey = "topup_daily_count:{$user->id}:".now()->toDateString();
-        $dailyCount = Cache::get($dailyCountKey, 0);
-        if ($dailyCount >= config('wallet.max_topups_per_day', 10)) {
+        Cache::add($dailyCountKey, 0, now()->endOfDay());
+        if (Cache::increment($dailyCountKey) > config('wallet.max_topups_per_day', 10)) {
+            Cache::decrement($dailyCountKey);
+            Cache::decrement($hourlyKey);
+
             return response()->json(['message' => 'Daily top-up attempt limit reached.'], 429);
         }
 
@@ -91,11 +96,6 @@ class WalletTopupController extends Controller
             'amount' => $amountKobo,
             'status' => WalletTransactionStatus::Pending,
         ]);
-
-        Cache::increment($hourlyKey);
-        Cache::put($hourlyKey, Cache::get($hourlyKey, 1), now()->addHour());
-        Cache::increment($dailyCountKey);
-        Cache::put($dailyCountKey, Cache::get($dailyCountKey, 1), now()->endOfDay());
 
         return response()->json([
             'message' => 'Top-up initialized.',

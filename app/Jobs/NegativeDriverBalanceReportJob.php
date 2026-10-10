@@ -19,32 +19,40 @@ class NegativeDriverBalanceReportJob implements ShouldQueue
 
     public function handle(): void
     {
-        $negativeAccounts = Account::where('type', AccountType::DriverEarningsAvailable)
+        $threshold = config('wallet.max_negative_balance', -500000);
+        $report = collect();
+        $criticalCount = 0;
+        $totalBalance = 0;
+
+        Account::where('type', AccountType::DriverEarningsAvailable)
             ->where('balance', '<', 0)
             ->with('owner')
-            ->get();
+            ->chunkById(100, function ($accounts) use ($threshold, $report, &$criticalCount, &$totalBalance) {
+                foreach ($accounts as $account) {
+                    $totalBalance += $account->balance;
+                    if ($account->balance <= $threshold) {
+                        $criticalCount++;
+                    }
+                    $report->push([
+                        'driver_id' => $account->owner_id,
+                        'balance_kobo' => $account->balance,
+                        'balance_naira' => number_format($account->balance / 100, 2),
+                        'exceeds_threshold' => $account->balance <= $threshold,
+                    ]);
+                }
+            });
 
-        if ($negativeAccounts->isEmpty()) {
+        if ($report->isEmpty()) {
             Log::info('NegativeDriverBalanceReport: no drivers with negative balance.');
 
             return;
         }
 
-        $threshold = config('wallet.max_negative_balance', -500000);
-        $critical = $negativeAccounts->filter(fn ($account) => $account->balance <= $threshold);
-
-        $report = $negativeAccounts->map(fn ($account) => [
-            'driver_id' => $account->owner_id,
-            'balance_kobo' => $account->balance,
-            'balance_naira' => number_format($account->balance / 100, 2),
-            'exceeds_threshold' => $account->balance <= $threshold,
-        ]);
-
         Log::warning('NegativeDriverBalanceReport: weekly summary', [
-            'total_negative_accounts' => $negativeAccounts->count(),
-            'critical_accounts' => $critical->count(),
+            'total_negative_accounts' => $report->count(),
+            'critical_accounts' => $criticalCount,
             'threshold_kobo' => $threshold,
-            'total_negative_balance_kobo' => $negativeAccounts->sum('balance'),
+            'total_negative_balance_kobo' => $totalBalance,
             'drivers' => $report->toArray(),
         ]);
     }

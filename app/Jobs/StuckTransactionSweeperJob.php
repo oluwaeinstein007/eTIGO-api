@@ -37,18 +37,12 @@ class StuckTransactionSweeperJob implements ShouldQueue
         Log::info("StuckTransactionSweeper: found {$stuckTransactions->count()} stuck transactions to verify.");
 
         foreach ($stuckTransactions as $transaction) {
+            if (! $transaction->gateway_transaction_id) {
+                continue;
+            }
+
             try {
                 $result = $gateway->verifyTransaction($transaction->gateway_transaction_id);
-
-                if ($result['status'] === 'successful') {
-                    $this->creditWallet($transaction, $result, $ledgerService);
-                    Log::info("StuckTransactionSweeper: late-verified transaction {$transaction->id} — wallet credited.");
-                } else {
-                    $transaction->update([
-                        'status' => WalletTransactionStatus::Failed,
-                    ]);
-                    Log::info("StuckTransactionSweeper: transaction {$transaction->id} verified as {$result['status']} — marked failed.");
-                }
             } catch (\Throwable $e) {
                 $transaction->update([
                     'status' => WalletTransactionStatus::Abandoned,
@@ -57,11 +51,29 @@ class StuckTransactionSweeperJob implements ShouldQueue
                 Log::warning("StuckTransactionSweeper: could not verify transaction {$transaction->id}, marked abandoned.", [
                     'error' => $e->getMessage(),
                 ]);
+
+                continue;
+            }
+
+            if ($result['status'] === 'successful') {
+                try {
+                    $this->creditWallet($transaction, $ledgerService);
+                    Log::info("StuckTransactionSweeper: late-verified transaction {$transaction->id} — wallet credited.");
+                } catch (\Throwable $e) {
+                    Log::error("StuckTransactionSweeper: verified transaction {$transaction->id} but credit failed — left pending for retry.", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            } else {
+                $transaction->update([
+                    'status' => WalletTransactionStatus::Failed,
+                ]);
+                Log::info("StuckTransactionSweeper: transaction {$transaction->id} verified as {$result['status']} — marked failed.");
             }
         }
     }
 
-    private function creditWallet(WalletTransaction $transaction, array $verifyResult, LedgerService $ledgerService): void
+    private function creditWallet(WalletTransaction $transaction, LedgerService $ledgerService): void
     {
         $idempotencyKey = "topup-{$transaction->reference}";
 

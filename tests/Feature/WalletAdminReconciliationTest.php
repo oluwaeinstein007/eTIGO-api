@@ -18,6 +18,7 @@ use App\Models\WalletTransaction;
 use App\Models\WebhookEvent;
 use App\Notifications\PayoutStatusNotification;
 use App\Notifications\WalletTopupNotification;
+use Illuminate\Support\Facades\Log;
 use App\Services\LedgerService;
 use Illuminate\Support\Facades\Notification;
 
@@ -116,10 +117,14 @@ test('NegativeDriverBalanceReportJob runs without errors', function () {
         'idempotency_key' => 'neg-test-1',
     ]);
 
+    Log::spy();
+
     (new NegativeDriverBalanceReportJob)->handle();
 
     $driverAccount->refresh();
     expect($driverAccount->balance)->toBe(-100000);
+
+    Log::shouldHaveReceived('warning')->once();
 });
 
 // --- BE-WADM-24: AdminReconciliationController@show ---
