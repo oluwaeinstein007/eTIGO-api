@@ -14,7 +14,7 @@ class ReportExportService
             fputcsv($handle, $headers);
 
             foreach ($rows as $row) {
-                fputcsv($handle, $row);
+                fputcsv($handle, $this->sanitizeRow($row));
             }
 
             fclose($handle);
@@ -29,11 +29,23 @@ class ReportExportService
 
             $query->chunk($chunkSize, function ($records) use ($handle, $rowMapper) {
                 foreach ($records as $record) {
-                    fputcsv($handle, $rowMapper($record));
+                    fputcsv($handle, $this->sanitizeRow($rowMapper($record)));
                 }
             });
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /** @return array<int, mixed> */
+    private function sanitizeRow(array $row): array
+    {
+        return array_map(function (mixed $value): mixed {
+            if (is_string($value) && $value !== '' && ! is_numeric($value) && in_array($value[0], ['=', '+', '-', '@', "\t", "\r", "\n"], true)) {
+                return "'".$value;
+            }
+
+            return $value;
+        }, $row);
     }
 }
