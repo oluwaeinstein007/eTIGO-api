@@ -19,7 +19,7 @@ enum CancellationReason: string
     case Other = 'other';
     case SystemTimeout = 'system_timeout';
 
-    public function label(): string
+    public function title(): string
     {
         return match ($this) {
             self::ChangedMind => 'Changed my mind',
@@ -37,6 +37,36 @@ enum CancellationReason: string
             self::Other => 'Other',
             self::SystemTimeout => 'System timeout',
         };
+    }
+
+    public function label(): string
+    {
+        return $this->title();
+    }
+
+    public function description(): string
+    {
+        return match ($this) {
+            self::ChangedMind => 'I no longer need a ride or my travel plans have changed.',
+            self::DriverTooFar => 'The assigned driver is located too far away from the pickup point.',
+            self::WaitTooLong => 'The estimated pickup arrival time is longer than expected.',
+            self::WrongPickup => 'The pickup location was selected or mapped incorrectly.',
+            self::WrongDestination => 'The destination address was entered incorrectly.',
+            self::PriceChanged => 'The ride fare or estimated cost is higher than expected.',
+            self::FoundAlternative => 'I found another ride or alternative transportation.',
+            self::Emergency => 'An unexpected personal emergency occurred.',
+            self::DriverNoShow => 'The driver did not show up at the pickup location.',
+            self::PassengerNoShow => 'The passenger was not present at the pickup location.',
+            self::VehicleMismatch => 'The arriving vehicle or driver details do not match the app.',
+            self::SafetyConcern => 'I feel unsafe or uncomfortable proceeding with this ride.',
+            self::Other => 'Provide a custom reason if none of the options above apply.',
+            self::SystemTimeout => 'The request timed out before a driver could accept the trip.',
+        };
+    }
+
+    public function allowsCustomDescription(): bool
+    {
+        return $this === self::Other;
     }
 
     public function isPassengerReason(): bool
@@ -65,5 +95,55 @@ enum CancellationReason: string
             self::Emergency,
             self::Other,
         ]);
+    }
+
+    /**
+     * @return array{title: string, description: string, code: string, allows_custom_description: bool}
+     */
+    public function toArray(): array
+    {
+        return [
+            'title' => $this->title(),
+            'description' => $this->description(),
+            'code' => $this->value,
+            'allows_custom_description' => $this->allowsCustomDescription(),
+        ];
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function forPassenger(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $reason) => $reason->isPassengerReason(),
+        ));
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function forDriver(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $reason) => $reason->isDriverReason(),
+        ));
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function forRole(?string $role = null): array
+    {
+        return match ($role) {
+            'driver' => self::forDriver(),
+            'passenger' => self::forPassenger(),
+            default => array_values(array_filter(
+                self::cases(),
+                fn (self $reason) => $reason !== self::SystemTimeout,
+            )),
+        };
     }
 }

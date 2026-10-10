@@ -80,6 +80,10 @@ return [
         'client_id' => env('QOREID_CLIENT_ID'),
         'secret_key' => env('QOREID_SECRET_KEY'),
         'webhook_secret' => env('QOREID_WEBHOOK_SECRET'),
+        'skip_verification' => filter_var(
+            env('KYC_SKIP_VERIFICATION', env('QOREID_SKIP_VERIFICATION', false)),
+            FILTER_VALIDATE_BOOLEAN
+        ),
     ],
 
     'postman' => [

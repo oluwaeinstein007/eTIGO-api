@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Cache;
 
 class RideDetailResource extends JsonResource
 {
@@ -49,6 +50,10 @@ class RideDetailResource extends JsonResource
             'matched_at' => $this->matched_at,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
+            'pin_code' => $this->when(
+                $request->user()?->id === $this->passenger_id,
+                fn () => Cache::get("ride:{$this->id}:pin_code"),
+            ),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

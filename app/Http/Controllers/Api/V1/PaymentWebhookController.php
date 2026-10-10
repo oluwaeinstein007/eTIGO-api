@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Contracts\PaymentGateway;
 use App\Enums\PaymentStatus;
+use App\Events\PaymentUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +85,15 @@ class PaymentWebhookController extends Controller
             ]);
 
             $payment->ride?->update(['payment_status' => $newStatus]);
+            try {
+                PaymentUpdated::dispatch($payment->fresh());
+            } catch (\Throwable $exception) {
+                Log::warning('Payment update broadcast failed', [
+                    'payment_id' => $payment->id,
+                    'ride_id' => $payment->ride_id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return response()->json(['status' => 'ok']);

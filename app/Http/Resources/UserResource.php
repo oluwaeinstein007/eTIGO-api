@@ -26,6 +26,11 @@ class UserResource extends JsonResource
             'profile_photo_url' => $this->profile_photo_path
                 ? Storage::disk(config('filesystems.uploads'))->url($this->profile_photo_path)
                 : null,
+            'rating' => $this->when($this->isDriver(), fn () => $this->averageRating()),
+            'vehicle' => $this->when(
+                $this->isDriver() && $this->relationLoaded('driver') && $this->driver?->relationLoaded('vehicle'),
+                fn () => $this->driver?->vehicle ? new VehicleResource($this->driver->vehicle) : null,
+            ),
             'created_at' => $this->created_at,
         ];
     }

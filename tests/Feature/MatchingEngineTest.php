@@ -312,6 +312,11 @@ it('broadcasts RideRequestDispatched on the correct private channel', function (
         currency: 'NGN',
         vehicleClassName: 'Economy',
         responseTimeoutSeconds: 20,
+        paymentMethod: 'card',
+        passengerName: 'Christian',
+        passengerRating: 4.9,
+        distanceKm: 12.6,
+        durationMinutes: 28,
     );
 
     $channels = $event->broadcastOn();
@@ -325,9 +330,16 @@ it('broadcasts RideRequestDispatched on the correct private channel', function (
         'ride_id', 'pickup_address', 'destination_address',
         'pickup_lat', 'pickup_lng', 'destination_lat', 'destination_lng',
         'fare_estimate', 'currency', 'vehicle_class', 'response_timeout_seconds',
+        'payment_method', 'passenger_name', 'passenger_rating', 'distance_km',
+        'duration_minutes',
     ]);
     expect($payload['ride_id'])->toBe('ride-uuid-123');
     expect($payload['response_timeout_seconds'])->toBe(20);
+    expect($payload['payment_method'])->toBe('card');
+    expect($payload['passenger_name'])->toBe('Christian');
+    expect($payload['passenger_rating'])->toBe(4.9);
+    expect($payload['distance_km'])->toBe(12.6);
+    expect($payload['duration_minutes'])->toBe(28.0);
 });
 
 // === MATCHING SERVICE UNIT ===

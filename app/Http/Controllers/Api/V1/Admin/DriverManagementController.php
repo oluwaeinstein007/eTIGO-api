@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DriverStatus;
+use App\Enums\KycStatus;
+use App\Enums\KycVerificationStatus;
+use App\Enums\KycVerificationType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CompleteDriverOnboardingRequest;
 use App\Http\Requests\Admin\ReviewDocumentRequest;
 use App\Http\Requests\Admin\ReviewDriverRequest;
 use App\Http\Resources\DriverDocumentResource;
@@ -13,6 +17,7 @@ use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\VehicleClass;
 use App\Services\KycVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -279,6 +284,169 @@ class DriverManagementController extends Controller
                 'per_page' => $drivers->perPage(),
                 'total' => $drivers->total(),
             ],
+        ]);
+    }
+
+    /**
+     * Complete driver onboarding and approve KYC without external provider checks.
+     * Note: Testing/QA only. Remove before production go-live.
+     */
+    public function completeOnboarding(CompleteDriverOnboardingRequest $request, Driver $driver): JsonResponse
+    {
+        if ($driver->isSuspended()) {
+            return response()->json([
+                'message' => 'Driver is currently suspended. Please reactivate the driver instead.',
+            ], 422);
+        }
+
+        if ($driver->isApproved() && $driver->isKycVerified()) {
+            return response()->json([
+                'message' => 'Driver onboarding and KYC are already completed and approved.',
+                'driver' => new DriverResource($driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications'])),
+            ]);
+        }
+
+        $missingRequirements = [];
+
+        if (! $driver->vehicle_ownership_type) {
+            $missingRequirements[] = 'Vehicle ownership type must be selected.';
+        }
+
+        if (! $driver->licence_number) {
+            $missingRequirements[] = 'Licence number must be provided.';
+        }
+
+        if (! $driver->city_id) {
+            $missingRequirements[] = 'City must be selected.';
+        }
+
+        if ($driver->isOwnVehicle() && ! $driver->vehicle) {
+            $missingRequirements[] = 'Vehicle details must be provided for own-vehicle drivers.';
+        }
+
+        $requiredDocTypes = ['driving_licence', 'government_id'];
+        if (! $driver->isFleetVehicle()) {
+            $requiredDocTypes[] = 'vehicle_registration';
+            $requiredDocTypes[] = 'insurance_certificate';
+        }
+
+        $uploadedDocTypes = $driver->documents()
+            ->where('status', '!=', DocumentStatus::Rejected)
+            ->pluck('type')
+            ->map(fn ($t) => is_object($t) ? $t->value : (string) $t)
+            ->toArray();
+
+        $missingDocs = array_diff($requiredDocTypes, $uploadedDocTypes);
+        if (! empty($missingDocs)) {
+            $missingRequirements[] = 'Missing required documents: '.implode(', ', $missingDocs).'.';
+        }
+
+        if (! empty($missingRequirements)) {
+            return response()->json([
+                'message' => 'Cannot complete onboarding. Driver has not provided all required data.',
+                'errors' => $missingRequirements,
+            ], 422);
+        }
+
+        $admin = $request->user();
+        $oldStatus = $driver->status;
+        $oldKycStatus = $driver->kyc_status;
+        $notes = $request->input('notes', 'Admin manual onboarding and KYC bypass');
+        $providedNin = $request->input('nin');
+
+        DB::transaction(function () use ($driver, $admin, $oldStatus, $oldKycStatus, $notes, $providedNin) {
+            $driver->documents()
+                ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Rejected])
+                ->update([
+                    'status' => DocumentStatus::Approved,
+                    'rejection_reason' => null,
+                    'reviewed_by' => $admin->id,
+                    'reviewed_at' => now(),
+                ]);
+
+            if ($driver->vehicle && ! $driver->vehicle->vehicle_class_id) {
+                $defaultClass = VehicleClass::where('is_active', true)->first();
+                if ($defaultClass) {
+                    $driver->vehicle->update(['vehicle_class_id' => $defaultClass->id]);
+                }
+            }
+
+            $requiredKycTypes = [
+                KycVerificationType::Nin,
+                KycVerificationType::DriversLicense,
+            ];
+            if (! $driver->isFleetVehicle() && $driver->vehicle && ! $driver->vehicle->is_fleet) {
+                $requiredKycTypes[] = KycVerificationType::VehiclePlate;
+            }
+
+            foreach ($requiredKycTypes as $type) {
+                $existing = $driver->kycVerifications()->where('type', $type)->latest()->first();
+
+                $idNumber = match ($type) {
+                    KycVerificationType::Nin => $providedNin ?? $existing?->id_number ?? 'ADMIN_BYPASS_NIN',
+                    KycVerificationType::DriversLicense => $driver->licence_number,
+                    KycVerificationType::VehiclePlate => $driver->vehicle?->plate_number ?? 'ADMIN_BYPASS_PLATE',
+                    default => 'ADMIN_BYPASS',
+                };
+
+                if ($existing) {
+                    $existing->update([
+                        'id_number' => $idNumber,
+                        'status' => KycVerificationStatus::Verified,
+                        'provider_reference' => $existing->provider_reference ?? 'admin_bypass',
+                        'match_data' => array_merge($existing->match_data ?? [], [
+                            'admin_bypass' => true,
+                            'bypassed_by' => $admin->id,
+                            'bypassed_at' => now()->toIso8601String(),
+                            'notes' => $notes,
+                        ]),
+                        'failure_reason' => null,
+                        'verified_at' => now(),
+                    ]);
+                } else {
+                    $driver->kycVerifications()->create([
+                        'type' => $type,
+                        'id_number' => $idNumber,
+                        'provider_reference' => 'admin_bypass',
+                        'status' => KycVerificationStatus::Verified,
+                        'match_data' => [
+                            'admin_bypass' => true,
+                            'bypassed_by' => $admin->id,
+                            'bypassed_at' => now()->toIso8601String(),
+                            'notes' => $notes,
+                        ],
+                        'verified_at' => now(),
+                    ]);
+                }
+            }
+
+            $driver->update([
+                'status' => DriverStatus::Approved,
+                'kyc_status' => KycStatus::Verified,
+                'kyc_verified_at' => now(),
+                'approved_at' => now(),
+                'rejection_reason' => null,
+            ]);
+
+            AuditLog::record(
+                $driver,
+                'driver_onboarding_and_kyc_completed_by_admin',
+                $admin,
+                [
+                    'status' => $oldStatus->value,
+                    'kyc_status' => $oldKycStatus->value,
+                ],
+                [
+                    'status' => DriverStatus::Approved->value,
+                    'kyc_status' => KycStatus::Verified->value,
+                    'notes' => $notes,
+                ],
+            );
+        });
+
+        return response()->json([
+            'message' => 'Driver onboarding and KYC marked as completed successfully.',
+            'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications'])),
         ]);
     }
 }

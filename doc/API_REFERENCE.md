@@ -1449,6 +1449,9 @@ KYC verification uses QoreID as the identity verification provider. Required ver
 
 Vehicle plate verification auto-triggers when a vehicle is registered or the plate number is updated (own_vehicle drivers only).
 
+> **Testing / QA Sandbox Mode (`KYC_SKIP_VERIFICATION`):**
+> When `KYC_SKIP_VERIFICATION=true` is set in `.env`, all calls to the external QoreID provider are skipped and simulated as successful via `FakeKycGateway`. All format validations (11-digit NIN, driver's license length/format, plate length) and duplicate prevention remain fully active.
+
 ### KYC Status
 ```
 GET /driver/kyc/status
@@ -2098,6 +2101,62 @@ Restores driver to approved status.
 ```json
 {
   "message": "Only suspended drivers can be reactivated."
+}
+```
+
+---
+
+### Complete Driver Onboarding & KYC (Admin Bypass)
+```
+POST /admin/drivers/{driver_id}/complete-onboarding
+```
+Marks a driver's onboarding and KYC as completed and approved in one action without requiring external third-party KYC verification (QoreID).
+
+> **Note:** Testing/QA only. This endpoint is intended for development and onboarding flow testing, and will be removed before production go-live.
+
+**Requirements:**
+The driver must have provided all required onboarding data:
+- Vehicle ownership type selected (`own_vehicle` or `fleet_vehicle`)
+- Licence number provided
+- City selected
+- Vehicle registered (if `own_vehicle`)
+- All required documents uploaded (`driving_licence`, `government_id`, plus `vehicle_registration` and `insurance_certificate` if `own_vehicle`)
+
+**Actions performed:**
+- Approves all pending or rejected documents for the driver
+- Marks required KYC verifications (`nin`, `drivers_license`, and if `own_vehicle`, `vehicle_plate`) as verified with provider reference `admin_bypass`
+- Sets driver `kyc_status` to `verified` and `kyc_verified_at` to current timestamp
+- Sets driver `status` to `approved` and `approved_at` to current timestamp
+- Records audit log entry `driver_onboarding_and_kyc_completed_by_admin`
+
+| Field | Type   | Required | Description                                                    |
+|-------|--------|----------|----------------------------------------------------------------|
+| notes | string | No       | Optional audit note or justification (max 500 characters)      |
+| nin   | string | No       | Optional NIN number to record on the NIN verification (max 20) |
+
+**Response 200:**
+```json
+{
+  "message": "Driver onboarding and KYC marked as completed successfully.",
+  "driver": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "status": "approved",
+    "kyc_status": "verified",
+    "kyc_verified_at": "2026-10-10T12:00:00.000000Z",
+    "approved_at": "2026-10-10T12:00:00.000000Z"
+  }
+}
+```
+
+**Response 422 (Missing Required Onboarding Data):**
+```json
+{
+  "message": "Cannot complete onboarding. Driver has not provided all required data.",
+  "errors": [
+    "Vehicle ownership type must be selected.",
+    "Licence number must be provided.",
+    "City must be selected."
+  ]
 }
 ```
 

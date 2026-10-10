@@ -25,6 +25,11 @@ class RideRequestDispatched implements ShouldBroadcastNow
         public string $currency,
         public string $vehicleClassName,
         public int $responseTimeoutSeconds,
+        public string $paymentMethod,
+        public string $passengerName,
+        public ?float $passengerRating,
+        public ?float $distanceKm,
+        public ?float $durationMinutes,
     ) {}
 
     /**
@@ -59,6 +64,11 @@ class RideRequestDispatched implements ShouldBroadcastNow
             'currency' => $this->currency,
             'vehicle_class' => $this->vehicleClassName,
             'response_timeout_seconds' => $this->responseTimeoutSeconds,
+            'payment_method' => $this->paymentMethod,
+            'passenger_name' => $this->passengerName,
+            'passenger_rating' => $this->passengerRating,
+            'distance_km' => $this->distanceKm,
+            'duration_minutes' => $this->durationMinutes,
         ];
     }
 }
