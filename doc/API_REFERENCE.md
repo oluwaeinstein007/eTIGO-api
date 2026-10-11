@@ -6802,6 +6802,202 @@ Activates or deactivates the promo. Audit logged.
 
 ---
 
+## SOS Telemetry & Escalation
+
+**Middleware:** `auth:sanctum` (ride participants for trigger/acknowledge/cancel)
+
+### Trigger SOS
+
+`POST /api/v1/rides/{ride}/sos`
+
+Triggers an emergency SOS incident on an active ride. Dispatches a check-in job and begins the escalation pipeline.
+
+**Request:**
+```json
+{
+  "gps_lat": 9.0579,
+  "gps_lng": 7.4951,
+  "speed": 45.2,
+  "heading": 180
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `gps_lat` | decimal | Yes | -90 to 90 |
+| `gps_lng` | decimal | Yes | -180 to 180 |
+| `speed` | decimal | No | Speed in km/h |
+| `heading` | decimal | No | 0 to 360 degrees |
+
+**Response (201):**
+```json
+{
+  "message": "SOS triggered. A check-in will be sent shortly.",
+  "incident": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "triggered_by_user_id": "uuid",
+    "trigger_type": "passenger",
+    "trigger_type_label": "Passenger",
+    "status": "triggered",
+    "status_label": "Triggered",
+    "gps_lat": "9.0579000",
+    "gps_lng": "7.4951000",
+    "check_in_sent_at": null,
+    "check_in_acknowledged_at": null,
+    "escalated_at": null,
+    "resolved_at": null,
+    "created_at": "2026-10-11T12:00:00.000000Z"
+  }
+}
+```
+
+**Errors:** `422` (ride not active, not a participant, invalid coords), `409` (active SOS already exists)
+
+### Acknowledge SOS Check-In
+
+`POST /api/v1/sos/{incident}/acknowledge`
+
+User confirms they are safe after receiving a check-in prompt. Only the triggering user can acknowledge.
+
+**Response (200):**
+```json
+{
+  "message": "Check-in acknowledged. Glad you are safe.",
+  "incident": { "status": "acknowledged", ... }
+}
+```
+
+### Cancel SOS
+
+`POST /api/v1/sos/{incident}/cancel`
+
+Cancels an active SOS incident. Available to the triggering user or an admin.
+
+**Response (200):**
+```json
+{
+  "message": "SOS incident cancelled.",
+  "incident": { "status": "cancelled", ... }
+}
+```
+
+---
+
+## Admin — SOS Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:safety_operator`
+
+### List Active Incidents
+
+`GET /api/v1/admin/sos/active`
+
+Returns active SOS incidents prioritized by severity (escalated first).
+
+**Query Params:** `status`, `per_page`
+
+**Response (200):**
+```json
+{
+  "message": "Active SOS incidents retrieved.",
+  "incidents": [
+    {
+      "id": "uuid",
+      "ride_id": "uuid",
+      "status": "escalated",
+      "trigger_type": "passenger",
+      "gps_lat": "9.0579000",
+      "gps_lng": "7.4951000",
+      "vehicle_details": { "plate_number": "AB-123-CD", "make": "Toyota", "model": "Corolla", "color": "White" },
+      "telemetry_data": { "ride_status": "in_progress", "passenger_id": "uuid", "driver_id": "uuid" },
+      "escalated_at": "2026-10-11T12:01:00.000000Z",
+      "triggered_by": { "id": "uuid", "first_name": "Ade", ... },
+      "ride": { ... }
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+### Show Incident Detail
+
+`GET /api/v1/admin/sos/{incident}`
+
+Returns full incident details with event logs and ride information.
+
+### Incident History
+
+`GET /api/v1/admin/sos/history`
+
+Returns all incidents (active and resolved) with filters.
+
+**Query Params:** `status`, `trigger_type`, `ride_id`, `date_from`, `date_to`, `per_page`
+
+### Assign Operator
+
+`POST /api/v1/admin/sos/{incident}/assign`
+
+Safety operator self-assigns to an escalated incident. Uses row locking to prevent concurrent assignment conflicts.
+
+**Response (200):**
+```json
+{
+  "message": "You have been assigned to this incident.",
+  "incident": { "status": "operator_assigned", "operator_id": "uuid", ... }
+}
+```
+
+### Dispatch Emergency Services
+
+`POST /api/v1/admin/sos/{incident}/dispatch`
+
+Initiates emergency services handoff. Requires operator assignment first.
+
+**Request:**
+```json
+{
+  "emergency_service_type": "police",
+  "contact_number": "112",
+  "notes": "Dispatching police to location."
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `emergency_service_type` | string | Yes | `police`, `ambulance`, `fire`, or `all` |
+| `contact_number` | string | No | Emergency contact number |
+| `notes` | string | No | Dispatch notes |
+
+### Resolve Incident
+
+`POST /api/v1/admin/sos/{incident}/resolve`
+
+Resolves an SOS incident with operator notes.
+
+**Request:**
+```json
+{
+  "notes": "Situation resolved. Both parties confirmed safe. False alarm triggered accidentally."
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `notes` | string | Yes | Min 10 characters, max 2000 |
+
+**SOS Incident Status Flow:**
+```
+triggered → check_in_sent → acknowledged → resolved
+                           → escalated → operator_assigned → dispatched → resolved
+Any active state → cancelled
+```
+
+**WebSocket Channels:**
+- `admin.sos` — Receives `sos.incident.escalated` events (SafetyOperator + SuperAdmin)
+- `user.{userId}` — Receives `sos.check_in.requested` events (triggering user)
+
+---
+
 ## Passenger — Wallet
 
 **Middleware:** `auth:sanctum`, `user.type:passenger`

@@ -107,6 +107,11 @@ class Ride extends Model
         return $this->hasMany(Dispute::class);
     }
 
+    public function sosIncidents(): HasMany
+    {
+        return $this->hasMany(SosIncident::class);
+    }
+
     public function isActive(): bool
     {
         return $this->status->isActive();
