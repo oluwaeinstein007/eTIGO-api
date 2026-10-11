@@ -2,8 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 11 October 2026  
-**Status:** Implemented  
-**Context:** Per Chairman directive (10 Oct 2026) — "stick to what is standard in the industry and advise clearly on it"
+**Status:** Implemented
 
 ---
 
