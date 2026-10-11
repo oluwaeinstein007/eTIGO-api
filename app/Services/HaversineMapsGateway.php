@@ -44,14 +44,30 @@ class HaversineMapsGateway implements MapsGateway
     }
 
     /**
-     * @return array{address: string, place_id: string, city: string|null}
+     * @return array{id: string, place_id: string, name: string, address: string, latitude: float, longitude: float, city: string|null}
      */
     public function reverseGeocode(float $lat, float $lng): array
     {
         return [
-            'address' => "{$lat},{$lng}",
+            'id' => '',
             'place_id' => '',
+            'name' => "{$lat},{$lng}",
+            'address' => "{$lat},{$lng}",
+            'latitude' => $lat,
+            'longitude' => $lng,
             'city' => null,
         ];
+    }
+
+    /**
+     * @return list<array{id: string, name: string, address: string, latitude: float, longitude: float}>
+     */
+    public function searchPlaces(
+        string $query,
+        ?float $proximityLat = null,
+        ?float $proximityLng = null,
+        int $limit = 10,
+    ): array {
+        return [];
     }
 }

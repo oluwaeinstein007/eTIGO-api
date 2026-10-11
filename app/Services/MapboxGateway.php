@@ -75,7 +75,7 @@ class MapboxGateway implements MapsGateway
     }
 
     /**
-     * @return array{address: string, place_id: string, city: string|null}
+     * @return array{id: string, place_id: string, name: string, address: string, latitude: float, longitude: float, city: string|null}
      */
     public function reverseGeocode(float $lat, float $lng): array
     {
@@ -95,11 +95,78 @@ class MapboxGateway implements MapsGateway
 
         $feature = $data['features'][0];
         $context = $feature['properties']['context'] ?? [];
+        $name = $feature['properties']['name'] ?? '';
+        $fullAddress = $feature['properties']['full_address'] ?? "{$lat},{$lng}";
 
         return [
-            'address' => $feature['properties']['full_address'] ?? "{$lat},{$lng}",
-            'place_id' => $feature['id'] ?? '',
+            'id' => (string) ($feature['id'] ?? ''),
+            'place_id' => (string) ($feature['id'] ?? ''),
+            'name' => $name !== '' ? $name : $fullAddress,
+            'address' => $fullAddress,
+            'latitude' => $lat,
+            'longitude' => $lng,
             'city' => $context['place']['name'] ?? $context['locality']['name'] ?? null,
         ];
+    }
+
+    /**
+     * @return list<array{id: string, name: string, address: string, latitude: float, longitude: float}>
+     */
+    public function searchPlaces(
+        string $query,
+        ?float $proximityLat = null,
+        ?float $proximityLng = null,
+        int $limit = 10,
+    ): array {
+        $cleanQuery = trim($query);
+        if ($cleanQuery === '') {
+            return [];
+        }
+
+        $params = [
+            'q' => $cleanQuery,
+            'access_token' => $this->accessToken,
+            'country' => 'ng',
+            'types' => 'poi,address,neighborhood,locality,place',
+            'limit' => min(max($limit, 1), 20),
+        ];
+
+        if ($proximityLat !== null && $proximityLng !== null) {
+            $params['proximity'] = "{$proximityLng},{$proximityLat}";
+        } else {
+            $params['proximity'] = '3.3792,6.5244';
+        }
+
+        $response = Http::get('https://api.mapbox.com/search/geocode/v6/forward', $params);
+
+        $response->throw();
+
+        $data = $response->json();
+        $features = $data['features'] ?? [];
+
+        $places = [];
+        foreach ($features as $feature) {
+            $coordinates = $feature['geometry']['coordinates'] ?? null;
+            if (! is_array($coordinates) || count($coordinates) < 2) {
+                continue;
+            }
+
+            $name = $feature['properties']['name'] ?? '';
+            $fullAddress = $feature['properties']['full_address'] ?? $name;
+            $address = $fullAddress;
+            if ($name !== '' && $name !== $fullAddress && str_starts_with($fullAddress, "{$name}, ")) {
+                $address = substr($fullAddress, strlen("{$name}, "));
+            }
+
+            $places[] = [
+                'id' => (string) ($feature['id'] ?? ''),
+                'name' => $name !== '' ? $name : $fullAddress,
+                'address' => $address !== '' ? $address : $fullAddress,
+                'latitude' => (float) $coordinates[1],
+                'longitude' => (float) $coordinates[0],
+            ];
+        }
+
+        return $places;
     }
 }

@@ -77,8 +77,12 @@ it('reverse geocodes coordinates to an address', function () {
     $result = $this->gateway->reverseGeocode(6.4281, 3.4219);
 
     expect($result)->toBe([
-        'address' => 'Victoria Island, Lagos, Nigeria',
+        'id' => 'place.12345',
         'place_id' => 'place.12345',
+        'name' => 'Victoria Island, Lagos, Nigeria',
+        'address' => 'Victoria Island, Lagos, Nigeria',
+        'latitude' => 6.4281,
+        'longitude' => 3.4219,
         'city' => 'Lagos',
     ]);
 
@@ -87,5 +91,41 @@ it('reverse geocodes coordinates to an address', function () {
             && $request['latitude'] == 6.4281
             && $request['longitude'] == 3.4219
             && ! isset($request['limit']);
+    });
+});
+
+it('searches places using the geocoding v6 forward API', function () {
+    Http::fake([
+        'api.mapbox.com/search/geocode/v6/forward*' => Http::response([
+            'features' => [
+                [
+                    'id' => 'poi.987',
+                    'geometry' => ['coordinates' => [3.3582, 6.6190]],
+                    'properties' => [
+                        'name' => 'Ikeja City Mall',
+                        'full_address' => 'Ikeja City Mall, Obafemi Awolowo Way, Ikeja, Lagos',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $results = $this->gateway->searchPlaces('Ikeja City Mall', 6.6, 3.3, 5);
+
+    expect($results)->toHaveCount(1);
+    expect($results[0])->toBe([
+        'id' => 'poi.987',
+        'name' => 'Ikeja City Mall',
+        'address' => 'Obafemi Awolowo Way, Ikeja, Lagos',
+        'latitude' => 6.6190,
+        'longitude' => 3.3582,
+    ]);
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), 'geocode/v6/forward')
+            && $request['q'] === 'Ikeja City Mall'
+            && $request['country'] === 'ng'
+            && $request['proximity'] === '3.3,6.6'
+            && $request['limit'] == 5;
     });
 });
