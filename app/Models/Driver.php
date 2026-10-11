@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DisputeOutcome;
 use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
@@ -98,6 +99,21 @@ class Driver extends Model
     public function payouts(): HasMany
     {
         return $this->hasMany(Payout::class);
+    }
+
+    public function offlineTripFlags(): HasMany
+    {
+        return $this->hasMany(OfflineTripFlag::class, 'driver_id', 'user_id');
+    }
+
+    public function activeOfflineFlags(): HasMany
+    {
+        return $this->offlineTripFlags()
+            ->where(function ($q) {
+                $q->where('is_disputed', false)
+                    ->orWhere('dispute_outcome', '!=', DisputeOutcome::Overturned);
+            })
+            ->whereNull('resolved_at');
     }
 
     public function isApproved(): bool

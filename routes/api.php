@@ -65,7 +65,10 @@ use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\SosController;
+use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
+use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
+use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -310,6 +313,9 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::post('/verify-vehicle', [KycController::class, 'verifyVehiclePlate']);
         Route::post('/liveness-session', [KycController::class, 'createLivenessSession']);
     });
+
+    Route::get('/compliance', [DriverComplianceController::class, 'show']);
+    Route::post('/flags/{flag}/dispute', [DriverFlagController::class, 'dispute']);
 });
 
 /*
@@ -415,6 +421,13 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{incident}/assign', [AdminSosController::class, 'assign']);
         Route::post('/{incident}/dispatch', [AdminSosController::class, 'dispatch']);
         Route::post('/{incident}/resolve', [AdminSosController::class, 'resolve']);
+    });
+
+    Route::middleware('admin.role:operations,safety_operator')->prefix('offline-flags')->group(function () {
+        Route::get('/', [AdminOfflineFlagController::class, 'index']);
+        Route::get('/{flag}', [AdminOfflineFlagController::class, 'show']);
+        Route::post('/{flag}/review', [AdminOfflineFlagController::class, 'review']);
+        Route::post('/{flag}/escalate', [AdminOfflineFlagController::class, 'escalate']);
     });
 
     Route::middleware('admin.role:support')->prefix('disputes')->group(function () {

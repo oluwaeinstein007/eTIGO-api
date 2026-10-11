@@ -6998,6 +6998,156 @@ Any active state → cancelled
 
 ---
 
+## Anti-Offline Trip Detection — Driver Compliance
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Get Compliance Status
+
+`GET /api/v1/driver/compliance`
+
+Returns the authenticated driver's compliance status including active flag count, total flags, active sanction details, and recent flag history.
+
+**Response 200:**
+```json
+{
+  "message": "Compliance status retrieved.",
+  "compliance": {
+    "active_flags_count": 1,
+    "total_flags_count": 2,
+    "active_sanction": {
+      "tier": { "value": 1, "label": "Warning" },
+      "action": "warning_issued",
+      "flagged_at": "2026-10-10T14:30:00.000000Z",
+      "is_disputed": false
+    },
+    "lookback_days": 30
+  },
+  "recent_flags": [...]
+}
+```
+
+### Dispute Offline Flag
+
+`POST /api/v1/driver/flags/{flag}/dispute`
+
+Driver disputes an offline trip flag. Only the flagged driver can dispute. Cannot dispute an already-disputed flag.
+
+**Request Body:**
+```json
+{
+  "notes": "I did not complete this ride offline. The passenger cancelled and I drove home."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `notes` | string | Required, min 10, max 2000 chars |
+
+**Response 200:**
+```json
+{
+  "message": "Flag disputed successfully. An admin will review your dispute.",
+  "flag": { ... }
+}
+```
+
+**Response 422:** Already disputed, wrong driver, or validation error.
+
+---
+
+## Admin — Offline Trip Flags
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,safety_operator`
+
+### List Offline Trip Flags
+
+`GET /api/v1/admin/offline-flags`
+
+List flagged trips with optional filters and pagination.
+
+| Query Param | Type | Description |
+|-------------|------|-------------|
+| `sanction_tier` | int | Filter by tier: 1 (Warning), 2 (Suspension), 3 (Deactivation) |
+| `is_disputed` | bool | Filter by disputed status |
+| `dispute_outcome` | string | Filter: pending, upheld, overturned |
+| `driver_id` | uuid | Filter by driver user ID |
+| `date_from` | datetime | Filter from date |
+| `date_to` | datetime | Filter to date |
+| `status` | string | `active` (unresolved), `disputed` (pending dispute) |
+| `per_page` | int | Items per page (default 20) |
+
+### Show Offline Trip Flag
+
+`GET /api/v1/admin/offline-flags/{flag}`
+
+Get detailed information about a specific flag including detection data, ride details, and resolution info.
+
+### Review Disputed Flag
+
+`POST /api/v1/admin/offline-flags/{flag}/review`
+
+Resolve a driver's dispute — uphold or overturn the flag. If overturned, the sanction is reversed and the driver may be reinstated.
+
+**Request Body:**
+```json
+{
+  "outcome": "upheld",
+  "notes": "Evidence confirms offline trip activity after investigation."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `outcome` | string | Required: `upheld` or `overturned` |
+| `notes` | string | Required, min 10, max 2000 chars |
+
+**Response 200:**
+```json
+{
+  "message": "Dispute Upheld.",
+  "flag": { ... }
+}
+```
+
+**Response 422:** Not disputed, already resolved, or validation error.
+
+### Escalate Flag Sanction
+
+`POST /api/v1/admin/offline-flags/{flag}/escalate`
+
+Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate beyond tier 3 or resolved flags.
+
+**Request Body:**
+```json
+{
+  "notes": "Pattern of abuse confirmed after investigation."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `notes` | string | Optional, max 2000 chars |
+
+**Response 200:**
+```json
+{
+  "message": "Sanction escalated to 48-Hour Suspension.",
+  "flag": { ... }
+}
+```
+
+**Response 422:** Already at max tier or resolved.
+
+**Sanction Tiers:**
+| Tier | Label | Action |
+|------|-------|--------|
+| 1 | Warning | Push notification warning |
+| 2 | 48-Hour Suspension | Force offline + suspend account |
+| 3 | Permanent Deactivation | Force offline + suspend account permanently |
+
+---
+
 ## Passenger — Wallet
 
 **Middleware:** `auth:sanctum`, `user.type:passenger`
@@ -8027,6 +8177,20 @@ Super Admins always bypass role checks and have full access.
 | `ev_ride`        | Ride in an electric vehicle   | 2.00x              | Yes       |
 | `shared_journey` | Shared/pooled ride            | 1.50x              | Yes       |
 | `off_peak`       | Ride during off-peak hours    | 1.25x              | Yes       |
+
+### Sanction Tier (Offline Trip Detection)
+| Value | Label                  | Action                                      |
+|-------|------------------------|---------------------------------------------|
+| `1`   | Warning                | Push notification warning                   |
+| `2`   | 48-Hour Suspension     | Force offline + suspend driver account      |
+| `3`   | Permanent Deactivation | Force offline + permanently suspend account |
+
+### Dispute Outcome (Offline Trip Flag)
+| Value        | Description                                           |
+|--------------|-------------------------------------------------------|
+| `pending`    | Dispute filed, awaiting admin review                  |
+| `upheld`     | Admin confirmed the flag — sanction remains           |
+| `overturned` | Admin overturned the flag — sanction reversed         |
 
 ---
 

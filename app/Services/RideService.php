@@ -9,6 +9,7 @@ use App\Enums\RideStatus;
 use App\Jobs\CalculateCarbonScoreJob;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
+use App\Jobs\MonitorCancellationJob;
 use App\Jobs\ProcessPaymentJob;
 use App\Models\AuditLog;
 use App\Models\PricingConfig;
@@ -32,6 +33,7 @@ class RideService
         private MapsGateway $mapsGateway,
         private DriverMatchingService $matchingService,
         private WalletPaymentService $walletPaymentService,
+        private OfflineTripDetectionService $offlineTripDetectionService,
     ) {}
 
     /**
@@ -130,7 +132,9 @@ class RideService
             ? $ride->status->value
             : $ride->status;
 
-        return DB::transaction(function () use ($ride, $cancelledBy, $reason, $reasonDetails, $previousStatus) {
+        $driverUserId = $ride->driver_id;
+
+        $result = DB::transaction(function () use ($ride, $cancelledBy, $reason, $reasonDetails, $previousStatus) {
             $ride->update([
                 'cancelled_by' => $cancelledBy->id,
                 'cancellation_reason' => $reason,
@@ -166,6 +170,12 @@ class RideService
 
             return $ride->fresh();
         });
+
+        if ($driverUserId && $this->offlineTripDetectionService->shouldMonitor($ride)) {
+            MonitorCancellationJob::dispatch($ride->id, $driverUserId);
+        }
+
+        return $result;
     }
 
     public function expireStaleSearch(Ride $ride): Ride

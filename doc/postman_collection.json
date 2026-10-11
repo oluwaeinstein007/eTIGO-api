@@ -4915,6 +4915,81 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Driver \u2014 Compliance & Flags",
+          "item": [
+            {
+              "name": "Get Compliance Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/driver/compliance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "driver",
+                    "compliance"
+                  ]
+                },
+                "description": "Returns the driver's compliance status including active flags count, total flags count, active sanctions, and recent flag history.\n\n**Auth:** Driver token required."
+              },
+              "response": []
+            },
+            {
+              "name": "Dispute Offline Flag",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"I did not complete this ride offline. The passenger cancelled and I drove in the opposite direction.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/driver/flags/{{flag_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "driver",
+                    "flags",
+                    "{{flag_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "Driver disputes an offline trip flag. Notes must be at least 10 characters. Can only dispute flags assigned to the authenticated driver. Cannot dispute already-disputed flags.\n\n**Auth:** Driver token required."
+              },
+              "response": []
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated driver users. Covers onboarding, KYC verification, vehicle management, and ride operations."
@@ -10248,6 +10323,201 @@
             }
           ],
           "description": "**Required Role(s):** Operations, Finance (Super Admin always has access)"
+        },
+        {
+          "name": "Admin \u2014 Offline Trip Flags",
+          "item": [
+            {
+              "name": "List Offline Trip Flags",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/offline-flags?per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "offline-flags"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Items per page (default 20)"
+                    },
+                    {
+                      "key": "sanction_tier",
+                      "value": "",
+                      "description": "Filter by tier: 1 (Warning), 2 (Suspension), 3 (Deactivation)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "is_disputed",
+                      "value": "",
+                      "description": "Filter by disputed status: true/false",
+                      "disabled": true
+                    },
+                    {
+                      "key": "dispute_outcome",
+                      "value": "",
+                      "description": "Filter by outcome: pending, upheld, overturned",
+                      "disabled": true
+                    },
+                    {
+                      "key": "driver_id",
+                      "value": "",
+                      "description": "Filter by driver user ID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "date_from",
+                      "value": "",
+                      "description": "Filter from date (ISO 8601)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "date_to",
+                      "value": "",
+                      "description": "Filter to date (ISO 8601)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Filter: active (unresolved), disputed (pending dispute)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List all offline trip flags with optional filters. Includes driver, passenger, ride, and resolver relationships.\n\n**Auth:** Admin token (operations or safety_operator role)."
+              },
+              "response": []
+            },
+            {
+              "name": "Show Offline Trip Flag",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "offline-flags",
+                    "{{flag_id}}"
+                  ]
+                },
+                "description": "Get detailed information about a specific offline trip flag including detection data, ride details, and resolution info.\n\n**Auth:** Admin token (operations or safety_operator role)."
+              },
+              "response": []
+            },
+            {
+              "name": "Review Disputed Flag",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"outcome\": \"upheld\",\n  \"notes\": \"Evidence confirms the driver continued along the intended route after cancellation.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}/review",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "offline-flags",
+                    "{{flag_id}}",
+                    "review"
+                  ]
+                },
+                "description": "Review a disputed offline trip flag. Outcome must be 'upheld' or 'overturned'. If overturned, the sanction is reversed and the driver may be reinstated.\n\n**Auth:** Admin token (operations or safety_operator role)."
+              },
+              "response": []
+            },
+            {
+              "name": "Escalate Flag Sanction",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Pattern of abuse confirmed after investigation.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}/escalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "offline-flags",
+                    "{{flag_id}}",
+                    "escalate"
+                  ]
+                },
+                "description": "Manually escalate the sanction tier of a flag (L1\u2192L2 or L2\u2192L3). Cannot escalate beyond tier 3. Enforces the new sanction immediately.\n\n**Auth:** Admin token (operations or safety_operator role)."
+              },
+              "response": []
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated admin users. Requires `user.type:admin` middleware."
