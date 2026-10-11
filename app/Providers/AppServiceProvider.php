@@ -5,19 +5,24 @@ namespace App\Providers;
 use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
+use App\Contracts\PlaceSearchGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
 use App\Contracts\WalletGateway;
 use App\Gateways\PaystackWalletGateway;
 use App\Models\PersonalAccessToken;
+use App\Services\FailoverPlaceSearchGateway;
 use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
+use App\Services\GeoapifyGateway;
 use App\Services\HaversineMapsGateway;
+use App\Services\LocationIqGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\MapboxGateway;
 use App\Services\PaystackPaymentGateway;
+use App\Services\PhotonGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
@@ -54,6 +59,10 @@ class AppServiceProvider extends ServiceProvider
 
     private function registerMapsGateway(): void
     {
+        $this->app->bind(PlaceSearchGateway::class, function () {
+            return $this->createPlaceSearchGateway();
+        });
+
         $this->app->bind(MapsGateway::class, function () {
             $accessToken = config('services.mapbox.access_token');
 
@@ -63,6 +72,44 @@ class AppServiceProvider extends ServiceProvider
 
             return new HaversineMapsGateway;
         });
+    }
+
+    private function createPlaceSearchGateway(): PlaceSearchGateway
+    {
+        $driversConfig = config('services.places.drivers', 'mapbox,geoapify,locationiq,photon');
+        $driverList = array_filter(array_map('trim', explode(',', (string) $driversConfig)));
+        $country = config('services.places.country', 'ng');
+
+        $drivers = [];
+        foreach ($driverList as $driverName) {
+            $gateway = match (strtolower($driverName)) {
+                'mapbox' => config('services.mapbox.access_token')
+                    ? new MapboxGateway(config('services.mapbox.access_token'))
+                    : null,
+                'geoapify' => config('services.geoapify.api_key')
+                    ? new GeoapifyGateway(config('services.geoapify.api_key'), $country)
+                    : null,
+                'locationiq' => config('services.locationiq.api_key')
+                    ? new LocationIqGateway(config('services.locationiq.api_key'), $country)
+                    : null,
+                'photon' => new PhotonGateway,
+                default => null,
+            };
+
+            if ($gateway !== null) {
+                $drivers[] = $gateway;
+            }
+        }
+
+        if (empty($drivers)) {
+            return new HaversineMapsGateway;
+        }
+
+        if (count($drivers) === 1) {
+            return $drivers[0];
+        }
+
+        return new FailoverPlaceSearchGateway($drivers);
     }
 
     private function registerPushNotificationGateway(): void

@@ -1,7 +1,13 @@
 <?php
 
 use App\Contracts\MapsGateway;
+use App\Contracts\PlaceSearchGateway;
 use App\Http\Controllers\Api\V1\PlaceController;
+use App\Services\FailoverPlaceSearchGateway;
+use App\Services\GeoapifyGateway;
+use App\Services\HaversineMapsGateway;
+use App\Services\MapboxGateway;
+use App\Services\PhotonGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
@@ -72,4 +78,40 @@ test('place controller reverse geocodes coordinates and returns place', function
         ->and($data)->toHaveKey('place')
         ->and($data['place']['name'])->toBe('Victoria Island')
         ->and($data['place']['address'])->toBe('Victoria Island, Lagos, Nigeria');
+});
+
+test('container resolves PlaceSearchGateway according to configuration', function () {
+    config()->set('services.mapbox.access_token', 'test-mapbox-token');
+    config()->set('services.geoapify.api_key', 'test-geoapify-key');
+    config()->set('services.places.drivers', 'mapbox,geoapify,photon');
+
+    $resolved = app(PlaceSearchGateway::class);
+
+    expect($resolved)->toBeInstanceOf(FailoverPlaceSearchGateway::class);
+    /** @var FailoverPlaceSearchGateway $resolved */
+    expect($resolved->getDrivers())->toHaveCount(3);
+    expect($resolved->getDrivers()[0])->toBeInstanceOf(MapboxGateway::class);
+    expect($resolved->getDrivers()[1])->toBeInstanceOf(GeoapifyGateway::class);
+    expect($resolved->getDrivers()[2])->toBeInstanceOf(PhotonGateway::class);
+});
+
+test('container resolves single driver directly when only one configured', function () {
+    config()->set('services.mapbox.access_token', null);
+    config()->set('services.geoapify.api_key', 'test-geoapify-key');
+    config()->set('services.places.drivers', 'geoapify');
+
+    $resolved = app(PlaceSearchGateway::class);
+
+    expect($resolved)->toBeInstanceOf(GeoapifyGateway::class);
+});
+
+test('container resolves Haversine fallback when no valid drivers configured', function () {
+    config()->set('services.mapbox.access_token', null);
+    config()->set('services.geoapify.api_key', null);
+    config()->set('services.locationiq.api_key', null);
+    config()->set('services.places.drivers', 'nonexistent');
+
+    $resolved = app(PlaceSearchGateway::class);
+
+    expect($resolved)->toBeInstanceOf(HaversineMapsGateway::class);
 });

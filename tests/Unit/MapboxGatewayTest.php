@@ -27,6 +27,11 @@ it('returns distance and duration from the directions API', function () {
         'distance_km' => 12.5,
         'duration_minutes' => 20.0,
     ]);
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), 'directions/v5/mapbox/driving')
+            && ($request['exclude'] ?? null) === 'ferry';
+    });
 });
 
 it('throws when no routes are returned', function () {

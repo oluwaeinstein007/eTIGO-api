@@ -27,6 +27,7 @@ class MapboxGateway implements MapsGateway
             'access_token' => $this->accessToken,
             'geometries' => 'geojson',
             'overview' => 'false',
+            'exclude' => 'ferry',
         ]);
 
         $response->throw();

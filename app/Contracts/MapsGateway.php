@@ -2,7 +2,7 @@
 
 namespace App\Contracts;
 
-interface MapsGateway
+interface MapsGateway extends PlaceSearchGateway
 {
     /**
      * @return array{distance_km: float, duration_minutes: float}

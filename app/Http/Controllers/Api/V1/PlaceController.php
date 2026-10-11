@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Contracts\MapsGateway;
+use App\Contracts\PlaceSearchGateway;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 class PlaceController extends Controller
 {
     public function __construct(
-        private MapsGateway $mapsGateway,
+        private PlaceSearchGateway $placeSearchGateway,
     ) {}
 
     public function search(Request $request): JsonResponse
@@ -33,7 +33,7 @@ class PlaceController extends Controller
         $cacheKey = 'places_search:'.md5(mb_strtolower($query).":{$latBucket}:{$lngBucket}:{$limit}");
 
         $places = Cache::remember($cacheKey, now()->addHours(6), function () use ($query, $proximityLat, $proximityLng, $limit) {
-            return $this->mapsGateway->searchPlaces(
+            return $this->placeSearchGateway->searchPlaces(
                 query: $query,
                 proximityLat: $proximityLat,
                 proximityLng: $proximityLng,
@@ -61,7 +61,7 @@ class PlaceController extends Controller
         $cacheKey = "places_reverse:{$latBucket}:{$lngBucket}";
 
         $place = Cache::remember($cacheKey, now()->addDays(7), function () use ($lat, $lng) {
-            return $this->mapsGateway->reverseGeocode($lat, $lng);
+            return $this->placeSearchGateway->reverseGeocode($lat, $lng);
         });
 
         return response()->json([
