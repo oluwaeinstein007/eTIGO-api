@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\PassengerActiveRideController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
@@ -178,6 +179,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy']);
+
+    Route::get('/notification-preferences', [NotificationPreferenceController::class, 'index']);
+    Route::put('/notification-preferences', [NotificationPreferenceController::class, 'update']);
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::post('/payments/initialize', [PaymentMethodController::class, 'initialize']);

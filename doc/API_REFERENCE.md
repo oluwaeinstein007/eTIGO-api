@@ -5589,7 +5589,15 @@ DELETE /device-tokens
 ```
 GET /notifications
 ```
-Returns paginated notifications for the authenticated user, newest first. Default 20 per page.
+Returns paginated notifications for the authenticated user, newest first. Default 20 per page (max 50).
+
+**Query Parameters:**
+| Field    | Type   | Required | Description                                                       |
+|----------|--------|----------|-------------------------------------------------------------------|
+| type     | string | No       | Filter by notification type (e.g. `ride_completed`, `topup_success`) |
+| category | string | No       | Filter by category: `ride_updates`, `safety`, `payments`, `promotions`, `compliance`, `gamification`, `ev_charging`, `account` |
+| is_read  | bool   | No       | Filter by read status: `true` or `false`                          |
+| per_page | int    | No       | Items per page (1–50, default 20)                                 |
 
 **Response 200:**
 ```json
@@ -5598,30 +5606,34 @@ Returns paginated notifications for the authenticated user, newest first. Defaul
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "type": "ride_matched",
+      "type_label": "Ride Matched",
+      "category": "ride_updates",
       "title": "Driver Found!",
       "body": "Your driver Bayo is on the way.",
       "data": {
         "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36"
       },
+      "is_read": false,
       "read_at": null,
       "created_at": "2026-10-06T14:01:00.000000Z"
     },
     {
       "id": "550e8400-e29b-41d4-a716-446655440001",
       "type": "ride_completed",
+      "type_label": "Ride Completed",
+      "category": "ride_updates",
       "title": "Ride Complete",
       "body": "Your trip has ended. Total fare: ₦3,900.",
       "data": {
         "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36"
       },
+      "is_read": true,
       "read_at": "2026-10-06T15:00:00.000000Z",
       "created_at": "2026-10-06T14:30:00.000000Z"
     }
   ],
-  "current_page": 1,
-  "last_page": 1,
-  "per_page": 20,
-  "total": 2
+  "links": { "first": "...", "last": "...", "prev": null, "next": null },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 2 }
 }
 ```
 
@@ -5650,16 +5662,23 @@ Only the notification owner can mark it as read.
 **Response 200:**
 ```json
 {
-  "message": "Notification marked as read."
+  "message": "Notification marked as read.",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "type": "ride_completed",
+    "type_label": "Ride Completed",
+    "category": "ride_updates",
+    "title": "Ride Complete",
+    "body": "Your trip has ended.",
+    "data": null,
+    "is_read": true,
+    "read_at": "2026-10-11T10:00:00.000000Z",
+    "created_at": "2026-10-11T09:30:00.000000Z"
+  }
 }
 ```
 
-**Response 403:**
-```json
-{
-  "message": "This notification does not belong to you."
-}
-```
+**Response 403:** Notification does not belong to the authenticated user.
 
 ---
 
@@ -5671,7 +5690,121 @@ POST /notifications/read-all
 **Response 200:**
 ```json
 {
-  "message": "All notifications marked as read."
+  "message": "All notifications marked as read.",
+  "updated_count": 5
+}
+```
+
+---
+
+### Delete Notification
+```
+DELETE /notifications/{notification_id}
+```
+Only the notification owner can delete it.
+
+**Response 200:**
+```json
+{
+  "message": "Notification deleted."
+}
+```
+
+**Response 403:** Notification does not belong to the authenticated user.
+
+---
+
+## Notification Preferences
+
+**Middleware:** `auth:sanctum`
+
+Users can control which notification categories they receive via push and in-app channels. Critical categories (Safety, Compliance) cannot be disabled.
+
+### Notification Categories
+
+| Category       | Description                                     | Critical |
+|----------------|-------------------------------------------------|----------|
+| `ride_updates` | Driver matching, arrival, trip progress          | No       |
+| `safety`       | SOS check-ins, escalations, safety alerts        | Yes      |
+| `payments`     | Payment confirmations, receipts, refunds         | No       |
+| `promotions`   | Promo codes, discounts, special offers           | No       |
+| `compliance`   | Offline trip flags, sanctions, warnings          | Yes      |
+| `gamification` | Tier upgrades, carbon scores, rewards            | No       |
+| `ev_charging`  | EV reservation status and availability           | No       |
+| `account`      | KYC status, profile changes, account alerts      | No       |
+
+### Get Notification Preferences
+```
+GET /notification-preferences
+```
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "category": "ride_updates",
+      "label": "Ride Updates",
+      "description": "Driver matching, arrival, trip progress and completion",
+      "is_critical": false,
+      "push_enabled": true,
+      "in_app_enabled": true
+    },
+    {
+      "category": "safety",
+      "label": "Safety & SOS",
+      "description": "SOS check-ins, escalations and safety alerts",
+      "is_critical": true,
+      "push_enabled": true,
+      "in_app_enabled": true
+    }
+  ]
+}
+```
+
+### Update Notification Preferences
+```
+PUT /notification-preferences
+```
+
+**Request Body:**
+```json
+{
+  "preferences": [
+    {
+      "category": "promotions",
+      "push_enabled": false,
+      "in_app_enabled": true
+    },
+    {
+      "category": "gamification",
+      "push_enabled": true,
+      "in_app_enabled": false
+    }
+  ]
+}
+```
+
+> **Note:** Attempting to disable critical categories (`safety`, `compliance`) will be silently overridden — they will remain enabled.
+
+**Response 200:**
+```json
+{
+  "message": "Notification preferences updated.",
+  "data": [
+    {
+      "category": "promotions",
+      "label": "Promotions & Offers",
+      "push_enabled": false,
+      "in_app_enabled": true
+    },
+    {
+      "category": "gamification",
+      "label": "Rewards & Tiers",
+      "push_enabled": true,
+      "in_app_enabled": false
+    }
+  ]
 }
 ```
 

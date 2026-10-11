@@ -7,9 +7,12 @@ enum NotificationType: string
     // Ride events
     case RideMatched = 'ride_matched';
     case RideCancelled = 'ride_cancelled';
+    case DriverEnRoute = 'driver_en_route';
     case DriverArriving = 'driver_arriving';
     case RideStarted = 'ride_started';
     case RideCompleted = 'ride_completed';
+    case NoDriverFound = 'no_driver_found';
+    case RideAssigned = 'ride_assigned';
 
     // SOS events
     case SosCheckIn = 'sos_check_in';
@@ -54,9 +57,12 @@ enum NotificationType: string
         return match ($this) {
             self::RideMatched => 'Ride Matched',
             self::RideCancelled => 'Ride Cancelled',
+            self::DriverEnRoute => 'Driver En Route',
             self::DriverArriving => 'Driver Arriving',
             self::RideStarted => 'Ride Started',
             self::RideCompleted => 'Ride Completed',
+            self::NoDriverFound => 'No Driver Found',
+            self::RideAssigned => 'Ride Assigned',
             self::SosCheckIn => 'SOS Check-In',
             self::SosEscalated => 'SOS Escalated',
             self::ComplianceWarning => 'Compliance Warning',
@@ -78,11 +84,42 @@ enum NotificationType: string
         };
     }
 
-    public function channel(): string
+    public function category(): NotificationCategory
     {
         return match ($this) {
-            self::SosCheckIn, self::SosEscalated => 'push',
-            default => 'push',
+            self::RideMatched,
+            self::RideCancelled,
+            self::DriverEnRoute,
+            self::DriverArriving,
+            self::RideStarted,
+            self::RideCompleted,
+            self::NoDriverFound,
+            self::RideAssigned,
+            self::ScheduledRideReminder => NotificationCategory::RideUpdates,
+
+            self::SosCheckIn,
+            self::SosEscalated => NotificationCategory::Safety,
+
+            self::TopupSuccess,
+            self::TopupFailed,
+            self::RideWalletPayment,
+            self::WalletRefund,
+            self::PayoutApproved,
+            self::PayoutPaid,
+            self::PayoutFailed,
+            self::CashChangeCredit => NotificationCategory::Payments,
+
+            self::PromoExpiring => NotificationCategory::Promotions,
+
+            self::ComplianceWarning => NotificationCategory::Compliance,
+
+            self::TierUpgrade => NotificationCategory::Gamification,
+
+            self::EvReservationReady => NotificationCategory::EvCharging,
+
+            self::DisputeUpdate,
+            self::KycStatusChanged,
+            self::LostItemReport => NotificationCategory::Account,
         };
     }
 }
