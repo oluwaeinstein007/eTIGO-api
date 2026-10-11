@@ -127,7 +127,7 @@ class MapboxGateway implements MapsGateway
             'q' => $cleanQuery,
             'access_token' => $this->accessToken,
             'country' => 'ng',
-            'types' => 'poi,address,neighborhood,locality,place',
+            'types' => 'district,place,locality,neighborhood,address,street',
             'limit' => min(max($limit, 1), 20),
         ];
 

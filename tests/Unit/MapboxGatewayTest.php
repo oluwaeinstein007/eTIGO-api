@@ -2,6 +2,9 @@
 
 use App\Services\MapboxGateway;
 use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+uses(TestCase::class);
 
 beforeEach(function () {
     Http::preventStrayRequests();
@@ -125,6 +128,7 @@ it('searches places using the geocoding v6 forward API', function () {
         return str_contains($request->url(), 'geocode/v6/forward')
             && $request['q'] === 'Ikeja City Mall'
             && $request['country'] === 'ng'
+            && $request['types'] === 'district,place,locality,neighborhood,address,street'
             && $request['proximity'] === '3.3,6.6'
             && $request['limit'] == 5;
     });
