@@ -112,6 +112,11 @@ class Ride extends Model
         return $this->hasMany(SosIncident::class);
     }
 
+    public function offlineTripFlags(): HasMany
+    {
+        return $this->hasMany(OfflineTripFlag::class);
+    }
+
     public function isActive(): bool
     {
         return $this->status->isActive();
