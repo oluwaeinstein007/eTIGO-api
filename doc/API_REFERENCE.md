@@ -1296,7 +1296,7 @@ POST /driver/toggle-online
 ```
 Toggle driver online/offline status. No request body required.
 
-**Requirements:** Driver must be `approved`, have a registered vehicle with an assigned vehicle class, not be `suspended`, and have completed KYC verification (`kyc_status` must be `verified`).
+**Requirements:** Driver must be `approved`, have a registered vehicle with an assigned vehicle class, not be `suspended`, have completed KYC verification (`kyc_status` must be `verified`), and not have an excessive negative earnings balance.
 
 **Response 200 (went online):**
 ```json
@@ -1352,7 +1352,8 @@ Toggle driver online/offline status. No request body required.
   "reasons": [
     "Driver account is not approved.",
     "No vehicle registered.",
-    "KYC verification is not complete."
+    "KYC verification is not complete.",
+    "Outstanding negative balance exceeds the allowed threshold."
   ]
 }
 ```
@@ -4745,6 +4746,13 @@ On acceptance, the ride transitions through `matched` → `driver_en_route` atom
 }
 ```
 
+**Response 403 (negative earnings balance):**
+```json
+{
+  "message": "You cannot accept rides while your earnings balance is below the allowed threshold. Please clear your outstanding balance."
+}
+```
+
 **Response 403 (not dispatched to this driver):**
 ```json
 {
@@ -7231,7 +7239,7 @@ No request body required.
 |------|-------|--------|
 | 1 | Warning | Push notification warning |
 | 2 | 48-Hour Suspension | Force offline + suspend account |
-| 3 | Permanent Deactivation | Force offline + suspend account permanently |
+| 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review |
 
 ---
 

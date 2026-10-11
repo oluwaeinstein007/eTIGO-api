@@ -22,7 +22,12 @@ enum SanctionTier: int
         return match ($this) {
             self::Warning => 'warning_issued',
             self::Suspension => 'suspended_48h',
-            self::Deactivation => 'permanently_deactivated',
+            self::Deactivation => 'pending_admin_review',
         };
+    }
+
+    public function requiresAdminReview(): bool
+    {
+        return $this === self::Deactivation;
     }
 }

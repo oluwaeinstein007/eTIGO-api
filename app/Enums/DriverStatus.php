@@ -9,4 +9,5 @@ enum DriverStatus: string
     case Approved = 'approved';
     case Rejected = 'rejected';
     case Suspended = 'suspended';
+    case Deactivated = 'deactivated';
 }

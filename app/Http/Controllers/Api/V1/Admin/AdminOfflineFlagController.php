@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DisputeOutcome;
+use App\Enums\DriverStatus;
 use App\Enums\SanctionTier;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OfflineFlag\EscalateFlagFormRequest;
 use App\Http\Requests\OfflineFlag\ReviewFlagFormRequest;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\AuditLog;
+use App\Models\Driver;
 use App\Models\OfflineTripFlag;
 use App\Services\SanctionService;
 use Illuminate\Http\JsonResponse;
@@ -130,6 +132,42 @@ class AdminOfflineFlagController extends Controller
 
         return response()->json([
             'message' => "Sanction escalated to {$newTier->label()}.",
+            'flag' => new OfflineFlagResource($flag),
+        ]);
+    }
+
+    public function confirmDeactivation(Request $request, OfflineTripFlag $flag): JsonResponse
+    {
+        if ($flag->sanction_tier !== SanctionTier::Deactivation) {
+            return response()->json([
+                'message' => 'Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation.',
+            ], 422);
+        }
+
+        $driver = Driver::where('user_id', $flag->driver_id)->first();
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver not found.'], 404);
+        }
+
+        $admin = $request->user();
+
+        $driver->update([
+            'status' => DriverStatus::Deactivated,
+            'is_online' => false,
+        ]);
+
+        AuditLog::record($flag, 'offline_flag_deactivation_confirmed', $admin, [
+            'status' => 'suspended',
+        ], [
+            'status' => 'deactivated',
+            'confirmed_by' => $admin->id,
+        ]);
+
+        $flag->load(['driver', 'passenger', 'ride']);
+
+        return response()->json([
+            'message' => 'Driver permanently deactivated after admin review.',
             'flag' => new OfflineFlagResource($flag),
         ]);
     }
