@@ -25,6 +25,7 @@ class NearbyDriversController extends Controller
         $radius = (float) ($input['radius_km'] ?? 10);
         $nearby = $locations->findNearbyDrivers($lat, $lng, $radius, 50);
         $ids = array_column($nearby, 'driver_id');
+        $distances = collect($nearby)->keyBy('driver_id');
         $currentDriverId = $request->user()?->driver?->id;
         $drivers = Driver::query()
             ->whereIn('id', $ids)
