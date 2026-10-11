@@ -69,6 +69,9 @@ use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
 use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
+use App\Http\Controllers\Api\V1\Driver\EvReservationController;
+use App\Http\Controllers\Api\V1\EvStationController;
+use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -91,6 +94,14 @@ Route::get('/lookup/cancellation-reasons', [RideCancellationReasonController::cl
 Route::get('/cities', [CityController::class, 'index']);
 Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);
+
+/*
+|--------------------------------------------------------------------------
+| Public — EV Charging Stations
+|--------------------------------------------------------------------------
+*/
+Route::get('/ev-stations', [EvStationController::class, 'index']);
+Route::get('/ev-stations/{station}', [EvStationController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -316,6 +327,15 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
 
     Route::get('/compliance', [DriverComplianceController::class, 'show']);
     Route::post('/flags/{flag}/dispute', [DriverFlagController::class, 'dispute']);
+
+    Route::prefix('ev-reservations')->group(function () {
+        Route::get('/', [EvReservationController::class, 'index']);
+        Route::post('/stations/{station}/reserve', [EvReservationController::class, 'store']);
+        Route::get('/{reservation}', [EvReservationController::class, 'show']);
+        Route::post('/{reservation}/activate', [EvReservationController::class, 'activate']);
+        Route::post('/{reservation}/complete', [EvReservationController::class, 'complete']);
+        Route::post('/{reservation}/cancel', [EvReservationController::class, 'cancel']);
+    });
 });
 
 /*
@@ -421,6 +441,16 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{incident}/assign', [AdminSosController::class, 'assign']);
         Route::post('/{incident}/dispatch', [AdminSosController::class, 'dispatch']);
         Route::post('/{incident}/resolve', [AdminSosController::class, 'resolve']);
+    });
+
+    Route::middleware('admin.role:operations')->prefix('ev-stations')->group(function () {
+        Route::get('/', [AdminEvStationController::class, 'index']);
+        Route::post('/', [AdminEvStationController::class, 'store']);
+        Route::get('/utilisation', [AdminEvStationController::class, 'utilisation']);
+        Route::get('/{station}', [AdminEvStationController::class, 'show']);
+        Route::put('/{station}', [AdminEvStationController::class, 'update']);
+        Route::patch('/{station}/status', [AdminEvStationController::class, 'toggleStatus']);
+        Route::put('/{station}/stalls', [AdminEvStationController::class, 'manageStalls']);
     });
 
     Route::middleware('admin.role:operations,safety_operator')->prefix('offline-flags')->group(function () {
