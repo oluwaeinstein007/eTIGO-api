@@ -90,7 +90,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
-                $isDebug = config('app.debug');
+                $isDebug = config('app.debug') || app()->environment('staging');
 
                 return response()->json(array_filter([
                     'message' => $isDebug ? $e->getMessage() : 'Internal server error.',
