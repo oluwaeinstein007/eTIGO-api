@@ -16,6 +16,8 @@ class Payment extends Model
     protected $fillable = [
         'ride_id',
         'amount',
+        'amount_collected',
+        'cash_change_amount',
         'currency',
         'method',
         'gateway_transaction_id',
@@ -29,6 +31,8 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'amount_collected' => 'decimal:2',
+            'cash_change_amount' => 'decimal:2',
             'tip_amount' => 'decimal:2',
             'method' => PaymentMethod::class,
             'status' => PaymentStatus::class,

@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\FlutterwaveWalletGateway;
+use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\AdminRole;
 use App\Enums\LedgerEntryType;
@@ -53,7 +53,7 @@ test('DailyReconciliationJob detects charge mismatches', function () {
     $yesterday = now()->subDay();
 
     WebhookEvent::create([
-        'provider' => 'flutterwave',
+        'provider' => 'paystack',
         'event_id' => 'evt-1',
         'event_type' => 'charge.completed',
         'payload' => ['amount' => 50000],
@@ -88,7 +88,7 @@ test('StuckTransactionSweeperJob marks old pending transactions as abandoned', f
         ->where('id', $tx->id)
         ->update(['created_at' => now()->subHours(2)]);
 
-    $gateway = Mockery::mock(FlutterwaveWalletGateway::class);
+    $gateway = Mockery::mock(WalletGateway::class);
     $gateway->shouldReceive('verifyTransaction')
         ->once()
         ->andThrow(new RuntimeException('Gateway unavailable'));

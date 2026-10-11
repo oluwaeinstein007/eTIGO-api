@@ -72,7 +72,7 @@ use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
 use App\Http\Controllers\Api\V1\Driver\EvReservationController;
 use App\Http\Controllers\Api\V1\EvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
-use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
+use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -108,9 +108,9 @@ Route::get('/ev-stations/{station}', [EvStationController::class, 'show']);
 | Payment Webhooks (unauthenticated — verified by signature)
 |--------------------------------------------------------------------------
 */
-Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'handleFlutterwave']);
+Route::post('/webhooks/paystack', [PaymentWebhookController::class, 'handlePaystack']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
-Route::post('/webhooks/flutterwave-wallet', [FlutterwaveWalletWebhookController::class, 'handle']);
+Route::post('/webhooks/paystack-wallet', [PaystackWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------

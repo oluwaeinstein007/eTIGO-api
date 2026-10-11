@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Contracts\FlutterwaveWalletGateway;
+use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Enums\PayoutStatus;
@@ -36,7 +36,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         return $this->payoutId;
     }
 
-    public function handle(FlutterwaveWalletGateway $flutterwaveGateway, LedgerService $ledgerService): void
+    public function handle(WalletGateway $walletGateway, LedgerService $ledgerService): void
     {
         $payout = Payout::with(['bankAccount', 'driver'])->findOrFail($this->payoutId);
 
@@ -69,7 +69,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         ]);
 
         try {
-            $transfer = $flutterwaveGateway->initiateTransfer([
+            $transfer = $walletGateway->initiateTransfer([
                 'account_bank' => $payout->bankAccount->bank_code,
                 'account_number' => $payout->bankAccount->account_number,
                 'amount' => $payout->amount / 100,

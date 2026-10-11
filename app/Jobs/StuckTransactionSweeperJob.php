@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Contracts\FlutterwaveWalletGateway;
+use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Enums\WalletTransactionStatus;
@@ -21,7 +21,7 @@ class StuckTransactionSweeperJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public function handle(FlutterwaveWalletGateway $gateway, LedgerService $ledgerService): void
+    public function handle(WalletGateway $gateway, LedgerService $ledgerService): void
     {
         $threshold = now()->subMinutes(config('wallet.abandoned_topup_minutes', 30));
 

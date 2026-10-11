@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Passenger;
 
-use App\Contracts\FlutterwaveWalletGateway;
+use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\WalletTransactionStatus;
 use App\Http\Controllers\Controller;
@@ -19,7 +19,7 @@ class WalletTopupController extends Controller
 {
     public function __construct(
         private LedgerService $ledgerService,
-        private FlutterwaveWalletGateway $flutterwaveGateway,
+        private WalletGateway $walletGateway,
     ) {}
 
     public function store(StoreTopupRequest $request): JsonResponse
@@ -70,7 +70,7 @@ class WalletTopupController extends Controller
         $txRef = 'TOPUP-'.strtoupper(Str::random(12));
 
         try {
-            $result = $this->flutterwaveGateway->initializePayment([
+            $result = $this->walletGateway->initializePayment([
                 'tx_ref' => $txRef,
                 'amount' => $amountKobo / 100,
                 'currency' => 'NGN',
@@ -109,7 +109,7 @@ class WalletTopupController extends Controller
         $user = $request->user();
 
         try {
-            $result = $this->flutterwaveGateway->verifyTransaction($transactionId);
+            $result = $this->walletGateway->verifyTransaction($transactionId);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to verify transaction.'], 502);
         }

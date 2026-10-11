@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Contracts\PaymentGateway;
+use App\Enums\AccountType;
+use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentUpdated;
+use App\Models\Driver;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\UserPaymentMethod;
+use App\Notifications\CashChangeWalletCreditNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -18,6 +22,7 @@ class PaymentService
     public function __construct(
         private PaymentGateway $paymentGateway,
         private WalletPaymentService $walletPaymentService,
+        private LedgerService $ledgerService,
     ) {}
 
     public function processRidePayment(Ride $ride): Payment
@@ -119,16 +124,89 @@ class PaymentService
         return $payment->fresh();
     }
 
-    public function confirmCashCollection(Payment $payment): Payment
+    public function confirmCashCollection(Payment $payment, ?float $amountCollected = null): Payment
     {
-        $payment = DB::transaction(function () use ($payment) {
-            $payment->update(['status' => PaymentStatus::Collected]);
-            $payment->ride->update(['payment_status' => PaymentStatus::Collected]);
+        $ride = $payment->ride;
+        $fareAmount = (float) $payment->amount;
+        $changeAmount = null;
+        $changeKobo = 0;
+
+        if ($amountCollected !== null && $amountCollected > $fareAmount) {
+            $changeAmount = round($amountCollected - $fareAmount, 2);
+            $changeKobo = (int) round($changeAmount * 100);
+
+            $maxOverpayment = config('wallet.max_cash_overpayment', 200000);
+            if ($changeKobo > $maxOverpayment) {
+                throw new \DomainException(
+                    'Cash overpayment exceeds maximum allowed (₦'.number_format($maxOverpayment / 100, 2).').'
+                );
+            }
+
+            $passengerAccount = $this->ledgerService->findOrCreateAccount(
+                'App\\Models\\User',
+                $ride->passenger_id,
+                AccountType::PassengerWallet,
+            );
+
+            $maxBalance = config('wallet.max_balance', 50000000);
+            if (($passengerAccount->balance + $changeKobo) > $maxBalance) {
+                throw new \DomainException(
+                    'Cash change would exceed rider wallet maximum balance (₦'.number_format($maxBalance / 100, 2).').'
+                );
+            }
+        }
+
+        $payment = DB::transaction(function () use ($payment, $ride, $amountCollected, $changeAmount, $changeKobo) {
+            $updateData = ['status' => PaymentStatus::Collected];
+
+            if ($amountCollected !== null) {
+                $updateData['amount_collected'] = $amountCollected;
+            }
+
+            if ($changeAmount !== null && $changeAmount > 0) {
+                $updateData['cash_change_amount'] = $changeAmount;
+
+                $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+
+                $driverAccount = $this->ledgerService->findOrCreateAccount(
+                    'App\\Models\\Driver',
+                    $driver->id,
+                    AccountType::DriverEarningsAvailable,
+                );
+
+                $passengerAccount = $this->ledgerService->findOrCreateAccount(
+                    'App\\Models\\User',
+                    $ride->passenger_id,
+                    AccountType::PassengerWallet,
+                );
+
+                $this->ledgerService->postJournal([
+                    ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $changeKobo],
+                    ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $changeKobo],
+                ], [
+                    'description' => "Cash change credit for ride {$ride->id}",
+                    'idempotency_key' => "cash-change-{$ride->id}",
+                    'metadata' => [
+                        'ride_id' => $ride->id,
+                        'fare_amount' => (float) $payment->amount,
+                        'amount_collected' => $amountCollected,
+                        'change_amount' => $changeAmount,
+                        'change_kobo' => $changeKobo,
+                    ],
+                ]);
+            }
+
+            $payment->update($updateData);
+            $ride->update(['payment_status' => PaymentStatus::Collected]);
 
             return $payment->fresh();
         });
 
         $this->broadcastPaymentUpdate($payment->fresh());
+
+        if ($changeKobo > 0) {
+            $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
+        }
 
         return $payment;
     }

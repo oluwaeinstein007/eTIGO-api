@@ -2526,6 +2526,15 @@
                     "value": "Bearer {{driver_token}}"
                   }
                 ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount_collected\": 2000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
                 "url": {
                   "raw": "{{base_url}}/rides/{{ride_id}}/confirm-cash",
                   "host": [
@@ -2537,11 +2546,11 @@
                     "confirm-cash"
                   ]
                 },
-                "description": "Driver confirms cash has been collected from passenger after a completed cash ride. Only available for completed rides with payment_method=cash and payment status=pending_collection."
+                "description": "Driver confirms cash has been collected from passenger after a completed cash ride. Only available for completed rides with payment_method=cash and payment status=pending_collection.\n\n**Optional field:** `amount_collected` (numeric) \u2014 the actual cash amount received. If greater than the fare, the difference is automatically credited to the rider's wallet as change. Max overpayment: \u20a62,000. If omitted, confirms collection at the fare amount with no change."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Cash Confirmed",
+                  "name": "200 \u2014 Cash Confirmed (exact amount)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -2551,6 +2560,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Cash collection confirmed.\",\n  \"payment\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"amount\": \"3500.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"cash\",\n    \"method_label\": \"Cash\",\n    \"tip_amount\": \"0.00\",\n    \"status\": \"collected\",\n    \"status_label\": \"Collected\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Cash Confirmed (with change credited to wallet)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cash collection confirmed. \u20a6200.00 change credited to rider's wallet.\",\n  \"payment\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"amount\": \"1800.00\",\n    \"amount_collected\": \"2000.00\",\n    \"cash_change_amount\": \"200.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"cash\",\n    \"method_label\": \"Cash\",\n    \"tip_amount\": \"0.00\",\n    \"status\": \"collected\",\n    \"status_label\": \"Collected\"\n  }\n}"
                 }
               ]
             },
@@ -11205,7 +11226,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Auth required. Initializes a payment with Flutterwave. Returns a payment link and transaction reference."
+                "description": "Auth required. Initializes a payment with Paystack. Returns a payment link and transaction reference."
               },
               "response": [
                 {
@@ -11218,7 +11239,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Payment initialized.\",\n  \"payment_link\": \"https://checkout.flutterwave.com/v3/hosted/pay/abc123...\",\n  \"tx_ref\": \"ETIGO-ABCDEFGHIJKL\"\n}"
+                  "body": "{\n  \"message\": \"Payment initialized.\",\n  \"payment_link\": \"https://checkout.paystack.com/abc123...\",\n  \"tx_ref\": \"ETIGO-ABCDEFGHIJKL\"\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -12252,7 +12273,7 @@
           "name": "Payment Webhooks",
           "item": [
             {
-              "name": "Flutterwave Webhook",
+              "name": "Paystack Webhook",
               "request": {
                 "method": "POST",
                 "header": [
@@ -12265,25 +12286,25 @@
                     "value": "application/json"
                   },
                   {
-                    "key": "verif-hash",
-                    "value": "your-flutterwave-encryption-key"
+                    "key": "x-paystack-signature",
+                    "value": "hmac-sha512-signature"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"event\": \"charge.completed\",\n  \"data\": {\n    \"id\": 123456,\n    \"tx_ref\": \"ETIGO-ABCDEFGHIJKL\",\n    \"status\": \"successful\",\n    \"amount\": 100,\n    \"currency\": \"NGN\"\n  }\n}"
+                  "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"id\": 123456,\n    \"reference\": \"ETIGO-ABCDEFGHIJKL\",\n    \"status\": \"success\",\n    \"amount\": 10000,\n    \"currency\": \"NGN\"\n  }\n}"
                 },
                 "url": {
-                  "raw": "{{base_url}}/webhooks/flutterwave",
+                  "raw": "{{base_url}}/webhooks/paystack",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "webhooks",
-                    "flutterwave"
+                    "paystack"
                   ]
                 },
-                "description": "No auth \u2014 verified by verif-hash header matching FLUTTERWAVE_ENCRYPTION_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+                "description": "No auth \u2014 verified by HMAC-SHA512 signature (x-paystack-signature header) using PAYSTACK_SECRET_KEY. Updates Payment record status. Returns 401 if signature is invalid."
               },
               "response": [
                 {

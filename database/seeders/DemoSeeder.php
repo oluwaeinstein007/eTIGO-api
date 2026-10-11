@@ -301,7 +301,7 @@ class DemoSeeder extends Seeder
             $card = $cards[$i % count($cards)];
             UserPaymentMethod::create([
                 'user_id' => $passenger->id,
-                'gateway_token' => 'FLW_'.Str::random(24),
+                'gateway_token' => 'PSK_'.Str::random(24),
                 'card_brand' => $card['brand'],
                 'card_last_four' => $card['last_four'],
                 'card_expiry_month' => rand(1, 12),

@@ -92,7 +92,7 @@ A new `wallet_transactions` table tracks the full lifecycle of top-up payments (
 
 **Decision:** ₦1,000 (100,000 kobo), configurable via `WALLET_MIN_PAYOUT`.
 
-**Rationale:** Prevents micro-withdrawals that cost more in transfer fees than they're worth. This aligns with typical Nigerian bank transfer minimums and reduces Flutterwave transfer API costs.
+**Rationale:** Prevents micro-withdrawals that cost more in transfer fees than they're worth. This aligns with typical Nigerian bank transfer minimums and reduces Paystack transfer API costs.
 
 ---
 
@@ -120,9 +120,9 @@ A new `wallet_transactions` table tracks the full lifecycle of top-up payments (
 
 **Question:** Custody of funds / safeguarding requirements for a closed-loop wallet in Nigeria?
 
-**Decision:** The technical implementation treats the wallet as a closed-loop prepaid system (funds can only be used for E-tiGo rides, not transferred peer-to-peer). Under CBN guidelines, closed-loop wallets operated by a licensed payment service provider (Flutterwave) have lighter regulatory requirements than open-loop wallets.
+**Decision:** The technical implementation treats the wallet as a closed-loop prepaid system (funds can only be used for E-tiGo rides, not transferred peer-to-peer). Under CBN guidelines, closed-loop wallets operated by a licensed payment service provider (Paystack) have lighter regulatory requirements than open-loop wallets.
 
-**Client action needed:** Confirm with legal counsel that the current closed-loop model with Flutterwave as PSP satisfies CBN licensing requirements. If the product scope expands to peer-to-peer transfers or multi-merchant use, additional licensing may be required.
+**Client action needed:** Confirm with legal counsel that the current closed-loop model with Paystack as PSP satisfies CBN licensing requirements. If the product scope expands to peer-to-peer transfers or multi-merchant use, additional licensing may be required.
 
 ---
 
@@ -190,8 +190,8 @@ All wallet behavior is controlled via `config/wallet.php` with environment varia
 ### Daily Reconciliation (BE-WADM-21)
 
 `DailyReconciliationJob` runs at 02:00 daily. It compares:
-- **Charges:** Flutterwave `charge.completed` webhook amounts vs ledger credits to passenger wallets
-- **Transfers:** Flutterwave `transfer.completed` webhook amounts vs payout records marked paid
+- **Charges:** Paystack `charge.success` webhook amounts vs ledger credits to passenger wallets
+- **Transfers:** Paystack `transfer.success` webhook amounts vs payout records marked paid
 
 Results are stored in `reconciliation_reports` with status `clean` or `mismatched`. Mismatches include the type (charges/transfers), gateway total, ledger total, and difference.
 
@@ -200,7 +200,7 @@ Results are stored in `reconciliation_reports` with status `clean` or `mismatche
 ### Stuck Transaction Sweeper (BE-WADM-22)
 
 `StuckTransactionSweeperJob` runs every 30 minutes. For any `WalletTransaction` still `pending` beyond the abandoned threshold (default 30 min):
-1. Calls Flutterwave Verify Transaction API
+1. Calls Paystack Verify Transaction API
 2. If successful: credits the wallet and marks completed
 3. If failed/error: marks as abandoned or failed
 

@@ -70,10 +70,9 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID'),
     ],
 
-    'flutterwave' => [
-        'secret_key' => env('FLUTTERWAVE_SECRET_KEY'),
-        'public_key' => env('FLUTTERWAVE_PUBLIC_KEY'),
-        'encryption_key' => env('FLUTTERWAVE_ENCRYPTION_KEY'),
+    'paystack' => [
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
     ],
 
     'qoreid' => [
