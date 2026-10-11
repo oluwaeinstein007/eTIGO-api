@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
-use App\Contracts\FlutterwaveWalletGateway;
+use App\Contracts\WalletGateway;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreBankAccountRequest;
 use App\Http\Resources\BankAccountResource;
@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class BankAccountController extends Controller
 {
-    public function __construct(private FlutterwaveWalletGateway $flutterwaveGateway) {}
+    public function __construct(private WalletGateway $walletGateway) {}
 
     public function store(StoreBankAccountRequest $request): JsonResponse
     {
@@ -25,7 +25,7 @@ class BankAccountController extends Controller
         }
 
         try {
-            $resolved = $this->flutterwaveGateway->resolveAccountNumber(
+            $resolved = $this->walletGateway->resolveAccountNumber(
                 $request->validated('account_number'),
                 $request->validated('bank_code'),
             );

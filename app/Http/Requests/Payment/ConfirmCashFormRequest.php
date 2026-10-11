@@ -18,7 +18,9 @@ class ConfirmCashFormRequest extends FormRequest
 
     public function rules(): array
     {
-        return [];
+        return [
+            'amount_collected' => ['sometimes', 'numeric', 'min:0'],
+        ];
     }
 
     public function after(): array

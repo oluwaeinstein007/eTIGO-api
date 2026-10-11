@@ -5724,7 +5724,7 @@ POST /payments/initialize
 **Response 200:**
 ```json
 {
-  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/flwlnk-mock-abc123def456",
+  "payment_link": "https://checkout.paystack.com/abc123def456",
   "tx_ref": "ETIGO-ABCDEFGHIJKL"
 }
 ```
@@ -5816,7 +5816,13 @@ Authorization: Bearer {driver_token}
 ```
 Driver confirms cash has been collected from passenger. Only available for completed rides with `payment_method=cash` and payment in `pending_collection` status.
 
-**Response 200:**
+| Field            | Type    | Required | Notes                                                                 |
+|------------------|---------|----------|-----------------------------------------------------------------------|
+| amount_collected | numeric | No       | Actual cash amount received from rider. If greater than fare, the difference is credited to the rider's wallet as change. Max overpayment: ₦2,000 (configurable). |
+
+**Cash Change → Wallet Credit:** When `amount_collected` exceeds the fare, the overpayment is automatically credited to the rider's wallet via an internal ledger journal. The driver's earnings balance is debited by the same amount (settled the same way as commission on cash rides). The rider receives a notification. The response includes `amount_collected` and `cash_change_amount` fields.
+
+**Response 200 (without overpayment):**
 ```json
 {
   "message": "Cash collection confirmed.",
@@ -5834,8 +5840,29 @@ Driver confirms cash has been collected from passenger. Only available for compl
 }
 ```
 
+**Response 200 (with overpayment — cash change credited):**
+```json
+{
+  "message": "Cash collection confirmed. ₦200.00 change credited to rider's wallet.",
+  "payment": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "amount": "1800.00",
+    "amount_collected": "2000.00",
+    "cash_change_amount": "200.00",
+    "currency": "NGN",
+    "method": "cash",
+    "method_label": "Cash",
+    "tip_amount": "0.00",
+    "status": "collected",
+    "status_label": "Collected"
+  }
+}
+```
+
 **Response 403:** Not the assigned driver.
 **Response 422:** Ride not completed, not a cash ride, or already confirmed.
+**Response 500:** Overpayment exceeds maximum (₦2,000) or would exceed rider's wallet balance cap (₦500,000).
 
 ---
 
@@ -5849,7 +5876,7 @@ Authorization: Bearer {passenger_token}
 |--------|---------|----------|------------------------------|
 | amount | numeric | Yes      | Min ₦50, max ₦50,000        |
 
-Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Flutterwave. For cash rides, the tip is logged. Only one tip per ride.
+Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash rides, the tip is logged. Only one tip per ride.
 
 **Response 200:**
 ```json
@@ -5934,11 +5961,11 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
 
 ## Payment Webhooks
 
-### Flutterwave Webhook
+### Paystack Webhook (Ride Payments)
 ```
-POST /webhooks/flutterwave
+POST /webhooks/paystack
 ```
-**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_ENCRYPTION_KEY`. Receives payment status updates from Flutterwave and updates the corresponding Payment record.
+**No authentication** — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using `PAYSTACK_SECRET_KEY`. Receives payment status updates from Paystack and updates the corresponding Payment record.
 
 **Response 200:**
 ```json
@@ -5961,19 +5988,19 @@ POST /webhooks/flutterwave
 }
 ```
 
-### Flutterwave Wallet Webhook
+### Paystack Wallet Webhook
 
 ```
-POST /webhooks/flutterwave-wallet
+POST /webhooks/paystack-wallet
 ```
 
-**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_WEBHOOK_HASH`. Receives wallet-specific payment events (top-ups, transfers) from Flutterwave.
+**No authentication** — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using the wallet `PAYSTACK_SECRET_KEY`. Receives wallet-specific payment events (top-ups, transfers) from Paystack.
 
 **Handled Events:**
 
-- `charge.completed` — Dispatches `ProcessTopupWebhookJob` for TOPUP- references
-- `transfer.completed` — Dispatches `ProcessPayoutWebhookJob` with status `paid`
-- `transfer.failed` — Dispatches `ProcessPayoutWebhookJob` with status `failed`
+- `charge.success` — Dispatches `ProcessTopupWebhookJob` for TOPUP- references
+- `transfer.success` — Dispatches `ProcessPayoutWebhookJob` with status `paid`
+- `transfer.failed` / `transfer.reversed` — Dispatches `ProcessPayoutWebhookJob` with status `failed`
 
 Duplicate events are deduplicated via the `webhook_events` table.
 
@@ -7646,7 +7673,7 @@ Authorization: Bearer {passenger_token}
 Content-Type: application/json
 ```
 
-Initializes a Flutterwave payment for wallet top-up. Amounts are in kobo.
+Initializes a Paystack payment for wallet top-up. Amounts are in kobo.
 
 **Request Body:**
 
@@ -7667,7 +7694,7 @@ Initializes a Flutterwave payment for wallet top-up. Amounts are in kobo.
 ```json
 {
   "message": "Top-up initialized.",
-  "payment_link": "https://checkout.flutterwave.com/v3/hosted/pay/...",
+  "payment_link": "https://checkout.paystack.com/...",
   "tx_ref": "TOPUP-ABCD1234EFGH"
 }
 ```
@@ -7682,7 +7709,7 @@ GET /passenger/wallet/topup/{transactionId}/verify
 Authorization: Bearer {passenger_token}
 ```
 
-Verifies a Flutterwave transaction by its transaction ID (returned by Flutterwave after payment, not the tx_ref). On success, dispatches `ProcessTopupWebhookJob`.
+Verifies a Paystack transaction by its transaction ID (returned by Paystack after payment, not the tx_ref). On success, dispatches `ProcessTopupWebhookJob`.
 
 **Response 200:**
 ```json
@@ -7692,7 +7719,7 @@ Verifies a Flutterwave transaction by its transaction ID (returned by Flutterwav
 ```
 
 **Response 422:** Transaction was not successful.
-**Response 502:** Unable to verify transaction with Flutterwave.
+**Response 502:** Unable to verify transaction with Paystack.
 
 ---
 
@@ -7708,7 +7735,7 @@ Authorization: Bearer {driver_token}
 Content-Type: application/json
 ```
 
-Verifies the bank account via Flutterwave account resolution and saves it as the driver's primary bank account.
+Verifies the bank account via Paystack account resolution and saves it as the driver's primary bank account. Supports both traditional banks (NUBAN) and OPay accounts.
 
 **Request Body:**
 
@@ -7864,7 +7891,7 @@ POST /driver/payouts
 Authorization: Bearer {driver_token}
 ```
 
-Requests a withdrawal from driver earnings to their primary bank account via Flutterwave transfer. Requires an approved bank account. Payout goes through admin approval before transfer is initiated.
+Requests a withdrawal from driver earnings to their primary bank account via Paystack transfer. Supports both traditional bank accounts (NUBAN) and OPay mobile money transfers. Requires an approved bank account. Payout goes through admin approval before transfer is initiated.
 
 **Request Body:**
 
@@ -8075,7 +8102,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Returns the daily reconciliation report comparing Flutterwave gateway settlements against ledger entries.
+Returns the daily reconciliation report comparing Paystack gateway settlements against ledger entries.
 
 **Query Parameters:**
 

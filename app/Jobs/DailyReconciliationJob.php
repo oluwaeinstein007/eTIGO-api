@@ -36,7 +36,7 @@ class DailyReconciliationJob implements ShouldQueue
             return;
         }
 
-        $gatewayChargesTotal = (int) WebhookEvent::where('provider', 'flutterwave')
+        $gatewayChargesTotal = (int) WebhookEvent::where('provider', 'paystack')
             ->where('event_type', 'charge.completed')
             ->whereNotNull('processed_at')
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
@@ -55,7 +55,7 @@ class DailyReconciliationJob implements ShouldQueue
             })
             ->sum('ledger_entries.amount');
 
-        $gatewayTransfersTotal = (int) WebhookEvent::where('provider', 'flutterwave')
+        $gatewayTransfersTotal = (int) WebhookEvent::where('provider', 'paystack')
             ->whereIn('event_type', ['transfer.completed', 'transfer.success'])
             ->whereNotNull('processed_at')
             ->whereBetween('created_at', [$startOfDay, $endOfDay])

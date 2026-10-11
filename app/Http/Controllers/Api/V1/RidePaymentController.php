@@ -24,12 +24,23 @@ class RidePaymentController extends Controller
             abort(404, 'No payment record found for this ride.');
         }
 
-        $payment = $this->paymentService->confirmCashCollection($payment);
+        $amountCollected = $request->validated('amount_collected');
+
+        $payment = $this->paymentService->confirmCashCollection(
+            $payment,
+            $amountCollected !== null ? (float) $amountCollected : null,
+        );
 
         AuditLog::record($ride, 'cash_collected', $request->user());
 
+        $message = 'Cash collection confirmed.';
+        if ($payment->cash_change_amount && $payment->cash_change_amount > 0) {
+            $changeFormatted = number_format((float) $payment->cash_change_amount, 2);
+            $message = "Cash collection confirmed. ₦{$changeFormatted} change credited to rider's wallet.";
+        }
+
         return response()->json([
-            'message' => 'Cash collection confirmed.',
+            'message' => $message,
             'payment' => new PaymentResource($payment),
         ]);
     }

@@ -48,7 +48,7 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
             ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $this->amountKobo],
             ['account_id' => $this->accountId, 'type' => LedgerEntryType::Credit->value, 'amount' => $this->amountKobo],
         ], [
-            'description' => "Wallet top-up via Flutterwave: {$this->reference}",
+            'description' => "Wallet top-up via Paystack: {$this->reference}",
             'idempotency_key' => "topup-{$this->reference}",
             'metadata' => [
                 'reference' => $this->reference,

@@ -17,18 +17,21 @@ class PaymentWebhookController extends Controller
         private PaymentGateway $paymentGateway,
     ) {}
 
-    public function handleFlutterwave(Request $request): JsonResponse
+    public function handlePaystack(Request $request): JsonResponse
     {
-        $secretHash = config('services.flutterwave.encryption_key');
+        $secretKey = config('services.paystack.secret_key');
 
-        if (! $secretHash) {
-            Log::error('Flutterwave webhook: encryption key not configured');
+        if (! $secretKey) {
+            Log::error('Paystack webhook: secret key not configured');
 
             return response()->json(['status' => 'error'], 500);
         }
 
-        if (! hash_equals($secretHash, (string) $request->header('verif-hash'))) {
-            Log::warning('Flutterwave webhook: invalid signature');
+        $signature = $request->header('x-paystack-signature');
+        $computed = hash_hmac('sha512', $request->getContent(), $secretKey);
+
+        if (! $signature || ! hash_equals($computed, $signature)) {
+            Log::warning('Paystack webhook: invalid signature');
 
             return response()->json(['status' => 'error'], 401);
         }
@@ -45,8 +48,6 @@ class PaymentWebhookController extends Controller
         $payment = Payment::where('gateway_transaction_id', $transactionId)->first();
 
         if (! $payment) {
-            // Webhook arrived before ProcessPaymentJob — look up by pending status
-            // so the webhook can resolve payments left pending after gateway timeouts.
             $payment = Payment::where('status', PaymentStatus::Pending)
                 ->whereHas('ride', fn ($q) => $q->where('payment_method', 'card'))
                 ->latest()
@@ -65,7 +66,7 @@ class PaymentWebhookController extends Controller
             ];
 
             if (in_array($payment->status, $terminalStatuses)) {
-                Log::info('Flutterwave webhook: skipping update for terminal payment', [
+                Log::info('Paystack webhook: skipping update for terminal payment', [
                     'payment_id' => $payment->id,
                     'current_status' => $payment->status->value,
                 ]);

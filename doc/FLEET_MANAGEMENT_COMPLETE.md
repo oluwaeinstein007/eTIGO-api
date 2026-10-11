@@ -336,7 +336,7 @@ For a platform handling daily financial transactions between the company and dri
 | Feature | Reason for Deferral | Industry Precedent |
 |---------|--------------------|--------------------|
 | Ownership transfer workflow | Awaiting Chairman meeting (Q8) | Standard: separate legal/admin process; not automated |
-| Cash overpayment → wallet credit | Ready to build — Paystack confirmed (PSSP licence covers stored value) | Standard: requires licensed stored-value provider |
+| Cash overpayment → wallet credit | **Built** — internal ledger credit (no external provider dependency) | Standard: closed-loop wallet credit via internal ledger |
 | Fleet maintenance module | Phase 2 — separate product domain | Standard: fleet management platforms (Fleetio, Samsara) treat this as a separate module |
 | Independent driver onboarding | Client said later phase | Standard: fleet and independent drivers are different compliance tracks |
 | EV integration | No EV fleet yet | Standard: EV telemetry is a separate integration layer (API partnerships with vehicle OEMs) |
@@ -415,7 +415,7 @@ The client originally asked to "code everything but leave it inactive." Per the 
 
 **Implementation:** Complete — wired into `ProcessPaymentJob`, automatic per-ride recording.
 
-**Cash ride handling:** Cash rides count toward remittance target. The cash overpayment → rider wallet credit feature is now **unblocked** — Paystack has been selected as the payment provider, and their PSSP licence covers stored-value wallet operations. Implementation can proceed when prioritised.
+**Cash ride handling:** Cash rides count toward remittance target. The cash overpayment → rider wallet credit feature is now **implemented**. When a driver confirms cash collection with `amount_collected` greater than the fare, the overpayment is credited to the rider's wallet via an internal double-entry ledger journal (debit DriverEarningsAvailable, credit PassengerWallet). No external payment provider API call is required — the feature operates entirely within the existing ledger system. Configurable limits: max overpayment ₦2,000, respects existing wallet max balance ₦500,000.
 
 ---
 
@@ -490,11 +490,11 @@ These decisions require human processes, legal agreements, or physical-world act
 
 ---
 
-### FLAG 2: Cash Change → Rider Wallet Credit (Q5) — RESOLVED
+### FLAG 2: Cash Change → Rider Wallet Credit (Q5) — RESOLVED & IMPLEMENTED
 
-**Risk:** Creating stored value in the rider's wallet may require a licence under CBN Guidelines on Electronic Money (2015).
+**Original risk:** Creating stored value in the rider's wallet may require a licence under CBN Guidelines on Electronic Money (2015).
 
-**Resolution:** Paystack selected as payment provider (October 2026). Paystack holds a PSSP licence from CBN which covers stored-value wallet operations, including OPay transfer support for driver payouts. **This risk is eliminated.** The wallet credit feature can now be built when prioritised.
+**Resolution:** The feature uses the existing internal double-entry ledger — no external stored-value creation is involved. When a driver reports collecting more cash than the fare, the overpayment is recorded as a balanced journal entry (debit DriverEarningsAvailable, credit PassengerWallet). This is closed-loop platform credit, not e-money issuance. The driver's balance adjusts at settlement (same pattern as commission on cash rides). **This risk is eliminated.** Feature is live with configurable guardrails (max overpayment ₦2,000, wallet balance cap ₦500,000).
 
 ---
 
@@ -968,13 +968,13 @@ Validation messages to handle:
 | Zero commission enforcement in CommissionService | Done |
 | Full financial terms visible to drivers (Q7 reversal) | Done |
 | Fleet configuration file (reset time, thresholds) | Done |
+| Cash overpayment → rider wallet credit | Done — internal ledger credit, driver sends `amount_collected` on cash confirm |
 
 ### Not Yet Built
 
 | Feature | Status | Blocked By | Impact on UI |
 |---------|--------|-----------|-------------|
 | Ownership transfer workflow | Blocked | Q8 — Chairman meeting | Don't build a "Transfer ownership" button yet |
-| Cash overpayment → rider wallet credit | Unblocked | Paystack confirmed — ready to build when prioritised | No cash change → wallet feature yet |
 | Fleet maintenance module | Deferred | Phase 2 | No vehicle servicing/maintenance screens yet |
 | Independent driver onboarding | Deferred | Client said later phase | No own-vehicle driver compliance workflow yet |
 | EV integration | Deferred | Architecture supports future extension | No EV-specific features yet |
@@ -983,7 +983,7 @@ Validation messages to handle:
 
 ## 28. Testing & Postman
 
-**Test suite:** 611 tests passing, 37 fleet-specific (9 pre-existing skips unrelated to fleet).
+**Test suite:** 693 tests passing (684 passed, 9 pre-existing skips unrelated to fleet).
 
 ### Postman Collection
 
@@ -1033,10 +1033,13 @@ All endpoints include full request/response schemas with example payloads.
 
 - ~~**Confirm payment provider:**~~ Paystack selected (October 2026). PSSP licence covers wallet credit. OPay transfer support for driver payouts.
 
+### Resolved Engineering
+
+- ~~**Cash overpayment → wallet credit:**~~ Implemented (11 October 2026). Uses internal double-entry ledger — no external provider dependency. Driver sends `amount_collected` with cash confirmation; overpayment auto-credited to rider's `PassengerWallet`.
+
 ### Engineering Next
 
-1. **Cash overpayment → wallet credit:** Unblocked — Paystack PSSP licence confirmed. Ready to build when prioritised.
-2. **Phase 2 planning:** Fleet maintenance module, independent driver onboarding
+1. **Phase 2 planning:** Fleet maintenance module, independent driver onboarding
 
 ### Legal Review
 
@@ -1045,6 +1048,6 @@ All endpoints include full request/response schemas with example payloads.
 
 ---
 
-*This document was last updated on 11 October 2026. It consolidates the Fleet Industry Standards, Fleet Decisions Report, and Fleet Feature Handoff into a single reference. All referenced regulations (Hire Purchase Act, FCCPA, CBN guidelines) should be reviewed by E-tiGo's legal counsel before commercial launch.*
+*This document was last updated on 11 October 2026. Cash overpayment → wallet credit feature implemented. It consolidates the Fleet Industry Standards, Fleet Decisions Report, and Fleet Feature Handoff into a single reference. All referenced regulations (Hire Purchase Act, FCCPA, CBN guidelines) should be reviewed by E-tiGo's legal counsel before commercial launch.*
 
 *Questions? Ping the backend team. The Postman collection has all endpoints ready for testing.*

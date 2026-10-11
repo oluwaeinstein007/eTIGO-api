@@ -2,22 +2,22 @@
 
 namespace App\Providers;
 
-use App\Contracts\FlutterwaveWalletGateway;
 use App\Contracts\KycGateway;
 use App\Contracts\MapsGateway;
 use App\Contracts\PaymentGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
-use App\Gateways\FlutterwaveWalletPaymentGateway;
+use App\Contracts\WalletGateway;
+use App\Gateways\PaystackWalletGateway;
 use App\Models\PersonalAccessToken;
 use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
 use App\Services\FirebasePushGateway;
-use App\Services\FlutterwavePaymentGateway;
 use App\Services\HaversineMapsGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\MapboxGateway;
+use App\Services\PaystackPaymentGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Event;
@@ -43,7 +43,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPushNotificationGateway();
         $this->registerPaymentGateway();
         $this->registerKycGateway();
-        $this->registerFlutterwaveWalletGateway();
+        $this->registerWalletGateway();
     }
 
     public function boot(): void
@@ -103,30 +103,30 @@ class AppServiceProvider extends ServiceProvider
         });
     }
 
-    private function registerFlutterwaveWalletGateway(): void
+    private function registerWalletGateway(): void
     {
-        $this->app->bind(FlutterwaveWalletGateway::class, function () {
-            $secretKey = config('wallet.flutterwave.secret_key');
+        $this->app->bind(WalletGateway::class, function () {
+            $secretKey = config('wallet.paystack.secret_key');
 
             if (! $secretKey) {
-                throw new \RuntimeException('Flutterwave secret key is not configured. Set FLUTTERWAVE_SECRET_KEY in your environment.');
+                throw new \RuntimeException('Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in your environment.');
             }
 
-            return new FlutterwaveWalletPaymentGateway($secretKey);
+            return new PaystackWalletGateway($secretKey);
         });
     }
 
     private function registerPaymentGateway(): void
     {
         $this->app->bind(PaymentGateway::class, function () {
-            $secretKey = config('services.flutterwave.secret_key');
+            $secretKey = config('services.paystack.secret_key');
 
             if ($secretKey) {
-                return new FlutterwavePaymentGateway($secretKey);
+                return new PaystackPaymentGateway($secretKey);
             }
 
             if (! $this->app->environment('local', 'testing')) {
-                throw new \RuntimeException('Flutterwave secret key is not configured. Set FLUTTERWAVE_SECRET_KEY in your environment.');
+                throw new \RuntimeException('Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in your environment.');
             }
 
             return new FakePaymentGateway;

@@ -1,18 +1,23 @@
 <?php
 
 use App\Contracts\PaymentGateway;
+use App\Enums\AccountType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\UserType;
 use App\Events\PaymentUpdated;
 use App\Jobs\ProcessPaymentJob;
+use App\Models\Driver;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
+use App\Notifications\CashChangeWalletCreditNotification;
 use App\Services\FakePaymentGateway;
+use App\Services\LedgerService;
 use App\Services\PaymentService;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 
 beforeEach(function () {
     $this->app->instance(PaymentGateway::class, new FakePaymentGateway);
@@ -406,5 +411,157 @@ describe('Receipt', function () {
             ->getJson("/api/v1/rides/{$ride->id}/receipt");
 
         $response->assertForbidden();
+    });
+});
+
+describe('Cash Change → Wallet Credit', function () {
+    beforeEach(function () {
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\SystemAccountSeeder']);
+
+        $this->driver = Driver::factory()->create(['user_id' => $this->driverUser->id]);
+    });
+
+    it('credits rider wallet when driver reports overpayment', function () {
+        Notification::fake();
+
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 1800,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash", [
+                'amount_collected' => 2000,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'collected')
+            ->assertJsonPath('payment.amount_collected', '2000.00')
+            ->assertJsonPath('payment.cash_change_amount', '200.00');
+
+        $ledger = app(LedgerService::class);
+        $passengerAccount = $ledger->findOrCreateAccount(
+            'App\\Models\\User',
+            $this->passenger->id,
+            AccountType::PassengerWallet,
+        );
+        expect($passengerAccount->balance)->toBe(20000);
+
+        $driverAccount = $ledger->findOrCreateAccount(
+            'App\\Models\\Driver',
+            $this->driver->id,
+            AccountType::DriverEarningsAvailable,
+        );
+        expect($driverAccount->balance)->toBe(-20000);
+
+        Notification::assertSentTo($this->passenger, CashChangeWalletCreditNotification::class);
+    });
+
+    it('confirms cash without wallet credit when no overpayment', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 1800,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash", [
+                'amount_collected' => 1800,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'collected');
+
+        $payment = $ride->payment->fresh();
+        expect($payment->cash_change_amount)->toBeNull();
+    });
+
+    it('confirms cash without amount_collected (backward compatible)', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 1800,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash");
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'collected');
+
+        $payment = $ride->payment->fresh();
+        expect($payment->amount_collected)->toBeNull();
+        expect($payment->cash_change_amount)->toBeNull();
+    });
+
+    it('rejects overpayment exceeding maximum', function () {
+        config(['wallet.max_cash_overpayment' => 200000]); // ₦2,000
+
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 1800,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash", [
+                'amount_collected' => 5000,
+            ]);
+
+        $response->assertStatus(500);
+    });
+
+    it('rejects overpayment that would exceed wallet max balance', function () {
+        config(['wallet.max_balance' => 100000]); // ₦1,000
+
+        $ledger = app(LedgerService::class);
+        $passengerAccount = $ledger->findOrCreateAccount(
+            'App\\Models\\User',
+            $this->passenger->id,
+            AccountType::PassengerWallet,
+        );
+
+        $systemAccount = $ledger->systemAccount(AccountType::PspClearing);
+        $ledger->postJournal([
+            ['account_id' => $systemAccount->id, 'type' => 'debit', 'amount' => 95000],
+            ['account_id' => $passengerAccount->id, 'type' => 'credit', 'amount' => 95000],
+        ], [
+            'description' => 'Seed wallet balance for test',
+            'idempotency_key' => 'test-seed-wallet',
+        ]);
+
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 1800,
+        ]);
+
+        $service = app(PaymentService::class);
+        $service->processRidePayment($ride);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash", [
+                'amount_collected' => 1900,
+            ]);
+
+        $response->assertStatus(500);
     });
 });

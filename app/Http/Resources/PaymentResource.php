@@ -13,6 +13,8 @@ class PaymentResource extends JsonResource
             'id' => $this->id,
             'ride_id' => $this->ride_id,
             'amount' => $this->amount,
+            'amount_collected' => $this->when($this->amount_collected !== null, $this->amount_collected),
+            'cash_change_amount' => $this->when($this->cash_change_amount !== null, $this->cash_change_amount),
             'currency' => $this->currency,
             'method' => $this->method->value,
             'method_label' => $this->method->label(),
