@@ -477,14 +477,29 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-NOTIF-01 | `[x]` Create `RideNotificationService` — handles push notifications for all ride state transitions via `PushNotificationGateway`; integrated into `RideStateMachine::transitionTo()` with try/catch so failures never break ride flow | B-06 | SETUP-57, SETUP-33 | Covers: ride_matched, driver_en_route, driver_arrived, ride_started, ride_completed, ride_cancelled, no_driver_found |
-| BE-NOTIF-02 | `[ ]` Define `NotificationType` enum: ride_matched, ride_cancelled, driver_arriving, ride_started, ride_completed, sos_check_in, sos_escalated, compliance_warning, promo_expiring, tier_upgrade, ev_reservation_ready, dispute_update, kyc_status_changed, scheduled_ride_reminder, lost_item_report | B-06 | BE-NOTIF-01 | — |
+| BE-NOTIF-01 | `[x]` Create `RideNotificationService` — handles push notifications for all ride state transitions via centralized `NotificationService`; persists in-app notifications + sends push; integrated into `RideStateMachine::transitionTo()` with try/catch so failures never break ride flow | B-06 | SETUP-57, SETUP-33 | Covers: ride_matched, driver_en_route, driver_arrived, ride_started, ride_completed, ride_cancelled, no_driver_found |
+| BE-NOTIF-02 | `[x]` Define `NotificationType` enum with category mapping: ride_matched, ride_cancelled, driver_en_route, driver_arriving, ride_started, ride_completed, no_driver_found, ride_assigned, sos_check_in, sos_escalated, compliance_warning, promo_expiring, tier_upgrade, ev_reservation_ready, dispute_update, kyc_status_changed, scheduled_ride_reminder, lost_item_report + wallet types (topup_success, topup_failed, ride_wallet_payment, wallet_refund, payout_approved, payout_paid, payout_failed, cash_change_credit). Each type maps to a `NotificationCategory` | B-06 | BE-NOTIF-01 | — |
+| BE-NOTIF-02b | `[x]` Create `NotificationCategory` enum: ride_updates, safety, payments, promotions, compliance, gamification, ev_charging, account; each with label(), description(), isCritical(); safety & compliance are critical (cannot be disabled) | B-06 | BE-NOTIF-02 | — |
 | BE-NOTIF-03 | `[x]` Create `Notification` Eloquent model | — | SETUP-33 | — |
-| BE-NOTIF-04 | `[x]` Create `NotificationController@index` — `GET /api/v1/notifications`: list in-app notifications for authenticated user, paginated, newest first | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-03b | `[x]` Create centralized `NotificationService` — orchestrates in-app persistence + push dispatch; respects user notification preferences per category; `send()` for normal, `sendCritical()` for safety-critical (bypasses preferences), `sendPushOnly()` for transient updates, `sendToMany()` for batch; graceful push failure handling | B-06 | BE-NOTIF-03, SETUP-57 | — |
+| BE-NOTIF-03c | `[x]` Create `NotificationResource` API resource — includes type, type_label, category, title, body, data, is_read, read_at, created_at | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-04 | `[x]` Create `NotificationController@index` — `GET /api/v1/notifications`: list in-app notifications for authenticated user, paginated, newest first; supports filtering by `type`, `category`, `is_read`; returns `NotificationResource` | B-06 | BE-NOTIF-03 | — |
 | BE-NOTIF-05 | `[x]` Create `NotificationController@markRead` — `PATCH /api/v1/notifications/{notification}/read`: mark single notification as read | B-06 | BE-NOTIF-03 | — |
-| BE-NOTIF-06 | `[x]` Create `NotificationController@markAllRead` — `POST /api/v1/notifications/read-all`: mark all notifications as read | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-06 | `[x]` Create `NotificationController@markAllRead` — `POST /api/v1/notifications/read-all`: mark all notifications as read; returns updated_count | B-06 | BE-NOTIF-03 | — |
+| BE-NOTIF-06b | `[x]` Create `NotificationController@destroy` — `DELETE /api/v1/notifications/{notification}`: delete a single notification; ownership check enforced | B-06 | BE-NOTIF-03 | — |
 | BE-NOTIF-07 | `[x]` Create `DeviceTokenController@store` — `POST /api/v1/device-tokens`: register device token for push; uses updateOrCreate | B-06 | SETUP-34 | — |
 | BE-NOTIF-08 | `[x]` Create `DeviceTokenController@destroy` — `DELETE /api/v1/device-tokens`: deactivate a device token by token + platform | B-06 | SETUP-34 | — |
+
+### 15.1b Notification Preferences
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE-NOTIF-PREF-01 | `[x]` Create migration: `notification_preferences` table — id (UUID), user_id (FK), category (string), push_enabled (bool default true), in_app_enabled (bool default true), timestamps; unique constraint on (user_id, category) | B-06 | SETUP-07 | — |
+| BE-NOTIF-PREF-02 | `[x]` Create `NotificationPreference` Eloquent model with NotificationCategory cast and user() relationship | B-06 | BE-NOTIF-PREF-01 | — |
+| BE-NOTIF-PREF-03 | `[x]` Create `NotificationPreferenceController@index` — `GET /api/v1/notification-preferences`: list all categories with current user preferences (falls back to config defaults); includes label, description, is_critical flag | B-06 | BE-NOTIF-PREF-02 | — |
+| BE-NOTIF-PREF-04 | `[x]` Create `NotificationPreferenceController@update` — `PUT /api/v1/notification-preferences`: batch update preferences per category; critical categories (safety, compliance) forced to enabled regardless of user input | B-06 | BE-NOTIF-PREF-02 | — |
+| BE-NOTIF-PREF-05 | `[x]` Create `UpdatePreferencesRequest` FormRequest — validates preferences array with category (valid enum), push_enabled (bool), in_app_enabled (bool) | B-06 | BE-NOTIF-PREF-04 | — |
+| BE-NOTIF-PREF-06 | `[x]` Create `config/notification.php` — channels (push, in_app, mail toggles), category_defaults, retention_days (90), rate_limit (30/hour), per_page (20) | B-06 | — | — |
 
 ### 15.2 Email Notifications
 

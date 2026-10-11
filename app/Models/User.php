@@ -68,6 +68,11 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(NotificationPreference::class);
+    }
+
     public function rides(): HasMany
     {
         return $this->hasMany(Ride::class, 'passenger_id');
