@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\DisputeOutcome;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\OfflineTripFlag;
@@ -18,7 +19,7 @@ class DriverComplianceController extends Controller
             ->withinLookback()
             ->where(function ($q) {
                 $q->where('is_disputed', false)
-                    ->orWhere('dispute_outcome', '!=', 'overturned');
+                    ->orWhere('dispute_outcome', '!=', DisputeOutcome::Overturned);
             })
             ->count();
 
