@@ -13,6 +13,7 @@ use App\Http\Resources\RideResource;
 use App\Jobs\FinalFareCalculationJob;
 use App\Models\Ride;
 use App\Models\User;
+use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\RideService;
@@ -30,6 +31,7 @@ class RideController extends Controller
         private RideService $rideService,
         private DriverMatchingService $matchingService,
         private DriverLocationService $locationService,
+        private DriverEarningsService $earningsService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -340,6 +342,12 @@ class RideController extends Controller
 
         if (! $driver) {
             return response()->json(['message' => 'Driver profile not found.'], 403);
+        }
+
+        if ($this->earningsService->hasExcessiveNegativeBalance($user->id)) {
+            return response()->json([
+                'message' => 'You cannot accept rides while your earnings balance is below the allowed threshold. Please clear your outstanding balance.',
+            ], 403);
         }
 
         if ($ride->status !== RideStatus::Searching) {

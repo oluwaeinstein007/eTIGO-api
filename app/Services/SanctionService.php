@@ -85,6 +85,13 @@ class SanctionService
             SanctionTier::Suspension => $this->suspendDriver($driver),
             SanctionTier::Deactivation => $this->deactivateDriver($driver),
         };
+
+        if ($tier->requiresAdminReview()) {
+            Log::critical('L3 sanction requires mandatory admin review before permanent deactivation', [
+                'driver_id' => $driverUserId,
+                'tier' => $tier->value,
+            ]);
+        }
     }
 
     private function issueWarning(Driver $driver): void
@@ -113,6 +120,7 @@ class SanctionService
         ]);
     }
 
+    // Industry standard: permanent deactivation requires mandatory admin review.
     private function deactivateDriver(Driver $driver): void
     {
         $driver->update([
@@ -122,9 +130,9 @@ class SanctionService
         ]);
 
         $this->pushGateway->sendToUser($driver->user_id, [
-            'title' => 'Account Deactivated',
-            'body' => 'Your account has been permanently deactivated due to repeated offline trip violations. You may dispute this decision.',
-            'data' => ['type' => 'compliance_warning', 'permanent' => true],
+            'title' => 'Account Suspended — Under Review',
+            'body' => 'Your account has been suspended pending admin review due to repeated compliance violations. You may dispute this decision.',
+            'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true],
         ]);
     }
 

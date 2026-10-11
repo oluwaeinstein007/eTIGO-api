@@ -131,6 +131,11 @@ class Driver extends Model
         return $this->status === DriverStatus::Suspended;
     }
 
+    public function isDeactivated(): bool
+    {
+        return $this->status === DriverStatus::Deactivated;
+    }
+
     public function isKycVerified(): bool
     {
         return $this->kyc_status === KycStatus::Verified;

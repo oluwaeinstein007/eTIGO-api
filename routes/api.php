@@ -458,6 +458,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{flag}', [AdminOfflineFlagController::class, 'show']);
         Route::post('/{flag}/review', [AdminOfflineFlagController::class, 'review']);
         Route::post('/{flag}/escalate', [AdminOfflineFlagController::class, 'escalate']);
+        Route::post('/{flag}/confirm-deactivation', [AdminOfflineFlagController::class, 'confirmDeactivation']);
     });
 
     Route::middleware('admin.role:support')->prefix('disputes')->group(function () {

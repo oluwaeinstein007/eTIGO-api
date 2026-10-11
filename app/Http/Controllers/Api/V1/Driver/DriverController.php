@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Driver;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
 use App\Models\AuditLog;
+use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class DriverController extends Controller
 {
     public function __construct(
         private DriverLocationService $locationService,
+        private DriverEarningsService $earningsService,
     ) {}
 
     public function toggleOnline(Request $request): JsonResponse
@@ -46,6 +48,10 @@ class DriverController extends Controller
                 $reasons[] = 'No vehicle registered.';
             } elseif (! $driver->vehicle->vehicle_class_id) {
                 $reasons[] = 'Vehicle class not assigned.';
+            }
+
+            if ($this->earningsService->hasExcessiveNegativeBalance($user->id)) {
+                $reasons[] = 'Outstanding negative balance exceeds the allowed threshold.';
             }
 
             return response()->json([
