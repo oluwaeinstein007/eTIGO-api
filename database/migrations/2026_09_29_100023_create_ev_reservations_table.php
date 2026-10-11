@@ -18,6 +18,7 @@ return new class extends Migration
             $table->timestamp('estimated_available_at')->nullable();
             $table->decimal('fee_amount', 10, 2)->default(0);
             $table->boolean('fee_waived')->default(false);
+            $table->unsignedInteger('estimated_charge_minutes')->nullable();
             $table->timestamp('reserved_at');
             $table->timestamp('activated_at')->nullable();
             $table->timestamp('completed_at')->nullable();

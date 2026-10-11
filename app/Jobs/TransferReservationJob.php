@@ -34,6 +34,23 @@ class TransferReservationJob implements ShouldQueue
             return;
         }
 
-        $reservationService->transferToNextQueued($station);
+        $reservation = $reservationService->transferToNextQueued($station);
+
+        if ($reservation) {
+            $pushGateway->send(
+                $reservation->driver_id,
+                NotificationType::EvReservationReady,
+                [
+                    'reservation_id' => $reservation->id,
+                    'station_name' => $station->name,
+                    'stall_number' => $reservation->stall?->stall_number,
+                ],
+            );
+
+            Log::info('TransferReservationJob: driver notified', [
+                'reservation_id' => $reservation->id,
+                'driver_id' => $reservation->driver_id,
+            ]);
+        }
     }
 }

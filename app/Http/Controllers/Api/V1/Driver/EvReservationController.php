@@ -20,7 +20,11 @@ class EvReservationController extends Controller
     public function store(StoreReservationFormRequest $request, EvChargingStation $station): JsonResponse
     {
         try {
-            $result = $this->reservationService->reserve($station, $request->user());
+            $result = $this->reservationService->reserve(
+                $station,
+                $request->user(),
+                $request->validated('estimated_charge_minutes'),
+            );
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -92,7 +96,7 @@ class EvReservationController extends Controller
         }
 
         try {
-            $reservation = $this->reservationService->activate($reservation);
+            $reservation = $this->reservationService->activate($reservation, $reservation->estimated_charge_minutes);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

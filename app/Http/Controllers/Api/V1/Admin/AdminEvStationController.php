@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\EvReservationStatus;
 use App\Enums\EvStallStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EvStation\ManageStallFormRequest;
@@ -30,7 +31,7 @@ class AdminEvStationController extends Controller
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('search'), fn ($q, $search) => $q->where('name', 'ilike', "%{$search}%"))
             ->orderBy('name')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate(min($request->integer('per_page', 20), 100));
 
         return response()->json([
             'stations' => EvStationResource::collection($stations),
@@ -83,15 +84,15 @@ class AdminEvStationController extends Controller
     {
         $oldValues = $station->only(array_keys($request->validated()));
 
-        DB::transaction(function () use ($request, $station) {
+        DB::transaction(function () use ($request, $station, $oldValues) {
             $station->update($request->validated());
 
             AuditLog::record(
                 $station,
                 'ev_station_updated',
                 $request->user(),
-                $station->getOriginal(),
-                $station->getAttributes(),
+                $oldValues,
+                $station->only(array_keys($request->validated())),
             );
         });
 
@@ -111,14 +112,14 @@ class AdminEvStationController extends Controller
 
         $oldStatus = $station->status->value;
 
-        DB::transaction(function () use ($request, $station) {
+        DB::transaction(function () use ($request, $station, $oldStatus) {
             $station->update(['status' => $request->input('status')]);
 
             AuditLog::record(
                 $station,
                 'ev_station_status_changed',
                 $request->user(),
-                ['status' => $station->getOriginal('status')],
+                ['status' => $oldStatus],
                 ['status' => $station->status->value],
             );
         });
@@ -141,7 +142,9 @@ class AdminEvStationController extends Controller
                 );
             }
 
-            AuditLog::record($station, 'ev_stalls_managed', $request->user(), [], $stallData ?? []);
+            $station->update(['total_stalls' => $station->stalls()->count()]);
+
+            AuditLog::record($station, 'ev_stalls_managed', $request->user(), [], $request->validated('stalls'));
         });
 
         $station->load('stalls');
@@ -156,23 +159,50 @@ class AdminEvStationController extends Controller
     {
         $stations = EvChargingStation::query()
             ->with('stalls')
+            ->withCount(['reservations as queue_length' => fn ($q) => $q->where('status', EvReservationStatus::Queued)])
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             ->active()
             ->get();
 
         $utilisation = $stations->map(function (EvChargingStation $station) {
-            $availability = $this->stallService->getStationAvailability($station);
+            $stalls = $station->stalls;
+            $totalStalls = $stalls->count();
+
+            $available = $stalls->where('status', EvStallStatus::Available)->count();
+            $occupied = $stalls->where('status', EvStallStatus::Occupied)->count();
+            $reserved = $stalls->where('status', EvStallStatus::Reserved)->count();
+            $outOfService = $stalls->where('status', EvStallStatus::OutOfService)->count();
+
+            $soonestDeparture = $stalls
+                ->where('status', EvStallStatus::Occupied)
+                ->whereNotNull('estimated_departure_at')
+                ->where('estimated_departure_at', '>', now())
+                ->sortBy('estimated_departure_at')
+                ->first();
+
+            $estimatedWait = $soonestDeparture
+                ? (int) now()->diffInMinutes($soonestDeparture->estimated_departure_at, absolute: true)
+                : null;
+
+            $availability = [
+                'total' => $totalStalls,
+                'available' => $available,
+                'occupied' => $occupied,
+                'reserved' => $reserved,
+                'out_of_service' => $outOfService,
+                'queue_length' => $station->queue_length,
+            ];
 
             return [
                 'station_id' => $station->id,
                 'station_name' => $station->name,
                 'city_id' => $station->city_id,
-                'total_stalls' => $station->total_stalls,
+                'total_stalls' => $totalStalls,
                 'availability' => $availability,
-                'occupancy_rate' => $station->total_stalls > 0
-                    ? round(($availability['occupied'] + $availability['reserved']) / $station->total_stalls * 100, 1)
+                'occupancy_rate' => $totalStalls > 0
+                    ? round(($occupied + $reserved) / $totalStalls * 100, 1)
                     : 0,
-                'estimated_wait_minutes' => $this->stallService->getEstimatedWaitMinutes($station),
+                'estimated_wait_minutes' => $estimatedWait,
             ];
         });
 
@@ -180,7 +210,7 @@ class AdminEvStationController extends Controller
             'utilisation' => $utilisation,
             'summary' => [
                 'total_stations' => $stations->count(),
-                'total_stalls' => $stations->sum('total_stalls'),
+                'total_stalls' => $utilisation->sum('total_stalls'),
                 'total_available' => $utilisation->sum('availability.available'),
                 'total_occupied' => $utilisation->sum('availability.occupied'),
                 'average_occupancy_rate' => $utilisation->avg('occupancy_rate'),

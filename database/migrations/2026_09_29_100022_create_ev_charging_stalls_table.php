@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamp('estimated_departure_at')->nullable();
             $table->timestamp('updated_at')->nullable();
 
-            $table->index('station_id');
+            $table->unique(['station_id', 'stall_number']);
         });
     }
 

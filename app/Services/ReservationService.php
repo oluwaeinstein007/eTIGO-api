@@ -18,23 +18,18 @@ class ReservationService
         private readonly TierGateService $tierGate,
     ) {}
 
-    /**
-     * Three outcomes:
-     * (a) Stall available → immediate lock
-     * (b) Occupied but departure imminent → queue hold
-     * (c) Wait > threshold → return retry delay
-     */
-    public function reserve(EvChargingStation $station, User $driver): array
+    public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
     {
-        $this->validateDriverEligibility($driver);
+        return DB::transaction(function () use ($station, $driver, $estimatedChargeMinutes) {
+            EvChargingStation::where('id', $station->id)->lockForUpdate()->first();
+            User::where('id', $driver->id)->lockForUpdate()->first();
 
-        return DB::transaction(function () use ($station, $driver) {
-            $station->lockForUpdate();
+            $this->validateDriverEligibility($driver);
 
             $availableStall = $this->stallService->findAvailableStall($station);
 
             if ($availableStall) {
-                return $this->immediateReservation($station, $availableStall, $driver);
+                return $this->immediateReservation($station, $availableStall, $driver, $estimatedChargeMinutes);
             }
 
             $imminentStall = $this->stallService->findImminentDepartureStall($station);
@@ -47,97 +42,115 @@ class ReservationService
         });
     }
 
-    public function activate(EvReservation $reservation): EvReservation
+    public function activate(EvReservation $reservation, ?int $estimatedChargeMinutes = null): EvReservation
     {
-        if ($reservation->status !== EvReservationStatus::Reserved) {
-            throw new \RuntimeException('Only reserved reservations can be activated.');
-        }
+        return DB::transaction(function () use ($reservation, $estimatedChargeMinutes) {
+            $reservation = EvReservation::lockForUpdate()->find($reservation->id);
 
-        $reservation->update([
-            'status' => EvReservationStatus::Active,
-            'activated_at' => now(),
-        ]);
+            if ($reservation->status !== EvReservationStatus::Reserved) {
+                throw new \RuntimeException('Only reserved reservations can be activated.');
+            }
 
-        if ($reservation->stall) {
-            $this->stallService->occupyStall($reservation->stall, $reservation->driver_id);
-        }
+            $reservation->update([
+                'status' => EvReservationStatus::Active,
+                'activated_at' => now(),
+            ]);
 
-        Log::info('EV reservation activated', [
-            'reservation_id' => $reservation->id,
-            'stall_id' => $reservation->stall_id,
-        ]);
+            if ($reservation->stall) {
+                $this->stallService->occupyStall($reservation->stall, $reservation->driver_id, $estimatedChargeMinutes);
+            }
 
-        return $reservation->fresh();
+            Log::info('EV reservation activated', [
+                'reservation_id' => $reservation->id,
+                'stall_id' => $reservation->stall_id,
+            ]);
+
+            return $reservation->fresh();
+        });
     }
 
     public function complete(EvReservation $reservation): EvReservation
     {
-        if (! in_array($reservation->status, [EvReservationStatus::Active, EvReservationStatus::Reserved])) {
-            throw new \RuntimeException('Only active or reserved reservations can be completed.');
-        }
+        return DB::transaction(function () use ($reservation) {
+            $reservation = EvReservation::lockForUpdate()->find($reservation->id);
 
-        $reservation->update([
-            'status' => EvReservationStatus::Completed,
-            'completed_at' => now(),
-        ]);
+            if (! in_array($reservation->status, [EvReservationStatus::Active, EvReservationStatus::Reserved])) {
+                throw new \RuntimeException('Only active or reserved reservations can be completed.');
+            }
 
-        if ($reservation->stall_id) {
-            $this->stallService->releaseStall($reservation->stall);
-            $this->transferToNextQueued($reservation->station);
-        }
+            $reservation->update([
+                'status' => EvReservationStatus::Completed,
+                'completed_at' => now(),
+            ]);
 
-        Log::info('EV reservation completed', ['reservation_id' => $reservation->id]);
+            if ($reservation->stall_id) {
+                $this->stallService->releaseStall($reservation->stall);
+                $this->transferToNextQueued($reservation->station);
+            }
 
-        return $reservation->fresh();
+            Log::info('EV reservation completed', ['reservation_id' => $reservation->id]);
+
+            return $reservation->fresh();
+        });
     }
 
     public function cancel(EvReservation $reservation): EvReservation
     {
-        if ($reservation->status->isTerminal()) {
-            throw new \RuntimeException('Cannot cancel a terminal reservation.');
-        }
+        return DB::transaction(function () use ($reservation) {
+            $reservation = EvReservation::lockForUpdate()->find($reservation->id);
 
-        $wasQueued = $reservation->status === EvReservationStatus::Queued;
-        $stationId = $reservation->station_id;
+            if ($reservation->status->isTerminal()) {
+                throw new \RuntimeException('Cannot cancel a terminal reservation.');
+            }
 
-        $reservation->update([
-            'status' => EvReservationStatus::Cancelled,
-        ]);
+            $wasQueued = $reservation->status === EvReservationStatus::Queued;
+            $hadStall = $reservation->stall_id !== null;
+            $station = $reservation->station;
 
-        if ($reservation->stall_id && $reservation->stall?->status === EvStallStatus::Reserved) {
-            $this->stallService->releaseStall($reservation->stall);
-        }
+            $reservation->update([
+                'status' => EvReservationStatus::Cancelled,
+            ]);
 
-        if ($wasQueued) {
-            $this->reorderQueue($stationId);
-        }
+            if ($hadStall && $reservation->stall) {
+                $this->stallService->releaseStall($reservation->stall);
+                $this->transferToNextQueued($station);
+            }
 
-        Log::info('EV reservation cancelled', ['reservation_id' => $reservation->id]);
+            if ($wasQueued) {
+                $this->reorderQueue($reservation->station_id);
+            }
 
-        return $reservation->fresh();
+            Log::info('EV reservation cancelled', ['reservation_id' => $reservation->id]);
+
+            return $reservation->fresh();
+        });
     }
 
     public function expire(EvReservation $reservation): EvReservation
     {
-        if ($reservation->status->isTerminal()) {
-            return $reservation;
-        }
+        return DB::transaction(function () use ($reservation) {
+            $reservation = EvReservation::lockForUpdate()->find($reservation->id);
 
-        $reservation->update([
-            'status' => EvReservationStatus::Expired,
-        ]);
+            if ($reservation->status->isTerminal()) {
+                return $reservation;
+            }
 
-        if ($reservation->stall_id && $reservation->stall?->status === EvStallStatus::Reserved) {
-            $this->stallService->releaseStall($reservation->stall);
-            $this->transferToNextQueued($reservation->station);
-        }
+            $reservation->update([
+                'status' => EvReservationStatus::Expired,
+            ]);
 
-        Log::info('EV reservation expired', ['reservation_id' => $reservation->id]);
+            if ($reservation->stall_id && $reservation->stall) {
+                $this->stallService->releaseStall($reservation->stall);
+                $this->transferToNextQueued($reservation->station);
+            }
 
-        return $reservation->fresh();
+            Log::info('EV reservation expired', ['reservation_id' => $reservation->id]);
+
+            return $reservation->fresh();
+        });
     }
 
-    public function transferToNextQueued(EvChargingStation $station): void
+    public function transferToNextQueued(EvChargingStation $station): ?EvReservation
     {
         $nextInQueue = EvReservation::forStation($station->id)
             ->queued()
@@ -145,13 +158,13 @@ class ReservationService
             ->first();
 
         if (! $nextInQueue) {
-            return;
+            return null;
         }
 
         $availableStall = $this->stallService->findAvailableStall($station);
 
         if (! $availableStall) {
-            return;
+            return null;
         }
 
         $this->stallService->reserveStall($availableStall);
@@ -169,22 +182,28 @@ class ReservationService
             'reservation_id' => $nextInQueue->id,
             'stall_id' => $availableStall->id,
         ]);
+
+        return $nextInQueue->fresh();
     }
 
     private function immediateReservation(
         EvChargingStation $station,
         EvChargingStall $stall,
         User $driver,
+        ?int $estimatedChargeMinutes = null,
     ): array {
         $this->stallService->reserveStall($stall);
+
+        $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
 
         $reservation = EvReservation::create([
             'stall_id' => $stall->id,
             'station_id' => $station->id,
             'driver_id' => $driver->id,
             'status' => EvReservationStatus::Reserved,
-            'fee_amount' => $this->calculateFee($driver),
-            'fee_waived' => $this->tierGate->isEvReservationFeeWaived($driver->id),
+            'fee_amount' => $feeWaived ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
+            'fee_waived' => $feeWaived,
+            'estimated_charge_minutes' => $estimatedChargeMinutes,
             'reserved_at' => now(),
         ]);
 
@@ -213,6 +232,7 @@ class ReservationService
         }
 
         $queuePosition = $currentQueueSize + 1;
+        $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
 
         $reservation = EvReservation::create([
             'station_id' => $station->id,
@@ -220,8 +240,8 @@ class ReservationService
             'status' => EvReservationStatus::Queued,
             'queue_position' => $queuePosition,
             'estimated_available_at' => $imminentStall->estimated_departure_at,
-            'fee_amount' => $this->calculateFee($driver),
-            'fee_waived' => $this->tierGate->isEvReservationFeeWaived($driver->id),
+            'fee_amount' => $feeWaived ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
+            'fee_waived' => $feeWaived,
             'reserved_at' => now(),
         ]);
 
@@ -267,15 +287,6 @@ class ReservationService
         if ($activeCount >= $maxActive) {
             throw new \RuntimeException('You already have an active reservation.');
         }
-    }
-
-    private function calculateFee(User $driver): float
-    {
-        if ($this->tierGate->isEvReservationFeeWaived($driver->id)) {
-            return 0.00;
-        }
-
-        return (float) config('ev_charging.reservation_fee', 500.00);
     }
 
     private function reorderQueue(string $stationId): void

@@ -11026,7 +11026,7 @@
             {
               "name": "Manage Stalls",
               "request": {
-                "method": "POST",
+                "method": "PUT",
                 "header": [
                   {
                     "key": "Accept",

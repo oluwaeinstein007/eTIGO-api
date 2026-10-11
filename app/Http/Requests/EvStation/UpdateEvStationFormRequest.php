@@ -21,7 +21,6 @@ class UpdateEvStationFormRequest extends FormRequest
             'lat' => ['sometimes', 'numeric', 'between:-90,90'],
             'lng' => ['sometimes', 'numeric', 'between:-180,180'],
             'address' => ['sometimes', 'string', 'max:500'],
-            'total_stalls' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'status' => ['sometimes', Rule::in(array_column(EvStationStatus::cases(), 'value'))],
         ];
     }
