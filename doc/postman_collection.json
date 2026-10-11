@@ -11226,7 +11226,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Auth required. Initializes a payment with Paystack. Returns a payment link and transaction reference."
+                "description": "Auth required. Initializes a payment with Paystack. Supported channels: card, bank transfer, USSD. OPay users can pay via bank transfer (transfer to the generated temporary account). Returns a payment link and transaction reference."
               },
               "response": [
                 {

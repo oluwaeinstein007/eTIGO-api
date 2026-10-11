@@ -5715,6 +5715,9 @@ Returns available payment methods for the authenticated user. Cash is always inc
 ```
 POST /payments/initialize
 ```
+
+Initializes a Paystack payment for a ride. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can pay via the bank transfer option (transfer to the generated temporary account number from their OPay app).
+
 | Field        | Type   | Required | Description                       |
 |--------------|--------|----------|-----------------------------------|
 | amount       | number | Yes      | Amount (≥1)                       |
@@ -5876,7 +5879,7 @@ Authorization: Bearer {passenger_token}
 |--------|---------|----------|------------------------------|
 | amount | numeric | Yes      | Min ₦50, max ₦50,000        |
 
-Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash rides, the tip is logged. Only one tip per ride.
+Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash/bank-transfer/USSD rides, the tip is logged. Only one tip per ride.
 
 **Response 200:**
 ```json
@@ -7673,7 +7676,7 @@ Authorization: Bearer {passenger_token}
 Content-Type: application/json
 ```
 
-Initializes a Paystack payment for wallet top-up. Amounts are in kobo.
+Initializes a Paystack payment for wallet top-up. Amounts are in kobo. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can fund their wallet via the bank transfer option (transfer to the generated temporary account number from their OPay app).
 
 **Request Body:**
 
