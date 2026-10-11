@@ -4,7 +4,10 @@
 .env.backup
 .env.production
 .env.passenger-simulator.local
+.env.driver-simulator.local
+.driver-simulator-state.json
 /scripts/passenger-simulator*.mjs
+/scripts/driver-simulator*.mjs
 .phpactor.json
 .phpunit.result.cache
 /.codex

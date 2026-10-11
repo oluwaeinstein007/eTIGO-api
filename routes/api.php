@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
-use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
@@ -15,6 +14,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
 use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminReportController;
@@ -53,8 +53,8 @@ use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
-use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\RideCancellationReasonController;
 use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideDisputeController;
@@ -276,6 +276,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/nearby-rides', NearbyRidesController::class);
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
     Route::get('/stats', [DriverStatsController::class, 'show']);
