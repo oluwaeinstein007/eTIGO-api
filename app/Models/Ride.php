@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,7 +49,6 @@ class Ride extends Model
         return [
             'status' => RideStatus::class,
             'payment_method' => PaymentMethod::class,
-            'payment_status' => PaymentStatus::class,
             'pickup_lat' => 'decimal:7',
             'pickup_lng' => 'decimal:7',
             'destination_lat' => 'decimal:7',
@@ -60,6 +60,28 @@ class Ride extends Model
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
+    }
+
+    protected function paymentStatus(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if ($value === null) {
+                    return null;
+                }
+
+                if ($value instanceof PaymentStatus) {
+                    return $value;
+                }
+
+                if ($value === 'paid' || $value === 'successful') {
+                    return PaymentStatus::Settled;
+                }
+
+                return PaymentStatus::tryFrom((string) $value);
+            },
+            set: fn ($value) => $value instanceof PaymentStatus ? $value->value : $value,
+        );
     }
 
     public function city(): BelongsTo

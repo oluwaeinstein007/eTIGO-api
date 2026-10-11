@@ -12,6 +12,7 @@ enum PaymentStatus: string
     case Failed = 'failed';
     case PendingCollection = 'pending_collection';
     case Collected = 'collected';
+    case Paid = 'paid';
 
     public function label(): string
     {
@@ -24,6 +25,7 @@ enum PaymentStatus: string
             self::Failed => 'Failed',
             self::PendingCollection => 'Pending Collection',
             self::Collected => 'Collected',
+            self::Paid => 'Paid',
         };
     }
 }

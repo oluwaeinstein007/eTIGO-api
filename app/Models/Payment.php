@@ -53,7 +53,7 @@ class Payment extends Model
                     return $value;
                 }
 
-                if ($value === 'successful') {
+                if ($value === 'successful' || $value === 'paid') {
                     return PaymentStatus::Settled;
                 }
 
@@ -104,6 +104,7 @@ class Payment extends Model
             PaymentStatus::Captured,
             PaymentStatus::Collected,
             PaymentStatus::Settled,
+            PaymentStatus::Paid,
         ]);
     }
 }
