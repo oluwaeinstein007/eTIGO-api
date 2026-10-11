@@ -22,6 +22,8 @@ class Payment extends Model
         'method',
         'gateway_transaction_id',
         'gateway_payment_method_id',
+        'gateway_tx_ref',
+        'gateway_payment_link',
         'tip_amount',
         'status',
         'failure_reason',

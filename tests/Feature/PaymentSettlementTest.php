@@ -130,6 +130,38 @@ describe('ProcessPaymentJob', function () {
     });
 });
 
+describe('Bank transfer payment', function () {
+    it('creates a pending payment with payment link for bank transfer rides', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::BankTransfer,
+            'final_fare_amount' => 5000,
+        ]);
+
+        $service = app(PaymentService::class);
+        $payment = $service->processRidePayment($ride);
+
+        expect($payment->method)->toBe(PaymentMethod::BankTransfer)
+            ->and($payment->status)->toBe(PaymentStatus::Pending)
+            ->and($payment->gateway_tx_ref)->not->toBeNull()
+            ->and($payment->gateway_payment_link)->not->toBeNull();
+    });
+
+    it('rejects cash confirmation for bank transfer rides', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::BankTransfer,
+        ]);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash");
+
+        $response->assertUnprocessable();
+    });
+});
+
 describe('Cash confirmation', function () {
     it('allows driver to confirm cash collection', function () {
         $ride = Ride::factory()->completed()->create([

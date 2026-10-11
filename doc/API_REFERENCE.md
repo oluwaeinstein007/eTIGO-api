@@ -4190,7 +4190,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lat    | number  | Yes      | Destination latitude                |
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
-| payment_method     | string  | Yes      | `cash`, `card`, or `wallet`         |
+| payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
 
 **Response 201:**
 ```json
@@ -5715,6 +5715,9 @@ Returns available payment methods for the authenticated user. Cash is always inc
 ```
 POST /payments/initialize
 ```
+
+Initializes a Paystack payment for a ride. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can pay via the bank transfer option (transfer to the generated temporary account number from their OPay app).
+
 | Field        | Type   | Required | Description                       |
 |--------------|--------|----------|-----------------------------------|
 | amount       | number | Yes      | Amount (≥1)                       |
@@ -5809,6 +5812,19 @@ Only the owner can delete it.
 
 ## Payment & Settlement
 
+### Payment Methods
+
+| Method | Value | Flow |
+|--------|-------|------|
+| Cash | `cash` | Driver collects cash → confirms via API |
+| Card | `card` | Auto-charged via saved card token at ride completion |
+| Wallet | `wallet` | Auto-debited from passenger wallet at ride completion |
+| Bank Transfer | `bank_transfer` | Paystack checkout link generated at ride completion (supports bank transfer, USSD, card). Passenger completes payment via the link. OPay users transfer to the generated temporary account. Confirmed via Paystack webhook. |
+
+When a ride completes with `payment_method=bank_transfer`, the payment response includes a `payment_link` field. The mobile app should present this link to the passenger to complete payment. The payment status updates from `pending` to `captured` automatically when the Paystack webhook confirms the transaction.
+
+---
+
 ### Confirm Cash Collection (Driver)
 ```
 POST /rides/{ride_id}/confirm-cash
@@ -5876,7 +5892,7 @@ Authorization: Bearer {passenger_token}
 |--------|---------|----------|------------------------------|
 | amount | numeric | Yes      | Min ₦50, max ₦50,000        |
 
-Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash rides, the tip is logged. Only one tip per ride.
+Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash/bank-transfer/USSD rides, the tip is logged. Only one tip per ride.
 
 **Response 200:**
 ```json
@@ -7166,6 +7182,50 @@ Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate b
 
 **Response 422:** Already at max tier or resolved.
 
+### Confirm Permanent Deactivation
+
+`POST /api/v1/admin/offline-flags/{flag}/confirm-deactivation`
+
+Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3. Sets the driver's status to `deactivated` and forces them offline.
+
+**Auth required (admin).** Roles: `operations`, `safety_operator`
+
+No request body required.
+
+**Response 200:**
+```json
+{
+  "message": "Driver permanently deactivated after admin review.",
+  "flag": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "driver_id": "uuid",
+    "passenger_id": "uuid",
+    "sanction_tier": { "value": 3, "label": "Permanent Deactivation" },
+    "sanction_action": "pending_admin_review",
+    "is_disputed": false,
+    "flagged_at": "2026-10-10T14:30:00.000000Z",
+    "driver": { "..." },
+    "passenger": { "..." },
+    "ride": { "..." }
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation."
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Driver not found."
+}
+```
+
 **Sanction Tiers:**
 | Tier | Label | Action |
 |------|-------|--------|
@@ -7673,7 +7733,7 @@ Authorization: Bearer {passenger_token}
 Content-Type: application/json
 ```
 
-Initializes a Paystack payment for wallet top-up. Amounts are in kobo.
+Initializes a Paystack payment for wallet top-up. Amounts are in kobo. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can fund their wallet via the bank transfer option (transfer to the generated temporary account number from their OPay app).
 
 **Request Body:**
 
@@ -7844,7 +7904,7 @@ Returns the earnings breakdown for a specific completed ride. Driver can only vi
 | `commission_rate` | float | Commission rate applied (e.g. 0.2 = 20%) |
 | `commission_kobo` | integer | Commission amount deducted (kobo) |
 | `net_earnings_kobo` | integer | Driver's net earnings after commission (kobo) |
-| `payment_method` | string | `cash`, `card`, or `wallet` |
+| `payment_method` | string | `cash`, `card`, `wallet`, or `bank_transfer` |
 | `tip_amount` | integer | Tip amount in ₦ (0 if no tip) |
 | `completed_at` | string | ISO 8601 timestamp of ride completion |
 
@@ -8472,6 +8532,9 @@ Super Admins always bypass role checks and have full access.
 | `/admin/fleet-vehicles` | Yes | — | Yes | — |
 | `/admin/fleet-agreements` | Yes | — | Yes | — |
 | `/admin/gamification` | Yes | — | — | — |
+| `/admin/sos` | — | — | — | Yes |
+| `/admin/offline-flags` | Yes | — | — | Yes |
+| `/admin/ev-stations` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
 | `/admin/disputes` | — | Yes | — | — |
 | `/admin/wallets` | — | Yes | Yes | — |
@@ -8493,6 +8556,7 @@ Super Admins always bypass role checks and have full access.
 | `approved`       | KYC approved, can go online              |
 | `rejected`       | KYC rejected (reason provided)           |
 | `suspended`      | Account suspended by admin               |
+| `deactivated`    | Permanently deactivated (L3 offline flag) |
 
 ### Vehicle Ownership Type
 | Value           | Description                                    |
@@ -8553,6 +8617,24 @@ Super Admins always bypass role checks and have full access.
 | `verified`   | Identity confirmed                               |
 | `failed`     | Verification failed (reason in failure_reason)   |
 | `expired`    | Superseded by a newer verification (e.g. plate change) |
+
+### SOS Incident Status
+| Value               | Description                                |
+|---------------------|--------------------------------------------|
+| `triggered`         | SOS triggered, awaiting check-in dispatch  |
+| `check_in_sent`     | Check-in prompt sent to user               |
+| `acknowledged`      | User confirmed they are safe (terminal)    |
+| `escalated`         | No response — escalated to safety console  |
+| `operator_assigned` | Safety operator self-assigned              |
+| `dispatched`        | Emergency services dispatch initiated      |
+| `resolved`          | Incident closed by operator (terminal)     |
+| `cancelled`         | Incident cancelled by user (terminal)      |
+
+### SOS Trigger Type
+| Value       | Description                        |
+|-------------|------------------------------------|
+| `passenger` | Triggered by the passenger         |
+| `driver`    | Triggered by the driver            |
 
 ### Ride Status
 | Value             | Description                                      |

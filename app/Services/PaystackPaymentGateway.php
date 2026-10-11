@@ -39,7 +39,7 @@ class PaystackPaymentGateway implements PaymentGateway
             'currency' => $data['currency'] ?? 'NGN',
             'callback_url' => $data['redirect_url'],
             'email' => $data['customer_email'],
-            'channels' => ['card'],
+            'channels' => ['card', 'bank_transfer', 'ussd'],
         ]);
 
         return [
