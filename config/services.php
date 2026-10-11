@@ -73,6 +73,7 @@ return [
     'paystack' => [
         'secret_key' => env('PAYSTACK_SECRET_KEY'),
         'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'fake' => filter_var(env('PAYSTACK_FAKE', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'qoreid' => [

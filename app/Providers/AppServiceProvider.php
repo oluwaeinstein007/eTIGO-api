@@ -119,13 +119,17 @@ class AppServiceProvider extends ServiceProvider
     private function registerPaymentGateway(): void
     {
         $this->app->bind(PaymentGateway::class, function () {
+            if (config('services.paystack.fake', false)) {
+                return new FakePaymentGateway;
+            }
+
             $secretKey = config('services.paystack.secret_key');
 
             if ($secretKey) {
                 return new PaystackPaymentGateway($secretKey);
             }
 
-            if (! $this->app->environment('local', 'testing')) {
+            if (! $this->app->environment('local', 'testing', 'staging')) {
                 throw new \RuntimeException('Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in your environment.');
             }
 

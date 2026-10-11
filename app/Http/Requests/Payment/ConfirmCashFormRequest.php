@@ -41,6 +41,10 @@ class ConfirmCashFormRequest extends FormRequest
                     $validator->errors()->add('ride', 'This ride is not a cash payment.');
                 }
 
+                if ($ride->payment_status === PaymentStatus::Collected) {
+                    $validator->errors()->add('ride', 'Cash has already been confirmed.');
+                }
+
                 $payment = $ride->payment;
                 if ($payment && $payment->status !== PaymentStatus::PendingCollection) {
                     $validator->errors()->add('ride', 'Cash has already been confirmed or payment is in an unexpected state.');
