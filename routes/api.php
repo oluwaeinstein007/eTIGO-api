@@ -64,6 +64,8 @@ use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
+use App\Http\Controllers\Api\V1\SosController;
+use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWalletWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -216,6 +218,17 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::get('/{ride}/receipt', [RideReceiptController::class, 'show']);
     Route::post('/{ride}/rating', [RideRatingController::class, 'store']);
     Route::post('/{ride}/dispute', [RideDisputeController::class, 'store']);
+    Route::post('/{ride}/sos', [SosController::class, 'trigger']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| SOS Routes (Authenticated — ride participant)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->prefix('sos')->group(function () {
+    Route::post('/{incident}/acknowledge', [SosController::class, 'acknowledge']);
+    Route::post('/{incident}/cancel', [SosController::class, 'cancel']);
 });
 
 /*
@@ -393,6 +406,15 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{promo}', [AdminPromoController::class, 'update']);
         Route::patch('/{promo}/status', [AdminPromoController::class, 'toggleStatus']);
         Route::get('/{promo}/performance', [AdminPromoController::class, 'performance']);
+    });
+
+    Route::middleware('admin.role:safety_operator')->prefix('sos')->group(function () {
+        Route::get('/active', [AdminSosController::class, 'active']);
+        Route::get('/history', [AdminSosController::class, 'history']);
+        Route::get('/{incident}', [AdminSosController::class, 'show']);
+        Route::post('/{incident}/assign', [AdminSosController::class, 'assign']);
+        Route::post('/{incident}/dispatch', [AdminSosController::class, 'dispatch']);
+        Route::post('/{incident}/resolve', [AdminSosController::class, 'resolve']);
     });
 
     Route::middleware('admin.role:support')->prefix('disputes')->group(function () {

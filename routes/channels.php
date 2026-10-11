@@ -33,6 +33,11 @@ Broadcast::channel('admin.rides', function (User $user): bool {
     return $user->isAdmin();
 });
 
+Broadcast::channel('admin.sos', function (User $user): bool {
+    return $user->isAdmin() && $user->isSafetyOperator()
+        || $user->admin_role === \App\Enums\AdminRole::SuperAdmin;
+});
+
 Broadcast::channel('driver.{driverUserId}', function (User $user, string $driverUserId): bool {
     return $user->id === $driverUserId && $user->isDriver();
 });

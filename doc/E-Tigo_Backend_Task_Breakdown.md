@@ -410,20 +410,20 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-SOS-01 | `[ ]` Create `SosIncident`, `SosEventLog` Eloquent models with relationships | — | SETUP-27, SETUP-28 | SosEventLog is read-only; no update/delete |
-| BE-SOS-02 | `[ ]` Create `SosService` — orchestrate incident lifecycle: trigger → check-in → escalate → resolve/cancel; write every event to sos_event_log | B-16–B-18 | BE-SOS-01 | — |
-| BE-SOS-03 | `[ ]` Create `SosController@trigger` — `POST /api/v1/rides/{ride}/sos`: validate ride is active, capture GPS + vehicle + IDs, encrypt telemetry, create incident, dispatch check-in job | B-16, SOS-02 | BE-SOS-02, BE-RIDE-01 | 🔒 Encrypt telemetry at rest (NF-04) |
-| BE-SOS-04 | `[ ]` Create `TriggerSosFormRequest` — validate ride is in active state (driver_en_route through in_progress), GPS coords | SOS-02 | BE-SOS-03 | — |
-| BE-SOS-05 | `[ ]` Create `SendSosCheckInJob` — push check-in prompt to triggering user's device; update incident status to check_in_sent; dispatch escalation timeout job | B-17, SOS-03 | BE-SOS-02, SETUP-57 | ⏱ Safety-critical P0 — server-side timer, not client-dependent (NF-08) |
-| BE-SOS-06 | `[ ]` Create `SosEscalationTimeoutJob` — delayed 30-second job; if check-in not acknowledged, escalate to Safety Operator queue; broadcast to admin SOS channel | A-25, B-17 | BE-SOS-05, BE-LOC-03 | — |
-| BE-SOS-07 | `[ ]` Create `SosController@acknowledge` — `POST /api/v1/sos/{incident}/acknowledge`: user acknowledges check-in; update status; cancel escalation job | SOS-03 | BE-SOS-05 | — |
-| BE-SOS-08 | `[ ]` Create `SosController@cancel` — `POST /api/v1/sos/{incident}/cancel`: user cancels SOS; update status; log cancellation (not silently discarded) | SOS-04, A-27 | BE-SOS-02, SETUP-28 | — |
-| BE-SOS-09 | `[ ]` Create `AdminSosController@active` — `GET /api/v1/admin/sos/active`: list active/unacknowledged incidents with trip + telemetry detail | A-24 | BE-SOS-01, SETUP-52 | Safety Operator scope only |
-| BE-SOS-10 | `[ ]` Create `AdminSosController@assign` — `POST /api/v1/admin/sos/{incident}/assign`: operator self-assigns | A-24 | BE-SOS-09 | — |
-| BE-SOS-11 | `[ ]` Create `AdminSosController@dispatch` — `POST /api/v1/admin/sos/{incident}/dispatch`: trigger emergency-services handoff | A-26, B-18 | BE-SOS-10 | ⚠ OQ-04: Integration provider TBD; may launch as voice-outreach-only |
-| BE-SOS-12 | `[ ]` Create `AdminSosController@resolve` — `POST /api/v1/admin/sos/{incident}/resolve`: resolve with notes; audit log | A-27 | BE-SOS-10 | — |
-| BE-SOS-13 | `[ ]` Create `SosIncidentEscalated` broadcastable event for admin SOS channel | A-24 | BE-SOS-06, BE-LOC-03 | Real-time feed to SOS console |
-| BE-SOS-14 | `[ ]` Create `SosIncidentResource` API resource | — | BE-SOS-01 | — |
+| BE-SOS-01 | `[x]` Create `SosIncident`, `SosEventLog` Eloquent models with relationships; `SosIncidentStatus` and `SosTriggerType` enums; `SosIncidentFactory` with state helpers (checkInSent, acknowledged, escalated, operatorAssigned, resolved, cancelled, driverTriggered) | — | SETUP-27, SETUP-28 | SosEventLog is read-only; no update/delete; telemetry encrypted via `encrypted:array` cast (NF-04) |
+| BE-SOS-02 | `[x]` Create `SosService` — orchestrate incident lifecycle: trigger → check-in → escalate → resolve/cancel; explicit state machine with valid transitions map; write every event to sos_event_log; configurable via `config/sos.php` | B-16–B-18 | BE-SOS-01 | Supports operator reassignment; atomic transitions with row locking |
+| BE-SOS-03 | `[x]` Create `SosController@trigger` — `POST /api/v1/rides/{ride}/sos`: validate ride is active, capture GPS + vehicle + IDs, encrypt telemetry, create incident, dispatch check-in job; prevents duplicate active incidents per ride | B-16, SOS-02 | BE-SOS-02, BE-RIDE-01 | 🔒 Encrypt telemetry at rest (NF-04) via `encrypted:array` cast on `text` columns |
+| BE-SOS-04 | `[x]` Create `TriggerSosFormRequest` — validate ride is in active state (requested through in_progress), GPS coords (lat -90/90, lng -180/180), optional speed/heading; validates user is ride participant | SOS-02 | BE-SOS-03 | — |
+| BE-SOS-05 | `[x]` Create `SendSosCheckInJob` — push check-in prompt to triggering user's device via `PushNotificationGateway`; update incident status to check_in_sent; broadcast `SosCheckInRequested` event; dispatch escalation timeout job | B-17, SOS-03 | BE-SOS-02, SETUP-57 | ⏱ Safety-critical P0 — server-side timer, not client-dependent (NF-08); 3 retries, 5s backoff |
+| BE-SOS-06 | `[x]` Create `SosEscalationTimeoutJob` — delayed 30-second job (configurable via `SOS_ESCALATION_TIMEOUT`); if check-in not acknowledged, escalate to Safety Operator queue; broadcast `SosIncidentEscalated` to admin SOS channel; notify other ride participant | A-25, B-17 | BE-SOS-05, BE-LOC-03 | — |
+| BE-SOS-07 | `[x]` Create `SosController@acknowledge` — `POST /api/v1/sos/{incident}/acknowledge`: user acknowledges check-in; update status; only triggering user can acknowledge | SOS-03 | BE-SOS-05 | — |
+| BE-SOS-08 | `[x]` Create `SosController@cancel` — `POST /api/v1/sos/{incident}/cancel`: user cancels SOS; update status; log cancellation (not silently discarded); triggering user or admin can cancel | SOS-04, A-27 | BE-SOS-02, SETUP-28 | — |
+| BE-SOS-09 | `[x]` Create `AdminSosController@active` — `GET /api/v1/admin/sos/active`: list active/unacknowledged incidents with trip + telemetry detail; prioritized ordering (escalated → triggered → check_in_sent → operator_assigned → dispatched) | A-24 | BE-SOS-01, SETUP-52 | Safety Operator scope only; includes `show` and `history` endpoints |
+| BE-SOS-10 | `[x]` Create `AdminSosController@assign` — `POST /api/v1/admin/sos/{incident}/assign`: operator self-assigns; supports reassignment; atomic with row locking | A-24 | BE-SOS-09 | — |
+| BE-SOS-11 | `[x]` Create `AdminSosController@dispatch` — `POST /api/v1/admin/sos/{incident}/dispatch`: trigger emergency-services handoff; validates emergency_service_type (police/ambulance/fire/all), optional contact_number and notes | A-26, B-18 | BE-SOS-10 | ⚠ OQ-04: Integration provider TBD; currently logs dispatch metadata for manual outreach |
+| BE-SOS-12 | `[x]` Create `AdminSosController@resolve` — `POST /api/v1/admin/sos/{incident}/resolve`: resolve with notes (min 10 chars); audit log; auto-assigns operator if not yet assigned | A-27 | BE-SOS-10 | — |
+| BE-SOS-13 | `[x]` Create `SosIncidentEscalated` and `SosCheckInRequested` broadcastable events for admin SOS channel and user channel respectively | A-24 | BE-SOS-06, BE-LOC-03 | Real-time feed to SOS console; `admin.sos` channel authorized for SafetyOperator + SuperAdmin |
+| BE-SOS-14 | `[x]` Create `SosIncidentResource` and `SosEventLogResource` API resources; admin-conditional fields for vehicle_details, telemetry_data, operator info, event logs | — | BE-SOS-01 | — |
 
 ---
 
