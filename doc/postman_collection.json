@@ -392,6 +392,78 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Public \u2014 EV Stations",
+          "item": [
+            {
+              "name": "List EV Stations by City",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/ev-stations?city_id={{city_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "ev-stations"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "{{city_id}}",
+                      "description": "Required. UUID of the city."
+                    }
+                  ]
+                },
+                "description": "Public endpoint. Lists active EV charging stations for a given city with real-time stall availability. No authentication required."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Active Stations",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"stations\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lekki Phase 1 Charging Hub\",\n      \"city_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"lat\": \"6.4378000\",\n      \"lng\": \"3.4709000\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 6,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"availability\": {\n        \"available\": 3,\n        \"occupied\": 2,\n        \"reserved\": 1,\n        \"out_of_service\": 0\n      }\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show EV Station Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/ev-stations/{{ev_station_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "ev-stations",
+                    "{{ev_station_id}}"
+                  ]
+                },
+                "description": "Returns detailed information about a single EV charging station including all stalls and availability. No authentication required."
+              },
+              "response": []
+            }
+          ]
         }
       ],
       "description": "Endpoints that require no authentication."
@@ -4986,6 +5058,246 @@
                   ]
                 },
                 "description": "Driver disputes an offline trip flag. Notes must be at least 10 characters. Can only dispute flags assigned to the authenticated driver. Cannot dispute already-disputed flags.\n\n**Auth:** Driver token required."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Driver \u2014 EV Reservations",
+          "item": [
+            {
+              "name": "Reserve EV Stall",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estimated_charge_minutes\": 45\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations/stations/{{ev_station_id}}/reserve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations",
+                    "stations",
+                    "{{ev_station_id}}",
+                    "reserve"
+                  ]
+                },
+                "description": "Request an EV stall reservation. Three possible outcomes:\n\n1. **reserved** (201): Stall available \u2014 immediate lock granted.\n2. **queued** (200): All stalls occupied but departure imminent \u2014 driver joins queue.\n3. **retry** (200): No availability and no imminent departures \u2014 retry after delay.\n\nLimits: one active reservation per driver. Station must be active."
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Immediate Reservation",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Stall reserved successfully.\",\n  \"outcome\": \"reserved\",\n  \"reservation\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"station_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"stall_id\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\n    \"status\": {\n      \"value\": \"reserved\",\n      \"label\": \"Reserved\"\n    },\n    \"fee_amount\": \"500.00\",\n    \"fee_waived\": false,\n    \"reserved_at\": \"2026-10-11T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Queued",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Added to queue.\",\n  \"outcome\": \"queued\",\n  \"reservation\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"status\": {\n      \"value\": \"queued\",\n      \"label\": \"Queued\"\n    }\n  },\n  \"queue_position\": 2,\n  \"estimated_available_at\": \"2026-10-11T10:15:00.000000Z\"\n}"
+                },
+                {
+                  "name": "200 \u2014 Retry Later",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"All stalls occupied. Please try again later.\",\n  \"outcome\": \"retry\",\n  \"retry_after_minutes\": 15,\n  \"estimated_wait_minutes\": 35\n}"
+                }
+              ]
+            },
+            {
+              "name": "List My Reservations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations?status=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Optional filter: reserved, queued, active, completed, expired, cancelled"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Pagination size (default 20)"
+                    }
+                  ]
+                },
+                "description": "List the authenticated driver's EV charging reservations. Optionally filter by status."
+              },
+              "response": []
+            },
+            {
+              "name": "Show Reservation",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations/{{ev_reservation_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}"
+                  ]
+                },
+                "description": "View details of a specific reservation. Only accessible by the reservation's owner."
+              },
+              "response": []
+            },
+            {
+              "name": "Activate Reservation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations/{{ev_reservation_id}}/activate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}",
+                    "activate"
+                  ]
+                },
+                "description": "Activate a reserved stall when the driver arrives and plugs in. Transitions status from `reserved` to `active` and marks the stall as occupied."
+              },
+              "response": []
+            },
+            {
+              "name": "Complete Reservation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations/{{ev_reservation_id}}/complete",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}",
+                    "complete"
+                  ]
+                },
+                "description": "Mark a charging session as complete. Releases the stall and triggers queue transfer to the next waiting driver."
+              },
+              "response": []
+            },
+            {
+              "name": "Cancel Reservation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations/{{ev_reservation_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Cancel an active or reserved reservation. Cannot cancel already completed or expired reservations."
               },
               "response": []
             }
@@ -10514,6 +10826,274 @@
                   ]
                 },
                 "description": "Manually escalate the sanction tier of a flag (L1\u2192L2 or L2\u2192L3). Cannot escalate beyond tier 3. Enforces the new sanction immediately.\n\n**Auth:** Admin token (operations or safety_operator role)."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 EV Station Management",
+          "item": [
+            {
+              "name": "List All Stations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations?city_id=&status=&search=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID"
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Filter: active, inactive, maintenance"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by station name"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "List all EV charging stations with optional filters. Requires admin (operations) role."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Station",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Lekki Phase 1 Charging Hub\",\n  \"city_id\": \"{{city_id}}\",\n  \"lat\": 6.4378,\n  \"lng\": 3.4709,\n  \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n  \"total_stalls\": 6\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations"
+                  ]
+                },
+                "description": "Create a new EV charging station. Stalls are auto-generated based on `total_stalls`. Requires admin (operations) role."
+              },
+              "response": []
+            },
+            {
+              "name": "Show Station",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations",
+                    "{{ev_station_id}}"
+                  ]
+                },
+                "description": "View station details including stall-level availability and current occupants."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Station",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Station Name\",\n  \"address\": \"New Address\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations",
+                    "{{ev_station_id}}"
+                  ]
+                },
+                "description": "Update station details. All fields are optional."
+              },
+              "response": []
+            },
+            {
+              "name": "Toggle Station Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"maintenance\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}/status",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations",
+                    "{{ev_station_id}}",
+                    "status"
+                  ]
+                },
+                "description": "Change station operational status. Valid values: active, inactive, maintenance."
+              },
+              "response": []
+            },
+            {
+              "name": "Manage Stalls",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stalls\": [\n    {\n      \"stall_number\": 1,\n      \"status\": \"available\"\n    },\n    {\n      \"stall_number\": 7,\n      \"status\": \"out_of_service\"\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}/stalls",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations",
+                    "{{ev_station_id}}",
+                    "stalls"
+                  ]
+                },
+                "description": "Add or update stalls for a station. Uses upsert by stall_number."
+              },
+              "response": []
+            },
+            {
+              "name": "Station Utilisation Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-stations/utilisation?city_id=",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-stations",
+                    "utilisation"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Optional filter by city UUID"
+                    }
+                  ]
+                },
+                "description": "Real-time utilisation summary across all active stations. Shows occupancy rates, available stalls, and estimated wait times."
               },
               "response": []
             }

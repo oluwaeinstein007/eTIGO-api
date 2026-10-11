@@ -454,20 +454,20 @@
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE-EV-01 | `[ ]` Create `EvChargingStation`, `EvChargingStall`, `EvReservation` Eloquent models with relationships | — | SETUP-30, SETUP-31, SETUP-32 | — |
-| BE-EV-02 | `[ ]` Create `AdminEvStationController@store` — `POST /api/v1/admin/ev-stations`: create station record | A-31 | BE-EV-01, SETUP-52 | ⚠ OQ-15: Data source TBD |
-| BE-EV-03 | `[ ]` Create `AdminEvStationController@index` — `GET /api/v1/admin/ev-stations`: list stations with filters | A-31 | BE-EV-01 | — |
-| BE-EV-04 | `[ ]` Create `AdminEvStationController@update` — `PUT /api/v1/admin/ev-stations/{station}` | A-31 | BE-EV-02 | — |
-| BE-EV-05 | `[ ]` Create `AdminEvStationController@utilisation` — `GET /api/v1/admin/ev-stations/utilisation`: real-time occupancy and queue status | A-32 | BE-EV-01 | — |
-| BE-EV-06 | `[ ]` Create `EvStationController@index` — `GET /api/v1/ev-stations`: public endpoint listing active stations with availability for a city | A-32 | BE-EV-01 | Used by Driver App |
-| BE-EV-07 | `[ ]` Create `StallAvailabilityService` — maintain real-time stall status based on reservations and occupancy events | B-23 | BE-EV-01 | — |
-| BE-EV-08 | `[ ]` Create `ReservationService` — handle three outcomes: (a) stall available → immediate lock, (b) occupied but departure imminent → queue hold, (c) wait > 15 min → return retry delay | B-24, B-25 | BE-EV-07 | Atomic stall locking (row lock) to prevent double-reservation |
-| BE-EV-09 | `[ ]` Create `EvReservationController@store` — `POST /api/v1/ev-stations/{station}/reserve`: driver requests reservation; validate EV-class driver; call ReservationService | EV-01, EV-02, EV-03 | BE-EV-08 | — |
-| BE-EV-10 | `[ ]` Create `StoreReservationFormRequest` — validate station exists, driver has EV vehicle class | EV-01 | BE-EV-09 | — |
-| BE-EV-11 | `[ ]` Create `TransferReservationJob` — when occupying vehicle departs, automatically transfer reservation to next queued driver and notify | B-24, EV-02 | BE-EV-08, SETUP-57 | — |
-| BE-EV-12 | `[ ]` Implement tier-based fee waiver in `ReservationService`: check user tier via TierGateService; waive fee for eligible top-tier users | B-26, EV-04, G-08 | BE-EV-08, BE-GAME-08 | ⚠ OQ-16: Waiver applies to driver, passenger, or both? |
-| BE-EV-13 | `[ ]` Create `EvReservationController@index` — `GET /api/v1/drivers/ev-reservations`: driver views active/past reservations | — | BE-EV-01 | — |
-| BE-EV-14 | `[ ]` Create `EvStationResource`, `EvReservationResource` API resources | — | BE-EV-01 | — |
+| BE-EV-01 | `[x]` Create `EvChargingStation`, `EvChargingStall`, `EvReservation` Eloquent models with relationships | — | SETUP-30, SETUP-31, SETUP-32 | — |
+| BE-EV-02 | `[x]` Create `AdminEvStationController@store` — `POST /api/v1/admin/ev-stations`: create station record | A-31 | BE-EV-01, SETUP-52 | ⚠ OQ-15: Data source TBD |
+| BE-EV-03 | `[x]` Create `AdminEvStationController@index` — `GET /api/v1/admin/ev-stations`: list stations with filters | A-31 | BE-EV-01 | — |
+| BE-EV-04 | `[x]` Create `AdminEvStationController@update` — `PUT /api/v1/admin/ev-stations/{station}` | A-31 | BE-EV-02 | — |
+| BE-EV-05 | `[x]` Create `AdminEvStationController@utilisation` — `GET /api/v1/admin/ev-stations/utilisation`: real-time occupancy and queue status | A-32 | BE-EV-01 | — |
+| BE-EV-06 | `[x]` Create `EvStationController@index` — `GET /api/v1/ev-stations`: public endpoint listing active stations with availability for a city | A-32 | BE-EV-01 | Used by Driver App |
+| BE-EV-07 | `[x]` Create `StallAvailabilityService` — maintain real-time stall status based on reservations and occupancy events | B-23 | BE-EV-01 | — |
+| BE-EV-08 | `[x]` Create `ReservationService` — handle three outcomes: (a) stall available → immediate lock, (b) occupied but departure imminent → queue hold, (c) wait > 15 min → return retry delay | B-24, B-25 | BE-EV-07 | Atomic stall locking (row lock) to prevent double-reservation |
+| BE-EV-09 | `[x]` Create `EvReservationController@store` — `POST /api/v1/ev-stations/{station}/reserve`: driver requests reservation; validate EV-class driver; call ReservationService | EV-01, EV-02, EV-03 | BE-EV-08 | — |
+| BE-EV-10 | `[x]` Create `StoreReservationFormRequest` — validate station exists, driver has EV vehicle class | EV-01 | BE-EV-09 | — |
+| BE-EV-11 | `[x]` Create `TransferReservationJob` — when occupying vehicle departs, automatically transfer reservation to next queued driver and notify | B-24, EV-02 | BE-EV-08, SETUP-57 | — |
+| BE-EV-12 | `[x]` Implement tier-based fee waiver in `ReservationService`: check user tier via TierGateService; waive fee for eligible top-tier users | B-26, EV-04, G-08 | BE-EV-08, BE-GAME-08 | ⚠ OQ-16: Waiver applies to driver, passenger, or both? |
+| BE-EV-13 | `[x]` Create `EvReservationController@index` — `GET /api/v1/drivers/ev-reservations`: driver views active/past reservations | — | BE-EV-01 | — |
+| BE-EV-14 | `[x]` Create `EvStationResource`, `EvReservationResource` API resources | — | BE-EV-01 | — |
 
 ---
 

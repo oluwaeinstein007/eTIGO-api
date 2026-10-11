@@ -7148,6 +7148,463 @@ Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate b
 
 ---
 
+## EV Charging Stations — Public
+
+No authentication required.
+
+### List EV Stations
+
+```
+GET /ev-stations?city_id={city_id}
+```
+
+| Param | Type | Rules |
+|-------|------|-------|
+| `city_id` | string (UUID) | Required, must exist in `cities` |
+
+**Response 200:**
+```json
+{
+  "stations": [
+    {
+      "id": "uuid",
+      "name": "Lekki Phase 1 Charging Hub",
+      "city_id": "uuid",
+      "lat": "6.4378000",
+      "lng": "3.4709000",
+      "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+      "total_stalls": 6,
+      "status": { "value": "active", "label": "Active" },
+      "availability": {
+        "available": 3,
+        "occupied": 2,
+        "reserved": 1,
+        "out_of_service": 0
+      },
+      "stalls": [ ... ]
+    }
+  ]
+}
+```
+
+### Show EV Station
+
+```
+GET /ev-stations/{station}
+```
+
+**Response 200:**
+```json
+{
+  "station": {
+    "id": "uuid",
+    "name": "Lekki Phase 1 Charging Hub",
+    "city_id": "uuid",
+    "lat": "6.4378000",
+    "lng": "3.4709000",
+    "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+    "total_stalls": 6,
+    "status": { "value": "active", "label": "Active" },
+    "availability": { ... },
+    "city": { ... },
+    "stalls": [ ... ]
+  }
+}
+```
+
+---
+
+## EV Charging — Driver Reservations
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Reserve EV Stall
+
+```
+POST /driver/ev-reservations/stations/{station}/reserve
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "estimated_charge_minutes": 45
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `estimated_charge_minutes` | integer | Optional, 5–480 |
+
+Three possible outcomes:
+
+| Outcome | HTTP | Condition |
+|---------|------|-----------|
+| `reserved` | 201 | Stall available — immediate lock |
+| `queued` | 200 | All occupied but departure imminent — queue hold |
+| `retry` | 200 | No availability, no imminent departures — retry later |
+
+**Response 201 — Immediate Reservation:**
+```json
+{
+  "message": "Stall reserved successfully.",
+  "outcome": "reserved",
+  "reservation": {
+    "id": "uuid",
+    "station_id": "uuid",
+    "stall_id": "uuid",
+    "status": { "value": "reserved", "label": "Reserved" },
+    "fee_amount": "500.00",
+    "fee_waived": false,
+    "reserved_at": "2026-10-11T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 200 — Queued:**
+```json
+{
+  "message": "Added to queue.",
+  "outcome": "queued",
+  "reservation": { ... },
+  "queue_position": 2,
+  "estimated_available_at": "2026-10-11T10:15:00.000000Z"
+}
+```
+
+**Response 200 — Retry:**
+```json
+{
+  "message": "All stalls are occupied with no imminent departures. Please try again later.",
+  "outcome": "retry",
+  "retry_after_minutes": 15,
+  "estimated_wait_minutes": 35
+}
+```
+
+**Response 422:** Driver already has an active reservation, station not operational, or not a driver.
+
+### List My Reservations
+
+```
+GET /driver/ev-reservations?status={status}&per_page=20
+Authorization: Bearer {driver_token}
+```
+
+| Param | Type | Rules |
+|-------|------|-------|
+| `status` | string | Optional filter: `reserved`, `queued`, `active`, `completed`, `expired`, `cancelled` |
+| `per_page` | integer | Optional, default 20 |
+
+**Response 200:**
+```json
+{
+  "reservations": [ ... ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 3
+  }
+}
+```
+
+### Show Reservation
+
+```
+GET /driver/ev-reservations/{reservation}
+Authorization: Bearer {driver_token}
+```
+
+**Response 200:** Returns reservation with station and stall details.
+
+**Response 403:** Not your reservation.
+
+### Activate Reservation
+
+```
+POST /driver/ev-reservations/{reservation}/activate
+Authorization: Bearer {driver_token}
+```
+
+Transitions `reserved` → `active`. Marks the stall as occupied with estimated departure time.
+
+**Response 200:**
+```json
+{
+  "message": "Reservation activated. Charging session started.",
+  "reservation": {
+    "status": { "value": "active", "label": "Active" },
+    "activated_at": "2026-10-11T10:05:00.000000Z"
+  }
+}
+```
+
+**Response 422:** Not in `reserved` status.
+
+### Complete Reservation
+
+```
+POST /driver/ev-reservations/{reservation}/complete
+Authorization: Bearer {driver_token}
+```
+
+Transitions `active`/`reserved` → `completed`. Releases the stall and triggers queue transfer.
+
+**Response 200:**
+```json
+{
+  "message": "Charging session completed.",
+  "reservation": {
+    "status": { "value": "completed", "label": "Completed" },
+    "completed_at": "2026-10-11T11:00:00.000000Z"
+  }
+}
+```
+
+### Cancel Reservation
+
+```
+POST /driver/ev-reservations/{reservation}/cancel
+Authorization: Bearer {driver_token}
+```
+
+Cancels any non-terminal reservation. Releases the stall and triggers queue transfer.
+
+**Response 200:**
+```json
+{
+  "message": "Reservation cancelled.",
+  "reservation": {
+    "status": { "value": "cancelled", "label": "Cancelled" }
+  }
+}
+```
+
+**Response 422:** Already completed/expired/cancelled.
+
+---
+
+## Admin — EV Station Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+### List Stations
+
+```
+GET /admin/ev-stations?city_id=&status=&search=&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+| Param | Type | Rules |
+|-------|------|-------|
+| `city_id` | string (UUID) | Optional filter |
+| `status` | string | Optional: `active`, `inactive`, `maintenance` |
+| `search` | string | Optional, search by name (case-insensitive) |
+| `per_page` | integer | Optional, default 20, max 100 |
+
+**Response 200:**
+```json
+{
+  "stations": [ ... ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 5 }
+}
+```
+
+### Create Station
+
+```
+POST /admin/ev-stations
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Lekki Phase 1 Charging Hub",
+  "city_id": "uuid",
+  "lat": 6.4378,
+  "lng": 3.4709,
+  "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+  "total_stalls": 6
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `name` | string | Required, max 255 |
+| `city_id` | string (UUID) | Required, must exist |
+| `lat` | numeric | Required, -90 to 90 |
+| `lng` | numeric | Required, -180 to 180 |
+| `address` | string | Required, max 500 |
+| `total_stalls` | integer | Required, 1–100 |
+| `status` | string | Optional: `active`, `inactive`, `maintenance` |
+
+Stalls are auto-generated (numbered 1 to `total_stalls`).
+
+**Response 201:**
+```json
+{
+  "message": "EV charging station created successfully.",
+  "station": { ... }
+}
+```
+
+### Show Station
+
+```
+GET /admin/ev-stations/{station}
+Authorization: Bearer {admin_token}
+```
+
+Returns station with stall-level availability and current occupant details.
+
+**Response 200:**
+```json
+{
+  "station": { ... },
+  "availability": {
+    "total": 6,
+    "available": 3,
+    "occupied": 2,
+    "reserved": 1,
+    "out_of_service": 0,
+    "queue_length": 1
+  }
+}
+```
+
+### Update Station
+
+```
+PUT /admin/ev-stations/{station}
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+All fields optional. `total_stalls` is managed via the Manage Stalls endpoint.
+
+**Request Body:**
+```json
+{
+  "name": "Updated Hub Name",
+  "address": "New address"
+}
+```
+
+**Response 200:**
+```json
+{
+  "message": "EV charging station updated successfully.",
+  "station": { ... }
+}
+```
+
+### Toggle Station Status
+
+```
+PATCH /admin/ev-stations/{station}/status
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "status": "maintenance"
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `status` | string | Required: `active`, `inactive`, `maintenance` |
+
+**Response 200:**
+```json
+{
+  "message": "Station status updated successfully.",
+  "station": { ... }
+}
+```
+
+### Manage Stalls
+
+```
+PUT /admin/ev-stations/{station}/stalls
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+Upserts stalls by stall number. Auto-updates `total_stalls` count.
+
+**Request Body:**
+```json
+{
+  "stalls": [
+    { "stall_number": 1, "status": "available" },
+    { "stall_number": 7, "status": "out_of_service" }
+  ]
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `stalls` | array | Required, min 1 |
+| `stalls.*.stall_number` | integer | Required, min 1 |
+| `stalls.*.status` | string | Optional: `available`, `occupied`, `reserved`, `out_of_service` |
+
+**Response 200:**
+```json
+{
+  "message": "Stalls updated successfully.",
+  "station": { ... }
+}
+```
+
+### Station Utilisation Report
+
+```
+GET /admin/ev-stations/utilisation?city_id=
+Authorization: Bearer {admin_token}
+```
+
+Real-time occupancy across all active stations. Computed from eager-loaded stalls (no N+1 queries).
+
+**Response 200:**
+```json
+{
+  "utilisation": [
+    {
+      "station_id": "uuid",
+      "station_name": "Lekki Phase 1 Charging Hub",
+      "city_id": "uuid",
+      "total_stalls": 6,
+      "availability": {
+        "total": 6,
+        "available": 3,
+        "occupied": 2,
+        "reserved": 1,
+        "out_of_service": 0,
+        "queue_length": 1
+      },
+      "occupancy_rate": 50.0,
+      "estimated_wait_minutes": 12
+    }
+  ],
+  "summary": {
+    "total_stations": 5,
+    "total_stalls": 30,
+    "total_available": 15,
+    "total_occupied": 10,
+    "average_occupancy_rate": 50.0
+  }
+}
+```
+
+---
+
 ## Passenger — Wallet
 
 **Middleware:** `auth:sanctum`, `user.type:passenger`
@@ -8192,6 +8649,31 @@ Super Admins always bypass role checks and have full access.
 | `upheld`     | Admin confirmed the flag — sanction remains           |
 | `overturned` | Admin overturned the flag — sanction reversed         |
 
+### EV Station Status
+| Value         | Description                          |
+|---------------|--------------------------------------|
+| `active`      | Station is operational               |
+| `inactive`    | Station is temporarily closed        |
+| `maintenance` | Station is under maintenance         |
+
+### EV Stall Status
+| Value            | Description                       |
+|------------------|-----------------------------------|
+| `available`      | Stall is free                     |
+| `occupied`       | Vehicle currently charging        |
+| `reserved`       | Reserved for incoming driver      |
+| `out_of_service` | Stall is disabled                 |
+
+### EV Reservation Status
+| Value       | Description                             |
+|-------------|-----------------------------------------|
+| `reserved`  | Stall locked, awaiting driver arrival   |
+| `queued`    | Waiting for stall to become available   |
+| `active`    | Charging session in progress            |
+| `completed` | Charging session finished (terminal)    |
+| `expired`   | Reservation timed out (terminal)        |
+| `cancelled` | Cancelled by driver (terminal)          |
+
 ---
 
 ## Push Notifications (FCM)
@@ -8209,6 +8691,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Ride completed     | Driver     | `ride_completed`     | Trip finished                                  |
 | Ride cancelled     | Other party| `ride_cancelled`     | Cancellation by passenger/driver/admin         |
 | No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
+| EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 
 **Payload format:**
 ```json
