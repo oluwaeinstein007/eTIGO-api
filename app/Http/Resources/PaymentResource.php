@@ -25,6 +25,10 @@ class PaymentResource extends JsonResource
                 $request->user()?->isAdmin(),
                 $this->gateway_transaction_id,
             ),
+            'payment_link' => $this->when(
+                $this->gateway_payment_link !== null && $this->status === \App\Enums\PaymentStatus::Pending,
+                $this->gateway_payment_link,
+            ),
             'failure_reason' => $this->when(
                 $this->failure_reason !== null,
                 $this->failure_reason,

@@ -47,15 +47,21 @@ class PaymentWebhookController extends Controller
 
         $payment = Payment::where('gateway_transaction_id', $transactionId)->first();
 
+        if (! $payment && ! empty($verification['tx_ref'])) {
+            $payment = Payment::where('gateway_tx_ref', $verification['tx_ref'])
+                ->where('status', PaymentStatus::Pending)
+                ->first();
+        }
+
         if (! $payment) {
             $payment = Payment::where('status', PaymentStatus::Pending)
-                ->whereHas('ride', fn ($q) => $q->where('payment_method', 'card'))
+                ->whereHas('ride', fn ($q) => $q->whereIn('payment_method', ['card', 'bank_transfer']))
                 ->latest()
                 ->first();
+        }
 
-            if ($payment) {
-                $payment->update(['gateway_transaction_id' => $transactionId]);
-            }
+        if ($payment && ! $payment->gateway_transaction_id) {
+            $payment->update(['gateway_transaction_id' => $transactionId]);
         }
 
         if ($payment) {
