@@ -526,7 +526,7 @@ class DemoSeeder extends Seeder
                     'gateway_transaction_id' => 'FLW_TXN_'.Str::random(16),
                     'gateway_payment_method_id' => 'FLW_PM_'.Str::random(12),
                     'tip_amount' => rand(0, 3) === 0 ? rand(2, 10) * 100 : 0,
-                    'status' => 'successful',
+                    'status' => PaymentStatus::Settled->value,
                     'created_at' => $data['completed'],
                     'updated_at' => $data['completed'],
                 ]);

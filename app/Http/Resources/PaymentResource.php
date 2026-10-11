@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\PaymentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,6 +10,10 @@ class PaymentResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        if (is_null($this->resource)) {
+            return [];
+        }
+
         return [
             'id' => $this->id,
             'ride_id' => $this->ride_id,
@@ -16,17 +21,17 @@ class PaymentResource extends JsonResource
             'amount_collected' => $this->when($this->amount_collected !== null, $this->amount_collected),
             'cash_change_amount' => $this->when($this->cash_change_amount !== null, $this->cash_change_amount),
             'currency' => $this->currency,
-            'method' => $this->method->value,
-            'method_label' => $this->method->label(),
+            'method' => $this->method?->value,
+            'method_label' => $this->method?->label(),
             'tip_amount' => $this->tip_amount,
-            'status' => $this->status->value,
-            'status_label' => $this->status->label(),
+            'status' => $this->status?->value,
+            'status_label' => $this->status?->label(),
             'gateway_transaction_id' => $this->when(
                 $request->user()?->isAdmin(),
                 $this->gateway_transaction_id,
             ),
             'payment_link' => $this->when(
-                $this->gateway_payment_link !== null && $this->status === \App\Enums\PaymentStatus::Pending,
+                $this->gateway_payment_link !== null && $this->status === PaymentStatus::Pending,
                 $this->gateway_payment_link,
             ),
             'failure_reason' => $this->when(

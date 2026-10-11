@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -37,8 +38,29 @@ class Payment extends Model
             'cash_change_amount' => 'decimal:2',
             'tip_amount' => 'decimal:2',
             'method' => PaymentMethod::class,
-            'status' => PaymentStatus::class,
         ];
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if ($value === null) {
+                    return null;
+                }
+
+                if ($value instanceof PaymentStatus) {
+                    return $value;
+                }
+
+                if ($value === 'successful') {
+                    return PaymentStatus::Settled;
+                }
+
+                return PaymentStatus::tryFrom((string) $value);
+            },
+            set: fn ($value) => $value instanceof PaymentStatus ? $value->value : $value,
+        );
     }
 
     public function ride(): BelongsTo
