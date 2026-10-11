@@ -336,7 +336,7 @@ For a platform handling daily financial transactions between the company and dri
 | Feature | Reason for Deferral | Industry Precedent |
 |---------|--------------------|--------------------|
 | Ownership transfer workflow | Awaiting Chairman meeting (Q8) | Standard: separate legal/admin process; not automated |
-| Cash overpayment → wallet credit | Awaiting payment provider confirmation | Standard: requires licensed stored-value provider |
+| Cash overpayment → wallet credit | Ready to build — Paystack confirmed (PSSP licence covers stored value) | Standard: requires licensed stored-value provider |
 | Fleet maintenance module | Phase 2 — separate product domain | Standard: fleet management platforms (Fleetio, Samsara) treat this as a separate module |
 | Independent driver onboarding | Client said later phase | Standard: fleet and independent drivers are different compliance tracks |
 | EV integration | No EV fleet yet | Standard: EV telemetry is a separate integration layer (API partnerships with vehicle OEMs) |
@@ -415,7 +415,7 @@ The client originally asked to "code everything but leave it inactive." Per the 
 
 **Implementation:** Complete — wired into `ProcessPaymentJob`, automatic per-ride recording.
 
-**Cash ride handling:** Cash rides count toward remittance target. The cash overpayment → rider wallet credit feature is **blocked** pending payment provider confirmation.
+**Cash ride handling:** Cash rides count toward remittance target. The cash overpayment → rider wallet credit feature is now **unblocked** — Paystack has been selected as the payment provider, and their PSSP licence covers stored-value wallet operations. Implementation can proceed when prioritised.
 
 ---
 
@@ -490,13 +490,11 @@ These decisions require human processes, legal agreements, or physical-world act
 
 ---
 
-### FLAG 2: Cash Change → Rider Wallet Credit (Q5) — PENDING
+### FLAG 2: Cash Change → Rider Wallet Credit (Q5) — RESOLVED
 
 **Risk:** Creating stored value in the rider's wallet may require a licence under CBN Guidelines on Electronic Money (2015).
 
-**Status:** Blocked pending payment provider confirmation (Paystack vs Flutterwave). The provider's licence likely covers this, but it needs verification.
-
-**Mitigation:** Feature is not built. Will be implemented only after provider confirmation.
+**Resolution:** Paystack selected as payment provider (October 2026). Paystack holds a PSSP licence from CBN which covers stored-value wallet operations, including OPay transfer support for driver payouts. **This risk is eliminated.** The wallet credit feature can now be built when prioritised.
 
 ---
 
@@ -976,7 +974,7 @@ Validation messages to handle:
 | Feature | Status | Blocked By | Impact on UI |
 |---------|--------|-----------|-------------|
 | Ownership transfer workflow | Blocked | Q8 — Chairman meeting | Don't build a "Transfer ownership" button yet |
-| Cash overpayment → rider wallet credit | Blocked | Payment provider confirmation | No cash change → wallet feature yet |
+| Cash overpayment → rider wallet credit | Unblocked | Paystack confirmed — ready to build when prioritised | No cash change → wallet feature yet |
 | Fleet maintenance module | Deferred | Phase 2 | No vehicle servicing/maintenance screens yet |
 | Independent driver onboarding | Deferred | Client said later phase | No own-vehicle driver compliance workflow yet |
 | EV integration | Deferred | Architecture supports future extension | No EV-specific features yet |
@@ -1030,11 +1028,14 @@ All endpoints include full request/response schemas with example payloads.
 
 1. **Confirm Q1:** Daily remittance amount (₦40,000 is currently configurable per agreement) and whether it varies by vehicle type
 2. **Schedule Q8:** Meeting with Chairman on ownership transfer process
-3. **Confirm payment provider:** Paystack or Flutterwave — this unblocks wallet credit feature
+
+### Resolved
+
+- ~~**Confirm payment provider:**~~ Paystack selected (October 2026). PSSP licence covers wallet credit. OPay transfer support for driver payouts.
 
 ### Engineering Next
 
-1. **Confirm payment provider regulatory coverage:** Cash overpayment → wallet credit status
+1. **Cash overpayment → wallet credit:** Unblocked — Paystack PSSP licence confirmed. Ready to build when prioritised.
 2. **Phase 2 planning:** Fleet maintenance module, independent driver onboarding
 
 ### Legal Review
@@ -1044,6 +1045,6 @@ All endpoints include full request/response schemas with example payloads.
 
 ---
 
-*This document was last updated on 10 October 2026. It consolidates the Fleet Industry Standards, Fleet Decisions Report, and Fleet Feature Handoff into a single reference. All referenced regulations (Hire Purchase Act, FCCPA, CBN guidelines) should be reviewed by E-tiGo's legal counsel before commercial launch.*
+*This document was last updated on 11 October 2026. It consolidates the Fleet Industry Standards, Fleet Decisions Report, and Fleet Feature Handoff into a single reference. All referenced regulations (Hire Purchase Act, FCCPA, CBN guidelines) should be reviewed by E-tiGo's legal counsel before commercial launch.*
 
 *Questions? Ping the backend team. The Postman collection has all endpoints ready for testing.*
