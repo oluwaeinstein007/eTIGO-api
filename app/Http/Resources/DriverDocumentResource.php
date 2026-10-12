@@ -21,11 +21,11 @@ class DriverDocumentResource extends JsonResource
             'file_url' => $this->when($this->file_path, function () {
                 $disk = Storage::disk(config('filesystems.uploads'));
 
-                if (method_exists($disk, 'temporaryUrl')) {
+                try {
                     return $disk->temporaryUrl($this->file_path, now()->addMinutes(30));
+                } catch (\RuntimeException) {
+                    return $disk->url($this->file_path);
                 }
-
-                return $disk->url($this->file_path);
             }),
             'expires_at' => $this->expires_at,
             'status' => $this->status,
