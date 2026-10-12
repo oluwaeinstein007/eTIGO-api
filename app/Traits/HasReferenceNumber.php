@@ -28,7 +28,6 @@ trait HasReferenceNumber
         $maxNum = DB::table($table)
             ->whereNotNull('reference_number')
             ->where('reference_number', 'like', "{$prefix}%")
-            ->lockForUpdate()
             ->selectRaw("MAX(CAST(REPLACE(reference_number, ?, '') AS INTEGER)) as max_num", [$prefix])
             ->value('max_num') ?? 0;
 
