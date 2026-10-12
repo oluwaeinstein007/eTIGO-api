@@ -500,6 +500,11 @@ class DriverManagementController extends Controller
 
     public function tripHistory(Request $request, Driver $driver): JsonResponse
     {
+        $request->validate([
+            'from' => ['sometimes', 'date'],
+            'to' => ['sometimes', 'date'],
+        ]);
+
         $query = Ride::where('driver_id', $driver->user_id)
             ->with(['passenger', 'city', 'vehicleClass']);
 

@@ -53,9 +53,20 @@ class AdminPricingController extends Controller
             return PricingConfig::currentFor($combo->city_id, $combo->vehicle_class_id)?->id;
         })->filter()->values();
 
-        $allConfigs = PricingConfig::whereIn('city_id', $combos->keys()->map(fn ($k) => explode('|', $k)[0]))
+        $comboWheres = $combos->keys()->map(function ($key) {
+            [$cityId, $vcId] = explode('|', $key);
+
+            return [$cityId, $vcId];
+        });
+
+        $allConfigs = PricingConfig::where(function ($q) use ($comboWheres) {
+            foreach ($comboWheres as [$cityId, $vcId]) {
+                $q->orWhere(fn ($sub) => $sub->where('city_id', $cityId)->where('vehicle_class_id', $vcId));
+            }
+        })
             ->orderBy('effective_from')
-            ->get(['id', 'city_id', 'vehicle_class_id', 'effective_from'])
+            ->orderBy('version')
+            ->get(['id', 'city_id', 'vehicle_class_id', 'effective_from', 'version'])
             ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id);
 
         $configs->getCollection()->each(function ($config) use ($currentIds, $allConfigs) {
@@ -63,7 +74,8 @@ class AdminPricingController extends Controller
 
             $comboConfigs = $allConfigs->get($config->city_id.'|'.$config->vehicle_class_id);
             $config->effective_until = $comboConfigs
-                ?->first(fn ($c) => $c->effective_from > $config->effective_from)
+                ?->first(fn ($c) => $c->effective_from > $config->effective_from
+                    || ($c->effective_from == $config->effective_from && $c->version > $config->version))
                 ?->effective_from;
         });
 
@@ -115,8 +127,12 @@ class AdminPricingController extends Controller
         $config->is_current = PricingConfig::currentFor($config->city_id, $config->vehicle_class_id)?->id === $config->id;
         $config->effective_until = PricingConfig::where('city_id', $config->city_id)
             ->where('vehicle_class_id', $config->vehicle_class_id)
-            ->where('effective_from', '>', $config->effective_from)
+            ->where(fn ($q) => $q
+                ->where('effective_from', '>', $config->effective_from)
+                ->orWhere(fn ($q2) => $q2->where('effective_from', $config->effective_from)->where('version', '>', $config->version))
+            )
             ->orderBy('effective_from')
+            ->orderBy('version')
             ->value('effective_from');
 
         return response()->json([
@@ -131,8 +147,12 @@ class AdminPricingController extends Controller
         $pricingConfig->is_current = PricingConfig::currentFor($pricingConfig->city_id, $pricingConfig->vehicle_class_id)?->id === $pricingConfig->id;
         $pricingConfig->effective_until = PricingConfig::where('city_id', $pricingConfig->city_id)
             ->where('vehicle_class_id', $pricingConfig->vehicle_class_id)
-            ->where('effective_from', '>', $pricingConfig->effective_from)
+            ->where(fn ($q) => $q
+                ->where('effective_from', '>', $pricingConfig->effective_from)
+                ->orWhere(fn ($q2) => $q2->where('effective_from', $pricingConfig->effective_from)->where('version', '>', $pricingConfig->version))
+            )
             ->orderBy('effective_from')
+            ->orderBy('version')
             ->value('effective_from');
 
         return response()->json([
@@ -162,8 +182,12 @@ class AdminPricingController extends Controller
         $config->is_current = true;
         $config->effective_until = PricingConfig::where('city_id', $config->city_id)
             ->where('vehicle_class_id', $config->vehicle_class_id)
-            ->where('effective_from', '>', $config->effective_from)
+            ->where(fn ($q) => $q
+                ->where('effective_from', '>', $config->effective_from)
+                ->orWhere(fn ($q2) => $q2->where('effective_from', $config->effective_from)->where('version', '>', $config->version))
+            )
             ->orderBy('effective_from')
+            ->orderBy('version')
             ->value('effective_from');
 
         return response()->json([

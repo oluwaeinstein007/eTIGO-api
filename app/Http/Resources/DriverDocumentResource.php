@@ -18,9 +18,15 @@ class DriverDocumentResource extends JsonResource
             'type' => $this->type,
             'original_filename' => $this->original_filename,
             'file_size' => $this->file_size,
-            'file_url' => $this->file_path
-                ? Storage::disk(config('filesystems.uploads'))->url($this->file_path)
-                : null,
+            'file_url' => $this->when($this->file_path, function () {
+                $disk = Storage::disk(config('filesystems.uploads'));
+
+                if (method_exists($disk, 'temporaryUrl')) {
+                    return $disk->temporaryUrl($this->file_path, now()->addMinutes(30));
+                }
+
+                return $disk->url($this->file_path);
+            }),
             'expires_at' => $this->expires_at,
             'status' => $this->status,
             'rejection_reason' => $this->rejection_reason,

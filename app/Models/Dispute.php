@@ -21,6 +21,7 @@ class Dispute extends Model
         'category',
         'description',
         'evidence_photos',
+        'evidence_audio',
         'status',
         'resolution_notes',
         'refund_amount',

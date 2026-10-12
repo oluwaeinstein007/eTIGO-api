@@ -20,6 +20,7 @@ class RideDisputeController extends Controller
         $user = $request->user();
 
         $photoPaths = [];
+        $audioPath = null;
         $disk = 'local';
 
         if ($request->hasFile('photos')) {
@@ -40,13 +41,28 @@ class RideDisputeController extends Controller
             }
         }
 
+        if ($request->hasFile('audio')) {
+            $audioPath = $request->file('audio')->store("disputes/{$ride->id}/audio", $disk);
+
+            if ($audioPath === false) {
+                foreach ($photoPaths as $stored) {
+                    Storage::disk($disk)->delete($stored);
+                }
+
+                return response()->json([
+                    'message' => 'Failed to upload audio recording. Please try again.',
+                ], 500);
+            }
+        }
+
         try {
-            $dispute = DB::transaction(function () use ($ride, $user, $request, $photoPaths) {
+            $dispute = DB::transaction(function () use ($ride, $user, $request, $photoPaths, $audioPath) {
                 $dispute = $ride->disputes()->create([
                     'reported_by_user_id' => $user->id,
                     'category' => $request->validated('category'),
                     'description' => $request->validated('description'),
                     'evidence_photos' => $photoPaths ?: null,
+                    'evidence_audio' => $audioPath,
                     'status' => DisputeStatus::Open,
                 ]);
 
@@ -61,6 +77,9 @@ class RideDisputeController extends Controller
             foreach ($photoPaths as $path) {
                 Storage::disk($disk)->delete($path);
             }
+            if ($audioPath) {
+                Storage::disk($disk)->delete($audioPath);
+            }
 
             return response()->json([
                 'message' => 'Validation failed.',
@@ -69,6 +88,9 @@ class RideDisputeController extends Controller
         } catch (\Throwable $e) {
             foreach ($photoPaths as $path) {
                 Storage::disk($disk)->delete($path);
+            }
+            if ($audioPath) {
+                Storage::disk($disk)->delete($audioPath);
             }
 
             throw $e;

@@ -141,6 +141,11 @@ class AdminPassengerController extends Controller
             return response()->json(['message' => 'User is not a passenger.'], 404);
         }
 
+        $request->validate([
+            'from' => ['sometimes', 'date'],
+            'to' => ['sometimes', 'date'],
+        ]);
+
         $query = $passenger->rides()
             ->with(['driver', 'city', 'vehicleClass']);
 

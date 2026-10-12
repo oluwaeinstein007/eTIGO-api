@@ -17,7 +17,7 @@ class PassengerDisputeController extends Controller
         $disputes = Dispute::where('reported_by_user_id', $user->id)
             ->with(['ride', 'reportedBy'])
             ->orderByDesc('created_at')
-            ->paginate(min($request->integer('per_page', 15), 50));
+            ->paginate(min(max($request->integer('per_page', 15), 1), 50));
 
         return response()->json([
             'disputes' => DisputeResource::collection($disputes),
