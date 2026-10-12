@@ -42,8 +42,8 @@ class RideNotificationService
             $this->notificationService->send(
                 userId: $ride->driver_id,
                 type: NotificationType::RideAssigned,
-                title: 'New Ride Request',
-                body: "Pickup at {$ride->pickup_address}",
+                title: 'Ride Assigned',
+                body: "You have been assigned to a ride. Pickup at {$ride->pickup_address}",
                 data: ['ride_id' => (string) $ride->id],
             );
         }

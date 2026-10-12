@@ -694,7 +694,7 @@ class DemoSeeder extends Seeder
             ['user_id' => $passenger->id, 'title' => 'Ride in progress', 'body' => 'Your ride has started. Share your trip with friends and family for safety.', 'type' => 'ride', 'is_read' => false, 'read_at' => null],
             ['user_id' => $driverUser->id, 'title' => 'Welcome aboard, driver!', 'body' => 'Your account has been approved. You can now go online and accept rides.', 'type' => 'system', 'is_read' => true, 'read_at' => now()->subDays(29)],
             ['user_id' => $driverUser->id, 'title' => 'Weekly earnings summary', 'body' => 'You earned ₦45,200 from 18 rides this week. Keep it up!', 'type' => 'earnings', 'is_read' => false, 'read_at' => null],
-            ['user_id' => $driverUser->id, 'title' => 'New ride request', 'body' => 'A passenger nearby is requesting a ride. Go online to accept.', 'type' => 'ride', 'is_read' => false, 'read_at' => null],
+            ['user_id' => $driverUser->id, 'title' => 'Ride assigned', 'body' => 'You have been assigned to a ride. Pickup at 12 Marina Road, Lagos Island.', 'type' => 'ride_assigned', 'is_read' => false, 'read_at' => null],
         ];
 
         foreach ($notifications as $notif) {

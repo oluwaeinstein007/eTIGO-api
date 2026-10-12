@@ -239,3 +239,24 @@ it('returns 403 when deleting another user notification', function () {
 
     $response->assertForbidden();
 });
+
+it('supports paginated notification list requests', function () {
+    for ($i = 1; $i <= 5; $i++) {
+        Notification::create([
+            'user_id' => $this->user->id,
+            'type' => 'ride_completed',
+            'title' => "Notification {$i}",
+            'body' => "Body {$i}",
+        ]);
+    }
+
+    $response = $this->withToken($this->token)
+        ->getJson('/api/v1/notifications?per_page=2&page=2');
+
+    $response->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('meta.current_page', 2)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.total', 5);
+});
+
