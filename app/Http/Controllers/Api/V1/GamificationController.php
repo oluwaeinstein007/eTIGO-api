@@ -57,7 +57,7 @@ class GamificationController extends Controller
 
         $tiersData = $tiers->map(function ($tier) use ($currentTier) {
             $resource = (new TierConfigResource($tier))->resolve();
-            $resource['unlocked'] = $tier->level <= $currentTier;
+            $resource['unlocked'] = $tier->tier_level <= $currentTier;
 
             return $resource;
         });
@@ -88,7 +88,7 @@ class GamificationController extends Controller
         ]);
     }
 
-    public function greenImpactPdf(Request $request)
+    public function greenImpactPdf(Request $request): \Illuminate\Http\Response
     {
         $user = $request->user();
         $profile = GamificationProfile::findOrCreateForUser($user->id);
@@ -99,7 +99,7 @@ class GamificationController extends Controller
             ->get();
 
         $totalRides = TripCarbonScore::where('user_id', $user->id)->count();
-        $totalCo2Saved = (float) TripCarbonScore::where('user_id', $user->id)->sum('co2_saved_kg');
+        $totalCo2Saved = (float) TripCarbonScore::where('user_id', $user->id)->sum('co2_saved');
         $electricKm = (float) TripCarbonScore::where('user_id', $user->id)->sum('distance_km');
 
         $pdf = Pdf::loadView('pdf.green-impact', [

@@ -68,8 +68,8 @@
             <tr>
                 <td>{{ $score->created_at->format('d M Y') }}</td>
                 <td>{{ number_format($score->distance_km, 1) }}</td>
-                <td>{{ number_format($score->co2_saved_kg, 2) }}</td>
-                <td>{{ number_format($score->points_earned) }}</td>
+                <td>{{ number_format($score->co2_saved, 2) }}</td>
+                <td>{{ number_format($score->final_points) }}</td>
             </tr>
             @endforeach
         </tbody>

@@ -17,10 +17,10 @@
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
         "resend/resend-laravel": "^1.6",
-        "socialiteproviders/apple": "^6.1"
+        "socialiteproviders/apple": "^6.1",
+        "barryvdh/laravel-dompdf": "^3.1"
     },
     "require-dev": {
-        "barryvdh/laravel-dompdf": "^3.1",
         "fakerphp/faker": "^1.23",
         "laravel/boost": "^2.2",
         "laravel/pail": "^1.2.5",
