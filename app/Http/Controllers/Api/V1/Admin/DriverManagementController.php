@@ -58,7 +58,7 @@ class DriverManagementController extends Controller
             });
         }
 
-        $drivers = $query->latest()->paginate($request->integer('per_page', 20));
+        $drivers = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
 
         return response()->json([
             'drivers' => DriverResource::collection($drivers),
@@ -515,7 +515,7 @@ class DriverManagementController extends Controller
             $query->whereDate('created_at', '<=', $request->input('to'));
         }
 
-        $rides = $query->latest()->paginate($request->integer('per_page', 20));
+        $rides = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
 
         return response()->json([
             'rides' => RideResource::collection($rides),

@@ -32,7 +32,7 @@ class NotificationService
 
         $notification = null;
 
-        if ($preferences['in_app_enabled']) {
+        if ($preferences['in_app_enabled'] && config('notification.channels.in_app', true)) {
             $notification = $this->persist($userId, $type, $title, $body, $data);
         }
 
@@ -54,8 +54,12 @@ class NotificationService
         string $title,
         string $body,
         array $data = [],
-    ): Notification {
-        $notification = $this->persist($userId, $type, $title, $body, $data);
+    ): ?Notification {
+        $notification = null;
+
+        if (config('notification.channels.in_app', true)) {
+            $notification = $this->persist($userId, $type, $title, $body, $data);
+        }
 
         if (config('notification.channels.push', true)) {
             $this->sendPush($userId, $type, $title, $body, $data);

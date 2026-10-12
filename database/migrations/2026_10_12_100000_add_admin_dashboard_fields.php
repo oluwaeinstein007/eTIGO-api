@@ -30,17 +30,29 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('drivers', function (Blueprint $table) {
+            $table->dropUnique(['reference_number']);
+        });
+        Schema::table('drivers', function (Blueprint $table) {
             $table->dropColumn(['suspension_reason', 'reference_number']);
         });
 
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropUnique(['reference_number']);
+        });
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn(['suspension_reason', 'reference_number']);
         });
 
         Schema::table('disputes', function (Blueprint $table) {
+            $table->dropUnique(['reference_number']);
+        });
+        Schema::table('disputes', function (Blueprint $table) {
             $table->dropColumn('reference_number');
         });
 
+        Schema::table('rides', function (Blueprint $table) {
+            $table->dropUnique(['reference_number']);
+        });
         Schema::table('rides', function (Blueprint $table) {
             $table->dropColumn('reference_number');
         });

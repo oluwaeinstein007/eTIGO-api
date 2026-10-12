@@ -38,7 +38,7 @@ class NotificationController extends Controller
             $query->where('is_read', filter_var($request->input('is_read'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        $perPage = min((int) $request->input('per_page', config('notification.per_page', 20)), 50);
+        $perPage = max(1, min((int) $request->input('per_page', config('notification.per_page', 20)), 50));
 
         $notifications = $query->orderByDesc('created_at')->paginate($perPage);
 

@@ -20,12 +20,14 @@ class AdminMonitoringController extends Controller
 
     public function activeRides(Request $request): JsonResponse
     {
+        $perPage = min(max((int) $request->input('per_page', 50), 1), 100);
+
         $rides = Ride::whereIn('status', RideStatus::activeStatuses())
             ->with(['city', 'vehicleClass', 'passenger', 'driver.driver'])
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->orderByDesc('created_at')
-            ->paginate($request->input('per_page', 50));
+            ->paginate($perPage);
 
         $ridesData = $rides->through(function (Ride $ride) {
             $resource = (new RideResource($ride))->resolve();
@@ -64,17 +66,21 @@ class AdminMonitoringController extends Controller
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->get();
 
-        $driversWithLocations = $drivers->map(function (Driver $driver) {
+        $userIds = $drivers->pluck('user_id')->all();
+        $activeRides = Ride::whereIn('driver_id', $userIds)
+            ->whereIn('status', [
+                RideStatus::Matched,
+                RideStatus::DriverEnRoute,
+                RideStatus::DriverArrived,
+                RideStatus::InProgress,
+            ])
+            ->get(['id', 'driver_id', 'reference_number', 'status', 'pickup_address', 'destination_address'])
+            ->keyBy('driver_id');
+
+        $driversWithLocations = $drivers->map(function (Driver $driver) use ($activeRides) {
             $location = $this->locationService->getDriverLocation($driver->user_id);
 
-            $activeRide = Ride::where('driver_id', $driver->user_id)
-                ->whereIn('status', [
-                    RideStatus::Matched,
-                    RideStatus::DriverEnRoute,
-                    RideStatus::DriverArrived,
-                    RideStatus::InProgress,
-                ])
-                ->first(['id', 'reference_number', 'status', 'pickup_address', 'destination_address']);
+            $activeRide = $activeRides->get($driver->user_id);
 
             return [
                 'driver_id' => $driver->id,
@@ -120,7 +126,7 @@ class AdminMonitoringController extends Controller
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('vehicle_class_id', $v))
             ->orderBy('created_at')
-            ->paginate($request->input('per_page', 25));
+            ->paginate(min(max((int) $request->input('per_page', 25), 1), 100));
 
         return response()->json([
             'rides' => RideResource::collection($rides),
@@ -136,7 +142,7 @@ class AdminMonitoringController extends Controller
     public function availableDrivers(Request $request, Ride $ride): JsonResponse
     {
         $radiusKm = (float) $request->input('radius_km', 5);
-        $limit = (int) $request->input('limit', 20);
+        $limit = min(max((int) $request->input('limit', 20), 1), 50);
 
         $nearbyFromRedis = $this->locationService->findNearbyDrivers(
             (float) $ride->pickup_lat,
@@ -161,7 +167,7 @@ class AdminMonitoringController extends Controller
             ->whereIn('user_id', $userIds)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
             ->whereDoesntHave('user', function ($q) {
-                $q->whereHas('rides', fn ($r) => $r->whereIn('status', [
+                $q->whereHas('driverRides', fn ($r) => $r->whereIn('status', [
                     RideStatus::Matched,
                     RideStatus::DriverEnRoute,
                     RideStatus::DriverArrived,

@@ -20,6 +20,10 @@ class BackfillReferenceNumbersCommand extends Command
     {
         $models = $this->getModels();
 
+        if ($models === null) {
+            return self::FAILURE;
+        }
+
         foreach ($models as $label => $class) {
             $this->backfill($label, $class);
         }
@@ -30,7 +34,7 @@ class BackfillReferenceNumbersCommand extends Command
         return self::SUCCESS;
     }
 
-    private function getModels(): array
+    private function getModels(): ?array
     {
         $all = [
             'Driver' => Driver::class,
@@ -46,7 +50,7 @@ class BackfillReferenceNumbersCommand extends Command
             if (! isset($all[$key])) {
                 $this->error("Unknown model: {$filter}. Options: driver, passenger, dispute, ride");
 
-                return [];
+                return null;
             }
 
             return [$key => $all[$key]];
@@ -80,8 +84,7 @@ class BackfillReferenceNumbersCommand extends Command
 
         $class::whereNull('reference_number')
             ->when($class === User::class, fn ($q) => $q->where('type', 'passenger'))
-            ->orderBy('created_at')
-            ->chunk($chunk, function ($records) use (&$filled, $bar, $class) {
+            ->chunkById($chunk, function ($records) use (&$filled, $bar, $class) {
                 foreach ($records as $record) {
                     $record->reference_number = $class::generateReferenceNumber();
                     $record->saveQuietly();

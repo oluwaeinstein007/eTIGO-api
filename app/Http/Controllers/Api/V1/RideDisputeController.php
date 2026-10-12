@@ -20,10 +20,23 @@ class RideDisputeController extends Controller
         $user = $request->user();
 
         $photoPaths = [];
+        $disk = 'local';
+
         if ($request->hasFile('photos')) {
-            $disk = config('filesystems.uploads');
             foreach ($request->file('photos') as $photo) {
-                $photoPaths[] = $photo->store("disputes/{$ride->id}", $disk);
+                $path = $photo->store("disputes/{$ride->id}", $disk);
+
+                if ($path === false) {
+                    foreach ($photoPaths as $stored) {
+                        Storage::disk($disk)->delete($stored);
+                    }
+
+                    return response()->json([
+                        'message' => 'Failed to upload evidence photos. Please try again.',
+                    ], 500);
+                }
+
+                $photoPaths[] = $path;
             }
         }
 
@@ -45,17 +58,20 @@ class RideDisputeController extends Controller
                 return $dispute;
             });
         } catch (UniqueConstraintViolationException) {
-            if ($photoPaths) {
-                $disk = config('filesystems.uploads');
-                foreach ($photoPaths as $path) {
-                    Storage::disk($disk)->delete($path);
-                }
+            foreach ($photoPaths as $path) {
+                Storage::disk($disk)->delete($path);
             }
 
             return response()->json([
                 'message' => 'Validation failed.',
                 'errors' => ['ride' => ['You have already filed a dispute for this ride.']],
             ], 422);
+        } catch (\Throwable $e) {
+            foreach ($photoPaths as $path) {
+                Storage::disk($disk)->delete($path);
+            }
+
+            throw $e;
         }
 
         $dispute->load('reportedBy');

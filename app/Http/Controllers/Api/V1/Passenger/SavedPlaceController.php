@@ -30,25 +30,23 @@ class SavedPlaceController extends Controller
         $type = $request->validated('type');
 
         if (in_array($type, ['home', 'work'])) {
-            $existing = $user->savedPlaces()->where('type', $type)->first();
+            $place = $user->savedPlaces()->updateOrCreate(
+                ['type' => $type],
+                [
+                    'name' => ucfirst($type),
+                    'address' => $request->validated('address'),
+                    'latitude' => $request->validated('latitude'),
+                    'longitude' => $request->validated('longitude'),
+                ],
+            );
 
-            if ($existing) {
-                $existing->update($request->safe()->except('type'));
-
-                return response()->json([
-                    'message' => ucfirst($type) . ' address updated.',
-                    'saved_place' => new SavedPlaceResource($existing),
-                ]);
-            }
+            return response()->json([
+                'message' => ucfirst($type) . ' address saved.',
+                'saved_place' => new SavedPlaceResource($place),
+            ], $place->wasRecentlyCreated ? 201 : 200);
         }
 
-        $data = $request->validated();
-
-        if ($type !== 'custom') {
-            $data['name'] = ucfirst($type);
-        }
-
-        $place = $user->savedPlaces()->create($data);
+        $place = $user->savedPlaces()->create($request->validated());
 
         return response()->json([
             'message' => 'Place saved.',

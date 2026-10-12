@@ -18,10 +18,8 @@ class DisputeResource extends JsonResource
             'category_label' => $this->category->label(),
             'description' => $this->description,
             'evidence_photos' => $this->when($this->evidence_photos, function () {
-                $disk = config('filesystems.uploads');
-
                 return collect($this->evidence_photos)->map(
-                    fn (string $path) => Storage::disk($disk)->url($path),
+                    fn (string $path) => Storage::disk('local')->temporaryUrl($path, now()->addMinutes(30)),
                 )->all();
             }),
             'status' => $this->status->value,

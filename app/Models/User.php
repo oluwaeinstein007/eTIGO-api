@@ -40,6 +40,11 @@ class User extends Authenticatable
         return 'P-';
     }
 
+    public function shouldGenerateReferenceNumber(): bool
+    {
+        return $this->type === UserType::Passenger;
+    }
+
     protected function casts(): array
     {
         return [

@@ -28,9 +28,9 @@ class AdminPricingController extends Controller
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
-                $q->whereHas('city', fn ($q) => $q->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('vehicleClass', fn ($q) => $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('display_name', 'like', "%{$search}%"));
+                $q->whereHas('city', fn ($q) => $q->where('name', 'ilike', "%{$search}%"))
+                    ->orWhereHas('vehicleClass', fn ($q) => $q->where('name', 'ilike', "%{$search}%")
+                        ->orWhere('display_name', 'ilike', "%{$search}%"));
             });
         }
 
@@ -38,28 +38,33 @@ class AdminPricingController extends Controller
             $query->where('effective_from', '<=', now());
         }
 
+        $perPage = min(max($request->integer('per_page', 20), 1), 100);
+
         $configs = $query->orderByDesc('effective_from')
             ->orderByDesc('version')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($perPage);
 
-        $currentIds = $configs->getCollection()
-            ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id)
-            ->map(function ($group) {
-                $combo = $group->first();
+        $combos = $configs->getCollection()
+            ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id);
 
-                return PricingConfig::currentFor($combo->city_id, $combo->vehicle_class_id)?->id;
-            })
-            ->filter()
-            ->values();
+        $currentIds = $combos->map(function ($group) {
+            $combo = $group->first();
 
-        $configs->getCollection()->each(function ($config) use ($currentIds) {
+            return PricingConfig::currentFor($combo->city_id, $combo->vehicle_class_id)?->id;
+        })->filter()->values();
+
+        $allConfigs = PricingConfig::whereIn('city_id', $combos->keys()->map(fn ($k) => explode('|', $k)[0]))
+            ->orderBy('effective_from')
+            ->get(['id', 'city_id', 'vehicle_class_id', 'effective_from'])
+            ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id);
+
+        $configs->getCollection()->each(function ($config) use ($currentIds, $allConfigs) {
             $config->is_current = $currentIds->contains($config->id);
 
-            $config->effective_until = PricingConfig::where('city_id', $config->city_id)
-                ->where('vehicle_class_id', $config->vehicle_class_id)
-                ->where('effective_from', '>', $config->effective_from)
-                ->orderBy('effective_from')
-                ->value('effective_from');
+            $comboConfigs = $allConfigs->get($config->city_id.'|'.$config->vehicle_class_id);
+            $config->effective_until = $comboConfigs
+                ?->first(fn ($c) => $c->effective_from > $config->effective_from)
+                ?->effective_from;
         });
 
         return response()->json([
@@ -155,7 +160,11 @@ class AdminPricingController extends Controller
 
         $config->load(['city', 'vehicleClass']);
         $config->is_current = true;
-        $config->effective_until = null;
+        $config->effective_until = PricingConfig::where('city_id', $config->city_id)
+            ->where('vehicle_class_id', $config->vehicle_class_id)
+            ->where('effective_from', '>', $config->effective_from)
+            ->orderBy('effective_from')
+            ->value('effective_from');
 
         return response()->json([
             'pricing_config' => new PricingResource($config),

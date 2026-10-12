@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -20,6 +21,8 @@ return new class extends Migration
 
             $table->index('user_id');
         });
+
+        DB::statement("CREATE UNIQUE INDEX saved_places_user_type_unique ON saved_places (user_id, type) WHERE type IN ('home', 'work')");
     }
 
     public function down(): void

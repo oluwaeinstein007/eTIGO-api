@@ -14,9 +14,9 @@ return [
     */
 
     'channels' => [
-        'push' => env('NOTIFICATION_PUSH_ENABLED', true),
-        'in_app' => env('NOTIFICATION_IN_APP_ENABLED', true),
-        'mail' => env('NOTIFICATION_MAIL_ENABLED', false),
+        'push' => filter_var(env('NOTIFICATION_PUSH_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'in_app' => filter_var(env('NOTIFICATION_IN_APP_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'mail' => filter_var(env('NOTIFICATION_MAIL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     /*

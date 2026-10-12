@@ -33,7 +33,7 @@ class AdminPassengerController extends Controller
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        $passengers = $query->latest()->paginate($request->integer('per_page', 20));
+        $passengers = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
 
         return response()->json([
             'passengers' => UserResource::collection($passengers),
@@ -156,7 +156,7 @@ class AdminPassengerController extends Controller
             $query->whereDate('created_at', '<=', $request->input('to'));
         }
 
-        $rides = $query->latest()->paginate($request->integer('per_page', 20));
+        $rides = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
 
         return response()->json([
             'rides' => RideResource::collection($rides),

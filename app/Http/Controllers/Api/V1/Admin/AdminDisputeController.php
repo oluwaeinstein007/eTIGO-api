@@ -104,12 +104,21 @@ class AdminDisputeController extends Controller
         }
 
         $admin = $request->user();
-        $oldStatus = $dispute->status;
 
-        $dispute->update(['status' => DisputeStatus::UnderReview]);
+        $updated = Dispute::where('id', $dispute->id)
+            ->where('status', DisputeStatus::Open)
+            ->update(['status' => DisputeStatus::UnderReview]);
+
+        if ($updated === 0) {
+            return response()->json([
+                'message' => 'Dispute status has already changed. Please refresh and try again.',
+            ], 422);
+        }
+
+        $dispute->refresh();
 
         AuditLog::record($dispute, 'dispute_status_changed', $admin, [
-            'status' => $oldStatus->value,
+            'status' => DisputeStatus::Open->value,
         ], [
             'status' => DisputeStatus::UnderReview->value,
         ]);
