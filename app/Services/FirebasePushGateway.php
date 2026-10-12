@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Contracts\PushNotificationGateway;
 use App\Models\DeviceToken;
 use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Messaging\AndroidConfig;
+use Kreait\Firebase\Messaging\ApnsConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\MulticastSendReport;
 use Kreait\Firebase\Messaging\Notification;
@@ -67,10 +69,31 @@ class FirebasePushGateway implements PushNotificationGateway
     private function buildMessage(array $payload): CloudMessage
     {
         $message = CloudMessage::new()
-            ->withNotification(Notification::create($payload['title'], $payload['body']));
+            ->withNotification(Notification::create($payload['title'], $payload['body']))
+            ->withAndroidConfig(AndroidConfig::fromArray([
+                'priority' => 'high',
+                'notification' => [
+                    'channel_id' => 'etigo_updates',
+                    'sound' => 'default',
+                ],
+            ]))
+            ->withApnsConfig(ApnsConfig::fromArray([
+                'headers' => [
+                    'apns-priority' => '10',
+                ],
+                'payload' => [
+                    'aps' => [
+                        'sound' => 'default',
+                        'badge' => 1,
+                    ],
+                ],
+            ]));
 
         if (! empty($payload['data'])) {
-            $stringData = array_map(strval(...), $payload['data']);
+            $stringData = [];
+            foreach ($payload['data'] as $key => $value) {
+                $stringData[(string) $key] = is_array($value) ? json_encode($value) : (string) $value;
+            }
             $message = $message->withData($stringData);
         }
 
@@ -82,7 +105,11 @@ class FirebasePushGateway implements PushNotificationGateway
         foreach ($report->failures()->getItems() as $sendReport) {
             $target = $sendReport->target();
 
-            if ($target && $target->type() === 'token') {
+            if (
+                $target &&
+                $target->type() === 'token' &&
+                ($sendReport->messageTargetWasInvalid() || $sendReport->messageWasSentToUnknownToken())
+            ) {
                 DeviceToken::where('token', $target->value())
                     ->update(['is_active' => false]);
             }

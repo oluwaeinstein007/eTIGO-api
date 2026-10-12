@@ -31,19 +31,24 @@ class TransferReservationJob implements ShouldQueue
 
         if (! $station) {
             Log::warning('TransferReservationJob: station not found', ['station_id' => $this->stationId]);
+
             return;
         }
 
         $reservation = $reservationService->transferToNextQueued($station);
 
         if ($reservation) {
-            $pushGateway->send(
+            $pushGateway->sendToUser(
                 $reservation->driver_id,
-                NotificationType::EvReservationReady,
                 [
-                    'reservation_id' => $reservation->id,
-                    'station_name' => $station->name,
-                    'stall_number' => $reservation->stall?->stall_number,
+                    'title' => 'EV Stall Ready',
+                    'body' => "Stall {$reservation->stall?->stall_number} at {$station->name} is ready for you.",
+                    'data' => [
+                        'type' => NotificationType::EvReservationReady->value,
+                        'reservation_id' => (string) $reservation->id,
+                        'station_name' => $station->name,
+                        'stall_number' => (string) ($reservation->stall?->stall_number ?? ''),
+                    ],
                 ],
             );
 

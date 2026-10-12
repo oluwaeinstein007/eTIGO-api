@@ -42,6 +42,32 @@ it('does not duplicate an existing device token', function () {
     expect(DeviceToken::where('user_id', $this->user->id)->count())->toBe(1);
 });
 
+it('removes previous user association when another user registers the same token', function () {
+    $otherUser = User::factory()->create();
+    DeviceToken::create([
+        'user_id' => $otherUser->id,
+        'token' => 'fcm-token-abc123',
+        'platform' => 'android',
+    ]);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/device-tokens', [
+            'token' => 'fcm-token-abc123',
+            'platform' => 'android',
+        ]);
+
+    $this->assertDatabaseMissing('device_tokens', [
+        'user_id' => $otherUser->id,
+        'token' => 'fcm-token-abc123',
+    ]);
+
+    $this->assertDatabaseHas('device_tokens', [
+        'user_id' => $this->user->id,
+        'token' => 'fcm-token-abc123',
+        'is_active' => true,
+    ]);
+});
+
 it('removes a device token', function () {
     DeviceToken::create([
         'user_id' => $this->user->id,

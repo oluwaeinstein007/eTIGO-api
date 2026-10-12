@@ -115,10 +115,10 @@ class AppServiceProvider extends ServiceProvider
     private function registerPushNotificationGateway(): void
     {
         $this->app->bind(PushNotificationGateway::class, function () {
-            $credentialsPath = config('services.firebase.credentials_path');
+            $credentials = $this->resolveFirebaseCredentials();
 
-            if ($credentialsPath && file_exists($credentialsPath)) {
-                $factory = (new Factory)->withServiceAccount($credentialsPath);
+            if ($credentials) {
+                $factory = (new Factory)->withServiceAccount($credentials);
                 $messaging = $factory->createMessaging();
 
                 return new FirebasePushGateway($messaging);
@@ -126,6 +126,53 @@ class AppServiceProvider extends ServiceProvider
 
             return new LogPushGateway;
         });
+    }
+
+    /**
+     * @return string|array<string, mixed>|null
+     */
+    private function resolveFirebaseCredentials(): string|array|null
+    {
+        $raw = config('services.firebase.credentials_path');
+
+        if (empty($raw)) {
+            $default = storage_path('app/firebase/etogo-b08c2-firebase-adminsdk-fbsvc-8dc10c96a6.json');
+            if (file_exists($default)) {
+                return $default;
+            }
+
+            $genericDefault = storage_path('app/firebase/firebase-credentials.json');
+            if (file_exists($genericDefault)) {
+                return $genericDefault;
+            }
+
+            return null;
+        }
+
+        // Support passing the raw JSON string in environment variable
+        if (str_starts_with(trim($raw), '{')) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        // Direct path (absolute or valid as-is)
+        if (file_exists($raw)) {
+            return $raw;
+        }
+
+        // Relative to Laravel project root
+        if (file_exists(base_path($raw))) {
+            return base_path($raw);
+        }
+
+        // Relative to storage path
+        if (file_exists(storage_path($raw))) {
+            return storage_path($raw);
+        }
+
+        return null;
     }
 
     private function registerKycGateway(): void
