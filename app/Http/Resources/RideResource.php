@@ -15,6 +15,7 @@ class RideResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'reference_number' => $this->reference_number,
             'city_id' => $this->city_id,
             'vehicle_class_id' => $this->vehicle_class_id,
             'passenger_id' => $this->passenger_id,
@@ -47,6 +48,19 @@ class RideResource extends JsonResource
             'passenger' => new UserResource($this->whenLoaded('passenger')),
             'driver' => new UserResource($this->whenLoaded('driver')),
             'cancelled_by' => new UserResource($this->whenLoaded('cancelledByUser')),
+            'payment_details' => $this->when($this->relationLoaded('payment') && $this->payment, function () {
+                $payment = $this->payment;
+
+                return [
+                    'amount' => (float) $payment->amount,
+                    'currency' => $payment->currency,
+                    'method' => $payment->method?->value,
+                    'status' => $payment->status?->value,
+                    'card_brand' => $payment->paymentMethod?->card_brand,
+                    'card_last_four' => $payment->paymentMethod?->card_last_four,
+                    'tip_amount' => $payment->tip_amount ? (float) $payment->tip_amount : null,
+                ];
+            }),
             'matched_at' => $this->matched_at,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,

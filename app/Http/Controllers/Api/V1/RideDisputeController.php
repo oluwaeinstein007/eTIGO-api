@@ -11,6 +11,7 @@ use App\Models\Ride;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class RideDisputeController extends Controller
 {
@@ -18,12 +19,34 @@ class RideDisputeController extends Controller
     {
         $user = $request->user();
 
+        $photoPaths = [];
+        $disk = 'local';
+
+        if ($request->hasFile('photos')) {
+            foreach ($request->file('photos') as $photo) {
+                $path = $photo->store("disputes/{$ride->id}", $disk);
+
+                if ($path === false) {
+                    foreach ($photoPaths as $stored) {
+                        Storage::disk($disk)->delete($stored);
+                    }
+
+                    return response()->json([
+                        'message' => 'Failed to upload evidence photos. Please try again.',
+                    ], 500);
+                }
+
+                $photoPaths[] = $path;
+            }
+        }
+
         try {
-            $dispute = DB::transaction(function () use ($ride, $user, $request) {
+            $dispute = DB::transaction(function () use ($ride, $user, $request, $photoPaths) {
                 $dispute = $ride->disputes()->create([
                     'reported_by_user_id' => $user->id,
                     'category' => $request->validated('category'),
                     'description' => $request->validated('description'),
+                    'evidence_photos' => $photoPaths ?: null,
                     'status' => DisputeStatus::Open,
                 ]);
 
@@ -35,16 +58,26 @@ class RideDisputeController extends Controller
                 return $dispute;
             });
         } catch (UniqueConstraintViolationException) {
+            foreach ($photoPaths as $path) {
+                Storage::disk($disk)->delete($path);
+            }
+
             return response()->json([
                 'message' => 'Validation failed.',
                 'errors' => ['ride' => ['You have already filed a dispute for this ride.']],
             ], 422);
+        } catch (\Throwable $e) {
+            foreach ($photoPaths as $path) {
+                Storage::disk($disk)->delete($path);
+            }
+
+            throw $e;
         }
 
         $dispute->load('reportedBy');
 
         return response()->json([
-            'message' => 'Dispute filed successfully.',
+            'message' => 'Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.',
             'dispute' => new DisputeResource($dispute),
         ], 201);
     }

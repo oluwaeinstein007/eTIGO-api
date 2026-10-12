@@ -115,7 +115,7 @@ it('allows admin to suspend and reactivate a driver', function () {
     $driver = Driver::factory()->approved()->create(['is_online' => true]);
 
     $this->withToken($token)
-        ->postJson("/api/v1/admin/drivers/{$driver->id}/suspend")
+        ->postJson("/api/v1/admin/drivers/{$driver->id}/suspend", ['reason' => 'Policy violation'])
         ->assertOk();
 
     $driver->refresh();

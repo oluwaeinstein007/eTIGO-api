@@ -259,4 +259,3 @@ it('supports paginated notification list requests', function () {
         ->assertJsonPath('meta.per_page', 2)
         ->assertJsonPath('meta.total', 5);
 });
-

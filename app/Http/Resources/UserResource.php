@@ -15,6 +15,7 @@ class UserResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'reference_number' => $this->reference_number,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'phone' => $this->phone,
@@ -23,10 +24,12 @@ class UserResource extends JsonResource
             'admin_role' => $this->when($this->isAdmin(), $this->admin_role),
             'phone_verified_at' => $this->phone_verified_at,
             'is_active' => $this->is_active,
+            'suspension_reason' => $this->when(! $this->is_active && $this->suspension_reason, $this->suspension_reason),
             'profile_photo_url' => $this->profile_photo_path
                 ? Storage::disk(config('filesystems.uploads'))->url($this->profile_photo_path)
                 : null,
             'rating' => $this->when($this->isDriver(), fn () => $this->averageRating()),
+            'total_rides' => $this->when(isset($this->rides_count), $this->rides_count ?? null),
             'vehicle' => $this->when(
                 $this->isDriver() && $this->relationLoaded('driver') && $this->driver?->relationLoaded('vehicle'),
                 fn () => $this->driver?->vehicle ? new VehicleResource($this->driver->vehicle) : null,

@@ -46,7 +46,7 @@ describe('POST /rides/{ride}/dispute', function () {
         $response->assertStatus(201)
             ->assertJsonPath('dispute.category', 'fare_dispute')
             ->assertJsonPath('dispute.status', 'open')
-            ->assertJsonPath('message', 'Dispute filed successfully.');
+            ->assertJsonPath('message', 'Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.');
 
         $this->assertDatabaseHas('disputes', [
             'ride_id' => $this->completedRide->id,

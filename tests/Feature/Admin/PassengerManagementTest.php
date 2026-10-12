@@ -77,7 +77,7 @@ it('suspends a passenger account', function () {
     $passenger = User::factory()->create(['type' => UserType::Passenger, 'is_active' => true]);
 
     $response = $this->withToken($token)
-        ->postJson("/api/v1/admin/passengers/{$passenger->id}/suspend");
+        ->postJson("/api/v1/admin/passengers/{$passenger->id}/suspend", ['reason' => 'Policy violation']);
 
     $response->assertOk()
         ->assertJson(['message' => 'Passenger account suspended.']);
@@ -134,7 +134,7 @@ it('revokes tokens when suspending passenger', function () {
     expect($passenger->tokens()->count())->toBe(1);
 
     $this->withToken($token)
-        ->postJson("/api/v1/admin/passengers/{$passenger->id}/suspend");
+        ->postJson("/api/v1/admin/passengers/{$passenger->id}/suspend", ['reason' => 'Account abuse']);
 
     expect($passenger->tokens()->count())->toBe(0);
 });

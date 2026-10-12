@@ -25,13 +25,47 @@ class AdminPricingController extends Controller
             $query->where('vehicle_class_id', $request->input('vehicle_class_id'));
         }
 
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('city', fn ($q) => $q->where('name', 'ilike', "%{$search}%"))
+                    ->orWhereHas('vehicleClass', fn ($q) => $q->where('name', 'ilike', "%{$search}%")
+                        ->orWhere('display_name', 'ilike', "%{$search}%"));
+            });
+        }
+
         if ($request->boolean('current_only')) {
             $query->where('effective_from', '<=', now());
         }
 
+        $perPage = min(max($request->integer('per_page', 20), 1), 100);
+
         $configs = $query->orderByDesc('effective_from')
             ->orderByDesc('version')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($perPage);
+
+        $combos = $configs->getCollection()
+            ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id);
+
+        $currentIds = $combos->map(function ($group) {
+            $combo = $group->first();
+
+            return PricingConfig::currentFor($combo->city_id, $combo->vehicle_class_id)?->id;
+        })->filter()->values();
+
+        $allConfigs = PricingConfig::whereIn('city_id', $combos->keys()->map(fn ($k) => explode('|', $k)[0]))
+            ->orderBy('effective_from')
+            ->get(['id', 'city_id', 'vehicle_class_id', 'effective_from'])
+            ->groupBy(fn ($c) => $c->city_id.'|'.$c->vehicle_class_id);
+
+        $configs->getCollection()->each(function ($config) use ($currentIds, $allConfigs) {
+            $config->is_current = $currentIds->contains($config->id);
+
+            $comboConfigs = $allConfigs->get($config->city_id.'|'.$config->vehicle_class_id);
+            $config->effective_until = $comboConfigs
+                ?->first(fn ($c) => $c->effective_from > $config->effective_from)
+                ?->effective_from;
+        });
 
         return response()->json([
             'pricing_configs' => PricingResource::collection($configs),
@@ -77,18 +111,32 @@ class AdminPricingController extends Controller
             return $config;
         });
 
+        $config->load(['city', 'vehicleClass']);
+        $config->is_current = PricingConfig::currentFor($config->city_id, $config->vehicle_class_id)?->id === $config->id;
+        $config->effective_until = PricingConfig::where('city_id', $config->city_id)
+            ->where('vehicle_class_id', $config->vehicle_class_id)
+            ->where('effective_from', '>', $config->effective_from)
+            ->orderBy('effective_from')
+            ->value('effective_from');
+
         return response()->json([
             'message' => 'Pricing configuration created successfully.',
-            'pricing_config' => new PricingResource($config->load(['city', 'vehicleClass'])),
+            'pricing_config' => new PricingResource($config),
         ], 201);
     }
 
     public function show(PricingConfig $pricingConfig): JsonResponse
     {
+        $pricingConfig->load(['city', 'vehicleClass', 'createdByAdmin']);
+        $pricingConfig->is_current = PricingConfig::currentFor($pricingConfig->city_id, $pricingConfig->vehicle_class_id)?->id === $pricingConfig->id;
+        $pricingConfig->effective_until = PricingConfig::where('city_id', $pricingConfig->city_id)
+            ->where('vehicle_class_id', $pricingConfig->vehicle_class_id)
+            ->where('effective_from', '>', $pricingConfig->effective_from)
+            ->orderBy('effective_from')
+            ->value('effective_from');
+
         return response()->json([
-            'pricing_config' => new PricingResource(
-                $pricingConfig->load(['city', 'vehicleClass', 'createdByAdmin']),
-            ),
+            'pricing_config' => new PricingResource($pricingConfig),
         ]);
     }
 
@@ -110,8 +158,16 @@ class AdminPricingController extends Controller
             ], 404);
         }
 
+        $config->load(['city', 'vehicleClass']);
+        $config->is_current = true;
+        $config->effective_until = PricingConfig::where('city_id', $config->city_id)
+            ->where('vehicle_class_id', $config->vehicle_class_id)
+            ->where('effective_from', '>', $config->effective_from)
+            ->orderBy('effective_from')
+            ->value('effective_from');
+
         return response()->json([
-            'pricing_config' => new PricingResource($config->load(['city', 'vehicleClass'])),
+            'pricing_config' => new PricingResource($config),
         ]);
     }
 }

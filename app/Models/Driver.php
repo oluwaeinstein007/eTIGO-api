@@ -7,6 +7,7 @@ use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\VehicleOwnershipType;
+use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Driver extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
 
     protected $fillable = [
         'user_id',
@@ -31,7 +32,14 @@ class Driver extends Model
         'is_online',
         'approved_at',
         'suspended_at',
+        'suspension_reason',
+        'reference_number',
     ];
+
+    protected static function referencePrefix(): string
+    {
+        return 'D-';
+    }
 
     protected function casts(): array
     {

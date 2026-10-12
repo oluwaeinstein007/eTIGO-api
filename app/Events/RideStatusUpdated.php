@@ -29,7 +29,10 @@ class RideStatusUpdated implements ShouldBroadcastNow, ShouldDispatchAfterCommit
      */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("ride.{$this->rideId}")];
+        return [
+            new PrivateChannel("ride.{$this->rideId}"),
+            new PrivateChannel('admin.rides'),
+        ];
     }
 
     public function broadcastAs(): string

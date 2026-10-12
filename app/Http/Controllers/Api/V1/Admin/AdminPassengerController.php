@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\RideResource;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
@@ -15,7 +16,8 @@ class AdminPassengerController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = User::where('type', UserType::Passenger);
+        $query = User::where('type', UserType::Passenger)
+            ->withCount('rides');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -31,7 +33,7 @@ class AdminPassengerController extends Controller
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        $passengers = $query->latest()->paginate(20);
+        $passengers = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
 
         return response()->json([
             'passengers' => UserResource::collection($passengers),
@@ -78,14 +80,24 @@ class AdminPassengerController extends Controller
             ], 422);
         }
 
-        $admin = $request->user();
+        $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
-        DB::transaction(function () use ($passenger, $admin) {
-            $passenger->update(['is_active' => false]);
+        $admin = $request->user();
+        $reason = $request->input('reason');
+
+        DB::transaction(function () use ($passenger, $admin, $reason) {
+            $passenger->update([
+                'is_active' => false,
+                'suspension_reason' => $reason,
+            ]);
 
             $passenger->tokens()->delete();
 
-            AuditLog::record($passenger, 'passenger_suspended', $admin);
+            AuditLog::record($passenger, 'passenger_suspended', $admin, null, [
+                'reason' => $reason,
+            ]);
         });
 
         return response()->json([
@@ -109,7 +121,10 @@ class AdminPassengerController extends Controller
         $admin = $request->user();
 
         DB::transaction(function () use ($passenger, $admin) {
-            $passenger->update(['is_active' => true]);
+            $passenger->update([
+                'is_active' => true,
+                'suspension_reason' => null,
+            ]);
 
             AuditLog::record($passenger, 'passenger_reactivated', $admin);
         });
@@ -117,6 +132,40 @@ class AdminPassengerController extends Controller
         return response()->json([
             'message' => 'Passenger account reactivated.',
             'passenger' => new UserResource($passenger->fresh()),
+        ]);
+    }
+
+    public function tripHistory(Request $request, User $passenger): JsonResponse
+    {
+        if ($passenger->type !== UserType::Passenger) {
+            return response()->json(['message' => 'User is not a passenger.'], 404);
+        }
+
+        $query = $passenger->rides()
+            ->with(['driver', 'city', 'vehicleClass']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->input('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->input('to'));
+        }
+
+        $rides = $query->latest()->paginate(min(max($request->integer('per_page', 20), 1), 100));
+
+        return response()->json([
+            'rides' => RideResource::collection($rides),
+            'meta' => [
+                'current_page' => $rides->currentPage(),
+                'last_page' => $rides->lastPage(),
+                'per_page' => $rides->perPage(),
+                'total' => $rides->total(),
+            ],
         ]);
     }
 }

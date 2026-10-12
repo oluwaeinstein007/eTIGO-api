@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +16,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Ride extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
+
+    protected static function referencePrefix(): string
+    {
+        return 'TRP-NG-';
+    }
 
     protected $fillable = [
         'city_id',
@@ -137,6 +143,11 @@ class Ride extends Model
     public function offlineTripFlags(): HasMany
     {
         return $this->hasMany(OfflineTripFlag::class);
+    }
+
+    public function carbonScores(): HasMany
+    {
+        return $this->hasMany(TripCarbonScore::class);
     }
 
     public function isActive(): bool

@@ -1797,6 +1797,390 @@
           ]
         },
         {
+          "name": "Saved Places",
+          "item": [
+            {
+              "name": "List Saved Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places"
+                  ]
+                },
+                "description": "Returns all saved places for the authenticated passenger, ordered: home first, then work, then custom places by creation date."
+              },
+              "response": [
+                {
+                  "name": "200 — Saved Places",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"saved_places\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-111111111111\",\n      \"type\": \"home\",\n      \"name\": \"Home\",\n      \"address\": \"12 Ahmadu Bello Way, Victoria Island, Lagos\",\n      \"latitude\": 6.4281,\n      \"longitude\": 3.4219,\n      \"created_at\": \"2026-10-12T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-12T10:00:00.000000Z\"\n    },\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-222222222222\",\n      \"type\": \"work\",\n      \"name\": \"Work\",\n      \"address\": \"Eko Atlantic City, Lagos\",\n      \"latitude\": 6.41,\n      \"longitude\": 3.405,\n      \"created_at\": \"2026-10-12T10:01:00.000000Z\",\n      \"updated_at\": \"2026-10-12T10:01:00.000000Z\"\n    },\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-333333333333\",\n      \"type\": \"custom\",\n      \"name\": \"Gym\",\n      \"address\": \"Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island\",\n      \"latitude\": 6.431,\n      \"longitude\": 3.42,\n      \"created_at\": \"2026-10-12T10:02:00.000000Z\",\n      \"updated_at\": \"2026-10-12T10:02:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Save Home Address",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"home\",\n  \"address\": \"12 Ahmadu Bello Way, Victoria Island, Lagos\",\n  \"latitude\": 6.4281,\n  \"longitude\": 3.4219\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places"
+                  ]
+                },
+                "description": "Saves or updates the passenger's home address. If a home address already exists, it is updated (returns 200). Otherwise a new entry is created (returns 201). Name is auto-set to 'Home'."
+              },
+              "response": [
+                {
+                  "name": "201 — Home Saved",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Place saved.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-111111111111\",\n    \"type\": \"home\",\n    \"name\": \"Home\",\n    \"address\": \"12 Ahmadu Bello Way, Victoria Island, Lagos\",\n    \"latitude\": 6.4281,\n    \"longitude\": 3.4219,\n    \"created_at\": \"2026-10-12T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 — Home Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Home address updated.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-111111111111\",\n    \"type\": \"home\",\n    \"name\": \"Home\",\n    \"address\": \"New home address\",\n    \"latitude\": 6.5,\n    \"longitude\": 3.5,\n    \"created_at\": \"2026-10-12T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:05:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Save Work Address",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"work\",\n  \"address\": \"Eko Atlantic City, Lagos\",\n  \"latitude\": 6.41,\n  \"longitude\": 3.405\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places"
+                  ]
+                },
+                "description": "Saves or updates the passenger's work address. Same upsert behavior as home."
+              },
+              "response": [
+                {
+                  "name": "201 — Work Saved",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Place saved.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-222222222222\",\n    \"type\": \"work\",\n    \"name\": \"Work\",\n    \"address\": \"Eko Atlantic City, Lagos\",\n    \"latitude\": 6.41,\n    \"longitude\": 3.405,\n    \"created_at\": \"2026-10-12T10:01:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:01:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Save Custom Place",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"custom\",\n  \"name\": \"Gym\",\n  \"address\": \"Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island\",\n  \"latitude\": 6.431,\n  \"longitude\": 3.42\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places"
+                  ]
+                },
+                "description": "Saves a custom named place. Unlike home/work, multiple custom places are allowed. A name is required for custom places."
+              },
+              "response": [
+                {
+                  "name": "201 — Custom Place Saved",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Place saved.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-333333333333\",\n    \"type\": \"custom\",\n    \"name\": \"Gym\",\n    \"address\": \"Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island\",\n    \"latitude\": 6.431,\n    \"longitude\": 3.42,\n    \"created_at\": \"2026-10-12T10:02:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:02:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Name Required",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A name is required for custom places.\",\n  \"errors\": {\n    \"name\": [\"A name is required for custom places.\"]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Saved Place",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places/:savedPlace",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places",
+                    ":savedPlace"
+                  ],
+                  "variable": [
+                    {
+                      "key": "savedPlace",
+                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "description": "Saved place UUID"
+                    }
+                  ]
+                },
+                "description": "Returns a single saved place by ID. Returns 404 if it belongs to another user."
+              },
+              "response": [
+                {
+                  "name": "200 — Saved Place",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-333333333333\",\n    \"type\": \"custom\",\n    \"name\": \"Gym\",\n    \"address\": \"Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island\",\n    \"latitude\": 6.431,\n    \"longitude\": 3.42,\n    \"created_at\": \"2026-10-12T10:02:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:02:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Saved Place",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"New Gym\",\n  \"address\": \"Updated gym address\",\n  \"latitude\": 6.5,\n  \"longitude\": 3.5\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places/:savedPlace",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places",
+                    ":savedPlace"
+                  ],
+                  "variable": [
+                    {
+                      "key": "savedPlace",
+                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "description": "Saved place UUID"
+                    }
+                  ]
+                },
+                "description": "Updates an existing saved place. All fields are optional — only provided fields are changed. Returns 404 if it belongs to another user."
+              },
+              "response": [
+                {
+                  "name": "200 — Place Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Place updated.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-333333333333\",\n    \"type\": \"custom\",\n    \"name\": \"New Gym\",\n    \"address\": \"Updated gym address\",\n    \"latitude\": 6.5,\n    \"longitude\": 3.5,\n    \"created_at\": \"2026-10-12T10:02:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:10:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Saved Place",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/saved-places/:savedPlace",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "saved-places",
+                    ":savedPlace"
+                  ],
+                  "variable": [
+                    {
+                      "key": "savedPlace",
+                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "description": "Saved place UUID"
+                    }
+                  ]
+                },
+                "description": "Deletes a saved place. Returns 404 if it belongs to another user."
+              },
+              "response": [
+                {
+                  "name": "200 — Place Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Place removed.\"\n}"
+                },
+                {
+                  "name": "404 — Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Not found.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Ride Estimates",
           "item": [
             {
@@ -2650,7 +3034,7 @@
                     "receipt"
                   ]
                 },
-                "description": "Returns a detailed receipt for a completed ride including fare breakdown, distance, duration, payment details, and tip. Accessible by the ride's passenger, driver, or any admin."
+                "description": "Returns a detailed receipt for a completed ride including fare breakdown, vehicle details, card info, tip, tier discount, carbon emissions, and payment details. Accessible by the ride's passenger, driver, or any admin."
               },
               "response": [
                 {
@@ -2663,7 +3047,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"12 Adeola Odeku St, Victoria Island\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"destination\": {\n      \"address\": \"Ikeja City Mall, Obafemi Awolowo Way\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"distance_km\": 22.5,\n    \"duration_minutes\": 35,\n    \"vehicle_class\": \"Comfort\",\n    \"driver\": {\n      \"name\": \"John Doe\"\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 5625.0,\n      \"time_charge\": 1400.0,\n      \"waiting_charge\": 0,\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"7500.00\",\n    \"final_fare\": \"7625.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"cash\",\n      \"method_label\": \"Cash\",\n      \"status\": \"collected\",\n      \"status_label\": \"Collected\",\n      \"tip_amount\": \"500.00\",\n      \"total_charged\": 8125.0\n    },\n    \"city\": \"Lagos\"\n  }\n}"
+                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"reference_number\": \"TRP-NG-000142\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"Ikeja City Mall - Gate 2\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"destination\": {\n      \"address\": \"Eko Atlantic City\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"distance_km\": 12.6,\n    \"duration_minutes\": 28,\n    \"vehicle_class\": \"tiGO Lite\",\n    \"driver\": {\n      \"name\": \"Tunde Adeyemi\",\n      \"profile_photo_url\": \"https://storage.example.com/photos/driver-123.jpg\"\n    },\n    \"vehicle\": {\n      \"make\": \"BYD\",\n      \"model\": \"Dolphin\",\n      \"colour\": \"Blue\",\n      \"plate_number\": \"LAG 482 EV\",\n      \"year\": 2025\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 3150.0,\n      \"time_charge\": 1100.0,\n      \"waiting_charge\": 0,\n      \"tip\": 600.0,\n      \"tier_discount\": {\n        \"tier\": \"Gold\",\n        \"percentage\": 5,\n        \"amount\": 63.0\n      },\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"5400.00\",\n    \"final_fare\": \"5350.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"card\",\n      \"method_label\": \"Card\",\n      \"status\": \"captured\",\n      \"status_label\": \"Captured\",\n      \"tip_amount\": \"600.00\",\n      \"card_brand\": \"visa\",\n      \"card_last_four\": \"4242\",\n      \"total_charged\": 5950.0\n    },\n    \"carbon\": {\n      \"estimated_emissions_kg\": 0.4,\n      \"carbon_credit_accrued_kg\": 0.4,\n      \"green_points_earned\": 12\n    },\n    \"city\": \"Lagos\"\n  }\n}"
                 }
               ]
             }
@@ -2882,17 +3266,30 @@
                     "value": "application/json"
                   },
                   {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
                     "key": "Authorization",
                     "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"category\": \"fare_dispute\",\n  \"description\": \"The fare charged was significantly higher than the estimated fare shown before the ride.\"\n}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "category",
+                      "value": "route_deviation",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "photos[]",
+                      "type": "file",
+                      "src": [],
+                      "description": "(Optional) Up to 5 images, max 5MB each. Supported: jpg, jpeg, png, webp"
+                    }
+                  ]
                 },
                 "url": {
                   "raw": "{{base_url}}/rides/{{ride_id}}/dispute",
@@ -2905,7 +3302,7 @@
                     "dispute"
                   ]
                 },
-                "description": "File a dispute for a completed ride. Both passengers and drivers can file disputes.\n\n**Categories:** `fare_dispute`, `driver_behaviour`, `route_deviation`, `vehicle_condition`, `safety_concern`, `payment_issue`, `item_left_behind`, `other`\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10–2000 characters"
+                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` → Safety concern\n- `driver_behaviour` → Driver behaviour\n- `route_deviation` → Wrong route taken\n- `fare_dispute` → Fare is incorrect\n- `vehicle_condition` → Vehicle condition\n- `item_left_behind` → Lost item\n- `payment_issue` → Payment issue\n- `other` → Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10–2000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only"
               },
               "response": [
                 {
@@ -2918,7 +3315,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Dispute filed successfully.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare shown before the ride.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_photos\": [\n      \"https://storage.example.com/disputes/ride-uuid/photo1.jpg\",\n      \"https://storage.example.com/disputes/ride-uuid/photo2.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -3019,6 +3416,94 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The selected category is invalid.\",\n  \"errors\": {\n    \"category\": [\n      \"The selected category is invalid.\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "My Disputes",
+          "item": [
+            {
+              "name": "List My Disputes",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/disputes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "disputes"
+                  ]
+                },
+                "description": "List all disputes filed by the authenticated passenger. Returns paginated results ordered by most recent first."
+              },
+              "response": [
+                {
+                  "name": "200 — My Disputes",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n      \"reference_number\": \"DPT-000048\",\n      \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"category\": \"route_deviation\",\n      \"category_label\": \"Wrong route taken\",\n      \"description\": \"The driver took a longer route...\",\n      \"evidence_photos\": [\n        \"https://storage.example.com/disputes/ride-uuid/photo1.jpg\"\n      ],\n      \"status\": \"open\",\n      \"status_label\": \"Open\",\n      \"reported_by\": {\n        \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"reference_number\": \"TRP-NG-000142\",\n        \"destination\": {\n          \"address\": \"Eko Atlantic City\"\n        }\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show My Dispute",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/disputes/{{dispute_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "disputes",
+                    "{{dispute_id}}"
+                  ]
+                },
+                "description": "View details of a specific dispute filed by the authenticated passenger."
+              },
+              "response": [
+                {
+                  "name": "200 — Dispute Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_photos\": [\n      \"https://storage.example.com/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"TRP-NG-000142\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n  }\n}"
                 }
               ]
             }
@@ -5988,9 +6473,41 @@
                   "path": [
                     "admin",
                     "drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Filter by status: pending_review, approved, rejected, suspended",
+                      "disabled": true
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "vehicle_class_id",
+                      "value": "",
+                      "description": "Filter by vehicle class UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by name, email, or phone",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Items per page (default: 20)",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "List all registered drivers with pagination. Filterable by status, city, and online state. Requires admin authentication."
+                "description": "List all registered drivers with pagination. Filterable by status, city, vehicle class, and search. Requires admin authentication."
               },
               "response": [
                 {
@@ -6003,7 +6520,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\"\n      },\n      \"status\": \"approved\",\n      \"kyc_status\": \"verified\",\n      \"is_online\": true\n    },\n    {\n      \"id\": \"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d\",\n      \"user\": {\n        \"id\": \"2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n        \"first_name\": \"Kemi\",\n        \"last_name\": \"Bakare\"\n      },\n      \"status\": \"approved\",\n      \"kyc_status\": \"verified\",\n      \"is_online\": false\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
+                  "body": "{\n  \"drivers\": [\n    {\n      \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"user\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\",\n        \"email\": \"bayo@demo.etigo.com\"\n      },\n      \"status\": \"approved\",\n      \"vehicle_ownership_type\": \"own_vehicle\",\n      \"kyc_status\": \"verified\",\n      \"rejection_reason\": null,\n      \"is_online\": true,\n      \"suspended_at\": null,\n      \"bank_account\": {\n        \"bank_name\": \"GTBank\",\n        \"account_number\": \"0123456789\",\n        \"account_name\": \"Bayo Akinola\"\n      },\n      \"documents\": [\n        {\n          \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n          \"type\": \"driving_licence\",\n          \"original_filename\": \"licence.pdf\",\n          \"file_size\": 245760,\n          \"file_url\": \"https://storage.example.com/documents/licence.pdf\",\n          \"status\": \"approved\",\n          \"rejection_reason\": null,\n          \"created_at\": \"2026-10-09T08:00:00.000000Z\"\n        }\n      ],\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"ABC-1234\",\n        \"year\": 2022\n      },\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T14:30:00.000000Z\"\n    },\n    {\n      \"id\": \"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d\",\n      \"reference_number\": \"DRV-20261008-D4E5F6\",\n      \"user\": {\n        \"id\": \"2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n        \"first_name\": \"Tunde\",\n        \"last_name\": \"Fashola\",\n        \"phone\": \"+2348200000005\",\n        \"email\": \"tunde@demo.etigo.com\"\n      },\n      \"status\": \"suspended\",\n      \"vehicle_ownership_type\": \"own_vehicle\",\n      \"kyc_status\": \"verified\",\n      \"rejection_reason\": null,\n      \"suspension_reason\": \"Multiple safety complaints from passengers.\",\n      \"is_online\": false,\n      \"suspended_at\": \"2026-10-10T09:00:00.000000Z\",\n      \"bank_account\": null,\n      \"documents\": [],\n      \"vehicle\": {\n        \"make\": \"Nissan\",\n        \"model\": \"Sentra\",\n        \"plate_number\": \"XYZ-5678\",\n        \"year\": 2021\n      },\n      \"created_at\": \"2026-10-01T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-10T09:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}"
                 },
                 {
                   "name": "401 — Unauthenticated",
@@ -6140,7 +6657,7 @@
                     }
                   ]
                 },
-                "description": "Get detailed information about a specific driver, including their profile, vehicle, documents, and KYC status. Requires admin authentication."
+                "description": "Get detailed information about a specific driver, including their profile, vehicle, documents, KYC status, bank account, and performance metrics. Requires admin authentication."
               },
               "response": [
                 {
@@ -6153,7 +6670,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"user\": {\n      \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"phone\": \"+2348200000001\"\n    },\n    \"status\": \"approved\",\n    \"kyc_status\": \"verified\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"plate_number\": \"ABC-1234\",\n      \"year\": 2022\n    },\n    \"documents\": [\n      {\n        \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n        \"type\": \"drivers_licence\",\n        \"status\": \"approved\"\n      }\n    ]\n  }\n}"
+                  "body": "{\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"reference_number\": \"DRV-20261009-A1B2C3\",\n    \"user\": {\n      \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"phone\": \"+2348200000001\"\n    },\n    \"status\": \"approved\",\n    \"vehicle_ownership_type\": \"own_vehicle\",\n    \"kyc_status\": \"verified\",\n    \"rejection_reason\": null,\n    \"is_online\": true,\n    \"suspended_at\": null,\n    \"bank_account\": {\n      \"bank_name\": \"GTBank\",\n      \"account_number\": \"0123456789\",\n      \"account_name\": \"Bayo Akinola\"\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"plate_number\": \"ABC-1234\",\n      \"year\": 2022\n    },\n    \"documents\": [\n      {\n        \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n        \"type\": \"driving_licence\",\n        \"original_filename\": \"licence.pdf\",\n        \"file_size\": 245760,\n        \"file_url\": \"https://storage.example.com/documents/licence.pdf\",\n        \"status\": \"approved\",\n        \"rejection_reason\": null,\n        \"created_at\": \"2026-10-09T08:00:00.000000Z\"\n      }\n    ],\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T14:30:00.000000Z\"\n  },\n  \"performance\": {\n    \"rating\": 4.7,\n    \"total_trips\": 156,\n    \"completed_trips\": 148,\n    \"cancelled_trips\": 8,\n    \"cancellation_rate\": 5.1,\n    \"total_earnings\": 1245600.0\n  }\n}"
                 },
                 {
                   "name": "404 — Not Found",
@@ -6531,6 +7048,10 @@
                     "value": "application/json"
                   },
                   {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
                     "key": "Authorization",
                     "value": "Bearer {{admin_token}}"
                   }
@@ -6554,7 +7075,11 @@
                     }
                   ]
                 },
-                "description": "No request body required. Returns 422 if the driver is not in approved status."
+                "description": "Suspend an approved driver. Requires a reason explaining the suspension. The driver will be taken offline and all active tokens revoked. Returns 422 if the driver is not in approved status.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Multiple safety complaints from passengers.\"\n}"
+                }
               },
               "response": [
                 {
@@ -6567,7 +7092,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Driver suspended successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"suspended\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Driver suspended successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"reference_number\": \"DRV-20261009-A1B2C3\",\n    \"status\": \"suspended\",\n    \"suspension_reason\": \"Multiple safety complaints from passengers.\",\n    \"suspended_at\": \"2026-10-12T10:30:00.000000Z\",\n    \"is_online\": false\n  }\n}"
                 },
                 {
                   "name": "404 — Not Found",
@@ -6679,7 +7204,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Driver reactivated successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"status\": \"approved\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Driver reactivated successfully.\",\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"reference_number\": \"DRV-20261009-A1B2C3\",\n    \"status\": \"approved\",\n    \"suspension_reason\": null,\n    \"suspended_at\": null,\n    \"is_online\": false\n  }\n}"
                 },
                 {
                   "name": "422 — Not Suspended",
@@ -6692,6 +7217,75 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Driver is not currently suspended.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Driver Trip History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/{{driver_id}}/trips",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    "{{driver_id}}",
+                    "trips"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "completed",
+                      "description": "Filter by ride status: requested, matched, arrived, in_progress, completed, cancelled",
+                      "disabled": true
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Filter rides created on or after (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-12",
+                      "description": "Filter rides created on or before (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Items per page (default: 20)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Get paginated trip history for a specific driver. Supports filtering by ride status and date range."
+              },
+              "response": [
+                {
+                  "name": "200 — Driver Trips",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n      \"status\": \"completed\",\n      \"status_label\": \"Completed\",\n      \"pickup\": {\n        \"lat\": 6.4541,\n        \"lng\": 3.3947,\n        \"address\": \"123 Marina Road, Lagos Island\"\n      },\n      \"destination\": {\n        \"lat\": 6.4298,\n        \"lng\": 3.4207,\n        \"address\": \"45 Broad Street, Lagos\"\n      },\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"3800.00\",\n      \"fare_currency\": \"NGN\",\n      \"passenger\": {\n        \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\"\n      },\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"completed_at\": \"2026-10-10T15:45:00.000000Z\",\n      \"created_at\": \"2026-10-10T15:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -7801,6 +8395,26 @@
                   "path": [
                     "admin",
                     "passengers"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by name, email, or phone",
+                      "disabled": true
+                    },
+                    {
+                      "key": "is_active",
+                      "value": "",
+                      "description": "Filter by active status (true/false)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Items per page (default: 20)",
+                      "disabled": true
+                    }
                   ]
                 },
                 "description": "List all passengers with pagination. Supports search (name/email/phone) and is_active filter."
@@ -7816,7 +8430,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"phone\": \"+2348100000001\",\n      \"is_active\": true\n    },\n    {\n      \"id\": \"6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c\",\n      \"first_name\": \"Ngozi\",\n      \"last_name\": \"Okafor\",\n      \"email\": \"ngozi@demo.etigo.com\",\n      \"phone\": \"+2348100000002\",\n      \"is_active\": true\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 2\n  }\n}"
+                  "body": "{\n  \"passengers\": [\n    {\n      \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n      \"reference_number\": \"USR-20261001-P1Q2R3\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"phone\": \"+2348100000001\",\n      \"is_active\": true,\n      \"total_rides\": 23,\n      \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n    },\n    {\n      \"id\": \"6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c\",\n      \"reference_number\": \"USR-20261001-S4T5U6\",\n      \"first_name\": \"Ngozi\",\n      \"last_name\": \"Okafor\",\n      \"email\": \"ngozi@demo.etigo.com\",\n      \"phone\": \"+2348100000002\",\n      \"is_active\": true,\n      \"total_rides\": 8,\n      \"created_at\": \"2026-10-01T11:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}"
                 },
                 {
                   "name": "401 — Unauthenticated",
@@ -7971,7 +8585,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"is_active\": true,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"reference_number\": \"USR-20261001-P1Q2R3\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"is_active\": true,\n    \"total_rides\": 23,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"statistics\": {\n    \"total_rides\": 23,\n    \"completed_rides\": 20,\n    \"cancelled_rides\": 3\n  }\n}"
                 },
                 {
                   "name": "404 — Not Found",
@@ -7994,6 +8608,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   },
                   {
@@ -8020,7 +8638,11 @@
                     }
                   ]
                 },
-                "description": "Suspend a passenger account. Revokes all active tokens. Returns 422 if already suspended."
+                "description": "Suspend a passenger account. Requires a reason explaining the suspension. Revokes all active tokens. Returns 422 if already suspended.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Repeated abusive behavior towards drivers.\"\n}"
+                }
               },
               "response": [
                 {
@@ -8033,7 +8655,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Passenger suspended successfully.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"is_active\": false\n  }\n}"
+                  "body": "{\n  \"message\": \"Passenger account suspended.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"reference_number\": \"USR-20261001-P1Q2R3\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"is_active\": false,\n    \"suspension_reason\": \"Repeated abusive behavior towards drivers.\"\n  }\n}"
                 },
                 {
                   "name": "404 — Not Found",
@@ -8145,7 +8767,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Passenger reactivated successfully.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"is_active\": true\n  }\n}"
+                  "body": "{\n  \"message\": \"Passenger account reactivated.\",\n  \"passenger\": {\n    \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n    \"reference_number\": \"USR-20261001-P1Q2R3\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"is_active\": true,\n    \"suspension_reason\": null\n  }\n}"
                 },
                 {
                   "name": "422 — Not Suspended",
@@ -8158,6 +8780,75 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This passenger is not currently suspended.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Passenger Trip History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/passengers/{{passenger_id}}/trips",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "passengers",
+                    "{{passenger_id}}",
+                    "trips"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "completed",
+                      "description": "Filter by ride status: requested, matched, arrived, in_progress, completed, cancelled",
+                      "disabled": true
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Filter rides created on or after (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-12",
+                      "description": "Filter rides created on or before (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Items per page (default: 20)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Get paginated trip history for a specific passenger. Supports filtering by ride status and date range."
+              },
+              "response": [
+                {
+                  "name": "200 — Passenger Trips",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n      \"status\": \"completed\",\n      \"status_label\": \"Completed\",\n      \"pickup\": {\n        \"lat\": 6.4541,\n        \"lng\": 3.3947,\n        \"address\": \"123 Marina Road, Lagos Island\"\n      },\n      \"destination\": {\n        \"lat\": 6.4298,\n        \"lng\": 3.4207,\n        \"address\": \"45 Broad Street, Lagos\"\n      },\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"3800.00\",\n      \"fare_currency\": \"NGN\",\n      \"driver\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\"\n      },\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"completed_at\": \"2026-10-10T15:45:00.000000Z\",\n      \"created_at\": \"2026-10-10T15:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             }
@@ -8808,7 +9499,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Pricing config created successfully.\",\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Pricing config created successfully.\",\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": false,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n    \"effective_until\": null\n  }\n}"
                 },
                 {
                   "name": "422 — Validation Error",
@@ -8849,6 +9540,12 @@
                   ],
                   "query": [
                     {
+                      "key": "search",
+                      "value": "",
+                      "description": "Search by city or vehicle class name",
+                      "disabled": true
+                    },
+                    {
                       "key": "city_id",
                       "value": "1",
                       "description": "Optional: filter by city"
@@ -8883,7 +9580,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\"\n      },\n      \"base_fare\": 500.0,\n      \"per_km_rate\": 100.0,\n      \"minimum_fare\": 700.0,\n      \"is_current\": true,\n      \"effective_from\": \"2026-10-01T00:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\"\n      },\n      \"base_fare\": 500.0,\n      \"per_km_rate\": 100.0,\n      \"minimum_fare\": 700.0,\n      \"is_current\": true,\n      \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n      \"effective_until\": null\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -8932,7 +9629,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city\": {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\"\n    },\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city\": {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\"\n    },\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": true,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n    \"effective_until\": null\n  }\n}"
                 },
                 {
                   "name": "404 — Not Found",
@@ -8998,7 +9695,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": true\n  }\n}"
+                  "body": "{\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": true,\n    \"version\": 1,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n    \"effective_until\": null,\n    \"city\": {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n      \"name\": \"economy\"\n    },\n    \"created_by\": {\n      \"id\": \"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b\",\n      \"first_name\": \"Super\",\n      \"last_name\": \"Admin\"\n    },\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "404 — No Config",
@@ -9564,6 +10261,125 @@
           "description": "**Required Role(s):** Operations (Super Admin always has access)\n\nAdmin ride operations: manual driver assignment for support escalations and edge cases where automated matching fails.",
           "item": [
             {
+              "name": "List Pending Rides",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/rides/pending",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "rides",
+                    "pending"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "vehicle_class_id",
+                      "value": "",
+                      "description": "Filter by vehicle class UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25",
+                      "description": "Items per page (default: 25)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns rides that are waiting for a driver — those in requested, searching, or no_driver_found status with no driver assigned. These are the rides that may need manual intervention via the \"Manually Assign Driver\" endpoint.\n\nResults are ordered by creation time (oldest first) so the longest-waiting passengers appear at the top. Filterable by city and vehicle class.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+              },
+              "response": [
+                {
+                  "name": "200 — Pending Rides",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"03c32g8h-67he-946g-1c9f-05dc1fh12g58\",\n      \"reference_number\": \"RDE-20261012-W4L8R1\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 1,\n        \"name\": \"Economy\"\n      },\n      \"passenger\": {\n        \"id\": 4,\n        \"first_name\": \"Funmi\",\n        \"last_name\": \"Adeyemi\",\n        \"phone\": \"+2348100000004\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"8 University Road, Akoka, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.6018000\",\n        \"lng\": \"3.3515000\",\n        \"address\": \"45 Toyin Street, Ikeja, Lagos\"\n      },\n      \"status\": \"searching\",\n      \"status_label\": \"Searching for Driver\",\n      \"fare_estimate_amount\": \"3100.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"cash\",\n      \"created_at\": \"2026-10-12T09:05:00.000000Z\"\n    },\n    {\n      \"id\": \"04d43i9j-78if-057h-2d0g-16ed2gi23h69\",\n      \"reference_number\": \"RDE-20261012-B6T2Y5\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 4,\n        \"name\": \"SUV\"\n      },\n      \"passenger\": {\n        \"id\": 5,\n        \"first_name\": \"Chidi\",\n        \"last_name\": \"Eze\",\n        \"phone\": \"+2348100000005\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.4541000\",\n        \"lng\": \"3.3947000\",\n        \"address\": \"10 Broad Street, Lagos Island, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4470000\",\n        \"lng\": \"3.4720000\",\n        \"address\": \"3 Admiralty Way, Lekki Phase 1, Lagos\"\n      },\n      \"status\": \"no_driver_found\",\n      \"status_label\": \"No Driver Found\",\n      \"fare_estimate_amount\": \"5800.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"created_at\": \"2026-10-12T08:52:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 25,\n    \"total\": 2\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Available Drivers for Ride",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/rides/{{ride_id}}/available-drivers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "rides",
+                    "{{ride_id}}",
+                    "available-drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "radius_km",
+                      "value": "5",
+                      "description": "Search radius in kilometres (default: 5)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Maximum number of drivers to return (default: 20)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns nearby online drivers who are eligible to be assigned to a specific ride. Drivers are filtered by approval status, online status, matching vehicle class, same city, and no active ride. Results are sorted by proximity to the ride pickup location.\n\nUse this before calling \"Manually Assign Driver\" to see which drivers are available and how far away they are. The radius_km parameter controls the search radius (default 5 km) and limit caps the number of results (default 20).\n\nThe meta block includes the search radius, ride ID, and the pickup coordinates for reference.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+              },
+              "response": [
+                {
+                  "name": "200 — Available Drivers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-567-AB\",\n        \"colour\": \"White\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.528,\n        \"lng\": 3.3815,\n        \"heading\": 170.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:30:15.000000Z\"\n      },\n      \"distance_km\": 0.85\n    },\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Camry\",\n        \"plate_number\": \"LAG-890-CD\",\n        \"colour\": \"Blue\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.518,\n        \"lng\": 3.39,\n        \"heading\": 265.0,\n        \"speed\": 15.2,\n        \"updated_at\": \"2026-10-12T09:29:58.000000Z\"\n      },\n      \"distance_km\": 1.42\n    },\n    {\n      \"driver_id\": \"ab3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n      \"user_id\": 8,\n      \"name\": \"Kola Adebayo\",\n      \"phone\": \"+2348200000007\",\n      \"reference_number\": \"DRV-20261009-G7H8I9\",\n      \"vehicle\": {\n        \"make\": \"Honda\",\n        \"model\": \"Civic\",\n        \"plate_number\": \"LAG-345-EF\",\n        \"colour\": \"Grey\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.505,\n        \"lng\": 3.365,\n        \"heading\": 320.0,\n        \"speed\": 22.8,\n        \"updated_at\": \"2026-10-12T09:30:02.000000Z\"\n      },\n      \"distance_km\": 2.67\n    }\n  ],\n  \"meta\": {\n    \"total\": 3,\n    \"radius_km\": 5.0,\n    \"ride_id\": \"03c32g8h-67he-946g-1c9f-05dc1fh12g58\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"8 University Road, Akoka, Yaba, Lagos\"\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
               "name": "Manually Assign Driver",
               "request": {
                 "method": "POST",
@@ -9641,6 +10457,123 @@
           ]
         },
         {
+          "name": "Admin — Live Monitoring",
+          "item": [
+            {
+              "name": "List Active Rides",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/monitoring/active-rides",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "monitoring",
+                    "active-rides"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "description": "Filter by ride status (e.g. matched, driver_en_route, driver_arrived, in_progress)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "50",
+                      "description": "Items per page (default: 50)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns all currently active rides (matched, driver en route, driver arrived, in progress) with real-time driver locations. Use this for the live monitoring dashboard to track rides across all cities or filter by a specific city and status.\n\nThe response includes a summary block with total active rides and a breakdown by status. Each ride object includes a driver_location block with the driver's last-known GPS coordinates.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+              },
+              "response": [
+                {
+                  "name": "200 — Active Rides",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n      \"reference_number\": \"RDE-20261012-X7K9M2\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 1,\n        \"name\": \"Economy\"\n      },\n      \"passenger\": {\n        \"id\": 1,\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\"\n      },\n      \"driver\": {\n        \"id\": 2,\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.5100000\",\n        \"lng\": \"3.3750000\",\n        \"address\": \"15 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4650000\",\n        \"lng\": \"3.4060000\",\n        \"address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"status\": \"in_progress\",\n      \"status_label\": \"In Progress\",\n      \"fare_estimate_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"cash\",\n      \"created_at\": \"2026-10-12T09:15:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.4832,\n        \"lng\": 3.3791,\n        \"heading\": 185.5,\n        \"speed\": 32.0,\n        \"updated_at\": \"2026-10-12T09:28:45.000000Z\"\n      }\n    },\n    {\n      \"id\": \"02b21f7g-56gd-835f-0b8e-94cb0eg01f47\",\n      \"reference_number\": \"RDE-20261012-P3N5Q8\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 3,\n        \"name\": \"Premium\"\n      },\n      \"passenger\": {\n        \"id\": 3,\n        \"first_name\": \"Emeka\",\n        \"last_name\": \"Nwosu\",\n        \"phone\": \"+2348100000003\"\n      },\n      \"driver\": {\n        \"id\": 5,\n        \"first_name\": \"Segun\",\n        \"last_name\": \"Obaseki\",\n        \"phone\": \"+2348200000003\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.4310000\",\n        \"lng\": \"3.4240000\",\n        \"address\": \"4 Ozumba Mbadiwe Avenue, Victoria Island, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5950000\",\n        \"lng\": \"3.3420000\",\n        \"address\": \"22 Allen Avenue, Ikeja, Lagos\"\n      },\n      \"status\": \"driver_en_route\",\n      \"status_label\": \"Driver En Route\",\n      \"fare_estimate_amount\": \"8500.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"created_at\": \"2026-10-12T09:22:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:24:12.000000Z\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 50,\n    \"total\": 2\n  },\n  \"summary\": {\n    \"total_active\": 5,\n    \"by_status\": {\n      \"matched\": 1,\n      \"driver_en_route\": 2,\n      \"driver_arrived\": 0,\n      \"in_progress\": 2\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Online Drivers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/monitoring/online-drivers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "monitoring",
+                    "online-drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns all currently online and approved drivers with their real-time GPS locations, vehicle details, and active ride information (if any). Use this for the live monitoring map to see all available and occupied drivers.\n\nThe response includes a summary block with counts of total online, on-trip, and available drivers. Each driver entry indicates whether they are currently on a trip via the is_on_trip boolean and provides the active_ride details if applicable.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+              },
+              "response": [
+                {
+                  "name": "200 — Online Drivers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-234-XY\",\n        \"colour\": \"Silver\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.51,\n        \"lng\": 3.375,\n        \"heading\": 90.0,\n        \"speed\": 28.5,\n        \"updated_at\": \"2026-10-12T09:30:00.000000Z\"\n      },\n      \"active_ride\": {\n        \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n        \"reference_number\": \"RDE-20261012-X7K9M2\",\n        \"status\": \"in_progress\",\n        \"pickup_address\": \"15 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"is_on_trip\": true\n    },\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Mercedes\",\n        \"model\": \"E-Class\",\n        \"plate_number\": \"ABJ-789-KL\",\n        \"colour\": \"Black\",\n        \"vehicle_class\": \"Premium\"\n      },\n      \"location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:29:50.000000Z\"\n      },\n      \"active_ride\": null,\n      \"is_on_trip\": false\n    }\n  ],\n  \"summary\": {\n    \"total_online\": 8,\n    \"on_trip\": 3,\n    \"available\": 5\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Admin — Dispute Management",
           "item": [
             {
@@ -9687,6 +10620,12 @@
                       "description": "Filter by specific ride UUID"
                     },
                     {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    },
+                    {
                       "key": "search",
                       "value": "",
                       "description": "Search by description or reporter name/email"
@@ -9726,7 +10665,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n      \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"category\": \"fare_dispute\",\n      \"category_label\": \"Fare Dispute\",\n      \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n      \"status\": \"open\",\n      \"status_label\": \"Open\",\n      \"reported_by\": {\n        \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\",\n        \"email\": \"john@example.com\",\n        \"type\": \"passenger\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"status\": \"completed\"\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n      \"reference_number\": \"DSP-20261009-K7L8M9\",\n      \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"category\": \"fare_dispute\",\n      \"category_label\": \"Fare Dispute\",\n      \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n      \"status\": \"open\",\n      \"status_label\": \"Open\",\n      \"resolution_notes\": null,\n      \"refund_amount\": null,\n      \"refund_currency\": null,\n      \"reported_by\": {\n        \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"phone\": \"+2348100000001\",\n        \"type\": \"passenger\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n        \"status\": \"completed\",\n        \"city\": {\n          \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n          \"name\": \"Lagos\"\n        },\n        \"passenger\": {\n          \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n          \"first_name\": \"Ade\",\n          \"last_name\": \"Ogunleye\",\n          \"phone\": \"+2348100000001\"\n        },\n        \"driver\": {\n          \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n          \"first_name\": \"Bayo\",\n          \"last_name\": \"Akinola\",\n          \"phone\": \"+2348200000001\"\n        }\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -9850,7 +10789,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\",\n      \"pickup_address\": \"123 Main Street, Abuja\",\n      \"destination_address\": \"456 Airport Road, Abuja\",\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"passenger\": {\n        \"id\": \"...\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\"\n      },\n      \"driver\": {\n        \"id\": \"...\",\n        \"first_name\": \"Jane\",\n        \"last_name\": \"Smith\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"...\",\n        \"name\": \"comfort\",\n        \"display_name\": \"Comfort\"\n      },\n      \"city\": {\n        \"id\": \"...\",\n        \"name\": \"Abuja\"\n      },\n      \"payment\": {\n        \"id\": \"...\",\n        \"amount\": \"4200.00\",\n        \"currency\": \"NGN\",\n        \"method\": \"card\",\n        \"status\": \"captured\"\n      }\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DSP-20261009-K7L8M9\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"phone\": \"+2348100000001\",\n      \"type\": \"passenger\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n      \"status\": \"completed\",\n      \"pickup\": {\n        \"lat\": 6.4541,\n        \"lng\": 3.3947,\n        \"address\": \"123 Marina Road, Lagos Island\"\n      },\n      \"destination\": {\n        \"lat\": 6.4298,\n        \"lng\": 3.4207,\n        \"address\": \"45 Broad Street, Lagos\"\n      },\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"passenger\": {\n        \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\"\n      },\n      \"driver\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"payment_details\": {\n        \"amount\": 4200.0,\n        \"currency\": \"NGN\",\n        \"method\": \"card\",\n        \"status\": \"captured\",\n        \"card_brand\": \"visa\",\n        \"card_last_four\": \"4242\",\n        \"tip_amount\": null\n      }\n    },\n    \"notes\": [\n      {\n        \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n        \"content\": \"Contacted passenger to verify the complaint.\",\n        \"admin\": {\n          \"id\": \"admin-uuid-here\",\n          \"first_name\": \"Admin\",\n          \"last_name\": \"User\"\n        },\n        \"created_at\": \"2026-10-09T13:00:00.000000Z\",\n        \"updated_at\": \"2026-10-09T13:00:00.000000Z\"\n      }\n    ],\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -10004,6 +10943,283 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This dispute has already been resolved or dismissed.\",\n  \"errors\": {\n    \"status\": [\n      \"This dispute has already been resolved or dismissed.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Dispute Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"under_review\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/status",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "status"
+                  ]
+                },
+                "description": "Move an open dispute to under_review status. Only open disputes can be transitioned. Creates an audit log entry."
+              },
+              "response": [
+                {
+                  "name": "200 — Status Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute moved to under review.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DSP-20261009-K7L8M9\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"type\": \"passenger\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Not Open",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Only open disputes can be moved to under review.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Dispute Notes",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/notes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "notes"
+                  ]
+                },
+                "description": "List all internal notes for a dispute. Notes are ordered newest first with pagination."
+              },
+              "response": [
+                {
+                  "name": "200 — Dispute Notes",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"notes\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n      \"content\": \"Contacted passenger to verify the complaint. Passenger confirmed the fare discrepancy.\",\n      \"admin\": {\n        \"id\": \"admin-uuid-here\",\n        \"first_name\": \"Admin\",\n        \"last_name\": \"User\",\n        \"email\": \"admin@etigo.com\"\n      },\n      \"created_at\": \"2026-10-09T13:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T13:00:00.000000Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-note-222222222222\",\n      \"content\": \"Checked fare calculation logs. Surge was active during the trip.\",\n      \"admin\": {\n        \"id\": \"admin-uuid-here\",\n        \"first_name\": \"Admin\",\n        \"last_name\": \"User\",\n        \"email\": \"admin@etigo.com\"\n      },\n      \"created_at\": \"2026-10-09T14:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T14:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Dispute Note",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"Contacted passenger to verify the complaint. Passenger confirmed the fare discrepancy.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/notes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "notes"
+                  ]
+                },
+                "description": "Add an internal note to a dispute. Notes are visible only to admins and are used for investigation tracking. Content is required, max 2000 characters."
+              },
+              "response": [
+                {
+                  "name": "201 — Note Added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note added successfully.\",\n  \"note\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n    \"content\": \"Contacted passenger to verify the complaint. Passenger confirmed the fare discrepancy.\",\n    \"admin\": {\n      \"id\": \"admin-uuid-here\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"email\": \"admin@etigo.com\"\n    },\n    \"created_at\": \"2026-10-12T10:30:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:30:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Dispute Note",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"Updated: Contacted passenger and driver. Both confirmed the fare was higher than estimated due to route deviation.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/notes/{{note_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "notes",
+                    "{{note_id}}"
+                  ]
+                },
+                "description": "Update the content of an existing dispute note. Content is required, max 2000 characters."
+              },
+              "response": [
+                {
+                  "name": "200 — Note Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note updated successfully.\",\n  \"note\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n    \"content\": \"Updated: Contacted passenger and driver. Both confirmed the fare was higher than estimated due to route deviation.\",\n    \"admin\": {\n      \"id\": \"admin-uuid-here\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"email\": \"admin@etigo.com\"\n    },\n    \"created_at\": \"2026-10-12T10:30:00.000000Z\",\n    \"updated_at\": \"2026-10-12T11:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "404 — Note Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note does not belong to this dispute.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Dispute Note",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/notes/{{note_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "notes",
+                    "{{note_id}}"
+                  ]
+                },
+                "description": "Permanently delete a dispute note."
+              },
+              "response": [
+                {
+                  "name": "200 — Note Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note deleted successfully.\"\n}"
+                },
+                {
+                  "name": "404 — Note Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note does not belong to this dispute.\"\n}"
                 }
               ]
             }

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
+use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
 use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
+use App\Http\Controllers\Api\V1\Admin\AdminMonitoringController;
 use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
@@ -57,7 +59,9 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\PassengerActiveRideController;
+use App\Http\Controllers\Api\V1\Passenger\PassengerDisputeController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
+use App\Http\Controllers\Api\V1\Passenger\SavedPlaceController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
@@ -269,11 +273,24 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
     Route::post('/profile', [ProfileController::class, 'update']);
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
 
+    Route::prefix('saved-places')->group(function () {
+        Route::get('/', [SavedPlaceController::class, 'index']);
+        Route::post('/', [SavedPlaceController::class, 'store']);
+        Route::get('/{savedPlace}', [SavedPlaceController::class, 'show']);
+        Route::put('/{savedPlace}', [SavedPlaceController::class, 'update']);
+        Route::delete('/{savedPlace}', [SavedPlaceController::class, 'destroy']);
+    });
+
     Route::prefix('wallet')->group(function () {
         Route::get('/', [WalletController::class, 'show']);
         Route::get('/transactions', [WalletController::class, 'transactions']);
         Route::post('/topup', [WalletTopupController::class, 'store'])->middleware('throttle:10,1');
         Route::get('/topup/{transactionId}/verify', [WalletTopupController::class, 'verify']);
+    });
+
+    Route::prefix('disputes')->group(function () {
+        Route::get('/', [PassengerDisputeController::class, 'index']);
+        Route::get('/{dispute}', [PassengerDisputeController::class, 'show']);
     });
 });
 
@@ -372,6 +389,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/documents/{document}/review', [DriverManagementController::class, 'reviewDocument']);
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
+        Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
         // Testing/QA only: remove before production go-live
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
@@ -409,7 +427,14 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::patch('/{surgeRule}/status', [AdminSurgeRuleController::class, 'toggleStatus']);
     });
 
+    Route::middleware('admin.role:operations')->prefix('monitoring')->group(function () {
+        Route::get('/active-rides', [AdminMonitoringController::class, 'activeRides']);
+        Route::get('/online-drivers', [AdminMonitoringController::class, 'onlineDrivers']);
+    });
+
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {
+        Route::get('/pending', [AdminMonitoringController::class, 'pendingRides']);
+        Route::get('/{ride}/available-drivers', [AdminMonitoringController::class, 'availableDrivers']);
         Route::post('/{ride}/assign', [AdminRideController::class, 'assign']);
     });
 
@@ -484,12 +509,18 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:support')->prefix('disputes')->group(function () {
         Route::get('/', [AdminDisputeController::class, 'index']);
         Route::get('/{dispute}', [AdminDisputeController::class, 'show']);
+        Route::patch('/{dispute}/status', [AdminDisputeController::class, 'updateStatus']);
         Route::post('/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
+        Route::get('/{dispute}/notes', [AdminDisputeNoteController::class, 'index']);
+        Route::post('/{dispute}/notes', [AdminDisputeNoteController::class, 'store']);
+        Route::put('/{dispute}/notes/{note}', [AdminDisputeNoteController::class, 'update']);
+        Route::delete('/{dispute}/notes/{note}', [AdminDisputeNoteController::class, 'destroy']);
     });
 
     Route::middleware('admin.role:support,safety_operator')->prefix('passengers')->group(function () {
         Route::get('/', [AdminPassengerController::class, 'index']);
         Route::get('/{passenger}', [AdminPassengerController::class, 'show']);
+        Route::get('/{passenger}/trips', [AdminPassengerController::class, 'tripHistory']);
         Route::post('/{passenger}/suspend', [AdminPassengerController::class, 'suspend']);
         Route::post('/{passenger}/reactivate', [AdminPassengerController::class, 'reactivate']);
     });
