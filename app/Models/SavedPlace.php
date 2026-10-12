@@ -2,22 +2,31 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable([
-    'user_id',
-    'type',
-    'name',
-    'address',
-    'latitude',
-    'longitude',
-])]
 class SavedPlace extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
+
+    protected $fillable = [
+        'user_id',
+        'type',
+        'name',
+        'address',
+        'latitude',
+        'longitude',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+        ];
+    }
 
     public function user(): BelongsTo
     {

@@ -55,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
+
     }
 
     private function registerMapsGateway(): void

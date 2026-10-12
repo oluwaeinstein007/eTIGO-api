@@ -8,6 +8,7 @@ use App\Http\Requests\Dispute\ResolveDisputeFormRequest;
 use App\Http\Resources\DisputeResource;
 use App\Models\AuditLog;
 use App\Models\Dispute;
+use App\Notifications\DisputeResolvedNotification;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -170,6 +171,8 @@ class AdminDisputeController extends Controller
         ], $auditNewState);
 
         $dispute->load(['reportedBy', 'resolvedBy', 'ride']);
+
+        $dispute->reportedBy?->notify(new DisputeResolvedNotification($dispute));
 
         $message = 'Dispute resolved successfully.';
         if ($refundAmount) {

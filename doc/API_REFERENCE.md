@@ -6864,6 +6864,7 @@ File a dispute / report an issue for a completed ride. Both passengers and drive
 | `category`    | string   | Yes      | One of `DisputeCategory` enum values (see below)   |
 | `description` | string   | Yes      | 10–2000 characters                                 |
 | `photos[]`    | file[]   | No       | Up to 5 images (jpg, jpeg, png, webp), max 5MB each |
+| `audio`       | file     | No       | Audio recording (mp3, m4a, wav, ogg, webm, aac), max 10MB |
 
 **DisputeCategory values:**
 
@@ -6892,6 +6893,7 @@ category: route_deviation
 description: The driver took a longer route through Maryland instead of Third Mainland Bridge.
 photos[0]: <image file>
 photos[1]: <image file>
+audio: <audio file>
 ```
 
 **Response: `201 Created`**
@@ -6909,6 +6911,7 @@ photos[1]: <image file>
       "https://storage.example.com/disputes/ride-uuid/photo1.jpg",
       "https://storage.example.com/disputes/ride-uuid/photo2.jpg"
     ],
+    "evidence_audio": "https://storage.example.com/disputes/ride-uuid/audio/recording.m4a",
     "status": "open",
     "status_label": "Open",
     "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
@@ -7451,6 +7454,21 @@ Returns top users sorted by total ranking points.
 
 ---
 
+### Download Green Impact PDF
+
+```
+GET /gamification/green-impact-pdf
+Authorization: Bearer {token}
+```
+
+Downloads a personalised PDF report summarising the user's environmental impact — total rides, CO₂ saved, electric kilometres, current tier, and a table of recent trip scores.
+
+**Response:** Binary PDF download (`Content-Type: application/pdf`).
+
+**File name:** `etigo-green-impact-{user_id}.pdf`
+
+---
+
 ## Admin — Gamification Management
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
@@ -7724,6 +7742,44 @@ Returns promo codes the authenticated user is currently eligible to use.
       "expires_at": "..."
     }
   ]
+}
+```
+
+---
+
+### Promo Redemption History
+
+`GET /api/v1/promos/redemptions`
+
+Returns the authenticated user's promo redemption history, most recent first.
+
+**Query Parameters:**
+- `per_page` — pagination size (default 15, max 100)
+
+**Response (200):**
+```json
+{
+  "redemptions": [
+    {
+      "id": "uuid",
+      "promo_code": {
+        "id": "uuid",
+        "code": "WELCOME20",
+        "description": "Welcome discount",
+        "discount_type": "percentage",
+        "discount_value": "20.00"
+      },
+      "discount_amount": "400.00",
+      "ride_id": "uuid",
+      "created_at": "2026-10-12T12:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 3
+  }
 }
 ```
 

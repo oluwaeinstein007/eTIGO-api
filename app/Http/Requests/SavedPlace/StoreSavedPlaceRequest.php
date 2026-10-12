@@ -4,6 +4,7 @@ namespace App\Http\Requests\SavedPlace;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreSavedPlaceRequest extends FormRequest
 {
@@ -27,6 +28,26 @@ class StoreSavedPlaceRequest extends FormRequest
     {
         return [
             'name.required_if' => 'A name is required for custom places.',
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($this->input('type') !== 'custom') {
+                    return;
+                }
+
+                $count = $this->user()
+                    ->savedPlaces()
+                    ->where('type', 'custom')
+                    ->count();
+
+                if ($count >= 10) {
+                    $validator->errors()->add('type', 'You can save up to 10 custom places.');
+                }
+            },
         ];
     }
 }

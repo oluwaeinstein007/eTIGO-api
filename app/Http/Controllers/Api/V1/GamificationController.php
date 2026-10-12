@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\TierLevel;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CarbonScoreResource;
 use App\Http\Resources\GamificationResource;
@@ -9,6 +10,7 @@ use App\Http\Resources\TierConfigResource;
 use App\Models\GamificationProfile;
 use App\Models\TierConfig;
 use App\Models\TripCarbonScore;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -43,12 +45,27 @@ class GamificationController extends Controller
         ]);
     }
 
-    public function tiers(): JsonResponse
+    public function tiers(Request $request): JsonResponse
     {
         $tiers = TierConfig::allOrderedByLevel();
 
+        $currentTier = 1;
+        if ($request->user()) {
+            $profile = GamificationProfile::where('user_id', $request->user()->id)->first();
+            $currentTier = $profile?->current_tier ?? 1;
+        }
+
+        $tiersData = $tiers->map(function ($tier) use ($currentTier) {
+            $resource = (new TierConfigResource($tier))->resolve();
+            $resource['unlocked'] = $tier->tier_level <= $currentTier;
+
+            return $resource;
+        });
+
         return response()->json([
-            'tiers' => TierConfigResource::collection($tiers),
+            'tiers' => $tiersData,
+            'current_tier' => $currentTier,
+            'current_tier_name' => TierLevel::from($currentTier)->label(),
         ]);
     }
 
@@ -69,5 +86,33 @@ class GamificationController extends Controller
                 'total_carbon_score' => (float) $p->total_carbon_score,
             ]),
         ]);
+    }
+
+    public function greenImpactPdf(Request $request): \Illuminate\Http\Response
+    {
+        $user = $request->user();
+        $profile = GamificationProfile::findOrCreateForUser($user->id);
+
+        $recentScores = TripCarbonScore::where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        $totalRides = TripCarbonScore::where('user_id', $user->id)->count();
+        $totalCo2Saved = (float) TripCarbonScore::where('user_id', $user->id)->sum('co2_saved');
+        $electricKm = (float) TripCarbonScore::where('user_id', $user->id)->sum('distance_km');
+
+        $pdf = Pdf::loadView('pdf.green-impact', [
+            'user' => $user,
+            'profile' => $profile,
+            'tierName' => $profile->tierLevel()->label(),
+            'totalPoints' => $profile->total_ranking_points,
+            'totalRides' => $totalRides,
+            'totalCo2Saved' => $totalCo2Saved,
+            'electricKm' => $electricKm,
+            'recentScores' => $recentScores,
+        ]);
+
+        return $pdf->download("etigo-green-impact-{$user->id}.pdf");
     }
 }
