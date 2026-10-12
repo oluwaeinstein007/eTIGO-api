@@ -322,3 +322,36 @@ describe('Driver Reservation Listing', function () {
             ->assertJsonCount(1, 'reservations');
     });
 });
+
+describe('Driver Charge Request Form Submission', function () {
+    it('submits a charge request with battery level and notes', function () {
+        $response = $this->withToken($this->driverToken)
+            ->postJson('/api/v1/driver/ev-reservations', [
+                'battery_level' => 18,
+                'requested_date' => '2026-10-10',
+                'requested_time' => '10:00 am',
+                'notes' => 'Finishing trip in Ikeja',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('reservation.battery_level', 18)
+            ->assertJsonPath('reservation.status.value', 'pending_review')
+            ->assertJsonPath('reservation.type', 'charging')
+            ->assertJsonPath('reservation.notes', 'Finishing trip in Ikeja');
+
+        $reservationId = $response->json('reservation.id');
+        $reservation = EvReservation::find($reservationId);
+        expect($reservation->status)->toBe(EvReservationStatus::PendingReview)
+            ->and($reservation->battery_level)->toBe(18);
+    });
+
+    it('validates battery level is between 0 and 100', function () {
+        $this->withToken($this->driverToken)
+            ->postJson('/api/v1/driver/ev-reservations', [
+                'battery_level' => 150,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['battery_level']);
+    });
+});
+

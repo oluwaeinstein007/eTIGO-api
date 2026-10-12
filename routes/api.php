@@ -342,6 +342,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
 
     Route::prefix('ev-reservations')->group(function () {
         Route::get('/', [EvReservationController::class, 'index']);
+        Route::post('/', [EvReservationController::class, 'storeRequest']);
         Route::post('/stations/{station}/reserve', [EvReservationController::class, 'store']);
         Route::get('/{reservation}', [EvReservationController::class, 'show']);
         Route::post('/{reservation}/activate', [EvReservationController::class, 'activate']);

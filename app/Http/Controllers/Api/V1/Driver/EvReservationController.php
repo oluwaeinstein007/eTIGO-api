@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\EvReservationStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EvStation\StoreChargeRequestFormRequest;
 use App\Http\Requests\EvStation\StoreReservationFormRequest;
 use App\Http\Resources\EvReservationResource;
 use App\Models\EvChargingStation;
@@ -16,6 +18,42 @@ class EvReservationController extends Controller
     public function __construct(
         private readonly ReservationService $reservationService,
     ) {}
+
+    public function storeRequest(StoreChargeRequestFormRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $stationId = $validated['station_id'] ?? null;
+        if (! $stationId) {
+            $station = EvChargingStation::query()
+                ->when($user->driver?->city_id, fn ($q, $cityId) => $q->where('city_id', $cityId))
+                ->where('status', 'active')
+                ->first() ?? EvChargingStation::where('status', 'active')->first();
+            $stationId = $station?->id;
+        }
+
+        $reservation = EvReservation::create([
+            'driver_id' => $user->id,
+            'station_id' => $stationId,
+            'status' => EvReservationStatus::PendingReview,
+            'type' => 'charging',
+            'battery_level' => $validated['battery_level'],
+            'requested_date' => $validated['requested_date'] ?? now()->toDateString(),
+            'requested_time' => $validated['requested_time'] ?? now()->format('h:i a'),
+            'notes' => $validated['notes'] ?? null,
+            'reserved_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $reservation->load(['station', 'stall', 'driver.driver.vehicle']);
+
+        return response()->json([
+            'message' => 'Charge request submitted successfully.',
+            'reservation' => new EvReservationResource($reservation),
+        ], 201);
+    }
 
     public function store(StoreReservationFormRequest $request, EvChargingStation $station): JsonResponse
     {
@@ -59,7 +97,7 @@ class EvReservationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $reservations = EvReservation::query()
-            ->with(['station', 'stall'])
+            ->with(['station', 'stall', 'driver.driver.vehicle'])
             ->forDriver($request->user()->id)
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->orderByDesc('created_at')
@@ -82,7 +120,7 @@ class EvReservationController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $reservation->load(['station', 'stall']);
+        $reservation->load(['station', 'stall', 'driver.driver.vehicle']);
 
         return response()->json([
             'reservation' => new EvReservationResource($reservation),
