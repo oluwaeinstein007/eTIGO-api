@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AdminRole;
 use App\Enums\UserType;
+use App\Traits\HasReferenceNumber;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -25,12 +26,19 @@ use Laravel\Sanctum\HasApiTokens;
     'password',
     'profile_photo_path',
     'is_active',
+    'suspension_reason',
+    'reference_number',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasUuids, Notifiable;
+    use HasApiTokens, HasFactory, HasReferenceNumber, HasUuids, Notifiable;
+
+    protected static function referencePrefix(): string
+    {
+        return 'P-';
+    }
 
     protected function casts(): array
     {
@@ -111,6 +119,11 @@ class User extends Authenticatable
     public function gamificationProfile(): HasOne
     {
         return $this->hasOne(GamificationProfile::class);
+    }
+
+    public function savedPlaces(): HasMany
+    {
+        return $this->hasMany(SavedPlace::class);
     }
 
     public function ratingsReceived(): HasMany

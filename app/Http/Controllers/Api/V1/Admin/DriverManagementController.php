@@ -14,10 +14,12 @@ use App\Http\Requests\Admin\ReviewDocumentRequest;
 use App\Http\Requests\Admin\ReviewDriverRequest;
 use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
+use App\Http\Resources\RideResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\Ride;
 use App\Models\VehicleClass;
 use App\Services\KycVerificationService;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +30,7 @@ class DriverManagementController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city']);
+        $query = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city', 'primaryBankAccount']);
 
         if ($request->has('status')) {
             $query->where('status', $request->input('status'));
@@ -36,6 +38,14 @@ class DriverManagementController extends Controller
 
         if ($request->has('kyc_status')) {
             $query->where('kyc_status', $request->input('kyc_status'));
+        }
+
+        if ($request->filled('city_id')) {
+            $query->where('city_id', $request->input('city_id'));
+        }
+
+        if ($request->filled('vehicle_class_id')) {
+            $query->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $request->input('vehicle_class_id')));
         }
 
         if ($request->filled('search')) {
@@ -48,7 +58,7 @@ class DriverManagementController extends Controller
             });
         }
 
-        $drivers = $query->latest()->paginate(20);
+        $drivers = $query->latest()->paginate($request->integer('per_page', 20));
 
         return response()->json([
             'drivers' => DriverResource::collection($drivers),
@@ -63,10 +73,30 @@ class DriverManagementController extends Controller
 
     public function show(Driver $driver): JsonResponse
     {
-        $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications']);
+        $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications', 'primaryBankAccount']);
+
+        $completedRides = Ride::where('driver_id', $driver->user_id)->where('status', 'completed');
+        $totalRides = Ride::where('driver_id', $driver->user_id);
+        $cancelledRides = Ride::where('driver_id', $driver->user_id)->where('status', 'cancelled');
+
+        $totalCount = $totalRides->count();
+        $completedCount = $completedRides->count();
+        $cancelledCount = $cancelledRides->count();
+
+        $performance = [
+            'rating' => $driver->user?->averageRating(),
+            'total_trips' => $totalCount,
+            'completed_trips' => $completedCount,
+            'cancelled_trips' => $cancelledCount,
+            'cancellation_rate' => $totalCount > 0 ? round(($cancelledCount / $totalCount) * 100, 1) : 0,
+            'total_earnings' => (float) Ride::where('driver_id', $driver->user_id)
+                ->where('status', 'completed')
+                ->sum('final_fare_amount'),
+        ];
 
         return response()->json([
             'driver' => new DriverResource($driver),
+            'performance' => $performance,
         ]);
     }
 
@@ -198,16 +228,24 @@ class DriverManagementController extends Controller
             ], 422);
         }
 
-        $admin = $request->user();
+        $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
-        DB::transaction(function () use ($driver, $admin) {
+        $admin = $request->user();
+        $reason = $request->input('reason');
+
+        DB::transaction(function () use ($driver, $admin, $reason) {
             $driver->update([
                 'status' => DriverStatus::Suspended,
                 'is_online' => false,
                 'suspended_at' => now(),
+                'suspension_reason' => $reason,
             ]);
 
-            AuditLog::record($driver, 'driver_suspended', $admin);
+            AuditLog::record($driver, 'driver_suspended', $admin, null, [
+                'reason' => $reason,
+            ]);
         });
 
         return response()->json([
@@ -230,6 +268,7 @@ class DriverManagementController extends Controller
             $driver->update([
                 'status' => DriverStatus::Approved,
                 'suspended_at' => null,
+                'suspension_reason' => null,
             ]);
 
             AuditLog::record($driver, 'driver_reactivated', $admin);
@@ -456,6 +495,36 @@ class DriverManagementController extends Controller
         return response()->json([
             'message' => 'Driver onboarding and KYC marked as completed successfully.',
             'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications'])),
+        ]);
+    }
+
+    public function tripHistory(Request $request, Driver $driver): JsonResponse
+    {
+        $query = Ride::where('driver_id', $driver->user_id)
+            ->with(['passenger', 'city', 'vehicleClass']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->input('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->input('to'));
+        }
+
+        $rides = $query->latest()->paginate($request->integer('per_page', 20));
+
+        return response()->json([
+            'rides' => RideResource::collection($rides),
+            'meta' => [
+                'current_page' => $rides->currentPage(),
+                'last_page' => $rides->lastPage(),
+                'per_page' => $rides->perPage(),
+                'total' => $rides->total(),
+            ],
         ]);
     }
 }

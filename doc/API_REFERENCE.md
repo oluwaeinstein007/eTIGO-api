@@ -823,6 +823,194 @@ DELETE /passenger/profile/photo
 
 ---
 
+### Saved Places
+
+Passengers can save frequently used locations (home, work, custom named places). Home and work are limited to one each; saving again overwrites the existing entry. Custom places require a name and allow unlimited entries.
+
+### List Saved Places
+```
+GET /passenger/saved-places
+```
+
+Returns all saved places for the authenticated passenger, ordered: home first, then work, then custom places by creation date.
+
+**Response 200:**
+```json
+{
+  "saved_places": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-111111111111",
+      "type": "home",
+      "name": "Home",
+      "address": "12 Ahmadu Bello Way, Victoria Island, Lagos",
+      "latitude": 6.4281000,
+      "longitude": 3.4219000,
+      "created_at": "2026-10-12T10:00:00.000000Z",
+      "updated_at": "2026-10-12T10:00:00.000000Z"
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-222222222222",
+      "type": "work",
+      "name": "Work",
+      "address": "Eko Atlantic City, Lagos",
+      "latitude": 6.4100000,
+      "longitude": 3.4050000,
+      "created_at": "2026-10-12T10:01:00.000000Z",
+      "updated_at": "2026-10-12T10:01:00.000000Z"
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+      "type": "custom",
+      "name": "Gym",
+      "address": "Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island",
+      "latitude": 6.4310000,
+      "longitude": 3.4200000,
+      "created_at": "2026-10-12T10:02:00.000000Z",
+      "updated_at": "2026-10-12T10:02:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Save a Place
+```
+POST /passenger/saved-places
+```
+
+| Field     | Type   | Required | Description                                      |
+|-----------|--------|----------|--------------------------------------------------|
+| type      | string | Yes      | `home`, `work`, or `custom`                      |
+| name      | string | Custom   | Required for `custom` type. Max 100 characters.  |
+| address   | string | Yes      | Full address text. Max 500 characters.            |
+| latitude  | number | Yes      | Latitude (-90 to 90)                              |
+| longitude | number | Yes      | Longitude (-180 to 180)                           |
+
+**Behavior:** If `type` is `home` or `work` and one already exists, the existing entry is updated (returns 200). Otherwise a new entry is created (returns 201).
+
+**Response 201 — Created:**
+```json
+{
+  "message": "Place saved.",
+  "saved_place": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-111111111111",
+    "type": "home",
+    "name": "Home",
+    "address": "12 Ahmadu Bello Way, Victoria Island, Lagos",
+    "latitude": 6.4281000,
+    "longitude": 3.4219000,
+    "created_at": "2026-10-12T10:00:00.000000Z",
+    "updated_at": "2026-10-12T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 200 — Updated (home/work already existed):**
+```json
+{
+  "message": "Home address updated.",
+  "saved_place": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-111111111111",
+    "type": "home",
+    "name": "Home",
+    "address": "New address here",
+    "latitude": 6.5000000,
+    "longitude": 3.5000000,
+    "created_at": "2026-10-12T10:00:00.000000Z",
+    "updated_at": "2026-10-12T10:05:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "A name is required for custom places.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "name": ["A name is required for custom places."]
+  }
+}
+```
+
+---
+
+### Get Saved Place
+```
+GET /passenger/saved-places/{savedPlace}
+```
+
+**Response 200:**
+```json
+{
+  "saved_place": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+    "type": "custom",
+    "name": "Gym",
+    "address": "Eko Hotel & Suites, Adetokunbo Ademola St, Victoria Island",
+    "latitude": 6.4310000,
+    "longitude": 3.4200000,
+    "created_at": "2026-10-12T10:02:00.000000Z",
+    "updated_at": "2026-10-12T10:02:00.000000Z"
+  }
+}
+```
+
+---
+
+### Update Saved Place
+```
+PUT /passenger/saved-places/{savedPlace}
+```
+
+| Field     | Type   | Required | Description                           |
+|-----------|--------|----------|---------------------------------------|
+| name      | string | No       | Updated name. Max 100 characters.     |
+| address   | string | No       | Updated address. Max 500 characters.  |
+| latitude  | number | No       | Updated latitude (-90 to 90)          |
+| longitude | number | No       | Updated longitude (-180 to 180)       |
+
+**Response 200:**
+```json
+{
+  "message": "Place updated.",
+  "saved_place": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+    "type": "custom",
+    "name": "New Gym",
+    "address": "Updated address",
+    "latitude": 6.5000000,
+    "longitude": 3.5000000,
+    "created_at": "2026-10-12T10:02:00.000000Z",
+    "updated_at": "2026-10-12T10:10:00.000000Z"
+  }
+}
+```
+
+---
+
+### Delete Saved Place
+```
+DELETE /passenger/saved-places/{savedPlace}
+```
+
+**Response 200:**
+```json
+{
+  "message": "Place removed."
+}
+```
+
+**Response 404:**
+```json
+{
+  "message": "Not found."
+}
+```
+
+---
+
 ## Driver
 
 All driver endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -1766,11 +1954,14 @@ Handled events: `verification_completed`, `step_verification_completed`, `identi
 GET /admin/drivers
 ```
 
-| Query Param | Type   | Required | Description                                          |
-|-------------|--------|----------|------------------------------------------------------|
-| status      | string | No       | Filter: `onboarding`, `pending_review`, `approved`, `rejected`, `suspended` |
-| kyc_status  | string | No       | Filter: `not_started`, `in_progress`, `verified`, `failed`    |
-| search      | string | No       | Search by driver name, email, or phone               |
+| Query Param      | Type   | Required | Description                                          |
+|------------------|--------|----------|------------------------------------------------------|
+| status           | string | No       | Filter: `onboarding`, `pending_review`, `approved`, `rejected`, `suspended` |
+| kyc_status       | string | No       | Filter: `not_started`, `in_progress`, `verified`, `failed`    |
+| city_id          | string (UUID) | No | Filter by city                                      |
+| vehicle_class_id | string (UUID) | No | Filter by vehicle class                             |
+| search           | string | No       | Search by driver name, email, or phone               |
+| per_page         | integer | No      | Results per page (default: 20)                       |
 
 **Response 200:**
 ```json
@@ -1778,8 +1969,10 @@ GET /admin/drivers
   "drivers": [
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "reference_number": "D-000001",
       "user": {
         "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+        "reference_number": "P-000001",
         "first_name": "Bayo",
         "last_name": "Akinola",
         "phone": "+2348200000001",
@@ -1802,18 +1995,24 @@ GET /admin/drivers
         "updated_at": "2026-10-01T10:00:00.000000Z"
       },
       "status": "approved",
+      "vehicle_ownership_type": "own_vehicle",
       "kyc_status": "verified",
       "kyc_verified_at": "2026-10-03T10:00:00.000000Z",
       "licence_number": "DL-12345678",
+      "rejection_reason": null,
       "is_online": true,
       "approved_at": "2026-10-04T10:00:00.000000Z",
+      "suspended_at": null,
       "documents": [
         {
           "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
           "type": "driving_licence",
           "original_filename": "licence.pdf",
+          "file_size": 245000,
+          "file_url": "https://storage.example.com/documents/licence.pdf",
           "expires_at": null,
           "status": "approved",
+          "rejection_reason": null,
           "reviewed_at": "2026-10-04T10:00:00.000000Z",
           "created_at": "2026-10-02T10:00:00.000000Z"
         }
@@ -1826,7 +2025,7 @@ GET /admin/drivers
         "plate_number": "ABC-1234",
         "year": 2022,
         "is_fleet": false,
-        "vehicle_class_id": 1,
+        "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
         "vehicle_class": {
           "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
           "name": "economy",
@@ -1840,7 +2039,17 @@ GET /admin/drivers
         },
         "created_at": "2026-10-02T10:00:00.000000Z"
       },
-      "created_at": "2026-10-01T10:00:00.000000Z"
+      "bank_account": {
+        "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+        "bank_code": "058",
+        "account_number": "******7890",
+        "account_name": "Bayo Akinola",
+        "is_verified": true,
+        "is_primary": true,
+        "created_at": "2026-10-02T10:00:00.000000Z"
+      },
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-04T10:00:00.000000Z"
     }
   ],
   "meta": {
@@ -1873,16 +2082,21 @@ GET /admin/drivers/{driver_id}
 {
   "driver": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "reference_number": "D-000001",
     "user": { "..." },
     "city": { "..." },
     "status": "approved",
+    "vehicle_ownership_type": "own_vehicle",
     "kyc_status": "verified",
     "kyc_verified_at": "2026-10-03T10:00:00.000000Z",
     "licence_number": "DL-12345678",
+    "rejection_reason": null,
     "is_online": true,
     "approved_at": "2026-10-04T10:00:00.000000Z",
+    "suspended_at": null,
     "documents": [ "..." ],
     "vehicle": { "..." },
+    "bank_account": { "..." },
     "kyc_verifications": [
       {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
@@ -1896,7 +2110,16 @@ GET /admin/drivers/{driver_id}
         "created_at": "2026-10-03T09:00:00+00:00"
       }
     ],
-    "created_at": "2026-10-01T10:00:00.000000Z"
+    "created_at": "2026-10-01T10:00:00.000000Z",
+    "updated_at": "2026-10-04T10:00:00.000000Z"
+  },
+  "performance": {
+    "rating": 4.75,
+    "total_trips": 142,
+    "completed_trips": 135,
+    "cancelled_trips": 7,
+    "cancellation_rate": 4.9,
+    "total_earnings": 285000.00
   }
 }
 ```
@@ -2056,7 +2279,9 @@ POST /admin/drivers/{driver_id}/suspend
 ```
 Force-sets driver offline and blocks them from accepting requests.
 
-No request body required.
+| Field  | Type   | Required | Description                |
+|--------|--------|----------|----------------------------|
+| reason | string | Yes      | Reason for suspension (max 500 chars) |
 
 **Response 200:**
 ```json
@@ -2066,6 +2291,8 @@ No request body required.
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "status": "suspended",
     "is_online": false,
+    "suspension_reason": "Multiple passenger complaints about unsafe driving.",
+    "suspended_at": "2026-10-06T14:00:00.000000Z",
     "...": "..."
   }
 }
@@ -2084,7 +2311,7 @@ No request body required.
 ```
 POST /admin/drivers/{driver_id}/reactivate
 ```
-Restores driver to approved status.
+Restores driver to approved status. Clears `suspension_reason` and `suspended_at`.
 
 **Response 200:**
 ```json
@@ -2093,6 +2320,8 @@ Restores driver to approved status.
   "driver": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "status": "approved",
+    "suspension_reason": null,
+    "suspended_at": null,
     "...": "..."
   }
 }
@@ -2102,6 +2331,45 @@ Restores driver to approved status.
 ```json
 {
   "message": "Only suspended drivers can be reactivated."
+}
+```
+
+---
+
+### Driver Trip History
+```
+GET /admin/drivers/{driver_id}/trips
+```
+
+| Query Param | Type    | Required | Description                     |
+|-------------|---------|----------|---------------------------------|
+| status      | string  | No       | Filter by ride status           |
+| from        | date    | No       | Start date (YYYY-MM-DD)         |
+| to          | date    | No       | End date (YYYY-MM-DD)           |
+| per_page    | integer | No       | Results per page (default: 20)  |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "reference_number": "TRP-NG-000142",
+      "status": "completed",
+      "status_label": "Completed",
+      "pickup": { "lat": 6.5244, "lng": 3.3792, "address": "Lekki Phase 1" },
+      "destination": { "lat": 6.4541, "lng": 3.4085, "address": "Victoria Island" },
+      "fare_estimate_amount": "2500.00",
+      "final_fare_amount": "2800.00",
+      "fare_currency": "NGN",
+      "passenger": { "id": "...", "first_name": "Ade", "last_name": "Ogunleye", "..." : "..." },
+      "city": { "..." },
+      "vehicle_class": { "..." },
+      "completed_at": "2026-10-05T15:30:00.000000Z",
+      "created_at": "2026-10-05T15:00:00.000000Z"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 3, "per_page": 20, "total": 42 }
 }
 ```
 
@@ -3040,11 +3308,11 @@ Returns the driver's active fleet agreement. **Now includes `total_vehicle_cost`
 GET /admin/passengers
 ```
 
-| Parameter | Type   | Required | Description                           |
-|-----------|--------|----------|---------------------------------------|
-| search    | string | No       | Search by name, email, or phone       |
-| is_active | bool   | No       | Filter by active/inactive status      |
-| page      | int    | No       | Pagination page number                |
+| Parameter | Type    | Required | Description                           |
+|-----------|---------|----------|---------------------------------------|
+| search    | string  | No       | Search by name, email, or phone       |
+| is_active | bool    | No       | Filter by active/inactive status      |
+| per_page  | integer | No       | Results per page (default: 20)        |
 
 **Response 200:**
 ```json
@@ -3052,6 +3320,7 @@ GET /admin/passengers
   "passengers": [
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "reference_number": "P-000001",
       "first_name": "Ade",
       "last_name": "Ogunleye",
       "phone": "+2348100000001",
@@ -3060,6 +3329,7 @@ GET /admin/passengers
       "phone_verified_at": "2026-10-01T10:00:00.000000Z",
       "is_active": true,
       "profile_photo_url": null,
+      "total_rides": 15,
       "created_at": "2026-10-01T10:00:00.000000Z"
     }
   ],
@@ -3085,6 +3355,7 @@ Returns passenger profile with ride statistics.
 {
   "passenger": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "reference_number": "P-000001",
     "first_name": "Ade",
     "last_name": "Ogunleye",
     "phone": "+2348100000001",
@@ -3112,16 +3383,64 @@ Returns passenger profile with ride statistics.
 
 ---
 
-### Suspend Passenger
+### Passenger Trip History
 ```
-POST /admin/passengers/{passenger_id}/suspend
+GET /admin/passengers/{passenger_id}/trips
 ```
-Suspends passenger account and revokes all active tokens. No request body required.
+
+| Query Param | Type    | Required | Description                     |
+|-------------|---------|----------|---------------------------------|
+| status      | string  | No       | Filter by ride status           |
+| from        | date    | No       | Start date (YYYY-MM-DD)         |
+| to          | date    | No       | End date (YYYY-MM-DD)           |
+| per_page    | integer | No       | Results per page (default: 20)  |
 
 **Response 200:**
 ```json
 {
-  "message": "Passenger suspended successfully."
+  "rides": [
+    {
+      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "reference_number": "TRP-NG-000042",
+      "status": "completed",
+      "pickup": { "lat": 6.5244, "lng": 3.3792, "address": "Lekki Phase 1" },
+      "destination": { "lat": 6.4541, "lng": 3.4085, "address": "Victoria Island" },
+      "fare_estimate_amount": "2500.00",
+      "final_fare_amount": "2800.00",
+      "fare_currency": "NGN",
+      "driver": { "..." },
+      "city": { "..." },
+      "vehicle_class": { "..." },
+      "completed_at": "2026-10-05T15:30:00.000000Z",
+      "created_at": "2026-10-05T15:00:00.000000Z"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 15 }
+}
+```
+
+---
+
+### Suspend Passenger
+```
+POST /admin/passengers/{passenger_id}/suspend
+```
+Suspends passenger account and revokes all active tokens.
+
+| Field  | Type   | Required | Description                       |
+|--------|--------|----------|-----------------------------------|
+| reason | string | Yes      | Reason for suspension (max 500 chars) |
+
+**Response 200:**
+```json
+{
+  "message": "Passenger account suspended.",
+  "passenger": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "is_active": false,
+    "suspension_reason": "Account abuse detected.",
+    "...": "..."
+  }
 }
 ```
 
@@ -3138,12 +3457,18 @@ Suspends passenger account and revokes all active tokens. No request body requir
 ```
 POST /admin/passengers/{passenger_id}/reactivate
 ```
-Reactivates a suspended passenger account. No request body required.
+Reactivates a suspended passenger account. Clears `suspension_reason`.
 
 **Response 200:**
 ```json
 {
-  "message": "Passenger reactivated successfully."
+  "message": "Passenger account reactivated.",
+  "passenger": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "is_active": true,
+    "suspension_reason": null,
+    "...": "..."
+  }
 }
 ```
 
@@ -4975,11 +5300,258 @@ GET /rides/{ride}/share/{token}
 
 ---
 
+## Admin — Live Monitoring
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+**Allowed Roles:** Operations (Super Admin always has access)
+
+### WebSocket: Real-Time Events
+
+Subscribe to the private channel `admin.rides` via Laravel Reverb/Echo to receive live updates:
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `driver.location.updated` | `driver_id, lat, lng, heading, speed, timestamp, ride_id, eta` | Driver GPS position update (~1/sec per active driver) |
+| `ride.status.updated` | `ride_id, passenger_id, driver_id, previous_status, status, actor_type, actor_id, occurred_at` | Ride state transition (e.g. requested → searching → matched → driver_en_route → driver_arrived → in_progress → completed) |
+
+### List Active Rides
+```
+GET /admin/monitoring/active-rides
+```
+
+Returns all rides in active (non-terminal) status with current driver GPS positions. Use this for initial map population on dashboard load.
+
+| Param      | Type    | Description |
+|------------|---------|-------------|
+| city_id    | string (UUID) | Filter by city |
+| status     | string  | Filter by specific status |
+| per_page   | integer | Default 50 |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+      "reference_number": "TRP-NG-000142",
+      "status": "in_progress",
+      "status_label": "In Progress",
+      "pickup": {
+        "lat": "6.5244000",
+        "lng": "3.3792000",
+        "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+      },
+      "destination": {
+        "lat": "6.4541000",
+        "lng": "3.3947000",
+        "address": "456 Broad Street, Lagos Island, Lagos"
+      },
+      "passenger": { "id": "...", "first_name": "Ade", "last_name": "Ogunleye", "phone": "+2348012345678" },
+      "driver": { "id": "...", "first_name": "Chidi", "last_name": "Okonkwo", "phone": "+2348098765432" },
+      "city": { "id": "...", "name": "Lagos" },
+      "vehicle_class": { "id": "...", "name": "economy", "display_name": "Economy" },
+      "fare_estimate_amount": "3750.00",
+      "fare_currency": "NGN",
+      "driver_location": {
+        "lat": 6.5251,
+        "lng": 3.3801,
+        "heading": 45.0,
+        "speed": 32.5,
+        "timestamp": 1728742800
+      },
+      "created_at": "2026-10-06T14:00:00.000000Z",
+      "..."
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 50,
+    "total": 12
+  },
+  "summary": {
+    "total_active": 12,
+    "by_status": {
+      "requested": 2,
+      "searching": 1,
+      "matched": 1,
+      "driver_en_route": 3,
+      "in_progress": 5
+    }
+  }
+}
+```
+
+### List Online Drivers
+```
+GET /admin/monitoring/online-drivers
+```
+
+Returns all online approved drivers with live GPS positions and whether they're currently on a trip.
+
+| Param      | Type    | Description |
+|------------|---------|-------------|
+| city_id    | string (UUID) | Filter by city |
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "driver_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "user_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Chidi Okonkwo",
+      "phone": "+2348098765432",
+      "reference_number": "D-000001",
+      "city": "Lagos",
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Corolla",
+        "plate_number": "APP-123-XY",
+        "colour": "White",
+        "vehicle_class": "Economy"
+      },
+      "location": {
+        "lat": 6.5251,
+        "lng": 3.3801,
+        "heading": 45.0,
+        "speed": 0,
+        "timestamp": 1728742800
+      },
+      "active_ride": {
+        "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+        "reference_number": "TRP-NG-000142",
+        "status": "in_progress",
+        "pickup_address": "123 Herbert Macaulay Way, Yaba",
+        "destination_address": "456 Broad Street, Lagos Island"
+      },
+      "is_on_trip": true
+    }
+  ],
+  "summary": {
+    "total_online": 24,
+    "on_trip": 8,
+    "available": 16
+  }
+}
+```
+
+---
+
 ## Admin — Ride Management
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
 
 **Allowed Roles:** Operations (Super Admin always has access)
+
+### List Pending Rides (Unassigned)
+```
+GET /admin/rides/pending
+```
+
+Returns rides awaiting driver assignment — `requested`, `searching`, or `no_driver_found` status with no driver assigned. Ordered **oldest first** for FIFO processing.
+
+| Param            | Type    | Description |
+|------------------|---------|-------------|
+| city_id          | string (UUID) | Filter by city |
+| vehicle_class_id | string (UUID) | Filter by vehicle class |
+| per_page         | integer | Default 25 |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+      "reference_number": "TRP-NG-000142",
+      "status": "searching",
+      "status_label": "Searching for Driver",
+      "pickup": {
+        "lat": "6.5244000",
+        "lng": "3.3792000",
+        "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+      },
+      "destination": {
+        "lat": "6.4541000",
+        "lng": "3.3947000",
+        "address": "456 Broad Street, Lagos Island, Lagos"
+      },
+      "passenger": { "id": "...", "first_name": "Ade", "last_name": "Ogunleye", "phone": "+2348012345678" },
+      "city": { "id": "...", "name": "Lagos" },
+      "vehicle_class": { "id": "...", "name": "economy", "display_name": "Economy" },
+      "fare_estimate_amount": "3750.00",
+      "fare_currency": "NGN",
+      "created_at": "2026-10-06T14:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 25,
+    "total": 3
+  }
+}
+```
+
+### List Available Drivers for a Ride
+```
+GET /admin/rides/{ride}/available-drivers
+```
+
+Returns eligible drivers near the ride's pickup point for manual assignment. Sorted **nearest first**.
+
+| Param      | Type    | Description |
+|------------|---------|-------------|
+| radius_km  | float   | Search radius (default 5 km) |
+| limit      | integer | Max results (default 20) |
+
+**Eligibility criteria:**
+- Online and approved
+- Not currently on a trip
+- In the same city as the ride
+- Vehicle class matches the ride's requested class
+- Within the specified radius of the pickup point
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "driver_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "user_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Chidi Okonkwo",
+      "phone": "+2348098765432",
+      "reference_number": "D-000001",
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Corolla",
+        "plate_number": "APP-123-XY",
+        "colour": "White",
+        "vehicle_class": "Economy"
+      },
+      "location": {
+        "lat": 6.5251,
+        "lng": 3.3801,
+        "heading": 45.0,
+        "speed": 0,
+        "timestamp": 1728742800
+      },
+      "distance_km": 0.85
+    }
+  ],
+  "meta": {
+    "total": 5,
+    "radius_km": 5,
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    }
+  }
+}
+```
 
 ### Manually Assign Driver to Ride
 ```
@@ -5102,6 +5674,7 @@ GET /admin/pricing
 ```
 | Query Param      | Type    | Description                                    |
 |------------------|---------|------------------------------------------------|
+| search           | string  | Search by city name or vehicle class name      |
 | city_id          | string (UUID) | Filter by city                                 |
 | vehicle_class_id | string (UUID) | Filter by vehicle class                        |
 | current_only     | boolean | Only show currently effective configs          |
@@ -5113,27 +5686,26 @@ GET /admin/pricing
   "pricing_configs": [
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "city_id": 1,
-      "vehicle_class_id": 1,
-      "base_fare": "600.00",
-      "per_km_rate": "250.00",
-      "per_minute_rate": "40.00",
-      "minimum_fare": "1500.00",
-      "waiting_time_rate": "50.00",
+      "city_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "vehicle_class_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "base_fare": 600,
+      "per_km_rate": 250,
+      "per_minute_rate": 40,
+      "minimum_fare": 1500,
+      "waiting_time_rate": 50,
       "free_waiting_minutes": 5,
+      "is_current": true,
       "version": 1,
       "effective_from": "2026-09-30T00:00:00.000000Z",
+      "effective_until": null,
       "city": {
-        "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "name": "Lagos",
-        "slug": "lagos",
         "...": "..."
       },
       "vehicle_class": {
-        "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-        "name": "economy",
-        "display_name": "Economy",
-        "...": "..."
+        "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "name": "economy"
       },
       "created_by": {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
@@ -5179,18 +5751,20 @@ Version is auto-incremented per city + vehicle class combination.
   "message": "Pricing configuration created successfully.",
   "pricing_config": {
     "id": "d0e1f2a3-4b5c-6d7e-8f9a-0b1c2d3e4f5a",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "base_fare": "700.00",
-    "per_km_rate": "280.00",
-    "per_minute_rate": "45.00",
-    "minimum_fare": "1600.00",
-    "waiting_time_rate": "55.00",
+    "city_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "vehicle_class_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "base_fare": 700,
+    "per_km_rate": 280,
+    "per_minute_rate": 45,
+    "minimum_fare": 1600,
+    "waiting_time_rate": 55,
     "free_waiting_minutes": 5,
+    "is_current": false,
     "version": 2,
     "effective_from": "2026-11-01T00:00:00.000000Z",
-    "city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos", "...": "..." },
-    "vehicle_class": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "economy", "...": "..." },
+    "effective_until": null,
+    "city": { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": "c3d4e5f6-a7b8-9012-cdef-123456789012", "name": "economy" },
     "created_by": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "first_name": "Super", "last_name": "Admin", "...": "..." },
     "created_at": "2026-10-06T14:00:00.000000Z"
   }
@@ -5210,18 +5784,20 @@ Returns a specific pricing config with city, vehicle class, and creator details.
 {
   "pricing_config": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "base_fare": "600.00",
-    "per_km_rate": "250.00",
-    "per_minute_rate": "40.00",
-    "minimum_fare": "1500.00",
-    "waiting_time_rate": "50.00",
+    "city_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "vehicle_class_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "base_fare": 600,
+    "per_km_rate": 250,
+    "per_minute_rate": 40,
+    "minimum_fare": 1500,
+    "waiting_time_rate": 50,
     "free_waiting_minutes": 5,
+    "is_current": true,
     "version": 1,
     "effective_from": "2026-09-30T00:00:00.000000Z",
-    "city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos", "...": "..." },
-    "vehicle_class": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "economy", "...": "..." },
+    "effective_until": null,
+    "city": { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": "c3d4e5f6-a7b8-9012-cdef-123456789012", "name": "economy" },
     "created_by": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "first_name": "Super", "last_name": "Admin", "...": "..." },
     "created_at": "2026-09-30T10:00:00.000000Z"
   }
@@ -5246,18 +5822,20 @@ Returns the currently effective pricing config for the given city + vehicle clas
 {
   "pricing_config": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "base_fare": "600.00",
-    "per_km_rate": "250.00",
-    "per_minute_rate": "40.00",
-    "minimum_fare": "1500.00",
-    "waiting_time_rate": "50.00",
+    "city_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "vehicle_class_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "base_fare": 600,
+    "per_km_rate": 250,
+    "per_minute_rate": 40,
+    "minimum_fare": 1500,
+    "waiting_time_rate": 50,
     "free_waiting_minutes": 5,
+    "is_current": true,
     "version": 1,
     "effective_from": "2026-09-30T00:00:00.000000Z",
-    "city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos", "...": "..." },
-    "vehicle_class": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "economy", "...": "..." },
+    "effective_until": null,
+    "city": { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Lagos", "...": "..." },
+    "vehicle_class": { "id": "c3d4e5f6-a7b8-9012-cdef-123456789012", "name": "economy" },
     "created_by": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "first_name": "Super", "last_name": "Admin", "...": "..." },
     "created_at": "2026-09-30T10:00:00.000000Z"
   }
@@ -6063,53 +6641,90 @@ Adds a tip to a completed ride. For card rides, an additional tokenized charge i
 GET /rides/{ride_id}/receipt
 Authorization: Bearer {token}
 ```
-Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin.
+Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin. Includes vehicle details, card info, fare breakdown with tip and tier discount, and carbon emissions data.
 
 **Response 200:**
 ```json
 {
   "receipt": {
     "ride_id": "uuid",
+    "reference_number": "TRP-NG-000142",
     "date": "2026-10-08T14:30:00+01:00",
     "pickup": {
-      "address": "12 Adeola Odeku St, Victoria Island",
-      "lat": "6.4280000",
-      "lng": "3.4220000"
-    },
-    "destination": {
-      "address": "Ikeja City Mall, Obafemi Awolowo Way",
+      "address": "Ikeja City Mall - Gate 2",
       "lat": "6.6180000",
       "lng": "3.3420000"
     },
-    "distance_km": 22.5,
-    "duration_minutes": 35,
-    "vehicle_class": "Comfort",
-    "driver": { "name": "John Doe" },
+    "destination": {
+      "address": "Eko Atlantic City",
+      "lat": "6.4280000",
+      "lng": "3.4220000"
+    },
+    "distance_km": 12.6,
+    "duration_minutes": 28,
+    "vehicle_class": "tiGO Lite",
+    "driver": {
+      "name": "Tunde Adeyemi",
+      "profile_photo_url": "https://storage.example.com/photos/driver-123.jpg"
+    },
+    "vehicle": {
+      "make": "BYD",
+      "model": "Dolphin",
+      "colour": "Blue",
+      "plate_number": "LAG 482 EV",
+      "year": 2025
+    },
     "fare_breakdown": {
       "base_fare": 600.0,
       "per_km_rate": 250.0,
       "per_minute_rate": 40.0,
-      "distance_charge": 5625.0,
-      "time_charge": 1400.0,
+      "distance_charge": 3150.0,
+      "time_charge": 1100.0,
       "waiting_charge": 0,
+      "tip": 600.0,
+      "tier_discount": {
+        "tier": "Gold",
+        "percentage": 5,
+        "amount": 63.0
+      },
       "minimum_fare": 1500.0,
       "surge_multiplier": null
     },
-    "fare_estimate": "7500.00",
-    "final_fare": "7625.00",
+    "fare_estimate": "5400.00",
+    "final_fare": "5350.00",
     "currency": "NGN",
     "payment": {
-      "method": "cash",
-      "method_label": "Cash",
-      "status": "collected",
-      "status_label": "Collected",
-      "tip_amount": "500.00",
-      "total_charged": 8125.0
+      "method": "card",
+      "method_label": "Card",
+      "status": "captured",
+      "status_label": "Captured",
+      "tip_amount": "600.00",
+      "card_brand": "visa",
+      "card_last_four": "4242",
+      "total_charged": 5950.0
+    },
+    "carbon": {
+      "estimated_emissions_kg": 0.4,
+      "carbon_credit_accrued_kg": 0.4,
+      "green_points_earned": 12
     },
     "city": "Lagos"
   }
 }
 ```
+
+**Response fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `reference_number` | string | Unique ride reference (e.g. `TRP-NG-000142`) |
+| `driver.profile_photo_url` | string\|null | Driver's profile photo URL |
+| `vehicle` | object\|null | Driver's vehicle details (make, model, colour, plate, year) |
+| `fare_breakdown.tip` | number | Tip amount added by passenger |
+| `fare_breakdown.tier_discount` | object\|null | Tier-based discount (tier name, percentage, amount) |
+| `payment.card_brand` | string\|null | Card brand (visa, mastercard, etc.) — only for card payments |
+| `payment.card_last_four` | string\|null | Last 4 digits of card — only for card payments |
+| `carbon` | object\|null | Carbon emissions and credits — null if not yet calculated |
 
 **Response 403:** Not a participant in the ride.
 **Response 404:** Ride not completed.
@@ -6232,51 +6847,140 @@ Submit a 1–5 star rating for a completed ride. Passengers rate drivers and dri
 
 ## Disputes
 
-### File a Dispute
+### File a Dispute (Report an Issue)
 
 `POST /api/v1/rides/{ride}/dispute`
 
-File a dispute for a completed ride. Both passengers and drivers can file disputes. Each participant can submit one dispute per ride.
+File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Each participant can submit one dispute per ride. Supports optional evidence photo uploads (up to 5 images).
 
 **Auth:** Bearer token (passenger or driver)
 
+**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`
+
 **Request Body:**
 
-| Field         | Type   | Required | Rules                                  |
-|---------------|--------|----------|----------------------------------------|
-| `category`    | string | Yes      | One of `DisputeCategory` enum values   |
-| `description` | string | Yes      | 10–2000 characters                     |
+| Field         | Type     | Required | Rules                                              |
+|---------------|----------|----------|----------------------------------------------------|
+| `category`    | string   | Yes      | One of `DisputeCategory` enum values (see below)   |
+| `description` | string   | Yes      | 10–2000 characters                                 |
+| `photos[]`    | file[]   | No       | Up to 5 images (jpg, jpeg, png, webp), max 5MB each |
 
-**Example Request:**
+**DisputeCategory values:**
+
+| Value              | Display Label       |
+|--------------------|---------------------|
+| `safety_concern`   | Safety concern      |
+| `driver_behaviour` | Driver behaviour    |
+| `route_deviation`  | Wrong route taken   |
+| `fare_dispute`     | Fare is incorrect   |
+| `vehicle_condition`| Vehicle condition   |
+| `item_left_behind` | Lost item           |
+| `payment_issue`    | Payment issue       |
+| `other`            | Something else      |
+
+**Example Request (JSON):**
 ```json
 {
-  "category": "fare_dispute",
-  "description": "The fare charged was significantly higher than the estimated fare shown before the ride."
+  "category": "route_deviation",
+  "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge."
 }
+```
+
+**Example Request (multipart/form-data):**
+```
+category: route_deviation
+description: The driver took a longer route through Maryland instead of Third Mainland Bridge.
+photos[0]: <image file>
+photos[1]: <image file>
 ```
 
 **Response: `201 Created`**
 ```json
 {
-  "message": "Dispute filed successfully.",
+  "message": "Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.",
   "dispute": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e38",
+    "reference_number": "DPT-000048",
     "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e37",
-    "category": "fare_dispute",
-    "category_label": "Fare Dispute",
-    "description": "The fare charged was significantly higher than the estimated fare shown before the ride.",
+    "category": "route_deviation",
+    "category_label": "Wrong route taken",
+    "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
+    "evidence_photos": [
+      "https://storage.example.com/disputes/ride-uuid/photo1.jpg",
+      "https://storage.example.com/disputes/ride-uuid/photo2.jpg"
+    ],
     "status": "open",
     "status_label": "Open",
     "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
     "resolved_at": null,
-    "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-09T12:00:00.000000Z"
+    "created_at": "2026-10-12T12:00:00.000000Z",
+    "updated_at": "2026-10-12T12:00:00.000000Z"
   }
 }
 ```
 
 **Error Responses:**
-- `422` — Ride not completed, user not a participant, already disputed, or invalid category
+- `422` — Ride not completed, user not a participant, already disputed, invalid category, or photo validation failed
+
+---
+
+### List My Disputes (Passenger)
+
+`GET /api/v1/passenger/disputes`
+
+List all disputes filed by the authenticated passenger. Returns paginated results ordered by most recent first.
+
+**Auth:** Bearer token (passenger)
+
+**Query Parameters:**
+
+| Parameter  | Type | Description                        |
+|------------|------|------------------------------------|
+| `per_page` | int  | Items per page (default: 15, max: 50) |
+| `page`     | int  | Page number                        |
+
+**Response: `200 OK`**
+```json
+{
+  "disputes": [
+    {
+      "id": "...",
+      "reference_number": "DPT-000048",
+      "ride_id": "...",
+      "category": "route_deviation",
+      "category_label": "Wrong route taken",
+      "description": "The driver took a longer route...",
+      "evidence_photos": ["https://..."],
+      "status": "open",
+      "status_label": "Open",
+      "reported_by": { "id": "...", "first_name": "John" },
+      "ride": { "id": "...", "reference_number": "TRP-NG-000142", "destination": { "address": "Eko Atlantic City" } },
+      "resolved_at": null,
+      "created_at": "2026-10-12T12:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+---
+
+### Show My Dispute (Passenger)
+
+`GET /api/v1/passenger/disputes/{dispute}`
+
+View details of a specific dispute filed by the authenticated passenger.
+
+**Auth:** Bearer token (passenger)
+
+**Response: `200 OK`** — Same structure as individual dispute object above.
+
+**Response 403:** Dispute was not filed by this user.
 
 ---
 
@@ -6299,6 +7003,7 @@ List all disputes with optional filters and pagination.
 | `status`   | string | Filter by status: `open`, `under_review`, `resolved`, `dismissed` |
 | `category` | string | Filter by category (see `DisputeCategory` enum) |
 | `ride_id`  | uuid   | Filter by specific ride ID                      |
+| `city_id`  | uuid   | Filter by city (via ride's city)                |
 | `search`   | string | Search by description or reporter name/email    |
 | `from`     | date   | Filter disputes created on or after (YYYY-MM-DD) |
 | `to`       | date   | Filter disputes created on or before (YYYY-MM-DD) |
@@ -6311,14 +7016,25 @@ List all disputes with optional filters and pagination.
   "disputes": [
     {
       "id": "...",
+      "reference_number": "DPT-000048",
       "ride_id": "...",
       "category": "fare_dispute",
-      "category_label": "Fare Dispute",
+      "category_label": "Fare is incorrect",
       "description": "...",
       "status": "open",
       "status_label": "Open",
+      "resolution_notes": null,
+      "refund_amount": null,
+      "refund_currency": null,
       "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-      "ride": { "id": "...", "status": "completed" },
+      "ride": {
+        "id": "...",
+        "reference_number": "TRP-NG-000142",
+        "status": "completed",
+        "city": { "id": "...", "name": "Lagos" },
+        "passenger": { "id": "...", "first_name": "John", "last_name": "Doe", "phone": "+234..." },
+        "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith", "phone": "+234..." }
+      },
       "resolved_at": null,
       "created_at": "2026-10-09T12:00:00.000000Z",
       "updated_at": "2026-10-09T12:00:00.000000Z"
@@ -6346,34 +7062,57 @@ Return full dispute details including ride, passenger, driver, vehicle class, ci
 {
   "dispute": {
     "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "reference_number": "DPT-000048",
     "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
     "category": "fare_dispute",
-    "category_label": "Fare Dispute",
+    "category_label": "Fare is incorrect",
     "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "open",
     "status_label": "Open",
+    "resolution_notes": null,
+    "refund_amount": null,
+    "refund_currency": null,
     "reported_by": {
       "id": "f1a2b3c4-d5e6-7890-abcd-111111111111",
       "first_name": "John",
       "last_name": "Doe",
+      "phone": "+2348100000001",
       "email": "john@example.com",
       "type": "passenger"
     },
     "ride": {
       "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "reference_number": "TRP-NG-000142",
       "status": "completed",
-      "pickup_address": "123 Main Street, Abuja",
-      "destination_address": "456 Airport Road, Abuja",
+      "pickup": { "lat": 9.0579, "lng": 7.4951, "address": "123 Main Street, Abuja" },
+      "destination": { "lat": 9.0065, "lng": 7.2632, "address": "456 Airport Road, Abuja" },
       "fare_estimate_amount": "3500.00",
       "final_fare_amount": "4200.00",
       "fare_currency": "NGN",
       "payment_method": "card",
-      "passenger": { "id": "...", "first_name": "John", "last_name": "Doe" },
-      "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith" },
+      "passenger": { "id": "...", "first_name": "John", "last_name": "Doe", "phone": "+234..." },
+      "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith", "phone": "+234..." },
       "vehicle_class": { "id": "...", "name": "comfort", "display_name": "Comfort" },
       "city": { "id": "...", "name": "Abuja" },
-      "payment": { "id": "...", "amount": "4200.00", "method": "card", "status": "captured" }
+      "payment_details": {
+        "amount": 4200.00,
+        "currency": "NGN",
+        "method": "card",
+        "status": "captured",
+        "card_brand": "visa",
+        "card_last_four": "4081",
+        "tip_amount": null
+      }
     },
+    "notes": [
+      {
+        "id": "...",
+        "content": "Passenger confirmed the overcharge via screenshots.",
+        "admin": { "id": "...", "first_name": "Support", "last_name": "Agent" },
+        "created_at": "2026-10-09T13:00:00.000000Z",
+        "updated_at": "2026-10-09T13:00:00.000000Z"
+      }
+    ],
     "resolved_at": null,
     "created_at": "2026-10-09T12:00:00.000000Z",
     "updated_at": "2026-10-09T12:00:00.000000Z"
@@ -6429,7 +7168,7 @@ Resolve or dismiss a dispute. Optionally issue a card refund (full or partial) w
     "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
     "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
     "category": "fare_dispute",
-    "category_label": "Fare Dispute",
+    "category_label": "Fare is incorrect",
     "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "resolved",
     "status_label": "Resolved",
@@ -6471,6 +7210,118 @@ Resolve or dismiss a dispute. Optionally issue a card refund (full or partial) w
 
 **Error Responses:**
 - `422` — Dispute already resolved/dismissed, missing resolution notes, refund on dismissal, refund exceeds payment, or cash payment refund attempted
+
+---
+
+### Update Dispute Status
+
+`PATCH /api/v1/admin/disputes/{dispute}/status`
+
+Transition a dispute from `open` to `under_review`.
+
+| Field    | Type   | Required | Rules            |
+|----------|--------|----------|------------------|
+| `status` | string | Yes      | `under_review`   |
+
+**Response: `200 OK`**
+```json
+{
+  "message": "Dispute moved to under review.",
+  "dispute": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+    "reference_number": "DPT-000048",
+    "status": "under_review",
+    "status_label": "Under Review",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Only open disputes can be moved to under review."
+}
+```
+
+---
+
+### List Dispute Notes
+
+`GET /api/v1/admin/disputes/{dispute}/notes`
+
+Returns internal notes for a dispute, paginated.
+
+**Response: `200 OK`**
+```json
+{
+  "notes": [
+    {
+      "id": "...",
+      "content": "Passenger confirmed the overcharge via screenshots.",
+      "admin": { "id": "...", "first_name": "Support", "last_name": "Agent" },
+      "created_at": "2026-10-09T13:00:00.000000Z",
+      "updated_at": "2026-10-09T13:00:00.000000Z"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+---
+
+### Add Dispute Note
+
+`POST /api/v1/admin/disputes/{dispute}/notes`
+
+| Field     | Type   | Required | Rules                  |
+|-----------|--------|----------|------------------------|
+| `content` | string | Yes      | Max 2000 characters    |
+
+**Response: `201 Created`**
+```json
+{
+  "message": "Note added successfully.",
+  "note": {
+    "id": "...",
+    "content": "Called passenger to verify details.",
+    "admin": { "id": "...", "first_name": "Support", "last_name": "Agent" },
+    "created_at": "2026-10-09T14:00:00.000000Z",
+    "updated_at": "2026-10-09T14:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### Update Dispute Note
+
+`PUT /api/v1/admin/disputes/{dispute}/notes/{note}`
+
+| Field     | Type   | Required | Rules                  |
+|-----------|--------|----------|------------------------|
+| `content` | string | Yes      | Max 2000 characters    |
+
+**Response: `200 OK`**
+```json
+{
+  "message": "Note updated successfully.",
+  "note": { "..." }
+}
+```
+
+---
+
+### Delete Dispute Note
+
+`DELETE /api/v1/admin/disputes/{dispute}/notes/{note}`
+
+**Response: `200 OK`**
+```json
+{
+  "message": "Note deleted successfully."
+}
+```
 
 ---
 

@@ -30,8 +30,8 @@ it('creates a pricing config', function () {
 
     $response->assertCreated()
         ->assertJson(['message' => 'Pricing configuration created successfully.'])
-        ->assertJsonPath('pricing_config.base_fare', '500.00')
-        ->assertJsonPath('pricing_config.per_km_rate', '100.00')
+        ->assertJsonPath('pricing_config.base_fare', 500)
+        ->assertJsonPath('pricing_config.per_km_rate', 100)
         ->assertJsonPath('pricing_config.free_waiting_minutes', 5)
         ->assertJsonPath('pricing_config.version', 1);
 

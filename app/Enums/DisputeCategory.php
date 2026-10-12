@@ -16,14 +16,14 @@ enum DisputeCategory: string
     public function label(): string
     {
         return match ($this) {
-            self::FareDispute => 'Fare Dispute',
-            self::DriverBehaviour => 'Driver Behaviour',
-            self::RouteDeviation => 'Route Deviation',
-            self::VehicleCondition => 'Vehicle Condition',
-            self::SafetyConcern => 'Safety Concern',
-            self::PaymentIssue => 'Payment Issue',
-            self::ItemLeftBehind => 'Item Left Behind',
-            self::Other => 'Other',
+            self::FareDispute => 'Fare is incorrect',
+            self::DriverBehaviour => 'Driver behaviour',
+            self::RouteDeviation => 'Wrong route taken',
+            self::VehicleCondition => 'Vehicle condition',
+            self::SafetyConcern => 'Safety concern',
+            self::PaymentIssue => 'Payment issue',
+            self::ItemLeftBehind => 'Lost item',
+            self::Other => 'Something else',
         };
     }
 }

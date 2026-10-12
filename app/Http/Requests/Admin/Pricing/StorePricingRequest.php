@@ -25,7 +25,7 @@ class StorePricingRequest extends FormRequest
             'minimum_fare' => ['required', 'numeric', 'min:0'],
             'waiting_time_rate' => ['sometimes', 'numeric', 'min:0'],
             'free_waiting_minutes' => ['sometimes', 'integer', 'min:0', 'max:30'],
-            'effective_from' => ['required', 'date', 'after:now'],
+            'effective_from' => ['required', 'date', 'after_or_equal:now'],
         ];
     }
 }
