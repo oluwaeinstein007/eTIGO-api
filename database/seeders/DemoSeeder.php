@@ -5,14 +5,36 @@ namespace Database\Seeders;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
+use App\Enums\EvReservationStatus;
+use App\Enums\EvStallStatus;
+use App\Enums\EvStationStatus;
+use App\Enums\FleetAgreementStatus;
+use App\Enums\KycVerificationStatus;
+use App\Enums\KycVerificationType;
+use App\Enums\NotificationCategory;
 use App\Enums\PaymentStatus;
+use App\Enums\SosTriggerType;
+use App\Enums\SurgeType;
 use App\Enums\UserType;
+use App\Models\AppSetting;
+use App\Models\BankAccount;
 use App\Models\City;
+use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\EvChargingStall;
+use App\Models\EvChargingStation;
+use App\Models\EvReservation;
+use App\Models\FleetAgreement;
+use App\Models\GamificationProfile;
+use App\Models\KycVerification;
 use App\Models\Notification;
+use App\Models\NotificationPreference;
 use App\Models\Payment;
 use App\Models\Ride;
+use App\Models\SavedPlace;
+use App\Models\SurgeRule;
+use App\Models\TripCarbonScore;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Models\Vehicle;
@@ -44,6 +66,19 @@ class DemoSeeder extends Seeder
         $this->seedRatings($rides);
         $this->seedDisputes($rides);
         $this->seedNotifications($passengers, $drivers);
+        $this->seedSavedPlaces($passengers);
+        $this->seedDisputeNotes();
+        $this->seedSurgeRules();
+        $this->seedKycVerifications($drivers);
+        $this->seedGamificationProfiles($passengers, $drivers);
+        $this->seedTripCarbonScores($rides);
+        $this->seedNotificationPreferences($passengers, $drivers);
+        $this->seedAppSettings();
+        $this->seedPromoRedemptions($passengers, $rides);
+        $this->seedBankAccounts($drivers);
+        $this->seedEvCharging($drivers);
+        $this->seedFleetAgreements($drivers);
+        $this->seedSosIncident($rides);
     }
 
     private function seedVehicleClasses(): void
@@ -699,6 +734,583 @@ class DemoSeeder extends Seeder
 
         foreach ($notifications as $notif) {
             Notification::create($notif + ['created_at' => now()->subHours(rand(1, 168))]);
+        }
+    }
+
+    /**
+     * @param  array<string, User>  $passengers
+     */
+    private function seedSavedPlaces(array $passengers): void
+    {
+        if (SavedPlace::exists()) {
+            return;
+        }
+
+        $places = [
+            ['user' => $passengers['ade'], 'type' => 'home', 'name' => 'Home', 'address' => '12 Adekunle Fajuyi Way, Ikeja GRA, Lagos', 'latitude' => 6.5790, 'longitude' => 3.3467],
+            ['user' => $passengers['ade'], 'type' => 'work', 'name' => 'Work', 'address' => '15 Broad Street, Lagos Island, Lagos', 'latitude' => 6.4541, 'longitude' => 3.3947],
+            ['user' => $passengers['ngozi'], 'type' => 'home', 'name' => 'Home', 'address' => '3 Admiralty Way, Lekki Phase 1, Lagos', 'latitude' => 6.4355, 'longitude' => 3.4167],
+            ['user' => $passengers['ngozi'], 'type' => 'work', 'name' => 'Work', 'address' => '24 Marina Road, Lagos Island, Lagos', 'latitude' => 6.4481, 'longitude' => 3.3905],
+            ['user' => $passengers['emeka'], 'type' => 'home', 'name' => 'Home', 'address' => '7 Aguiyi Ironsi Street, Maitama, Abuja', 'latitude' => 9.0246, 'longitude' => 7.4939],
+            ['user' => $passengers['funmi'], 'type' => 'home', 'name' => 'Home', 'address' => '45 Bode Thomas Street, Surulere, Lagos', 'latitude' => 6.4937, 'longitude' => 3.3574],
+            ['user' => $passengers['funmi'], 'type' => 'other', 'name' => 'Gym', 'address' => 'Body Perfect Gym, Ilupeju, Lagos', 'latitude' => 6.5538, 'longitude' => 3.3617],
+        ];
+
+        foreach ($places as $place) {
+            SavedPlace::create([
+                'user_id' => $place['user']->id,
+                'type' => $place['type'],
+                'name' => $place['name'],
+                'address' => $place['address'],
+                'latitude' => $place['latitude'],
+                'longitude' => $place['longitude'],
+            ]);
+        }
+    }
+
+    private function seedDisputeNotes(): void
+    {
+        if (DB::table('dispute_notes')->exists()) {
+            return;
+        }
+
+        $resolvedDispute = DB::table('disputes')->where('status', 'resolved')->first();
+        $admin = User::where('email', 'admin@etigo.com')->first();
+
+        if (! $resolvedDispute || ! $admin) {
+            return;
+        }
+
+        $notes = [
+            ['content' => 'Reviewed GPS logs. Driver deviated from suggested route by 3.2 km.', 'created_at' => now()->subDays(2)],
+            ['content' => 'Contacted passenger via phone. Confirmed fare discrepancy of ₦500.', 'created_at' => now()->subDays(2)->addHours(2)],
+            ['content' => 'Partial refund of ₦500 approved and processed. Case resolved.', 'created_at' => now()->subDays(1)],
+        ];
+
+        foreach ($notes as $note) {
+            DB::table('dispute_notes')->insert([
+                'id' => (string) Str::uuid(),
+                'dispute_id' => $resolvedDispute->id,
+                'admin_id' => $admin->id,
+                'content' => $note['content'],
+                'created_at' => $note['created_at'],
+                'updated_at' => $note['created_at'],
+            ]);
+        }
+    }
+
+    private function seedSurgeRules(): void
+    {
+        if (SurgeRule::exists()) {
+            return;
+        }
+
+        $lagos = City::where('slug', 'lagos')->first();
+        $abuja = City::where('slug', 'abuja')->first();
+        $admin = User::where('email', 'admin@etigo.com')->first();
+
+        if (! $lagos || ! $admin) {
+            return;
+        }
+
+        $rules = [
+            [
+                'city_id' => $lagos->id,
+                'vehicle_class_id' => null,
+                'name' => 'Lagos Rush Hour Morning',
+                'type' => SurgeType::TimeBased->value,
+                'multiplier' => 1.50,
+                'conditions' => ['days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], 'start_time' => '07:00', 'end_time' => '09:30'],
+                'priority' => 10,
+                'is_active' => true,
+                'effective_from' => now()->subDays(30),
+                'effective_until' => null,
+            ],
+            [
+                'city_id' => $lagos->id,
+                'vehicle_class_id' => null,
+                'name' => 'Lagos Rush Hour Evening',
+                'type' => SurgeType::TimeBased->value,
+                'multiplier' => 1.40,
+                'conditions' => ['days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], 'start_time' => '17:00', 'end_time' => '20:00'],
+                'priority' => 10,
+                'is_active' => true,
+                'effective_from' => now()->subDays(30),
+                'effective_until' => null,
+            ],
+            [
+                'city_id' => $lagos->id,
+                'vehicle_class_id' => null,
+                'name' => 'Lagos High Demand Zone',
+                'type' => SurgeType::DemandBased->value,
+                'multiplier' => 1.75,
+                'conditions' => ['min_pending_rides' => 15, 'min_utilization_pct' => 85],
+                'priority' => 20,
+                'is_active' => true,
+                'effective_from' => now()->subDays(14),
+                'effective_until' => null,
+            ],
+        ];
+
+        if ($abuja) {
+            $rules[] = [
+                'city_id' => $abuja->id,
+                'vehicle_class_id' => null,
+                'name' => 'Abuja Weekend Surge',
+                'type' => SurgeType::TimeBased->value,
+                'multiplier' => 1.25,
+                'conditions' => ['days' => ['friday', 'saturday', 'sunday'], 'start_time' => '20:00', 'end_time' => '23:59'],
+                'priority' => 5,
+                'is_active' => true,
+                'effective_from' => now()->subDays(7),
+                'effective_until' => null,
+            ];
+        }
+
+        foreach ($rules as $rule) {
+            SurgeRule::create($rule + ['created_by_admin_id' => $admin->id]);
+        }
+    }
+
+    /**
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedKycVerifications(array $drivers): void
+    {
+        if (KycVerification::exists()) {
+            return;
+        }
+
+        foreach ($drivers as $key => $data) {
+            $driver = $data['driver'];
+
+            if (! in_array($driver->status, [DriverStatus::Approved, DriverStatus::PendingReview])) {
+                continue;
+            }
+
+            $isApproved = $driver->status === DriverStatus::Approved;
+
+            KycVerification::create([
+                'driver_id' => $driver->id,
+                'type' => KycVerificationType::Nin->value,
+                'id_number' => '1234567890' . rand(1, 9),
+                'provider_reference' => 'QOR_' . Str::random(16),
+                'status' => $isApproved ? KycVerificationStatus::Verified->value : KycVerificationStatus::Pending->value,
+                'match_data' => $isApproved ? ['name_match' => 95, 'dob_match' => true] : null,
+                'verified_at' => $isApproved ? now()->subDays(rand(5, 25)) : null,
+                'expires_at' => $isApproved ? now()->addYear() : null,
+            ]);
+
+            if ($isApproved) {
+                KycVerification::create([
+                    'driver_id' => $driver->id,
+                    'type' => KycVerificationType::DriversLicense->value,
+                    'id_number' => $driver->licence_number,
+                    'provider_reference' => 'QOR_' . Str::random(16),
+                    'status' => KycVerificationStatus::Verified->value,
+                    'match_data' => ['name_match' => 98, 'expiry_valid' => true],
+                    'verified_at' => now()->subDays(rand(5, 25)),
+                    'expires_at' => now()->addYears(3),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, User>  $passengers
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedGamificationProfiles(array $passengers, array $drivers): void
+    {
+        if (GamificationProfile::exists()) {
+            return;
+        }
+
+        $profiles = [
+            ['user' => $passengers['ade'], 'carbon' => 12.50, 'points' => 320, 'tier' => 2],
+            ['user' => $passengers['ngozi'], 'carbon' => 8.30, 'points' => 180, 'tier' => 1],
+            ['user' => $passengers['emeka'], 'carbon' => 15.75, 'points' => 520, 'tier' => 3],
+            ['user' => $passengers['funmi'], 'carbon' => 5.20, 'points' => 90, 'tier' => 1],
+            ['user' => $passengers['chidi'], 'carbon' => 22.10, 'points' => 650, 'tier' => 3],
+            ['user' => $drivers['bayo']['user'], 'carbon' => 45.80, 'points' => 1200, 'tier' => 4],
+            ['user' => $drivers['kemi']['user'], 'carbon' => 28.40, 'points' => 780, 'tier' => 3],
+            ['user' => $drivers['segun']['user'], 'carbon' => 55.90, 'points' => 1850, 'tier' => 5],
+        ];
+
+        foreach ($profiles as $profile) {
+            GamificationProfile::create([
+                'user_id' => $profile['user']->id,
+                'total_carbon_score' => $profile['carbon'],
+                'total_ranking_points' => $profile['points'],
+                'current_tier' => $profile['tier'],
+                'tier_upgraded_at' => $profile['tier'] > 1 ? now()->subDays(rand(5, 30)) : null,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, Ride>  $rides
+     */
+    private function seedTripCarbonScores(array $rides): void
+    {
+        if (TripCarbonScore::exists()) {
+            return;
+        }
+
+        foreach ($rides as $ride) {
+            if ($ride->status !== 'completed') {
+                continue;
+            }
+
+            $distanceKm = rand(5, 25) + (rand(0, 99) / 100);
+            $baselineEmission = $distanceKm * 0.21;
+            $vehicleEmission = $distanceKm * 0.12;
+
+            TripCarbonScore::create([
+                'ride_id' => $ride->id,
+                'user_id' => $ride->passenger_id,
+                'distance_km' => $distanceKm,
+                'baseline_emission' => $baselineEmission,
+                'vehicle_emission' => $vehicleEmission,
+                'co2_saved' => max(0, $baselineEmission - $vehicleEmission),
+                'base_points' => (int) ($distanceKm * 2),
+                'multiplier_applied' => 1.00,
+                'multiplier_reason' => null,
+                'final_points' => (int) ($distanceKm * 2),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, User>  $passengers
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedNotificationPreferences(array $passengers, array $drivers): void
+    {
+        if (NotificationPreference::exists()) {
+            return;
+        }
+
+        $usersToSeed = [$passengers['ade'], $passengers['ngozi'], $drivers['bayo']['user']];
+
+        foreach ($usersToSeed as $user) {
+            foreach (NotificationCategory::cases() as $category) {
+                $pushEnabled = true;
+                $inAppEnabled = true;
+
+                if ($category === NotificationCategory::Promotions) {
+                    $pushEnabled = rand(0, 1) === 1;
+                }
+
+                NotificationPreference::create([
+                    'user_id' => $user->id,
+                    'category' => $category->value,
+                    'push_enabled' => $pushEnabled,
+                    'in_app_enabled' => $inAppEnabled,
+                ]);
+            }
+        }
+    }
+
+    private function seedAppSettings(): void
+    {
+        if (AppSetting::exists()) {
+            return;
+        }
+
+        $settings = [
+            ['key' => 'wallet.min_topup', 'value' => '500', 'group' => 'wallet'],
+            ['key' => 'wallet.max_balance', 'value' => '500000', 'group' => 'wallet'],
+            ['key' => 'wallet.daily_topup_cap', 'value' => '100000', 'group' => 'wallet'],
+            ['key' => 'wallet.min_payout', 'value' => '1000', 'group' => 'wallet'],
+            ['key' => 'wallet.settlement_delay', 'value' => '24', 'group' => 'wallet'],
+            ['key' => 'wallet.max_negative_balance', 'value' => '0', 'group' => 'wallet'],
+            ['key' => 'wallet.hold_expiry_hours', 'value' => '72', 'group' => 'wallet'],
+            ['key' => 'wallet.abandoned_topup_minutes', 'value' => '30', 'group' => 'wallet'],
+            ['key' => 'ride.max_search_radius_km', 'value' => '10', 'group' => 'ride'],
+            ['key' => 'ride.max_search_attempts', 'value' => '3', 'group' => 'ride'],
+            ['key' => 'ride.driver_arrival_timeout_minutes', 'value' => '15', 'group' => 'ride'],
+            ['key' => 'ride.free_cancellation_window_seconds', 'value' => '60', 'group' => 'ride'],
+            ['key' => 'support.email', 'value' => 'support@etigo.com', 'group' => 'support'],
+            ['key' => 'support.phone', 'value' => '+2349000000000', 'group' => 'support'],
+            ['key' => 'general.maintenance_mode', 'value' => 'false', 'group' => 'general'],
+            ['key' => 'general.min_app_version_ios', 'value' => '1.0.0', 'group' => 'general'],
+            ['key' => 'general.min_app_version_android', 'value' => '1.0.0', 'group' => 'general'],
+        ];
+
+        foreach ($settings as $setting) {
+            AppSetting::create($setting);
+        }
+    }
+
+    /**
+     * @param  array<string, User>  $passengers
+     * @param  array<int, Ride>  $rides
+     */
+    private function seedPromoRedemptions(array $passengers, array $rides): void
+    {
+        if (DB::table('promo_redemptions')->exists()) {
+            return;
+        }
+
+        $welcomePromo = DB::table('promo_codes')->where('code', 'WELCOME50')->first();
+        $ridePromo = DB::table('promo_codes')->where('code', 'RIDE500')->first();
+
+        $completedRides = array_values(array_filter($rides, fn (Ride $r) => $r->status === 'completed'));
+
+        if (! $welcomePromo || count($completedRides) < 2) {
+            return;
+        }
+
+        DB::table('promo_redemptions')->insert([
+            'id' => (string) Str::uuid(),
+            'promo_code_id' => $welcomePromo->id,
+            'user_id' => $completedRides[0]->passenger_id,
+            'ride_id' => $completedRides[0]->id,
+            'discount_amount' => min(($completedRides[0]->final_fare_amount ?? 0) * 0.50, 2000),
+            'redeemed_at' => $completedRides[0]->completed_at,
+            'created_at' => $completedRides[0]->completed_at,
+        ]);
+
+        if ($ridePromo && count($completedRides) >= 3) {
+            DB::table('promo_redemptions')->insert([
+                'id' => (string) Str::uuid(),
+                'promo_code_id' => $ridePromo->id,
+                'user_id' => $completedRides[2]->passenger_id,
+                'ride_id' => $completedRides[2]->id,
+                'discount_amount' => 500.00,
+                'redeemed_at' => $completedRides[2]->completed_at,
+                'created_at' => $completedRides[2]->completed_at,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedBankAccounts(array $drivers): void
+    {
+        if (BankAccount::exists()) {
+            return;
+        }
+
+        $banks = [
+            ['code' => '058', 'name' => 'Guaranty Trust Bank'],
+            ['code' => '033', 'name' => 'United Bank for Africa'],
+            ['code' => '044', 'name' => 'Access Bank'],
+            ['code' => '011', 'name' => 'First Bank of Nigeria'],
+            ['code' => '057', 'name' => 'Zenith Bank'],
+        ];
+
+        $i = 0;
+        foreach ($drivers as $data) {
+            if (! in_array($data['driver']->status, [DriverStatus::Approved, DriverStatus::Suspended])) {
+                continue;
+            }
+
+            $bank = $banks[$i % count($banks)];
+            BankAccount::create([
+                'driver_id' => $data['driver']->id,
+                'bank_code' => $bank['code'],
+                'account_number' => str_pad((string) rand(1000000000, 9999999999), 10, '0'),
+                'account_name' => $data['user']->first_name . ' ' . $data['user']->last_name,
+                'is_verified' => $data['driver']->status === DriverStatus::Approved,
+                'is_primary' => true,
+            ]);
+            $i++;
+        }
+    }
+
+    /**
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedEvCharging(array $drivers): void
+    {
+        if (EvChargingStation::exists()) {
+            return;
+        }
+
+        $lagos = City::where('slug', 'lagos')->first();
+
+        if (! $lagos) {
+            return;
+        }
+
+        $stations = [
+            [
+                'name' => 'Ikeja EV Hub',
+                'city_id' => $lagos->id,
+                'lat' => 6.6018,
+                'lng' => 3.3515,
+                'address' => '22 Allen Avenue, Ikeja, Lagos',
+                'total_stalls' => 6,
+                'status' => EvStationStatus::Active->value,
+            ],
+            [
+                'name' => 'Lekki Green Charge',
+                'city_id' => $lagos->id,
+                'lat' => 6.4355,
+                'lng' => 3.4539,
+                'address' => '5 Admiralty Road, Lekki Phase 1, Lagos',
+                'total_stalls' => 4,
+                'status' => EvStationStatus::Active->value,
+            ],
+            [
+                'name' => 'VI Power Station',
+                'city_id' => $lagos->id,
+                'lat' => 6.4281,
+                'lng' => 3.4219,
+                'address' => '10 Adeola Odeku Street, Victoria Island, Lagos',
+                'total_stalls' => 3,
+                'status' => EvStationStatus::Maintenance->value,
+            ],
+        ];
+
+        foreach ($stations as $stationData) {
+            $station = EvChargingStation::create($stationData);
+
+            for ($s = 1; $s <= $station->total_stalls; $s++) {
+                $status = EvStallStatus::Available;
+                if ($station->status === EvStationStatus::Maintenance->value) {
+                    $status = EvStallStatus::OutOfService;
+                } elseif ($s === 1 && $station->name === 'Ikeja EV Hub') {
+                    $status = EvStallStatus::Occupied;
+                }
+
+                EvChargingStall::create([
+                    'station_id' => $station->id,
+                    'stall_number' => $s,
+                    'status' => $status->value,
+                ]);
+            }
+        }
+
+        $firstStation = EvChargingStation::where('name', 'Ikeja EV Hub')->first();
+        $firstStall = $firstStation?->stalls()->first();
+        $bayoUser = $drivers['bayo']['user'] ?? null;
+
+        if ($firstStall && $bayoUser) {
+            EvReservation::create([
+                'stall_id' => $firstStall->id,
+                'station_id' => $firstStation->id,
+                'driver_id' => $bayoUser->id,
+                'status' => EvReservationStatus::Completed->value,
+                'fee_amount' => 750.00,
+                'reserved_at' => now()->subDays(2),
+                'activated_at' => now()->subDays(2)->addMinutes(10),
+                'completed_at' => now()->subDays(2)->addMinutes(55),
+            ]);
+
+            $secondStall = $firstStation->stalls()->where('stall_number', 2)->first();
+            if ($secondStall) {
+                EvReservation::create([
+                    'stall_id' => $secondStall->id,
+                    'station_id' => $firstStation->id,
+                    'driver_id' => $bayoUser->id,
+                    'status' => EvReservationStatus::Reserved->value,
+                    'fee_amount' => 750.00,
+                    'reserved_at' => now()->addHours(2),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedFleetAgreements(array $drivers): void
+    {
+        if (FleetAgreement::exists()) {
+            return;
+        }
+
+        $tundeDriver = $drivers['tunde']['driver'] ?? null;
+        $tundeVehicle = $tundeDriver?->vehicle;
+        $admin = User::where('email', 'admin@etigo.com')->first();
+
+        if (! $tundeDriver || ! $tundeVehicle || ! $admin) {
+            return;
+        }
+
+        $agreement = FleetAgreement::create([
+            'driver_id' => $tundeDriver->id,
+            'vehicle_id' => $tundeVehicle->id,
+            'daily_remittance_target' => 8000.00,
+            'total_vehicle_cost' => 4500000.00,
+            'total_remitted' => 480000.00,
+            'agreement_start_date' => now()->subDays(60),
+            'status' => FleetAgreementStatus::Active->value,
+            'created_by_admin_id' => $admin->id,
+        ]);
+
+        for ($day = 7; $day >= 1; $day--) {
+            $remitted = rand(5000, 12000);
+            $target = 8000;
+
+            DailyRemittance::create([
+                'agreement_id' => $agreement->id,
+                'driver_id' => $tundeDriver->id,
+                'date' => now()->subDays($day)->toDateString(),
+                'target_amount' => $target,
+                'remitted_amount' => $remitted,
+                'shortfall_amount' => max(0, $target - $remitted),
+                'target_met_at' => $remitted >= $target ? now()->subDays($day)->setHour(rand(18, 22)) : null,
+                'ride_count' => rand(8, 18),
+                'total_fares' => $remitted + rand(2000, 5000),
+                'driver_earnings' => rand(2000, 5000),
+                'settled' => true,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, Ride>  $rides
+     */
+    private function seedSosIncident(array $rides): void
+    {
+        if (DB::table('sos_incidents')->exists()) {
+            return;
+        }
+
+        $inProgressRide = collect($rides)->first(fn (Ride $r) => $r->status === 'in_progress');
+        $admin = User::where('email', 'safety@etigo.com')->orWhere('email', 'admin@etigo.com')->first();
+
+        if (! $inProgressRide) {
+            return;
+        }
+
+        $incidentId = (string) Str::uuid();
+
+        DB::table('sos_incidents')->insert([
+            'id' => $incidentId,
+            'ride_id' => $inProgressRide->id,
+            'triggered_by_user_id' => $inProgressRide->passenger_id,
+            'trigger_type' => SosTriggerType::Passenger->value,
+            'status' => 'resolved',
+            'gps_lat' => $inProgressRide->pickup_lat,
+            'gps_lng' => $inProgressRide->pickup_lng,
+            'operator_id' => $admin?->id,
+            'operator_notes' => 'False alarm confirmed via phone check-in. Passenger accidentally triggered SOS.',
+            'resolved_at' => now()->subMinutes(5),
+            'created_at' => now()->subMinutes(12),
+        ]);
+
+        $events = [
+            ['event_type' => 'sos_triggered', 'actor_id' => $inProgressRide->passenger_id, 'metadata' => json_encode(['source' => 'app_button']), 'created_at' => now()->subMinutes(12)],
+            ['event_type' => 'check_in_sent', 'actor_id' => null, 'metadata' => json_encode(['channel' => 'push']), 'created_at' => now()->subMinutes(11)],
+            ['event_type' => 'operator_assigned', 'actor_id' => $admin?->id, 'metadata' => json_encode([]), 'created_at' => now()->subMinutes(8)],
+            ['event_type' => 'resolved', 'actor_id' => $admin?->id, 'metadata' => json_encode(['resolution' => 'false_alarm']), 'created_at' => now()->subMinutes(5)],
+        ];
+
+        foreach ($events as $event) {
+            DB::table('sos_event_log')->insert([
+                'id' => (string) Str::uuid(),
+                'incident_id' => $incidentId,
+                'event_type' => $event['event_type'],
+                'actor_id' => $event['actor_id'],
+                'metadata' => $event['metadata'],
+                'created_at' => $event['created_at'],
+            ]);
         }
     }
 }

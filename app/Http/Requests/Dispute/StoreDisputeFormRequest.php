@@ -25,6 +25,7 @@ class StoreDisputeFormRequest extends FormRequest
             'description' => ['required', 'string', 'min:10', 'max:2000'],
             'photos' => ['nullable', 'array', 'max:5'],
             'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'audio' => ['nullable', 'file', 'mimes:mp3,m4a,wav,ogg,webm,aac', 'max:10240'],
         ];
     }
 

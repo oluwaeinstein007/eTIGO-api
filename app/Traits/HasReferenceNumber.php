@@ -25,14 +25,23 @@ trait HasReferenceNumber
         $prefix = static::referencePrefix();
         $table = (new static)->getTable();
 
-        $maxNum = DB::table($table)
-            ->whereNotNull('reference_number')
-            ->where('reference_number', 'like', "{$prefix}%")
-            ->lockForUpdate()
-            ->selectRaw("MAX(CAST(REPLACE(reference_number, ?, '') AS INTEGER)) as max_num", [$prefix])
-            ->value('max_num') ?? 0;
+        return DB::transaction(function () use ($prefix, $table) {
+            $maxNum = (int) DB::table($table)
+                ->whereNotNull('reference_number')
+                ->where('reference_number', 'like', "{$prefix}%")
+                ->selectRaw("MAX(CAST(REPLACE(reference_number, ?, '') AS INTEGER)) as max_num", [$prefix])
+                ->value('max_num');
 
-        return $prefix . str_pad($maxNum + 1, 6, '0', STR_PAD_LEFT);
+            $nextNum = $maxNum + 1;
+            $referenceNumber = $prefix . str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+
+            while (DB::table($table)->where('reference_number', $referenceNumber)->exists()) {
+                $nextNum++;
+                $referenceNumber = $prefix . str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+            }
+
+            return $referenceNumber;
+        });
     }
 
     abstract protected static function referencePrefix(): string;

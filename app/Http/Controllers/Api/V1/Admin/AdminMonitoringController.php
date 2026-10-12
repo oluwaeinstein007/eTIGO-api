@@ -40,6 +40,10 @@ class AdminMonitoringController extends Controller
             return $resource;
         });
 
+        $summaryQuery = Ride::whereIn('status', RideStatus::activeStatuses())
+            ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
+            ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v));
+
         return response()->json([
             'rides' => $ridesData->items(),
             'meta' => [
@@ -49,8 +53,8 @@ class AdminMonitoringController extends Controller
                 'total' => $rides->total(),
             ],
             'summary' => [
-                'total_active' => Ride::whereIn('status', RideStatus::activeStatuses())->count(),
-                'by_status' => Ride::whereIn('status', RideStatus::activeStatuses())
+                'total_active' => (clone $summaryQuery)->count(),
+                'by_status' => (clone $summaryQuery)
                     ->selectRaw('status, COUNT(*) as count')
                     ->groupBy('status')
                     ->pluck('count', 'status'),
@@ -141,6 +145,14 @@ class AdminMonitoringController extends Controller
 
     public function availableDrivers(Request $request, Ride $ride): JsonResponse
     {
+        $validator = validator($request->only('radius_km'), [
+            'radius_km' => ['sometimes', 'numeric', 'gt:0'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Invalid radius_km.', 'errors' => $validator->errors()], 422);
+        }
+
         $radiusKm = (float) $request->input('radius_km', 5);
         $limit = min(max((int) $request->input('limit', 20), 1), 50);
 
@@ -148,7 +160,7 @@ class AdminMonitoringController extends Controller
             (float) $ride->pickup_lat,
             (float) $ride->pickup_lng,
             $radiusKm,
-            $limit * 3,
+            500,
         );
 
         if (empty($nearbyFromRedis)) {
@@ -175,7 +187,6 @@ class AdminMonitoringController extends Controller
                 ]));
             })
             ->with(['user', 'vehicle.vehicleClass'])
-            ->limit($limit)
             ->get();
 
         $result = $drivers->map(function (Driver $driver) use ($distanceMap) {
@@ -197,7 +208,7 @@ class AdminMonitoringController extends Controller
                 'location' => $location,
                 'distance_km' => round($distanceMap[$driver->user_id] ?? 0, 2),
             ];
-        })->sortBy('distance_km')->values();
+        })->sortBy('distance_km')->values()->take($limit);
 
         return response()->json([
             'drivers' => $result,

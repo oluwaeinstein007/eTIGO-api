@@ -22,6 +22,9 @@ class DisputeResource extends JsonResource
                     fn (string $path) => Storage::disk('local')->temporaryUrl($path, now()->addMinutes(30)),
                 )->all();
             }),
+            'evidence_audio' => $this->when($this->evidence_audio, function () {
+                return Storage::disk('local')->temporaryUrl($this->evidence_audio, now()->addMinutes(30));
+            }),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'resolution_notes' => $this->resolution_notes,

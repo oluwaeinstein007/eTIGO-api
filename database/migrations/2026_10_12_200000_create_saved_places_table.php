@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
             $table->string('type');
             $table->string('name')->nullable();
-            $table->string('address');
+            $table->string('address', 500);
             $table->decimal('latitude', 10, 7);
             $table->decimal('longitude', 10, 7);
             $table->timestamps();

@@ -1972,7 +1972,7 @@ GET /admin/drivers
       "reference_number": "D-000001",
       "user": {
         "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
-        "reference_number": "P-000001",
+        "reference_number": null,
         "first_name": "Bayo",
         "last_name": "Akinola",
         "phone": "+2348200000001",
