@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
 use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
+use App\Http\Controllers\Api\V1\Driver\DriverRepairController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\EvReservationController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
@@ -348,6 +349,12 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::post('/{reservation}/activate', [EvReservationController::class, 'activate']);
         Route::post('/{reservation}/complete', [EvReservationController::class, 'complete']);
         Route::post('/{reservation}/cancel', [EvReservationController::class, 'cancel']);
+    });
+
+    Route::prefix('repairs')->group(function () {
+        Route::get('/', [DriverRepairController::class, 'index']);
+        Route::post('/', [DriverRepairController::class, 'store']);
+        Route::get('/{repair}', [DriverRepairController::class, 'show']);
     });
 });
 
