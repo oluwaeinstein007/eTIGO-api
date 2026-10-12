@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Promo\ValidatePromoFormRequest;
 use App\Http\Resources\PromoCodeResource;
+use App\Http\Resources\PromoRedemptionResource;
 use App\Models\PromoCode;
+use App\Models\PromoRedemption;
 use App\Services\PromoApplicationService;
 use App\Services\PromoValidationService;
 use Illuminate\Http\JsonResponse;
@@ -64,13 +66,7 @@ class PromoController extends Controller
         $user = $request->user();
 
         $promos = PromoCode::active()
-            ->where(function ($query) use ($user) {
-                $query->whereNull('city_id');
-
-                if ($user->isDriver() && $user->driver?->city_id) {
-                    $query->orWhere('city_id', $user->driver->city_id);
-                }
-            })
+            ->whereNull('city_id')
             ->orderBy('expires_at')
             ->get();
 
@@ -80,6 +76,26 @@ class PromoController extends Controller
 
         return response()->json([
             'promos' => PromoCodeResource::collection($eligible),
+        ]);
+    }
+
+    public function redemptions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $redemptions = PromoRedemption::with('promoCode')
+            ->where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->paginate(min(max($request->integer('per_page', 15), 1), 100));
+
+        return response()->json([
+            'redemptions' => PromoRedemptionResource::collection($redemptions),
+            'meta' => [
+                'current_page' => $redemptions->currentPage(),
+                'last_page' => $redemptions->lastPage(),
+                'per_page' => $redemptions->perPage(),
+                'total' => $redemptions->total(),
+            ],
         ]);
     }
 }

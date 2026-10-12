@@ -3288,6 +3288,13 @@
                       "type": "file",
                       "src": [],
                       "description": "(Optional) Up to 5 images, max 5MB each. Supported: jpg, jpeg, png, webp"
+                    },
+                    {
+                      "key": "audio",
+                      "type": "file",
+                      "src": "",
+                      "description": "Audio recording (mp3, m4a, wav, ogg, webm, aac), max 10MB",
+                      "disabled": true
                     }
                   ]
                 },
@@ -13668,6 +13675,109 @@
                     }
                   ],
                   "body": "{\n  \"leaderboard\": [\n    {\n      \"user_id\": \"uuid\",\n      \"first_name\": \"Ade\",\n      \"tier\": 3,\n      \"tier_name\": \"Gold\",\n      \"total_ranking_points\": 2500,\n      \"total_carbon_score\": 150.25\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Download Green Impact PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/pdf"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/gamification/green-impact-pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "gamification",
+                    "green-impact-pdf"
+                  ]
+                },
+                "description": "Downloads a personalised PDF report summarising the user's environmental impact — total rides, CO₂ saved, electric kilometres, current tier, and recent trip scores."
+              },
+              "response": [
+                {
+                  "name": "200 — PDF Download",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/pdf"
+                    }
+                  ],
+                  "body": "(Binary PDF file)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Promotions",
+          "item": [
+            {
+              "name": "Promo Redemption History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/promos/redemptions?per_page=15",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "promos",
+                    "redemptions"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "Items per page (default: 15, max: 100)"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number"
+                    }
+                  ]
+                },
+                "description": "Returns the authenticated user's promo redemption history, most recent first."
+              },
+              "response": [
+                {
+                  "name": "200 — Redemption History",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"redemptions\": [\n    {\n      \"id\": \"uuid\",\n      \"promo_code\": {\n        \"id\": \"uuid\",\n        \"code\": \"WELCOME20\",\n        \"description\": \"Welcome discount\",\n        \"discount_type\": \"percentage\",\n        \"discount_value\": \"20.00\"\n      },\n      \"discount_amount\": \"400.00\",\n      \"ride_id\": \"uuid\",\n      \"created_at\": \"2026-10-12T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 3\n  }\n}"
                 }
               ]
             }

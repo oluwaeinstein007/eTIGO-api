@@ -212,6 +212,7 @@ Route::middleware('auth:sanctum')->prefix('gamification')->group(function () {
     Route::get('/carbon-history', [GamificationController::class, 'carbonHistory']);
     Route::get('/tiers', [GamificationController::class, 'tiers']);
     Route::get('/leaderboard', [GamificationController::class, 'leaderboard']);
+    Route::get('/green-impact-pdf', [GamificationController::class, 'greenImpactPdf']);
 });
 
 /*
@@ -222,6 +223,7 @@ Route::middleware('auth:sanctum')->prefix('gamification')->group(function () {
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('promos')->group(function () {
     Route::post('/validate', [PromoController::class, 'validate']);
     Route::get('/available', [PromoController::class, 'available']);
+    Route::get('/redemptions', [PromoController::class, 'redemptions']);
 });
 
 /*
