@@ -1,26 +1,29 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
-use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
+use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
 use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminMonitoringController;
+use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
+use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
 use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
+use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
@@ -34,16 +37,21 @@ use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
+use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
+use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
 use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
+use App\Http\Controllers\Api\V1\Driver\DriverRepairController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
+use App\Http\Controllers\Api\V1\Driver\EvReservationController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\NearbyRidesController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\Driver\PayoutController;
+use App\Http\Controllers\Api\V1\EvStationController;
 use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
@@ -57,8 +65,9 @@ use App\Http\Controllers\Api\V1\Passenger\SavedPlaceController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
-use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\PlaceController;
+use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\RideCancellationReasonController;
 use App\Http\Controllers\Api\V1\RideController;
 use App\Http\Controllers\Api\V1\RideDisputeController;
@@ -70,15 +79,8 @@ use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\SosController;
-use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
-use App\Http\Controllers\Api\V1\Admin\AdminSosController;
-use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
-use App\Http\Controllers\Api\V1\Driver\DriverFlagController;
-use App\Http\Controllers\Api\V1\Driver\EvReservationController;
-use App\Http\Controllers\Api\V1\EvStationController;
-use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
-use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
+use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -193,6 +195,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/{transactionId}/verify', [PaymentMethodController::class, 'verify']);
     Route::patch('/payment-methods/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
     Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
+
+    Route::middleware('throttle:60,1')->prefix('places')->group(function () {
+        Route::get('/search', [PlaceController::class, 'search']);
+        Route::get('/reverse', [PlaceController::class, 'reverse']);
+    });
 });
 
 /*
@@ -293,6 +300,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group(function () {
+    Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/nearby-rides', NearbyRidesController::class);
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
     Route::get('/stats', [DriverStatsController::class, 'show']);
@@ -352,11 +360,18 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
 
     Route::prefix('ev-reservations')->group(function () {
         Route::get('/', [EvReservationController::class, 'index']);
+        Route::post('/', [EvReservationController::class, 'storeRequest']);
         Route::post('/stations/{station}/reserve', [EvReservationController::class, 'store']);
         Route::get('/{reservation}', [EvReservationController::class, 'show']);
         Route::post('/{reservation}/activate', [EvReservationController::class, 'activate']);
         Route::post('/{reservation}/complete', [EvReservationController::class, 'complete']);
         Route::post('/{reservation}/cancel', [EvReservationController::class, 'cancel']);
+    });
+
+    Route::prefix('repairs')->group(function () {
+        Route::get('/', [DriverRepairController::class, 'index']);
+        Route::post('/', [DriverRepairController::class, 'store']);
+        Route::get('/{repair}', [DriverRepairController::class, 'show']);
     });
 });
 

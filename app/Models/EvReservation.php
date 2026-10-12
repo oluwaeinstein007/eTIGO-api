@@ -20,7 +20,17 @@ class EvReservation extends Model
         'station_id',
         'driver_id',
         'status',
+        'type',
+        'battery_level',
+        'requested_date',
+        'requested_time',
+        'notes',
+        'approver_name',
+        'confirmed_slot',
+        'check_in_time',
         'queue_position',
+        'queue_ahead_count',
+        'queue_ahead_description',
         'estimated_available_at',
         'fee_amount',
         'fee_waived',
@@ -28,21 +38,26 @@ class EvReservation extends Model
         'reserved_at',
         'activated_at',
         'completed_at',
+        'updated_at',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => EvReservationStatus::class,
+            'battery_level' => 'integer',
             'queue_position' => 'integer',
+            'queue_ahead_count' => 'integer',
             'fee_amount' => 'decimal:2',
             'fee_waived' => 'boolean',
             'estimated_charge_minutes' => 'integer',
             'estimated_available_at' => 'datetime',
+            'requested_date' => 'date',
             'reserved_at' => 'datetime',
             'activated_at' => 'datetime',
             'completed_at' => 'datetime',
             'created_at' => 'datetime',
+            'updated_at' => 'datetime',
         ];
     }
 
@@ -64,6 +79,7 @@ class EvReservation extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', [
+            EvReservationStatus::PendingReview,
             EvReservationStatus::Reserved,
             EvReservationStatus::Queued,
             EvReservationStatus::Active,

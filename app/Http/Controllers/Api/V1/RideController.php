@@ -103,7 +103,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),
@@ -143,7 +143,7 @@ class RideController extends Controller
 
         $perPage = min($request->integer('per_page', 15), 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'driver.driver.vehicle'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment', 'driver.driver.vehicle'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 

@@ -63,6 +63,19 @@ return [
         'access_token' => env('MAPBOX_ACCESS_TOKEN'),
     ],
 
+    'geoapify' => [
+        'api_key' => env('GEOAPIFY_API_KEY'),
+    ],
+
+    'locationiq' => [
+        'api_key' => env('LOCATIONIQ_API_KEY'),
+    ],
+
+    'places' => [
+        'drivers' => env('PLACE_SEARCH_DRIVERS', 'mapbox,geoapify,locationiq,photon'),
+        'country' => env('PLACE_SEARCH_COUNTRY', 'ng'),
+    ],
+
     'demo_earnings_driver_user_id' => env('DEMO_EARNINGS_DRIVER_USER_ID'),
 
     'firebase' => [
@@ -73,6 +86,7 @@ return [
     'paystack' => [
         'secret_key' => env('PAYSTACK_SECRET_KEY'),
         'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'fake' => filter_var(env('PAYSTACK_FAKE', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'qoreid' => [

@@ -186,6 +186,25 @@ describe('Cash confirmation', function () {
         expect($ride->payment_status)->toBe(PaymentStatus::Collected);
     });
 
+    it('creates payment and confirms cash if payment record does not exist yet', function () {
+        $ride = Ride::factory()->completed()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'payment_method' => PaymentMethod::Cash,
+            'final_fare_amount' => 3500,
+        ]);
+
+        $response = $this->withToken($this->driverToken)
+            ->postJson("/api/v1/rides/{$ride->id}/confirm-cash");
+
+        $response->assertOk()
+            ->assertJsonPath('payment.status', 'collected');
+
+        $ride->refresh();
+        expect($ride->payment_status)->toBe(PaymentStatus::Collected);
+        expect($ride->payment)->not->toBeNull();
+    });
+
     it('rejects cash confirmation for card rides', function () {
         $ride = Ride::factory()->completed()->withCard()->create([
             'passenger_id' => $this->passenger->id,

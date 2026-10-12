@@ -40,6 +40,8 @@ class RideDetailResource extends JsonResource
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,
+            'tip_amount' => $this->relationLoaded('payment') ? $this->payment?->tip_amount : null,
+            'payment' => new PaymentResource($this->whenLoaded('payment')),
             'cancellation_reason' => $this->cancellation_reason,
             'city' => new CityResource($this->whenLoaded('city')),
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),

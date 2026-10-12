@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum EvReservationStatus: string
 {
+    case PendingReview = 'pending_review';
     case Reserved = 'reserved';
     case Queued = 'queued';
     case Active = 'active';
@@ -14,6 +15,7 @@ enum EvReservationStatus: string
     public function label(): string
     {
         return match ($this) {
+            self::PendingReview => 'Pending Review',
             self::Reserved => 'Reserved',
             self::Queued => 'Queued',
             self::Active => 'Active',

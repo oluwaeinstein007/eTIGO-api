@@ -76,3 +76,28 @@ it('broadcasts map invalidations without exposing location or passenger data', f
     expect($passengers->broadcastWith())->toHaveKeys(['changed_at']);
     expect($passengers->broadcastWith())->not->toHaveKeys(['lat', 'lng', 'ride_id', 'passenger_id']);
 });
+
+it('returns other online drivers to an online driver and excludes self', function () {
+    $driverUser = User::factory()->driver()->create();
+    $selfDriver = Driver::factory()->online()->for($driverUser)->create();
+    $otherDriver = Driver::factory()->online()->create();
+    Vehicle::factory()->for($otherDriver)->create();
+    $token = $driverUser->createToken('driver-auth', ['driver'])->plainTextToken;
+
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('findNearbyDrivers')->once()->with(6.5, 3.4, 10.0, 50)
+        ->andReturn([
+            ['driver_id' => $selfDriver->id, 'distance_km' => 0.0],
+            ['driver_id' => $otherDriver->id, 'distance_km' => 1.25],
+        ]);
+    $locations->shouldReceive('getDriverLocation')->once()->with($otherDriver->id)
+        ->andReturn(['lat' => 6.51, 'lng' => 3.41, 'heading' => 45, 'speed' => 0, 'timestamp' => now()->timestamp]);
+    $this->app->instance(DriverLocationService::class, $locations);
+
+    $this->withToken($token)->getJson('/api/v1/driver/nearby-drivers?lat=6.5&lng=3.4')
+        ->assertOk()
+        ->assertJsonCount(1, 'drivers')
+        ->assertJsonPath('drivers.0.driver_id', $otherDriver->id)
+        ->assertJsonPath('drivers.0.lat', 6.51)
+        ->assertJsonPath('drivers.0.distance_km', 1.25);
+});

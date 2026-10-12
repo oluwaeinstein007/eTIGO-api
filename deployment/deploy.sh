@@ -43,7 +43,7 @@ echo "==> Linking storage to public..."
 php artisan storage:link
 
 echo "==> Ensuring storage permissions..."
-chmod -R 775 "${SHARED_DIR}/storage"
+chmod -R 775 "${SHARED_DIR}/storage" 2>/dev/null || true
 
 echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"

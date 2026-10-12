@@ -13,6 +13,11 @@ class DeviceTokenController extends Controller
     {
         $user = $request->user();
 
+        // Ensure this token is not associated with any other user on this device
+        DeviceToken::where('token', $request->validated('token'))
+            ->where('user_id', '!=', $user->id)
+            ->delete();
+
         DeviceToken::updateOrCreate(
             [
                 'user_id' => $user->id,

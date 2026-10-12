@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\ConfirmCashFormRequest;
 use App\Http\Resources\PaymentResource;
@@ -19,6 +20,10 @@ class RidePaymentController extends Controller
     public function confirmCash(ConfirmCashFormRequest $request, Ride $ride): JsonResponse
     {
         $payment = $ride->payment;
+
+        if (! $payment && $ride->payment_method === PaymentMethod::Cash) {
+            $payment = $this->paymentService->processCashPayment($ride);
+        }
 
         if (! $payment) {
             abort(404, 'No payment record found for this ride.');
