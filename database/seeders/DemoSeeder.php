@@ -578,13 +578,20 @@ class DemoSeeder extends Seeder
 
             if ($data['status'] === 'completed' && $data['fare']) {
                 $paymentMethod = $data['payment_method'] ?? PaymentMethod::Card;
+                $userPaymentMethodId = null;
+                if ($paymentMethod === PaymentMethod::Card) {
+                    $userPaymentMethodId = UserPaymentMethod::where('user_id', $ride->passenger_id)
+                        ->where('is_default', true)
+                        ->value('id');
+                }
+
                 Payment::create([
                     'ride_id' => $ride->id,
                     'amount' => $data['fare'],
                     'currency' => 'NGN',
                     'method' => $paymentMethod->value,
                     'gateway_transaction_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_TXN_'.Str::random(16),
-                    'gateway_payment_method_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_PM_'.Str::random(12),
+                    'gateway_payment_method_id' => $userPaymentMethodId,
                     'tip_amount' => rand(0, 3) === 0 ? rand(2, 10) * 100 : 0,
                     'status' => $data['payment_status'],
                     'created_at' => $data['completed'],
