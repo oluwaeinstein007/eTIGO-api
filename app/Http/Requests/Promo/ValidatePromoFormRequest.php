@@ -18,11 +18,6 @@ class ValidatePromoFormRequest extends FormRequest
     {
         return [
             'code' => ['required', 'string', 'max:50'],
-            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
-            'vehicle_class_id' => ['nullable', 'uuid', 'exists:vehicle_classes,id'],
-            'pickup_lat' => ['nullable', 'numeric', 'between:-90,90'],
-            'pickup_lng' => ['nullable', 'numeric', 'between:-180,180'],
-            'fare_amount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

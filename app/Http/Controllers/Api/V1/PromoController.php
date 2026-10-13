@@ -8,7 +8,6 @@ use App\Http\Resources\PromoCodeResource;
 use App\Http\Resources\PromoRedemptionResource;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
-use App\Services\PromoApplicationService;
 use App\Services\PromoValidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +16,6 @@ class PromoController extends Controller
 {
     public function __construct(
         private PromoValidationService $validationService,
-        private PromoApplicationService $applicationService,
     ) {}
 
     public function validate(ValidatePromoFormRequest $request): JsonResponse
@@ -25,14 +23,9 @@ class PromoController extends Controller
         $validated = $request->validated();
         $user = $request->user();
 
-        $result = $this->validationService->validate(
+        $result = $this->validationService->validateForUser(
             code: $validated['code'],
             userId: $user->id,
-            cityId: $validated['city_id'] ?? null,
-            vehicleClassId: $validated['vehicle_class_id'] ?? null,
-            pickupLat: $validated['pickup_lat'] ?? null,
-            pickupLng: $validated['pickup_lng'] ?? null,
-            fareAmount: $validated['fare_amount'] ?? null,
         );
 
         if (! $result['valid']) {
@@ -42,31 +35,26 @@ class PromoController extends Controller
             ], 422);
         }
 
-        $promo = $result['promo'];
-        $discountPreview = null;
-
-        if (isset($validated['fare_amount']) && $validated['fare_amount'] > 0) {
-            $discountPreview = $this->applicationService->calculateDiscount($promo, $validated['fare_amount']);
-        }
-
         return response()->json([
             'valid' => true,
-            'promo' => new PromoCodeResource($promo),
-            'discount_preview' => $discountPreview ? [
-                'discount_amount' => $discountPreview['discount_amount'],
-                'discount_type' => $promo->discount_type->value,
-                'discount_value' => $promo->discount_value,
-                'max_discount_cap' => $promo->max_discount_cap,
-            ] : null,
+            'promo' => new PromoCodeResource($result['promo']),
         ]);
     }
 
     public function available(Request $request): JsonResponse
     {
         $user = $request->user();
+        $cityId = $request->query('city_id');
 
         $promos = PromoCode::active()
-            ->whereNull('city_id')
+            ->where(function ($query) use ($cityId) {
+                $query->whereNull('city_id');
+
+                if ($cityId) {
+                    $query->orWhere('city_id', $cityId);
+                }
+            })
+            ->with(['city', 'vehicleClass'])
             ->orderBy('expires_at')
             ->get();
 
