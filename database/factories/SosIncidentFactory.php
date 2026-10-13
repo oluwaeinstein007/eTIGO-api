@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AdminRole;
 use App\Enums\SosIncidentStatus;
 use App\Enums\SosTriggerType;
 use App\Models\Ride;
@@ -76,7 +77,7 @@ class SosIncidentFactory extends Factory
             'status' => SosIncidentStatus::OperatorAssigned,
             'check_in_sent_at' => now()->subMinutes(2),
             'escalated_at' => now()->subMinute(),
-            'operator_id' => User::factory()->admin(\App\Enums\AdminRole::SafetyOperator),
+            'operator_id' => User::factory()->admin(AdminRole::SafetyOperator),
         ]);
     }
 
@@ -86,7 +87,7 @@ class SosIncidentFactory extends Factory
             'status' => SosIncidentStatus::Resolved,
             'check_in_sent_at' => now()->subMinutes(10),
             'escalated_at' => now()->subMinutes(8),
-            'operator_id' => User::factory()->admin(\App\Enums\AdminRole::SafetyOperator),
+            'operator_id' => User::factory()->admin(AdminRole::SafetyOperator),
             'operator_notes' => 'Situation resolved. Both parties safe.',
             'resolved_at' => now(),
         ]);

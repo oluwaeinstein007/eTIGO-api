@@ -135,7 +135,7 @@ class PaystackWalletGateway implements WalletGateway
 
         if (! $response->successful()) {
             throw new \RuntimeException(
-                "Paystack API error: {$response->status()} - " . ($response->json('message') ?? $response->body())
+                "Paystack API error: {$response->status()} - ".($response->json('message') ?? $response->body())
             );
         }
 

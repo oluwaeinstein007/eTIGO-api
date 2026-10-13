@@ -10,10 +10,12 @@ use App\Jobs\FinalFareCalculationJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\Payment;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
+use App\Models\UserPaymentMethod;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\RidePinService;
@@ -575,6 +577,57 @@ it('filters rides by status', function () {
     $response->assertOk()
         ->assertJsonCount(1, 'rides')
         ->assertJsonPath('rides.0.status', 'completed');
+});
+
+it('gracefully handles legacy non-uuid payment method tokens when listing completed rides', function () {
+    $ride = Ride::factory()->completed()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+    ]);
+
+    Payment::factory()->create([
+        'ride_id' => $ride->id,
+        'gateway_payment_method_id' => 'FLW_PM_4xMyQhhXDZ3G',
+    ]);
+
+    $response = $this->withToken($this->passengerToken)
+        ->getJson('/api/v1/rides?status=completed');
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'rides')
+        ->assertJsonPath('rides.0.id', $ride->id)
+        ->assertJsonPath('rides.0.payment_details.card_brand', null);
+});
+
+it('includes card details when payment method is a valid uuid relationship', function () {
+    $card = UserPaymentMethod::create([
+        'user_id' => $this->passenger->id,
+        'gateway_token' => 'auth_123',
+        'card_brand' => 'visa',
+        'card_last_four' => '4242',
+        'is_default' => true,
+    ]);
+
+    $ride = Ride::factory()->completed()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+    ]);
+
+    Payment::factory()->create([
+        'ride_id' => $ride->id,
+        'gateway_payment_method_id' => $card->id,
+    ]);
+
+    $response = $this->withToken($this->passengerToken)
+        ->getJson('/api/v1/rides?status=completed');
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'rides')
+        ->assertJsonPath('rides.0.id', $ride->id)
+        ->assertJsonPath('rides.0.payment_details.card_brand', 'visa')
+        ->assertJsonPath('rides.0.payment_details.card_last_four', '4242');
 });
 
 // === SHARE LINK ===

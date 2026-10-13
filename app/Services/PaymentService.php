@@ -66,7 +66,7 @@ class PaymentService
             ->first();
 
         if (! $defaultMethod) {
-            return $this->createFailedPayment($ride, 'No default payment method on file.');
+            return $this->processOneTimeCardPayment($ride);
         }
 
         $amount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
@@ -116,6 +116,48 @@ class PaymentService
             // Leave payment as Pending so the webhook or manual reconciliation
             // can resolve it. Do NOT mark as Failed.
             Log::error('Card payment gateway error — payment left as pending for reconciliation', [
+                'ride_id' => $ride->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $payment->fresh();
+    }
+
+    private function processOneTimeCardPayment(Ride $ride): Payment
+    {
+        $passenger = $ride->passenger;
+        $amount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
+        $txRef = 'ETIGO-RIDE-'.Str::upper(Str::random(12));
+
+        $payment = DB::transaction(function () use ($ride, $amount, $txRef) {
+            return Payment::updateOrCreate(
+                ['ride_id' => $ride->id],
+                [
+                    'amount' => $amount,
+                    'currency' => $ride->fare_currency,
+                    'method' => PaymentMethod::Card,
+                    'status' => PaymentStatus::Pending,
+                    'gateway_tx_ref' => $txRef,
+                ],
+            );
+        });
+        $this->broadcastPaymentUpdate($payment->fresh());
+
+        try {
+            $result = $this->paymentGateway->initializePayment([
+                'tx_ref' => $txRef,
+                'amount' => $amount,
+                'currency' => $ride->fare_currency,
+                'redirect_url' => config('app.url').'/payments/callback',
+                'customer_email' => $passenger->email ?? "{$passenger->id}@rider.etigo.ng",
+                'channels' => ['card'],
+            ]);
+
+            $payment->update(['gateway_payment_link' => $result['payment_link']]);
+        } catch (\Throwable $e) {
+            Log::error('One-time card payment initialization failed', [
                 'ride_id' => $ride->id,
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage(),

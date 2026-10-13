@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class Payment extends Model
 {
@@ -60,6 +61,14 @@ class Payment extends Model
                 return PaymentStatus::tryFrom((string) $value);
             },
             set: fn ($value) => $value instanceof PaymentStatus ? $value->value : $value,
+        );
+    }
+
+    protected function gatewayPaymentMethodId(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => (is_string($value) && Str::isUuid($value)) ? $value : null,
+            set: fn ($value) => $value,
         );
     }
 

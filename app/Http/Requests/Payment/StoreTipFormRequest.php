@@ -61,8 +61,8 @@ class StoreTipFormRequest extends FormRequest
         $tipSettings = AppSetting::getTipSettings();
 
         return [
-            'amount.min' => "Minimum tip is ₦" . number_format($tipSettings['min_amount']) . '.',
-            'amount.max' => "Maximum tip is ₦" . number_format($tipSettings['max_amount']) . '.',
+            'amount.min' => 'Minimum tip is ₦'.number_format($tipSettings['min_amount']).'.',
+            'amount.max' => 'Maximum tip is ₦'.number_format($tipSettings['max_amount']).'.',
         ];
     }
 }

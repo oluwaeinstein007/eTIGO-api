@@ -21,12 +21,16 @@ class FakePaymentGateway implements PaymentGateway
         ];
     }
 
+    public ?array $lastInitializedPayment = null;
+
     /**
-     * @param  array{tx_ref: string, amount: float, currency: string, redirect_url: string, customer_email: string, customer_name: string}  $data
+     * @param  array{tx_ref: string, amount: float, currency: string, redirect_url: string, customer_email: string, customer_name: string, channels?: array<string>}  $data
      * @return array{payment_link: string, tx_ref: string}
      */
     public function initializePayment(array $data): array
     {
+        $this->lastInitializedPayment = $data;
+
         return [
             'payment_link' => "https://fake-checkout.test/pay/{$data['tx_ref']}",
             'tx_ref' => $data['tx_ref'],

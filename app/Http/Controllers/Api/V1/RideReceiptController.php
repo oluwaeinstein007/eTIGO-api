@@ -10,6 +10,7 @@ use App\Models\Ride;
 use App\Models\TripCarbonScore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class RideReceiptController extends Controller
 {
@@ -57,7 +58,7 @@ class RideReceiptController extends Controller
                 'driver' => $ride->driver ? [
                     'name' => "{$ride->driver->first_name} {$ride->driver->last_name}",
                     'profile_photo_url' => $ride->driver->profile_photo_path
-                        ? \Illuminate\Support\Facades\Storage::disk(config('filesystems.uploads'))->url($ride->driver->profile_photo_path)
+                        ? Storage::disk(config('filesystems.uploads'))->url($ride->driver->profile_photo_path)
                         : null,
                 ] : null,
                 'vehicle' => $ride->driver?->driver?->vehicle ? [

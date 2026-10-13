@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\OfflineTripFlag;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\OfflineTripFlag */
+/** @mixin OfflineTripFlag */
 class OfflineFlagResource extends JsonResource
 {
     public function toArray(Request $request): array

@@ -60,6 +60,37 @@ it('initializes a payment and returns a payment link', function () {
         ->assertJsonStructure(['payment_link', 'tx_ref']);
 });
 
+it('defaults payment initialization channels to card only', function () {
+    $fakeGateway = new FakePaymentGateway;
+    $this->app->instance(PaymentGateway::class, $fakeGateway);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/payments/initialize', [
+            'amount' => 100,
+            'currency' => 'NGN',
+            'redirect_url' => 'https://etigo.app/payment/callback',
+        ])
+        ->assertOk();
+
+    expect($fakeGateway->lastInitializedPayment['channels'])->toBe(['card']);
+});
+
+it('allows custom channels for payment initialization', function () {
+    $fakeGateway = new FakePaymentGateway;
+    $this->app->instance(PaymentGateway::class, $fakeGateway);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/payments/initialize', [
+            'amount' => 100,
+            'currency' => 'NGN',
+            'redirect_url' => 'https://etigo.app/payment/callback',
+            'channels' => ['card', 'bank_transfer'],
+        ])
+        ->assertOk();
+
+    expect($fakeGateway->lastInitializedPayment['channels'])->toBe(['card', 'bank_transfer']);
+});
+
 it('validates required fields for payment initialization', function () {
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/payments/initialize', []);

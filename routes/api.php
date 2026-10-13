@@ -25,9 +25,9 @@ use App\Http\Controllers\Api\V1\Admin\AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
+use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
-use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletSettingsController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
@@ -79,8 +79,8 @@ use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
-use App\Http\Controllers\Api\V1\TipSettingsController;
 use App\Http\Controllers\Api\V1\SosController;
+use App\Http\Controllers\Api\V1\TipSettingsController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
@@ -346,6 +346,8 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::prefix('bank-account')->group(function () {
         Route::get('/', [BankAccountController::class, 'show']);
         Route::post('/', [BankAccountController::class, 'store']);
+        Route::get('/banks', [BankAccountController::class, 'banks']);
+        Route::post('/resolve', [BankAccountController::class, 'resolve'])->middleware('throttle:30,1');
     });
 
     Route::prefix('payouts')->group(function () {

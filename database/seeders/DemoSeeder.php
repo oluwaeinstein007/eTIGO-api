@@ -578,13 +578,20 @@ class DemoSeeder extends Seeder
 
             if ($data['status'] === 'completed' && $data['fare']) {
                 $paymentMethod = $data['payment_method'] ?? PaymentMethod::Card;
+                $userPaymentMethodId = null;
+                if ($paymentMethod === PaymentMethod::Card) {
+                    $userPaymentMethodId = UserPaymentMethod::where('user_id', $ride->passenger_id)
+                        ->where('is_default', true)
+                        ->value('id');
+                }
+
                 Payment::create([
                     'ride_id' => $ride->id,
                     'amount' => $data['fare'],
                     'currency' => 'NGN',
                     'method' => $paymentMethod->value,
                     'gateway_transaction_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_TXN_'.Str::random(16),
-                    'gateway_payment_method_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_PM_'.Str::random(12),
+                    'gateway_payment_method_id' => $userPaymentMethodId,
                     'tip_amount' => rand(0, 3) === 0 ? rand(2, 10) * 100 : 0,
                     'status' => $data['payment_status'],
                     'created_at' => $data['completed'],
@@ -918,8 +925,8 @@ class DemoSeeder extends Seeder
             KycVerification::create([
                 'driver_id' => $driver->id,
                 'type' => KycVerificationType::Nin->value,
-                'id_number' => '1234567890' . rand(1, 9),
-                'provider_reference' => 'QOR_' . Str::random(16),
+                'id_number' => '1234567890'.rand(1, 9),
+                'provider_reference' => 'QOR_'.Str::random(16),
                 'status' => $isApproved ? KycVerificationStatus::Verified->value : KycVerificationStatus::Pending->value,
                 'match_data' => $isApproved ? ['name_match' => 95, 'dob_match' => true] : null,
                 'verified_at' => $isApproved ? now()->subDays(rand(5, 25)) : null,
@@ -931,7 +938,7 @@ class DemoSeeder extends Seeder
                     'driver_id' => $driver->id,
                     'type' => KycVerificationType::DriversLicense->value,
                     'id_number' => $driver->licence_number,
-                    'provider_reference' => 'QOR_' . Str::random(16),
+                    'provider_reference' => 'QOR_'.Str::random(16),
                     'status' => KycVerificationStatus::Verified->value,
                     'match_data' => ['name_match' => 98, 'expiry_valid' => true],
                     'verified_at' => now()->subDays(rand(5, 25)),
@@ -1141,7 +1148,7 @@ class DemoSeeder extends Seeder
                 'driver_id' => $data['driver']->id,
                 'bank_code' => $bank['code'],
                 'account_number' => str_pad((string) rand(1000000000, 9999999999), 10, '0'),
-                'account_name' => $data['user']->first_name . ' ' . $data['user']->last_name,
+                'account_name' => $data['user']->first_name.' '.$data['user']->last_name,
                 'is_verified' => $data['driver']->status === DriverStatus::Approved,
                 'is_primary' => true,
             ]);

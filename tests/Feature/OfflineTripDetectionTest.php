@@ -6,7 +6,6 @@ use App\Enums\DriverStatus;
 use App\Enums\SanctionTier;
 use App\Enums\UserType;
 use App\Jobs\AnalyzeOfflineTripJob;
-use App\Jobs\MonitorCancellationJob;
 use App\Models\Driver;
 use App\Models\OfflineTripFlag;
 use App\Models\Ride;
@@ -14,7 +13,6 @@ use App\Models\User;
 use App\Services\OfflineTripDetectionService;
 use App\Services\SanctionService;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->driverUser = User::factory()->create(['type' => UserType::Driver]);

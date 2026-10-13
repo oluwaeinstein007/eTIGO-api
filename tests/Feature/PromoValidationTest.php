@@ -258,7 +258,7 @@ it('includes city-specific promos when city_id provided', function () {
     PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
 
     $response = $this->withToken($this->token)
-        ->getJson('/api/v1/promos/available?city_id=' . $city->id);
+        ->getJson('/api/v1/promos/available?city_id='.$city->id);
 
     $response->assertOk();
     $codes = collect($response->json('promos'))->pluck('code')->all();

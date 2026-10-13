@@ -2,10 +2,8 @@
 
 use App\Enums\AdminRole;
 use App\Enums\SosIncidentStatus;
-use App\Enums\SosTriggerType;
 use App\Enums\UserType;
 use App\Jobs\SendSosCheckInJob;
-use App\Jobs\SosEscalationTimeoutJob;
 use App\Models\Ride;
 use App\Models\SosIncident;
 use App\Models\User;

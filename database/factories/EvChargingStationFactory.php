@@ -15,7 +15,7 @@ class EvChargingStationFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->company() . ' Charging Hub',
+            'name' => fake()->company().' Charging Hub',
             'city_id' => City::factory(),
             'lat' => fake()->latitude(6.0, 10.0),
             'lng' => fake()->longitude(3.0, 8.0),

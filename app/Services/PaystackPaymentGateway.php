@@ -39,7 +39,7 @@ class PaystackPaymentGateway implements PaymentGateway
             'currency' => $data['currency'] ?? 'NGN',
             'callback_url' => $data['redirect_url'],
             'email' => $data['customer_email'],
-            'channels' => ['card', 'bank_transfer', 'ussd'],
+            'channels' => $data['channels'] ?? ['card', 'bank_transfer', 'ussd'],
         ]);
 
         return [
@@ -113,7 +113,7 @@ class PaystackPaymentGateway implements PaymentGateway
         $body = $response->json();
 
         if (($body['status'] ?? false) !== true) {
-            throw new RuntimeException('Paystack API error: ' . ($body['message'] ?? 'Unknown error'));
+            throw new RuntimeException('Paystack API error: '.($body['message'] ?? 'Unknown error'));
         }
 
         return $body;

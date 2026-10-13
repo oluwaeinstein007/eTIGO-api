@@ -38,7 +38,7 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
 
         if ($this->dispute->refund_amount) {
             $currency = $this->dispute->refund_currency ?? 'NGN';
-            $mail->line("A refund of **{$currency} " . number_format($this->dispute->refund_amount, 2) . '** has been issued to your original payment method.');
+            $mail->line("A refund of **{$currency} ".number_format($this->dispute->refund_amount, 2).'** has been issued to your original payment method.');
         }
 
         return $mail

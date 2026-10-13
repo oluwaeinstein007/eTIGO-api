@@ -63,6 +63,7 @@ class PaymentMethodController extends Controller
             'redirect_url' => $request->validated('redirect_url'),
             'customer_email' => $user->email,
             'customer_name' => "{$user->first_name} {$user->last_name}",
+            'channels' => $request->validated('channels', ['card']),
         ]);
 
         Cache::put("payment_tx_ref:{$txRef}", $user->id, now()->addHours(24));

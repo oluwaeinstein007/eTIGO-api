@@ -57,7 +57,7 @@ class DriverRepairController extends Controller
             'progress_steps' => [
                 [
                     'title' => 'Request submitted',
-                    'subtitle' => now()->format('j M Y') . " · {$type->label()} received",
+                    'subtitle' => now()->format('j M Y')." · {$type->label()} received",
                     'state' => 'completed',
                 ],
                 [

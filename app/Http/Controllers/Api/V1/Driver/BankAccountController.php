@@ -4,17 +4,56 @@ namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Contracts\WalletGateway;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Driver\ResolveBankAccountRequest;
 use App\Http\Requests\Driver\StoreBankAccountRequest;
 use App\Http\Resources\BankAccountResource;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class BankAccountController extends Controller
 {
     public function __construct(private WalletGateway $walletGateway) {}
+
+    public function banks(): JsonResponse
+    {
+        $banks = Cache::remember('banks_nigeria', 86400, function () {
+            return $this->walletGateway->listBanks();
+        });
+
+        return response()->json([
+            'banks' => $banks,
+        ]);
+    }
+
+    public function resolve(ResolveBankAccountRequest $request): JsonResponse
+    {
+        $driver = $request->user()->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        try {
+            $resolved = $this->walletGateway->resolveAccountNumber(
+                $request->validated('account_number'),
+                $request->validated('bank_code'),
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Unable to resolve bank account details. Please check the account number and bank.',
+            ], 422);
+        }
+
+        return response()->json([
+            'bank_code' => $request->validated('bank_code'),
+            'account_number' => $resolved['account_number'],
+            'account_name' => $resolved['account_name'],
+        ]);
+    }
 
     public function store(StoreBankAccountRequest $request): JsonResponse
     {

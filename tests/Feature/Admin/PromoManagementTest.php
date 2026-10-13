@@ -3,7 +3,6 @@
 use App\Models\City;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\VehicleClass;
 
