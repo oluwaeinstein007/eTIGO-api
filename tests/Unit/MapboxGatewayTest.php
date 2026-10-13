@@ -138,3 +138,64 @@ it('searches places using the geocoding v6 forward API', function () {
             && $request['limit'] == 5;
     });
 });
+
+it('skips coarse postcode features in reverseGeocode and selects place or street', function () {
+    Http::fake([
+        'api.mapbox.com/search/geocode/v6/reverse*' => Http::response([
+            'features' => [
+                [
+                    'id' => 'postcode.10',
+                    'properties' => [
+                        'feature_type' => 'postcode',
+                        'name' => '10',
+                        'full_address' => '10, Ikorodu, Lagos, Nigeria',
+                    ],
+                ],
+                [
+                    'id' => 'place.ikorodu',
+                    'properties' => [
+                        'feature_type' => 'place',
+                        'name' => 'Ikorodu',
+                        'full_address' => 'Ikorodu, Lagos, Nigeria',
+                        'context' => [
+                            'place' => ['name' => 'Ikorodu'],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $result = $this->gateway->reverseGeocode(6.5776, 3.6336);
+
+    expect($result['id'])->toBe('place.ikorodu')
+        ->and($result['name'])->toBe('Ikorodu')
+        ->and($result['address'])->toBe('Ikorodu, Lagos, Nigeria');
+});
+
+it('throws in reverseGeocode when only coarse postcode or regional features exist', function () {
+    Http::fake([
+        'api.mapbox.com/search/geocode/v6/reverse*' => Http::response([
+            'features' => [
+                [
+                    'id' => 'postcode.10',
+                    'properties' => [
+                        'feature_type' => 'postcode',
+                        'name' => '10',
+                        'full_address' => '10, Ikorodu, Lagos, Nigeria',
+                    ],
+                ],
+                [
+                    'id' => 'region.lagos',
+                    'properties' => [
+                        'feature_type' => 'region',
+                        'name' => 'Lagos',
+                        'full_address' => 'Lagos, Nigeria',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $this->gateway->reverseGeocode(6.5776, 3.6336);
+})->throws(RuntimeException::class, 'Mapbox Reverse Geocoding returned only coarse postcode or regional results.');
