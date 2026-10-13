@@ -1011,6 +1011,49 @@ DELETE /passenger/saved-places/{savedPlace}
 
 ---
 
+### Get Active Ride (Passenger)
+
+```
+GET /passenger/active-ride
+Authorization: Bearer {passenger_token}
+```
+
+Returns the passenger's current active ride (status: `searching`, `driver_en_route`, `driver_arrived`, or `in_progress`). Returns `null` if no active ride. Used by the frontend to restore the ride screen on app relaunch.
+
+**Response 200:**
+```json
+{
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "driver_en_route",
+    "status_label": "Driver En Route",
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "fare_estimate_amount": "3750.00",
+    "fare_currency": "NGN",
+    "pin": "4821",
+    "...": "full ride detail object"
+  }
+}
+```
+
+**Response 200 (no active ride):**
+```json
+{
+  "ride": null
+}
+```
+
+---
+
 ## Driver
 
 All driver endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -1626,6 +1669,79 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
 
 ---
 
+### Get Driver Location (Cached)
+
+```
+GET /driver/location
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's most recent cached GPS position from Redis. The driver must be online and have updated their location within the last 5 minutes.
+
+**Response 200:**
+```json
+{
+  "location": {
+    "lat": 6.5244,
+    "lng": 3.3792,
+    "heading": 45,
+    "speed": 25.3,
+    "timestamp": 1729000000
+  },
+  "city_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+  "vehicle_class_id": "uuid",
+  "is_online": true
+}
+```
+
+**Response 404:** No recent location available (stale > 5 minutes or never updated).
+**Response 409:** Driver is offline.
+
+---
+
+### Get Active Ride (Driver)
+
+```
+GET /driver/active-ride
+Authorization: Bearer {driver_token}
+```
+
+Returns the driver's current active ride (status: `searching`, `driver_en_route`, `driver_arrived`, or `in_progress`). Returns `null` if no active ride.
+
+**Response 200:**
+```json
+{
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "in_progress",
+    "status_label": "In Progress",
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "fare_estimate_amount": "3750.00",
+    "fare_currency": "NGN",
+    "pin": "4821",
+    "...": "full ride detail object"
+  }
+}
+```
+
+**Response 200 (no active ride):**
+```json
+{
+  "ride": null
+}
+```
+
+---
+
 ## Driver — KYC Verification
 
 All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -1913,7 +2029,7 @@ Returns all KYC verifications for the authenticated driver, newest first.
 
 ### KYC Webhook (QoreID)
 ```
-POST /webhooks/qoreid
+GET|POST /webhooks/qoreid
 ```
 
 **No authentication** — verified by HMAC-SHA256 signature (`X-QoreID-Signature` header) using the configured webhook secret. Receives liveness verification results from QoreID.
@@ -3297,6 +3413,130 @@ Returns the driver's active fleet agreement. **Now includes `total_vehicle_cost`
 
 ---
 
+## Driver — Nearby Drivers & Rides
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### List Nearby Drivers (Driver)
+
+```
+GET /driver/nearby-drivers
+Authorization: Bearer {driver_token}
+```
+
+Returns online, approved drivers near the given coordinates. The requesting driver is excluded from results. Only drivers with a recent location update (within 120 seconds) are included. Results are capped at 50 drivers.
+
+| Query Param | Type   | Required | Description                                   |
+|-------------|--------|----------|-----------------------------------------------|
+| lat         | number | Yes      | Latitude (-90 to 90)                          |
+| lng         | number | Yes      | Longitude (-180 to 180)                       |
+| radius_km   | number | No       | Search radius in km (default: 10, max: 50)    |
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "driver_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "lat": 6.5290,
+      "lng": 3.3820,
+      "heading": 270.0,
+      "timestamp": 1728223195,
+      "distance_km": 1.23,
+      "vehicle_class": "Comfort"
+    },
+    {
+      "driver_id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "lat": 6.5100,
+      "lng": 3.3680,
+      "heading": 90.5,
+      "timestamp": 1728223190,
+      "distance_km": 2.05,
+      "vehicle_class": "Economy"
+    }
+  ]
+}
+```
+
+**Response 422:** Validation error (missing `lat`/`lng`, or values out of range).
+
+---
+
+### List Nearby Rides
+
+```
+GET /driver/nearby-rides
+Authorization: Bearer {driver_token}
+```
+
+Returns unassigned ride requests near the driver's current location. The driver must be approved, online, have a registered vehicle, and have no active ride. Only rides in the same city and matching the driver's vehicle class are included. Driver location is read from Redis (must have been updated within the last 120 seconds).
+
+| Query Param | Type   | Required | Description                                |
+|-------------|--------|-----------|--------------------------------------------|
+| radius_km   | number | No        | Search radius in km (default: 10, max: 50) |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+      "pickup_lat": 6.5244,
+      "pickup_lng": 3.3792,
+      "distance_km": 0.542,
+      "created_at": "2026-10-06T14:00:00.000000Z"
+    },
+    {
+      "ride_id": "02b21f7a-56gd-835f-0b8e-94cb0ef01f47",
+      "pickup_lat": 6.5180,
+      "pickup_lng": 3.3750,
+      "distance_km": 1.237,
+      "created_at": "2026-10-06T14:01:30.000000Z"
+    }
+  ]
+}
+```
+
+Returns an empty `rides` array when the driver is offline, not approved, has no vehicle, has an active ride, or no location is available.
+
+---
+
+## Driver — Statistics
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+### Driver Stats
+
+```
+GET /driver/stats
+Authorization: Bearer {driver_token}
+```
+
+Returns summary statistics for the authenticated driver including lifetime completed trips, average rating, and current week's earnings.
+
+**Response 200:**
+```json
+{
+  "stats": {
+    "completed_trips": 142,
+    "average_rating": 4.73,
+    "ratings_count": 128,
+    "earnings_this_week": 87500.00,
+    "earnings_currency": "NGN"
+  }
+}
+```
+
+| Field              | Type         | Description                                      |
+|--------------------|--------------|--------------------------------------------------|
+| completed_trips    | integer      | Total lifetime completed rides                   |
+| average_rating     | number\|null | Average rating score (null if no ratings yet)    |
+| ratings_count      | integer      | Total number of ratings received                 |
+| earnings_this_week | number       | Sum of final fares for completed rides this week (Mon–Sun) |
+| earnings_currency  | string       | Currency code (always `NGN`)                     |
+
+---
+
 ## Admin — Passenger Management
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:support,safety_operator`
@@ -3923,6 +4163,208 @@ No authentication required. Detects which active city a set of coordinates falls
   "resolved_address": "123 Main Street, Unknown Town, Nigeria"
 }
 ```
+
+---
+
+## Public — Lookups
+
+### List Cancellation Reasons
+
+```
+GET /lookup/cancellation-reasons
+```
+
+No authentication required. Returns cancellation reasons used when cancelling a ride. Optionally filter by role.
+
+| Query Param | Type   | Required | Description                                       |
+|-------------|--------|----------|---------------------------------------------------|
+| role        | string | No       | `passenger` or `driver` — filters to role-specific reasons. Omit for all reasons. |
+
+When called by an authenticated user without specifying `role`, the role is inferred from the user's account type.
+
+**Response 200:**
+```json
+{
+  "reasons": [
+    {
+      "title": "Changed my mind",
+      "description": "I no longer need a ride or my travel plans have changed.",
+      "code": "changed_mind",
+      "allows_custom_description": false
+    },
+    {
+      "title": "Driver is too far",
+      "description": "The assigned driver is located too far away from the pickup point.",
+      "code": "driver_too_far",
+      "allows_custom_description": false
+    },
+    {
+      "title": "Wait time too long",
+      "description": "The estimated pickup arrival time is longer than expected.",
+      "code": "wait_too_long",
+      "allows_custom_description": false
+    },
+    {
+      "title": "Other",
+      "description": "Provide a custom reason if none of the options above apply.",
+      "code": "other",
+      "allows_custom_description": true
+    }
+  ]
+}
+```
+
+---
+
+### List Geopolitical Regions
+
+```
+GET /lookup/regions
+```
+
+No authentication required. Returns Nigeria's six geopolitical zones with their member states.
+
+**Response 200:**
+```json
+{
+  "regions": [
+    {
+      "name": "North-Central",
+      "states": ["Benue", "FCT", "Kogi", "Kwara", "Nasarawa", "Niger", "Plateau"]
+    },
+    {
+      "name": "North-East",
+      "states": ["Adamawa", "Bauchi", "Borno", "Gombe", "Taraba", "Yobe"]
+    },
+    {
+      "name": "North-West",
+      "states": ["Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Sokoto", "Zamfara"]
+    },
+    {
+      "name": "South-East",
+      "states": ["Abia", "Anambra", "Ebonyi", "Enugu", "Imo"]
+    },
+    {
+      "name": "South-South",
+      "states": ["Akwa Ibom", "Bayelsa", "Cross River", "Delta", "Edo", "Rivers"]
+    },
+    {
+      "name": "South-West",
+      "states": ["Ekiti", "Lagos", "Ogun", "Ondo", "Osun", "Oyo"]
+    }
+  ]
+}
+```
+
+---
+
+### List Nigerian States
+
+```
+GET /lookup/states
+```
+
+No authentication required. Returns all 36 Nigerian states plus the Federal Capital Territory (FCT), each with its capital and geopolitical zone.
+
+**Response 200:**
+```json
+{
+  "states": [
+    {
+      "name": "Lagos",
+      "capital": "Ikeja",
+      "region": "South-West"
+    },
+    {
+      "name": "Abuja",
+      "capital": "Abuja",
+      "region": "North-Central"
+    },
+    {
+      "name": "Rivers",
+      "capital": "Port Harcourt",
+      "region": "South-South"
+    }
+  ]
+}
+```
+
+---
+
+## Places / Geocoding
+
+**Middleware:** `auth:sanctum`
+
+Rate limited to 60 requests per minute. Results are cached server-side (search: 6 hours, reverse: 7 days).
+
+### Place Search (Autocomplete)
+
+```
+GET /places/search
+Authorization: Bearer {token}
+```
+
+| Query Param   | Type    | Required | Description                                      |
+|---------------|---------|----------|--------------------------------------------------|
+| q             | string  | Yes      | Search query (1–255 characters)                  |
+| proximity_lat | number  | No       | Latitude to bias results toward (-90 to 90)      |
+| proximity_lng | number  | No       | Longitude to bias results toward (-180 to 180)   |
+| limit         | integer | No       | Max results to return (1–20, default: 10)        |
+
+**Response 200:**
+```json
+{
+  "places": [
+    {
+      "id": "place_abc123",
+      "name": "Lekki Phase 1",
+      "address": "Lekki Phase 1, Lekki, Lagos, Nigeria",
+      "latitude": 6.4478,
+      "longitude": 3.4723
+    },
+    {
+      "id": "place_def456",
+      "name": "Lekki Conservation Centre",
+      "address": "Km 19 Lekki-Epe Expressway, Lagos, Nigeria",
+      "latitude": 6.4382,
+      "longitude": 3.5432
+    }
+  ]
+}
+```
+
+**Response 422:** Validation error (missing or invalid `q`, out-of-range coordinates).
+
+---
+
+### Reverse Geocode
+
+```
+GET /places/reverse
+Authorization: Bearer {token}
+```
+
+| Query Param | Type   | Required | Description                         |
+|-------------|--------|----------|-------------------------------------|
+| lat         | number | Yes      | Latitude (-90 to 90)               |
+| lng         | number | Yes      | Longitude (-180 to 180)            |
+
+**Response 200:**
+```json
+{
+  "place": {
+    "id": "place_xyz789",
+    "place_id": "ChIJwYCC-x6LOxARy0GsFExlA3Y",
+    "name": "Herbert Macaulay Way",
+    "address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
+    "latitude": 6.5144,
+    "longitude": 3.3753,
+    "city": "Lagos"
+  }
+}
+```
+
+**Response 422:** Validation error (missing or out-of-range coordinates).
 
 ---
 
@@ -5236,6 +5678,100 @@ ETA target: pickup location when status is `driver_en_route`/`matched`/`driver_a
 ```json
 {
   "message": "Unauthorized."
+}
+```
+
+---
+
+### List Ride Cancellation Reasons
+
+```
+GET /rides/cancellation-reasons
+Authorization: Bearer {token}
+```
+
+Returns cancellation reasons relevant to the authenticated user's role. Identical to `GET /lookup/cancellation-reasons` but scoped automatically based on the caller's account type (passenger or driver).
+
+| Query Param | Type   | Required | Description                                       |
+|-------------|--------|----------|---------------------------------------------------|
+| role        | string | No       | Override with `passenger` or `driver`. Omit to auto-detect from auth token. |
+
+**Response 200:**
+```json
+{
+  "reasons": [
+    {
+      "title": "Changed my mind",
+      "description": "I no longer need a ride or my travel plans have changed.",
+      "code": "changed_mind",
+      "allows_custom_description": false
+    },
+    {
+      "title": "Driver is too far",
+      "description": "The assigned driver is located too far away from the pickup point.",
+      "code": "driver_too_far",
+      "allows_custom_description": false
+    },
+    {
+      "title": "Other",
+      "description": "Provide a custom reason if none of the options above apply.",
+      "code": "other",
+      "allows_custom_description": true
+    }
+  ]
+}
+```
+
+---
+
+### Rebroadcast Ride
+
+```
+POST /rides/{ride}/rebroadcast
+Authorization: Bearer {passenger_token}
+```
+
+**Auth required. Middleware:** `user.type:passenger`
+
+Re-sends a ride request to find new drivers after the original search ended with `no_driver_found`. The ride must belong to the authenticated passenger and its status must be `no_driver_found`. Rate limited to 3 requests per minute.
+
+**Response 200:**
+```json
+{
+  "message": "Ride request sent again.",
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "searching",
+    "status_label": "Searching for Driver",
+    "pickup": {
+      "lat": "6.5244000",
+      "lng": "3.3792000",
+      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
+    },
+    "destination": {
+      "lat": "6.4541000",
+      "lng": "3.3947000",
+      "address": "456 Broad Street, Lagos Island, Lagos"
+    },
+    "fare_estimate_amount": "3750.00",
+    "fare_currency": "NGN",
+    "...": "..."
+  }
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "You are not authorized to retry this ride."
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "This ride can only be retried after no driver was found.",
+  "current_status": "in_progress"
 }
 ```
 
@@ -6601,17 +7137,44 @@ Driver confirms cash has been collected from passenger. Only available for compl
 
 ---
 
+### Get Tip Presets
+```
+GET /rides/tip-settings
+Authorization: Bearer {token}
+```
+
+Returns admin-configured tip preset amounts, min/max limits, and currency. Frontend should display these as quick-select buttons on the tipping screen.
+
+**Response 200:**
+```json
+{
+  "presets": [100, 200, 500, 1000],
+  "min_amount": 50,
+  "max_amount": 50000,
+  "currency": "NGN"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `presets` | array | Suggested tip amounts (₦) to display as buttons |
+| `min_amount` | integer | Minimum allowed tip (₦) |
+| `max_amount` | integer | Maximum allowed tip (₦) |
+| `currency` | string | Currency code |
+
+---
+
 ### Add Tip (Passenger)
 ```
 POST /rides/{ride_id}/tip
 Authorization: Bearer {passenger_token}
 ```
 
-| Field  | Type    | Required | Notes                        |
-|--------|---------|----------|------------------------------|
-| amount | numeric | Yes      | Min ₦50, max ₦50,000        |
+| Field  | Type    | Required | Notes                                              |
+|--------|---------|----------|------------------------------------------------------|
+| amount | numeric | Yes      | Between `min_amount` and `max_amount` from tip settings |
 
-Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash/bank-transfer/USSD rides, the tip is logged. Only one tip per ride.
+Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash/bank-transfer/USSD rides, the tip is logged. Only one tip per ride. The min/max limits are admin-configurable via the settings API (defaults: ₦50–₦50,000).
 
 **Response 200:**
 ```json
@@ -8354,6 +8917,58 @@ GET /ev-stations/{station}
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
 
+### Submit EV Charge Request
+
+```
+POST /driver/ev-reservations
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Submit a general EV charging request. If no `station_id` is provided, the system auto-selects an active station in the driver's city. Creates a reservation in `pending_review` status.
+
+**Request Body:**
+```json
+{
+  "battery_level": 25,
+  "requested_date": "2026-10-15",
+  "requested_time": "morning",
+  "notes": "Battery draining fast, need urgent charge",
+  "station_id": "uuid (optional)"
+}
+```
+
+| Field          | Type    | Required | Notes                                     |
+|----------------|---------|----------|-------------------------------------------|
+| battery_level  | integer | Yes      | Current battery percentage (0–100)        |
+| requested_date | date    | No       | Preferred date (defaults to today)        |
+| requested_time | string  | No       | Preferred time slot (max 50 chars)        |
+| notes          | string  | No       | Additional notes (max 1000 chars)         |
+| station_id     | uuid    | No       | Specific station; auto-selected if omitted |
+
+**Response 201:**
+```json
+{
+  "message": "Charge request submitted.",
+  "reservation": {
+    "id": "uuid",
+    "station_id": "uuid",
+    "driver_id": "uuid",
+    "status": "pending_review",
+    "type": "charging",
+    "battery_level": 25,
+    "requested_date": "2026-10-15",
+    "requested_time": "morning",
+    "notes": "Battery draining fast, need urgent charge",
+    "created_at": "2026-10-13T10:00:00.000000Z"
+  }
+}
+```
+
+**Response 422:** Validation error (battery_level out of range, invalid station_id, etc.).
+
+---
+
 ### Reserve EV Stall
 
 ```
@@ -8741,6 +9356,55 @@ Real-time occupancy across all active stations. Computed from eager-loaded stall
 
 ---
 
+## Passenger — Nearby Drivers
+
+**Middleware:** `auth:sanctum`, `user.type:passenger`
+
+### List Nearby Drivers (Passenger)
+
+```
+GET /passenger/nearby-drivers
+Authorization: Bearer {passenger_token}
+```
+
+Returns online, approved drivers near the given coordinates. Only drivers with a recent location update (within 120 seconds) are included. Results are capped at 50 drivers.
+
+| Query Param | Type   | Required | Description                                   |
+|-------------|--------|----------|-----------------------------------------------|
+| lat         | number | Yes      | Latitude of the passenger (-90 to 90)         |
+| lng         | number | Yes      | Longitude of the passenger (-180 to 180)      |
+| radius_km   | number | No       | Search radius in km (default: 10, max: 50)    |
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "driver_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "lat": 6.5180,
+      "lng": 3.3750,
+      "heading": 145.2,
+      "timestamp": 1728223200,
+      "distance_km": 0.85,
+      "vehicle_class": "Economy"
+    },
+    {
+      "driver_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "lat": 6.5290,
+      "lng": 3.3820,
+      "heading": 270.0,
+      "timestamp": 1728223195,
+      "distance_km": 1.23,
+      "vehicle_class": "Comfort"
+    }
+  ]
+}
+```
+
+**Response 422:** Validation error (missing `lat`/`lng`, or values out of range).
+
+---
+
 ## Passenger — Wallet
 
 **Middleware:** `auth:sanctum`, `user.type:passenger`
@@ -8959,6 +9623,274 @@ Returns the earnings breakdown for a specific completed ride. Driver can only vi
 
 **Response 403:** Ride does not belong to the authenticated driver.
 **Response 404:** Ride not found.
+
+---
+
+## Driver — Repairs
+
+**Middleware:** `auth:sanctum`, `user.type:driver`
+
+Drivers can submit vehicle repair and maintenance requests and track their progress.
+
+### List Repair Requests
+
+```
+GET /driver/repairs
+Authorization: Bearer {driver_token}
+```
+
+Returns all repair/maintenance requests submitted by the authenticated driver, ordered by most recent first.
+
+**Response 200:**
+```json
+{
+  "repairs": [
+    {
+      "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "reference_number": "REP-000012",
+      "type": {
+        "value": "repair",
+        "label": "Repair"
+      },
+      "status": {
+        "value": "in_progress",
+        "label": "In progress"
+      },
+      "title": "Brake pad replacement",
+      "details": "Front brake pads are worn out and making a squealing noise when braking.",
+      "preferred_date": "2026-10-15",
+      "preferred_time": "Morning",
+      "requested_date": "2026-10-15",
+      "requested_time": "Morning",
+      "summary_note": "Request received · Workshop visit to be scheduled for Morning",
+      "vehicle_name": "Toyota Corolla",
+      "vehicle_plate": "LAG-234-XY",
+      "vehicle_color": "White",
+      "workshop_visit": {
+        "scheduled_time": "Morning",
+        "instructions": "A technician is being assigned for your vehicle. Contact fleet support for workshop details.",
+        "support_phone": "0812 5690 6790"
+      },
+      "appointment": null,
+      "cancellation_reason": null,
+      "cancelled_by": null,
+      "progress_steps": [
+        {
+          "title": "Request submitted",
+          "subtitle": "13 Oct 2026 · Repair received",
+          "state": "completed"
+        },
+        {
+          "title": "Technician assigned",
+          "subtitle": "Your request is being coordinated",
+          "state": "in_progress"
+        },
+        {
+          "title": "Workshop visit",
+          "subtitle": "Scheduled for Morning",
+          "state": "upcoming"
+        },
+        {
+          "title": "Inspection complete",
+          "subtitle": "Report will be available once completed",
+          "state": "upcoming"
+        }
+      ],
+      "attachments": [],
+      "submitted_at": "2026-10-13T09:30:00.000000Z",
+      "created_at": "2026-10-13T09:30:00.000000Z",
+      "updated_at": "2026-10-13T09:30:00.000000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Show Repair Request
+
+```
+GET /driver/repairs/{repair}
+Authorization: Bearer {driver_token}
+```
+
+Returns a single repair request. The repair must belong to the authenticated driver.
+
+**Response 200:**
+```json
+{
+  "repair": {
+    "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+    "reference_number": "REP-000012",
+    "type": {
+      "value": "maintenance",
+      "label": "Maintenance"
+    },
+    "status": {
+      "value": "scheduled",
+      "label": "Scheduled"
+    },
+    "title": "Routine oil change",
+    "details": "Vehicle is due for its 20,000 km service. Engine oil and filter replacement needed.",
+    "preferred_date": "2026-10-18",
+    "preferred_time": "Afternoon",
+    "requested_date": "2026-10-18",
+    "requested_time": "Afternoon",
+    "summary_note": "Request received · Workshop visit to be scheduled for Afternoon",
+    "vehicle_name": "Toyota Corolla",
+    "vehicle_plate": "LAG-234-XY",
+    "vehicle_color": "White",
+    "workshop_visit": {
+      "scheduled_time": "Afternoon",
+      "instructions": "A technician is being assigned for your vehicle. Contact fleet support for workshop details.",
+      "support_phone": "0812 5690 6790"
+    },
+    "appointment": null,
+    "cancellation_reason": null,
+    "cancelled_by": null,
+    "progress_steps": [
+      {
+        "title": "Request submitted",
+        "subtitle": "13 Oct 2026 · Maintenance received",
+        "state": "completed"
+      },
+      {
+        "title": "Technician assigned",
+        "subtitle": "Your request is being coordinated",
+        "state": "in_progress"
+      },
+      {
+        "title": "Workshop visit",
+        "subtitle": "Scheduled for Afternoon",
+        "state": "upcoming"
+      },
+      {
+        "title": "Inspection complete",
+        "subtitle": "Report will be available once completed",
+        "state": "upcoming"
+      }
+    ],
+    "attachments": [],
+    "submitted_at": "2026-10-13T11:00:00.000000Z",
+    "created_at": "2026-10-13T11:00:00.000000Z",
+    "updated_at": "2026-10-13T11:15:00.000000Z"
+  }
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Unauthorized."
+}
+```
+
+**Response 404:** Repair request not found.
+
+---
+
+### Create Repair Request
+
+```
+POST /driver/repairs
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Submits a new vehicle repair or maintenance request. The vehicle is automatically linked from the driver's profile.
+
+| Field          | Type   | Required | Description                                                   |
+|----------------|--------|----------|---------------------------------------------------------------|
+| type           | string | Yes      | `repair` or `maintenance`                                     |
+| title          | string | Yes      | Short summary of the issue (max 150 characters)               |
+| details        | string | Yes      | Detailed description of the problem (max 2000 characters)     |
+| preferred_date | date   | Yes      | Preferred date for workshop visit (e.g. `2026-10-15`)         |
+| preferred_time | string | Yes      | Preferred time slot (e.g. `Morning`, `Afternoon`, max 50 chars) |
+
+**Request:**
+```json
+{
+  "type": "repair",
+  "title": "Brake pad replacement",
+  "details": "Front brake pads are worn out and making a squealing noise when braking.",
+  "preferred_date": "2026-10-15",
+  "preferred_time": "Morning"
+}
+```
+
+**Response 201:**
+```json
+{
+  "message": "Vehicle service request submitted successfully.",
+  "repair": {
+    "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+    "reference_number": "REP-000012",
+    "type": {
+      "value": "repair",
+      "label": "Repair"
+    },
+    "status": {
+      "value": "in_progress",
+      "label": "In progress"
+    },
+    "title": "Brake pad replacement",
+    "details": "Front brake pads are worn out and making a squealing noise when braking.",
+    "preferred_date": "2026-10-15",
+    "preferred_time": "Morning",
+    "requested_date": "2026-10-15",
+    "requested_time": "Morning",
+    "summary_note": "Request received · Workshop visit to be scheduled for Morning",
+    "vehicle_name": "Toyota Corolla",
+    "vehicle_plate": "LAG-234-XY",
+    "vehicle_color": "White",
+    "workshop_visit": {
+      "scheduled_time": "Morning",
+      "instructions": "A technician is being assigned for your vehicle. Contact fleet support for workshop details.",
+      "support_phone": "0812 5690 6790"
+    },
+    "appointment": null,
+    "cancellation_reason": null,
+    "cancelled_by": null,
+    "progress_steps": [
+      {
+        "title": "Request submitted",
+        "subtitle": "13 Oct 2026 · Repair received",
+        "state": "completed"
+      },
+      {
+        "title": "Technician assigned",
+        "subtitle": "Your request is being coordinated",
+        "state": "in_progress"
+      },
+      {
+        "title": "Workshop visit",
+        "subtitle": "Scheduled for Morning",
+        "state": "upcoming"
+      },
+      {
+        "title": "Inspection complete",
+        "subtitle": "Report will be available once completed",
+        "state": "upcoming"
+      }
+    ],
+    "attachments": [],
+    "submitted_at": "2026-10-13T09:30:00.000000Z",
+    "created_at": "2026-10-13T09:30:00.000000Z",
+    "updated_at": "2026-10-13T09:30:00.000000Z"
+  }
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "The type field is required.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "type": ["The type field is required."]
+  }
+}
+```
 
 ---
 
@@ -9201,6 +10133,63 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 ```
 
 **Response 422:** Validation error.
+
+### Tip Settings
+
+```
+GET /admin/settings/tips
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Returns current tip configuration (preset amounts shown as quick-select buttons on the tipping screen, and min/max limits).
+
+**Response 200:**
+```json
+{
+  "settings": {
+    "presets": [100, 200, 500, 1000],
+    "min_amount": 50,
+    "max_amount": 50000,
+    "currency": "NGN"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `presets` | array | Suggested tip amounts (₦) displayed as buttons |
+| `min_amount` | integer | Minimum allowed tip amount (₦) |
+| `max_amount` | integer | Maximum allowed tip amount (₦) |
+| `currency` | string | Currency code |
+
+```
+PUT /admin/settings/tips
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Updates tip configuration. Only provided fields are updated; omitted fields retain their current values. Presets are automatically sorted ascending.
+
+**Request Body:** (all fields optional)
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `presets` | array of integers | 1–10 values, each 50–50,000 |
+| `min_amount` | integer | Min: 1 |
+| `max_amount` | integer | Min: 100, must be greater than `min_amount` |
+
+**Response 200:**
+```json
+{
+  "message": "Tip settings updated.",
+  "settings": { /* same shape as GET response */ }
+}
+```
+
+**Response 422:** Validation error (empty presets, min_amount ≥ max_amount, etc.).
 
 ### Daily Reconciliation Report
 
