@@ -1,10 +1,12 @@
 <?php
 
+use App\Console\Commands\TelemetryServerCommand;
 use App\Models\Driver;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Artisan;
+use Workerman\Protocols\Http\Request;
 
 beforeEach(function () {
     $this->driverUser = User::factory()->driver()->create();
@@ -42,4 +44,59 @@ it('authenticates a valid driver sanctum token', function () {
 it('rejects an invalid token string', function () {
     $tokenModel = PersonalAccessToken::findToken('invalid-token-string');
     expect($tokenModel)->toBeNull();
+});
+
+it('extracts token from Workerman Request query parameter', function () {
+    $command = new TelemetryServerCommand;
+    $raw = "GET /telemetry?token={$this->plainToken} HTTP/1.1\r\nHost: etigo-api.apeinhood.xyz\r\n\r\n";
+    $request = new Request($raw);
+
+    $token = $command->extractTokenFromHandshake($request);
+    expect($token)->toBe($this->plainToken);
+});
+
+it('extracts token from Workerman Request authorization header', function () {
+    $command = new TelemetryServerCommand;
+    $raw = "GET /telemetry HTTP/1.1\r\nHost: etigo-api.apeinhood.xyz\r\nAuthorization: Bearer {$this->plainToken}\r\n\r\n";
+    $request = new Request($raw);
+
+    $token = $command->extractTokenFromHandshake($request);
+    expect($token)->toBe($this->plainToken);
+});
+
+it('authenticates a connection object and transmits authenticated frame', function () {
+    $command = new TelemetryServerCommand;
+    $connection = new class
+    {
+        public bool $authenticated = false;
+
+        public ?string $driverId = null;
+
+        public ?string $userId = null;
+
+        public array $sent = [];
+
+        public bool $closed = false;
+
+        public function send(string $data): void
+        {
+            $this->sent[] = $data;
+        }
+
+        public function close(): void
+        {
+            $this->closed = true;
+        }
+    };
+
+    $command->authenticateConnection($connection, $this->plainToken);
+
+    expect($connection->authenticated)->toBeTrue()
+        ->and($connection->driverId)->toBe((string) $this->driver->id)
+        ->and($connection->userId)->toBe((string) $this->driverUser->id)
+        ->and($connection->sent)->toHaveCount(1);
+
+    $decoded = json_decode($connection->sent[0], true);
+    expect($decoded['type'])->toBe('authenticated')
+        ->and($decoded['driver_id'])->toBe((string) $this->driver->id);
 });

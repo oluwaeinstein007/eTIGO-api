@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Throwable;
 use Workerman\Connection\TcpConnection;
+use Workerman\Protocols\Http\Request;
 use Workerman\Worker;
 
 class TelemetryServerCommand extends Command
@@ -75,16 +76,8 @@ class TelemetryServerCommand extends Command
             }
         };
 
-        $worker->onWebSocketConnect = function (TcpConnection $connection, $httpHeader) {
-            // Check for authentication token in query parameter: ws://host:port?token=...
-            $token = $_GET['token'] ?? null;
-
-            // Also check for Authorization: Bearer <token> in headers
-            if (! $token && isset($_SERVER['HTTP_AUTHORIZATION'])) {
-                if (preg_match('/Bearer\s+(.*)$/i', $_SERVER['HTTP_AUTHORIZATION'], $matches)) {
-                    $token = trim($matches[1]);
-                }
-            }
+        $worker->onWebSocketConnect = function (TcpConnection $connection, $request) {
+            $token = $this->extractTokenFromHandshake($request);
 
             if ($token) {
                 $this->authenticateConnection($connection, $token);
@@ -172,9 +165,41 @@ class TelemetryServerCommand extends Command
     }
 
     /**
+     * Extract token from handshake Request object or raw HTTP string.
+     */
+    public function extractTokenFromHandshake(mixed $request): ?string
+    {
+        if ($request instanceof Request) {
+            $token = $request->get('token');
+            if ($token && is_string($token)) {
+                return trim($token);
+            }
+
+            $authHeader = $request->header('authorization');
+            if ($authHeader && preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+                return trim($matches[1]);
+            }
+
+            return null;
+        }
+
+        if (is_string($request)) {
+            if (preg_match('/[?&]token=([^&\s]+)/', $request, $matches)) {
+                return urldecode(trim($matches[1]));
+            }
+
+            if (preg_match('/Authorization:\s*Bearer\s+([^\r\n]+)/i', $request, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Authenticate connection using Sanctum PersonalAccessToken.
      */
-    private function authenticateConnection(TcpConnection $connection, string $token): void
+    public function authenticateConnection(object $connection, string $token): void
     {
         $tokenHash = hash('sha256', $token);
         $now = time();
