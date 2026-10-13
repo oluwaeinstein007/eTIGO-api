@@ -21,15 +21,15 @@ class RideDisputeController extends Controller
 
         $photoPaths = [];
         $audioPath = null;
-        $disk = 'local';
+        $uploadsDisk = config('filesystems.uploads');
 
         if ($request->hasFile('photos')) {
             foreach ($request->file('photos') as $photo) {
-                $path = $photo->store("disputes/{$ride->id}", $disk);
+                $path = $photo->store("disputes/{$ride->id}", $uploadsDisk);
 
                 if ($path === false) {
                     foreach ($photoPaths as $stored) {
-                        Storage::disk($disk)->delete($stored);
+                        Storage::disk($uploadsDisk)->delete($stored);
                     }
 
                     return response()->json([
@@ -42,11 +42,11 @@ class RideDisputeController extends Controller
         }
 
         if ($request->hasFile('audio')) {
-            $audioPath = $request->file('audio')->store("disputes/{$ride->id}/audio", $disk);
+            $audioPath = $request->file('audio')->store("disputes/{$ride->id}/audio", $uploadsDisk);
 
             if ($audioPath === false) {
                 foreach ($photoPaths as $stored) {
-                    Storage::disk($disk)->delete($stored);
+                    Storage::disk($uploadsDisk)->delete($stored);
                 }
 
                 return response()->json([
@@ -75,10 +75,10 @@ class RideDisputeController extends Controller
             });
         } catch (UniqueConstraintViolationException) {
             foreach ($photoPaths as $path) {
-                Storage::disk($disk)->delete($path);
+                Storage::disk($uploadsDisk)->delete($path);
             }
             if ($audioPath) {
-                Storage::disk($disk)->delete($audioPath);
+                Storage::disk($uploadsDisk)->delete($audioPath);
             }
 
             return response()->json([
@@ -87,10 +87,10 @@ class RideDisputeController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             foreach ($photoPaths as $path) {
-                Storage::disk($disk)->delete($path);
+                Storage::disk($uploadsDisk)->delete($path);
             }
             if ($audioPath) {
-                Storage::disk($disk)->delete($audioPath);
+                Storage::disk($uploadsDisk)->delete($audioPath);
             }
 
             throw $e;

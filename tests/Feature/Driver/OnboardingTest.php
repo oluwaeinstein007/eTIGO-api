@@ -42,7 +42,7 @@ it('allows driver to update their profile', function () {
 });
 
 it('allows driver to upload a KYC document', function () {
-    Storage::fake('s3');
+    Storage::fake(config('filesystems.uploads'));
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
@@ -64,7 +64,7 @@ it('allows driver to upload a KYC document', function () {
 });
 
 it('replaces existing document of same type on re-upload', function () {
-    Storage::fake('s3');
+    Storage::fake(config('filesystems.uploads'));
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
@@ -85,7 +85,7 @@ it('replaces existing document of same type on re-upload', function () {
 });
 
 it('lists driver documents', function () {
-    Storage::fake('s3');
+    Storage::fake(config('filesystems.uploads'));
 
     $driver = Driver::factory()->create();
     $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
