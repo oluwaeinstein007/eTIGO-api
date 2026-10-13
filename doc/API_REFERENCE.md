@@ -7322,48 +7322,25 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
 
 ## Payment Webhooks
 
-### Paystack Webhook (Ride Payments)
+### Paystack Webhook
+
 ```
 POST /webhooks/paystack
 ```
-**No authentication** — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using `PAYSTACK_SECRET_KEY`. Receives payment status updates from Paystack and updates the corresponding Payment record.
 
-**Response 200:**
-```json
-{
-  "status": "ok"
-}
-```
-
-**Response 200 (no transaction ID):**
-```json
-{
-  "status": "ignored"
-}
-```
-
-**Response 401:**
-```json
-{
-  "message": "Invalid signature."
-}
-```
-
-### Paystack Wallet Webhook
-
-```
-POST /webhooks/paystack-wallet
-```
-
-**No authentication** — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using the wallet `PAYSTACK_SECRET_KEY`. Receives wallet-specific payment events (top-ups, transfers) from Paystack.
+**No authentication** — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using `PAYSTACK_SECRET_KEY`. This is the single webhook URL to configure in your Paystack dashboard. It handles all Paystack events: ride payments, wallet top-ups, and driver payouts.
 
 **Handled Events:**
 
-- `charge.success` — Dispatches `ProcessTopupWebhookJob` for TOPUP- references
-- `transfer.success` — Dispatches `ProcessPayoutWebhookJob` with status `paid`
-- `transfer.failed` / `transfer.reversed` — Dispatches `ProcessPayoutWebhookJob` with status `failed`
+| Event | Condition | Action |
+|---|---|---|
+| `charge.success` | Reference starts with `TOPUP-` and metadata contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up) |
+| `charge.success` | All other charges | Verifies transaction with Paystack API and updates the `Payment` record (ride payment) |
+| `transfer.success` | — | Dispatches `ProcessPayoutWebhookJob` with status `paid` |
+| `transfer.failed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
+| `transfer.reversed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
 
-Duplicate events are deduplicated via the `webhook_events` table.
+All events are deduplicated via the `webhook_events` table.
 
 **Response 200:**
 ```json
@@ -7383,6 +7360,13 @@ Duplicate events are deduplicated via the `webhook_events` table.
 ```json
 {
   "message": "Invalid signature."
+}
+```
+
+**Response 503 (secret key not configured):**
+```json
+{
+  "message": "Webhook verification unavailable."
 }
 ```
 

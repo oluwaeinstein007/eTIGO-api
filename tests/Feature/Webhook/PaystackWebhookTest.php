@@ -13,7 +13,7 @@ beforeEach(function () {
 
     $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\SystemAccountSeeder']);
 
-    config(['wallet.paystack.secret_key' => 'test_secret_key']);
+    config(['services.paystack.secret_key' => 'test_secret_key']);
 });
 
 function paystackSignature(array $payload): string
@@ -33,7 +33,7 @@ test('paystack webhook verifies HMAC signature', function () {
         ],
     ];
 
-    $response = $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $response = $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => paystackSignature($payload),
     ]);
 
@@ -51,14 +51,14 @@ test('paystack webhook rejects invalid signature', function () {
         ],
     ];
 
-    $response = $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $response = $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => 'invalid-hash',
     ]);
 
     $response->assertForbidden();
 });
 
-test('charge.success webhook dispatches ProcessTopupWebhookJob', function () {
+test('charge.success webhook dispatches ProcessTopupWebhookJob for wallet topups', function () {
     $ledgerService = app(LedgerService::class);
     $user = User::factory()->create();
     $account = $ledgerService->findOrCreateAccount(
@@ -78,7 +78,7 @@ test('charge.success webhook dispatches ProcessTopupWebhookJob', function () {
         ],
     ];
 
-    $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => paystackSignature($payload),
     ])->assertOk();
 
@@ -95,7 +95,7 @@ test('transfer.failed webhook dispatches ProcessPayoutWebhookJob', function () {
         ],
     ];
 
-    $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => paystackSignature($payload),
     ])->assertOk();
 
@@ -116,11 +116,11 @@ test('duplicate webhook events are deduplicated', function () {
 
     $signature = paystackSignature($payload);
 
-    $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => $signature,
     ])->assertOk();
 
-    $this->postJson('/api/v1/webhooks/paystack-wallet', $payload, [
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => $signature,
     ])->assertOk();
 
