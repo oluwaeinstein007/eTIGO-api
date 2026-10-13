@@ -7098,11 +7098,11 @@ Only the owner can delete it.
 | Method | Value | Flow |
 |--------|-------|------|
 | Cash | `cash` | Driver collects cash → confirms via API |
-| Card | `card` | Auto-charged via saved card token at ride completion |
+| Card | `card` | If the passenger has a saved default card, auto-charged via token at ride completion. If no saved card exists, a Paystack checkout link (card-only) is generated — the passenger completes payment via the link. Confirmed via Paystack webhook. |
 | Wallet | `wallet` | Auto-debited from passenger wallet at ride completion |
 | Bank Transfer | `bank_transfer` | Paystack checkout link generated at ride completion (supports bank transfer, USSD, card). Passenger completes payment via the link. OPay users transfer to the generated temporary account. Confirmed via Paystack webhook. |
 
-When a ride completes with `payment_method=bank_transfer`, the payment response includes a `payment_link` field. The mobile app should present this link to the passenger to complete payment. The payment status updates from `pending` to `captured` automatically when the Paystack webhook confirms the transaction.
+When a ride completes with `payment_method=card` and the passenger has no saved card, or with `payment_method=bank_transfer`, the payment response includes a `payment_link` field. The mobile app should present this link to the passenger to complete payment. The payment status updates from `pending` to `captured` automatically when the Paystack webhook confirms the transaction. A saved card is **not** required to select `card` as the payment method — new users can pay with a one-time card entry.
 
 ---
 
