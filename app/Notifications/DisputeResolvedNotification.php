@@ -12,7 +12,9 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public readonly Dispute $dispute) {}
+    public function __construct(
+        public readonly Dispute $dispute,
+    ) {}
 
     public function via(object $notifiable): array
     {

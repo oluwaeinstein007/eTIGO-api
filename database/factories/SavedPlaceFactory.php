@@ -11,6 +11,7 @@ class SavedPlaceFactory extends Factory
 {
     protected $model = SavedPlace::class;
 
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
@@ -25,11 +26,17 @@ class SavedPlaceFactory extends Factory
 
     public function home(): static
     {
-        return $this->state(fn () => ['type' => 'home', 'name' => 'Home']);
+        return $this->state(fn () => [
+            'type' => 'home',
+            'name' => 'Home',
+        ]);
     }
 
     public function work(): static
     {
-        return $this->state(fn () => ['type' => 'work', 'name' => 'Work']);
+        return $this->state(fn () => [
+            'type' => 'work',
+            'name' => 'Work',
+        ]);
     }
 }

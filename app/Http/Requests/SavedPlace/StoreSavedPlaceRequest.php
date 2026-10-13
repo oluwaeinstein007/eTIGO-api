@@ -24,13 +24,6 @@ class StoreSavedPlaceRequest extends FormRequest
         ];
     }
 
-    public function messages(): array
-    {
-        return [
-            'name.required_if' => 'A name is required for custom places.',
-        ];
-    }
-
     public function after(): array
     {
         return [
@@ -39,15 +32,22 @@ class StoreSavedPlaceRequest extends FormRequest
                     return;
                 }
 
-                $count = $this->user()
+                $customCount = $this->user()
                     ->savedPlaces()
                     ->where('type', 'custom')
                     ->count();
 
-                if ($count >= 10) {
+                if ($customCount >= 10) {
                     $validator->errors()->add('type', 'You can save up to 10 custom places.');
                 }
             },
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required_if' => 'A name is required for custom places.',
         ];
     }
 }

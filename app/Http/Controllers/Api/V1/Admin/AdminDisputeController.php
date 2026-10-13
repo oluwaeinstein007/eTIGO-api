@@ -125,6 +125,7 @@ class AdminDisputeController extends Controller
         ]);
 
         $dispute->load(['reportedBy', 'resolvedBy', 'ride']);
+        $dispute->reportedBy?->notify(new DisputeResolvedNotification($dispute));
 
         return response()->json([
             'message' => 'Dispute moved to under review.',
@@ -171,7 +172,6 @@ class AdminDisputeController extends Controller
         ], $auditNewState);
 
         $dispute->load(['reportedBy', 'resolvedBy', 'ride']);
-
         $dispute->reportedBy?->notify(new DisputeResolvedNotification($dispute));
 
         $message = 'Dispute resolved successfully.';

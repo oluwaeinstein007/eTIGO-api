@@ -6893,7 +6893,7 @@ category: route_deviation
 description: The driver took a longer route through Maryland instead of Third Mainland Bridge.
 photos[0]: <image file>
 photos[1]: <image file>
-audio: <audio file>
+audio: <audio file (optional)>
 ```
 
 **Response: `201 Created`**
@@ -6911,7 +6911,6 @@ audio: <audio file>
       "https://storage.example.com/disputes/ride-uuid/photo1.jpg",
       "https://storage.example.com/disputes/ride-uuid/photo2.jpg"
     ],
-    "evidence_audio": "https://storage.example.com/disputes/ride-uuid/audio/recording.m4a",
     "status": "open",
     "status_label": "Open",
     "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
@@ -6954,6 +6953,7 @@ List all disputes filed by the authenticated passenger. Returns paginated result
       "category_label": "Wrong route taken",
       "description": "The driver took a longer route...",
       "evidence_photos": ["https://..."],
+    "evidence_audio": "https://storage.example.com/disputes/ride-uuid/audio/recording.m4a",
       "status": "open",
       "status_label": "Open",
       "reported_by": { "id": "...", "first_name": "John" },
@@ -7420,9 +7420,11 @@ Returns all 5 tier configurations (Bronze → Silver → Gold → Platinum → D
       "min_points_required": 0,
       "booking_fee_discount_pct": 0,
       "ev_reservation_fee_waived": false,
-      "priority_matching_enabled": false
+      "priority_matching_enabled": false,
+      "unlocked": true
     }
-  ]
+  ],
+  "current_tier": 3
 }
 ```
 
@@ -7452,20 +7454,18 @@ Returns top users sorted by total ranking points.
 }
 ```
 
----
 
 ### Download Green Impact PDF
 
-```
-GET /gamification/green-impact-pdf
-Authorization: Bearer {token}
-```
+`GET /api/v1/gamification/green-impact-pdf`
 
-Downloads a personalised PDF report summarising the user's environmental impact — total rides, CO₂ saved, electric kilometres, current tier, and a table of recent trip scores.
+Downloads a PDF report of the authenticated user's green impact: total rides, CO2 saved, electric km driven, tier status, and recent trip breakdown.
 
-**Response:** Binary PDF download (`Content-Type: application/pdf`).
+**Auth:** Bearer token
 
-**File name:** `etigo-green-impact-{user_id}.pdf`
+**Response:** PDF file download (`application/pdf`)
+
+**Filename:** `etigo-green-impact-{first_name}.pdf`
 
 ---
 
@@ -7745,18 +7745,23 @@ Returns promo codes the authenticated user is currently eligible to use.
 }
 ```
 
----
 
 ### Promo Redemption History
 
 `GET /api/v1/promos/redemptions`
 
-Returns the authenticated user's promo redemption history, most recent first.
+Returns the authenticated passenger's promo code redemption history, paginated.
+
+**Auth:** Bearer token (passenger)
 
 **Query Parameters:**
-- `per_page` — pagination size (default 15, max 100)
 
-**Response (200):**
+| Parameter  | Type | Description                           |
+|------------|------|---------------------------------------|
+| `per_page` | int  | Items per page (default: 15, max: 50) |
+| `page`     | int  | Page number                           |
+
+**Response: `200 OK`**
 ```json
 {
   "redemptions": [
@@ -7767,19 +7772,15 @@ Returns the authenticated user's promo redemption history, most recent first.
         "code": "WELCOME20",
         "description": "Welcome discount",
         "discount_type": "percentage",
-        "discount_value": "20.00"
+        "discount_value": "20.00",
+        "max_discount_cap": "2000.00"
       },
-      "discount_amount": "400.00",
       "ride_id": "uuid",
-      "created_at": "2026-10-12T12:00:00.000000Z"
+      "discount_amount": "1000.00",
+      "redeemed_at": "2026-10-10T14:30:00.000Z"
     }
   ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 15,
-    "total": 3
-  }
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 }
 }
 ```
 

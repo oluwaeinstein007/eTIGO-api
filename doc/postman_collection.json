@@ -3292,9 +3292,8 @@
                     {
                       "key": "audio",
                       "type": "file",
-                      "src": "",
-                      "description": "Audio recording (mp3, m4a, wav, ogg, webm, aac), max 10MB",
-                      "disabled": true
+                      "src": [],
+                      "description": "(Optional) Audio recording (mp3, m4a, wav, ogg, webm, aac), max 10MB"
                     }
                   ]
                 },
@@ -3309,7 +3308,7 @@
                     "dispute"
                   ]
                 },
-                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` → Safety concern\n- `driver_behaviour` → Driver behaviour\n- `route_deviation` → Wrong route taken\n- `fare_dispute` → Fare is incorrect\n- `vehicle_condition` → Vehicle condition\n- `item_left_behind` → Lost item\n- `payment_issue` → Payment issue\n- `other` → Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10–2000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only"
+                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each) and an optional audio recording (mp3, m4a, wav, ogg, webm, aac, max 10MB).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` → Safety concern\n- `driver_behaviour` → Driver behaviour\n- `route_deviation` → Wrong route taken\n- `fare_dispute` → Fare is incorrect\n- `vehicle_condition` → Vehicle condition\n- `item_left_behind` → Lost item\n- `payment_issue` → Payment issue\n- `other` → Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10–2000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only\n- Audio: max 1, max 10MB, mp3/m4a/wav/ogg/webm/aac only"
               },
               "response": [
                 {
@@ -3513,6 +3512,114 @@
                   "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_photos\": [\n      \"https://storage.example.com/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"TRP-NG-000142\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n  }\n}"
                 }
               ]
+            }
+          ]
+        },
+        {
+          "name": "Promos",
+          "item": [
+            {
+              "name": "Promo Redemption History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/promos/redemptions?per_page=15&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "promos",
+                    "redemptions"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "(Optional) Items per page. Min 1, max 50. Default: 15"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "(Optional) Page number. Default: 1"
+                    }
+                  ]
+                },
+                "description": "Returns the authenticated passenger's promo code redemption history, ordered by most recently redeemed first. Each entry includes the promo code details and the ride it was applied to.\n\n**Pagination:** Supports `per_page` (1–50, default 15) and `page` query parameters."
+              },
+              "response": [
+                {
+                  "name": "200 — Redemption History",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"redemptions\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-123456789012\",\n      \"promo_code\": {\n        \"code\": \"WELCOME50\",\n        \"type\": \"percentage\",\n        \"value\": 50,\n        \"max_discount\": 2000,\n        \"description\": \"50% off your first ride (max \\u20a62,000)\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"reference_number\": \"TRP-NG-000142\",\n        \"destination\": {\n          \"address\": \"Eko Atlantic City\"\n        }\n      },\n      \"discount_amount\": 1500.0,\n      \"redeemed_at\": \"2026-10-10T14:30:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Promo Redemption History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/promos/redemptions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "promos",
+                    "redemptions"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "Items per page (default: 15, max: 50)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns the authenticated passenger's promo code redemption history, paginated.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": []
             }
           ]
         }
@@ -13685,7 +13792,7 @@
                 "header": [
                   {
                     "key": "Accept",
-                    "value": "application/pdf"
+                    "value": "application/json"
                   },
                   {
                     "key": "Authorization",
@@ -13702,7 +13809,7 @@
                     "green-impact-pdf"
                   ]
                 },
-                "description": "Downloads a personalised PDF report summarising the user's environmental impact — total rides, CO₂ saved, electric kilometres, current tier, and recent trip scores."
+                "description": "Downloads a personalised Green Impact PDF certificate for the authenticated user. The PDF includes the user's current tier, total carbon score, number of eco-friendly rides, total CO₂ saved, and recent trip carbon scores.\n\n**Response:** PDF file download (`application/pdf`). The filename follows the pattern `etigo-green-impact-{first_name}.pdf`."
               },
               "response": [
                 {
@@ -13713,73 +13820,51 @@
                     {
                       "key": "Content-Type",
                       "value": "application/pdf"
+                    },
+                    {
+                      "key": "Content-Disposition",
+                      "value": "attachment; filename=\"etigo-green-impact-Ade.pdf\""
                     }
                   ],
-                  "body": "(Binary PDF file)"
+                  "body": "(Binary PDF content)"
                 }
               ]
-            }
-          ]
-        },
-        {
-          "name": "Promotions",
-          "item": [
+            },
             {
-              "name": "Promo Redemption History",
+              "name": "Download Green Impact PDF",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{token}}"
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/promos/redemptions?per_page=15",
+                  "raw": "{{baseUrl}}/api/v1/gamification/green-impact-pdf",
                   "host": [
-                    "{{base_url}}"
+                    "{{baseUrl}}"
                   ],
                   "path": [
-                    "promos",
-                    "redemptions"
-                  ],
-                  "query": [
-                    {
-                      "key": "per_page",
-                      "value": "15",
-                      "description": "Items per page (default: 15, max: 100)"
-                    },
-                    {
-                      "key": "page",
-                      "value": "1",
-                      "description": "Page number"
-                    }
+                    "api",
+                    "v1",
+                    "gamification",
+                    "green-impact-pdf"
                   ]
                 },
-                "description": "Returns the authenticated user's promo redemption history, most recent first."
-              },
-              "response": [
-                {
-                  "name": "200 — Redemption History",
-                  "status": "OK",
-                  "code": 200,
-                  "header": [
+                "description": "Downloads a PDF report of the authenticated user's green impact: total rides, CO₂ saved, electric km driven, tier status, and recent trip breakdown.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
                     {
-                      "key": "Content-Type",
-                      "value": "application/json"
+                      "key": "token",
+                      "value": "{{token}}",
+                      "type": "string"
                     }
-                  ],
-                  "body": "{\n  \"redemptions\": [\n    {\n      \"id\": \"uuid\",\n      \"promo_code\": {\n        \"id\": \"uuid\",\n        \"code\": \"WELCOME20\",\n        \"description\": \"Welcome discount\",\n        \"discount_type\": \"percentage\",\n        \"discount_value\": \"20.00\"\n      },\n      \"discount_amount\": \"400.00\",\n      \"ride_id\": \"uuid\",\n      \"created_at\": \"2026-10-12T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 3\n  }\n}"
+                  ]
                 }
-              ]
+              },
+              "response": []
             }
           ]
         }
