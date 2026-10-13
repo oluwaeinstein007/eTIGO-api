@@ -101,7 +101,7 @@ describe('ProcessPaymentJob', function () {
             ->and($payment->gateway_transaction_id)->not->toBeNull();
     });
 
-    it('creates failed payment when no default card on file', function () {
+    it('generates a checkout link when no default card on file', function () {
         $ride = Ride::factory()->completed()->withCard()->create([
             'passenger_id' => $this->passenger->id,
             'driver_id' => $this->driverUser->id,
@@ -111,8 +111,10 @@ describe('ProcessPaymentJob', function () {
         $service = app(PaymentService::class);
         $payment = $service->processRidePayment($ride);
 
-        expect($payment->status)->toBe(PaymentStatus::Failed)
-            ->and($payment->failure_reason)->toContain('No default payment method');
+        expect($payment->status)->toBe(PaymentStatus::Pending)
+            ->and($payment->method)->toBe(PaymentMethod::Card)
+            ->and($payment->gateway_payment_link)->not->toBeNull()
+            ->and($payment->gateway_tx_ref)->not->toBeNull();
     });
 
     it('is idempotent - skips if payment already exists', function () {
