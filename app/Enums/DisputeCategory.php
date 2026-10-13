@@ -8,6 +8,7 @@ enum DisputeCategory: string
     case DriverBehaviour = 'driver_behaviour';
     case RouteDeviation = 'route_deviation';
     case VehicleCondition = 'vehicle_condition';
+    case ServiceQuality = 'service_quality';
     case SafetyConcern = 'safety_concern';
     case PaymentIssue = 'payment_issue';
     case ItemLeftBehind = 'item_left_behind';
@@ -20,6 +21,7 @@ enum DisputeCategory: string
             self::DriverBehaviour => 'Driver behaviour',
             self::RouteDeviation => 'Wrong route taken',
             self::VehicleCondition => 'Vehicle condition',
+            self::ServiceQuality => 'Service quality',
             self::SafetyConcern => 'Safety concern',
             self::PaymentIssue => 'Payment issue',
             self::ItemLeftBehind => 'Lost item',
