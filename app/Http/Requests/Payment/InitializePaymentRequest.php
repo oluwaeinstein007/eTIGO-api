@@ -20,6 +20,8 @@ class InitializePaymentRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:1'],
             'currency' => ['required', 'string', 'size:3'],
             'redirect_url' => ['required', 'url'],
+            'channels' => ['sometimes', 'array'],
+            'channels.*' => ['string'],
         ];
     }
 }
