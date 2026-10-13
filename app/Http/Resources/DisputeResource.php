@@ -18,12 +18,24 @@ class DisputeResource extends JsonResource
             'category_label' => $this->category->label(),
             'description' => $this->description,
             'evidence_photos' => $this->when($this->evidence_photos, function () {
-                return collect($this->evidence_photos)->map(
-                    fn (string $path) => Storage::disk('local')->temporaryUrl($path, now()->addMinutes(30)),
-                )->all();
+                $disk = Storage::disk(config('filesystems.uploads'));
+
+                return collect($this->evidence_photos)->map(function (string $path) use ($disk) {
+                    try {
+                        return $disk->temporaryUrl($path, now()->addMinutes(30));
+                    } catch (\RuntimeException) {
+                        return $disk->url($path);
+                    }
+                })->all();
             }),
             'evidence_audio' => $this->when($this->evidence_audio, function () {
-                return Storage::disk('local')->temporaryUrl($this->evidence_audio, now()->addMinutes(30));
+                $disk = Storage::disk(config('filesystems.uploads'));
+
+                try {
+                    return $disk->temporaryUrl($this->evidence_audio, now()->addMinutes(30));
+                } catch (\RuntimeException) {
+                    return $disk->url($this->evidence_audio);
+                }
             }),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),

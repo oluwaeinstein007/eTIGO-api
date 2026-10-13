@@ -16,23 +16,28 @@ use App\Models\PersonalAccessToken;
 use App\Services\FailoverPlaceSearchGateway;
 use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
+use App\Services\FallbackPaymentGateway;
 use App\Services\FirebasePushGateway;
+use App\Services\FlutterwavePaymentGateway;
 use App\Services\GeoapifyGateway;
 use App\Services\HaversineMapsGateway;
 use App\Services\LocationIqGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\MapboxGateway;
-use App\Services\FallbackPaymentGateway;
-use App\Services\FlutterwavePaymentGateway;
 use App\Services\PaystackPaymentGateway;
 use App\Services\PhotonGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\WhatsAppGateway;
+use App\Support\CloudinaryAdapter;
+use Cloudinary\Cloudinary;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
 use Laravel\Sanctum\Sanctum;
+use League\Flysystem\Filesystem;
 use SocialiteProviders\Apple\AppleExtendSocialite;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
@@ -60,6 +65,32 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
         Event::listen(TierUpgraded::class, SendTierUpgradedNotification::class);
+
+        $this->registerCloudinaryDriver();
+    }
+
+    private function registerCloudinaryDriver(): void
+    {
+        Storage::extend('cloudinary', function ($app, $config) {
+            $cloudinary = new Cloudinary([
+                'cloud' => [
+                    'cloud_name' => $config['cloud_name'],
+                    'api_key' => $config['api_key'],
+                    'api_secret' => $config['api_secret'],
+                ],
+                'url' => [
+                    'secure' => true,
+                ],
+            ]);
+
+            $adapter = new CloudinaryAdapter($cloudinary);
+
+            return new FilesystemAdapter(
+                new Filesystem($adapter, $config),
+                $adapter,
+                $config,
+            );
+        });
     }
 
     private function registerMapsGateway(): void

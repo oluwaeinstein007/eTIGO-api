@@ -437,7 +437,7 @@ GET /auth/me
     "type": "passenger",
     "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/abc123.jpg",
+    "profile_photo_url": "https://res.cloudinary.com/etigo/image/upload/profile-photos/1/abc123.jpg",
     "created_at": "2026-10-01T10:00:00.000000Z"
   }
 }
@@ -763,7 +763,7 @@ GET /passenger/profile
     "type": "passenger",
     "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/abc123.jpg",
+    "profile_photo_url": "https://res.cloudinary.com/etigo/image/upload/profile-photos/1/abc123.jpg",
     "created_at": "2026-10-01T10:00:00.000000Z"
   }
 }
@@ -797,7 +797,7 @@ Content-Type: multipart/form-data
     "type": "passenger",
     "phone_verified_at": "2026-10-06T14:00:00.000000Z",
     "is_active": true,
-    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/1/def456.jpg",
+    "profile_photo_url": "https://res.cloudinary.com/etigo/image/upload/profile-photos/1/def456.jpg",
     "created_at": "2026-10-01T10:00:00.000000Z"
   }
 }
@@ -1252,7 +1252,7 @@ Content-Type: multipart/form-data
     "type": "driver",
     "phone_verified_at": "2026-10-01T10:00:00.000000Z",
     "is_active": true,
-    "profile_photo_url": "https://etigo-bucket.s3.amazonaws.com/profile-photos/7/ghi789.jpg",
+    "profile_photo_url": "https://res.cloudinary.com/etigo/image/upload/profile-photos/7/ghi789.jpg",
     "created_at": "2026-10-01T10:00:00.000000Z"
   }
 }
@@ -2151,7 +2151,7 @@ GET /admin/drivers
           "type": "driving_licence",
           "original_filename": "licence.pdf",
           "file_size": 245000,
-          "file_url": "https://storage.example.com/documents/licence.pdf",
+          "file_url": "https://res.cloudinary.com/etigo/raw/upload/driver-documents/7/licence.pdf",
           "expires_at": null,
           "status": "approved",
           "rejection_reason": null,
@@ -7254,7 +7254,7 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
     "vehicle_class": "tiGO Lite",
     "driver": {
       "name": "Tunde Adeyemi",
-      "profile_photo_url": "https://storage.example.com/photos/driver-123.jpg"
+      "profile_photo_url": "https://res.cloudinary.com/etigo/image/upload/profile-photos/5/driver-123.jpg"
     },
     "vehicle": {
       "make": "BYD",
@@ -7536,8 +7536,8 @@ audio: <audio file (optional)>
     "category_label": "Wrong route taken",
     "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
     "evidence_photos": [
-      "https://storage.example.com/disputes/ride-uuid/photo1.jpg",
-      "https://storage.example.com/disputes/ride-uuid/photo2.jpg"
+      "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg",
+      "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo2.jpg"
     ],
     "status": "open",
     "status_label": "Open",
@@ -7581,7 +7581,7 @@ List all disputes filed by the authenticated passenger. Returns paginated result
       "category_label": "Wrong route taken",
       "description": "The driver took a longer route...",
       "evidence_photos": ["https://..."],
-    "evidence_audio": "https://storage.example.com/disputes/ride-uuid/audio/recording.m4a",
+    "evidence_audio": "https://res.cloudinary.com/etigo/video/upload/disputes/ride-uuid/audio/recording.m4a",
       "status": "open",
       "status_label": "Open",
       "reported_by": { "id": "...", "first_name": "John" },
