@@ -1061,6 +1061,9 @@ class DemoSeeder extends Seeder
             ['key' => 'general.maintenance_mode', 'value' => 'false', 'group' => 'general'],
             ['key' => 'general.min_app_version_ios', 'value' => '1.0.0', 'group' => 'general'],
             ['key' => 'general.min_app_version_android', 'value' => '1.0.0', 'group' => 'general'],
+            ['key' => 'tip.presets', 'value' => json_encode([100, 200, 500, 1000]), 'group' => 'tip'],
+            ['key' => 'tip.min_amount', 'value' => '50', 'group' => 'tip'],
+            ['key' => 'tip.max_amount', 'value' => '50000', 'group' => 'tip'],
         ];
 
         foreach ($settings as $setting) {

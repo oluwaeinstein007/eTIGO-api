@@ -29,6 +29,18 @@ class AppSetting extends Model
         );
     }
 
+    public static function getTipSettings(): array
+    {
+        $settings = static::where('group', 'tip')->pluck('value', 'key');
+
+        return [
+            'presets' => json_decode($settings['tip.presets'] ?? json_encode([100, 200, 500, 1000]), true),
+            'min_amount' => (int) ($settings['tip.min_amount'] ?? 50),
+            'max_amount' => (int) ($settings['tip.max_amount'] ?? 50000),
+            'currency' => config('wallet.currency', 'NGN'),
+        ];
+    }
+
     public static function getWalletSettings(): array
     {
         $settings = static::where('group', 'wallet')->pluck('value', 'key');

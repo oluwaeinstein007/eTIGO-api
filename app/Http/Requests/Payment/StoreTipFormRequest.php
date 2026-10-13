@@ -4,6 +4,7 @@ namespace App\Http\Requests\Payment;
 
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Models\AppSetting;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTipFormRequest extends FormRequest
@@ -17,8 +18,10 @@ class StoreTipFormRequest extends FormRequest
 
     public function rules(): array
     {
+        $tipSettings = AppSetting::getTipSettings();
+
         return [
-            'amount' => ['required', 'numeric', 'min:50', 'max:50000'],
+            'amount' => ['required', 'numeric', "min:{$tipSettings['min_amount']}", "max:{$tipSettings['max_amount']}"],
         ];
     }
 
@@ -55,9 +58,11 @@ class StoreTipFormRequest extends FormRequest
 
     public function messages(): array
     {
+        $tipSettings = AppSetting::getTipSettings();
+
         return [
-            'amount.min' => 'Minimum tip is ₦50.',
-            'amount.max' => 'Maximum tip is ₦50,000.',
+            'amount.min' => "Minimum tip is ₦" . number_format($tipSettings['min_amount']) . '.',
+            'amount.max' => "Maximum tip is ₦" . number_format($tipSettings['max_amount']) . '.',
         ];
     }
 }

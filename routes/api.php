@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
+use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletSettingsController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
 use App\Http\Controllers\Api\V1\Auth\AdminAuthController;
@@ -78,6 +79,7 @@ use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
+use App\Http\Controllers\Api\V1\TipSettingsController;
 use App\Http\Controllers\Api\V1\SosController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
@@ -235,6 +237,7 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/', [RideController::class, 'store'])->middleware('user.type:passenger');
     Route::get('/', [RideController::class, 'index']);
     Route::get('/cancellation-reasons', [RideCancellationReasonController::class, 'index']);
+    Route::get('/tip-settings', [TipSettingsController::class, 'show']);
     Route::get('/{ride}', [RideController::class, 'show']);
     Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
         ->middleware(['user.type:passenger', 'throttle:3,1']);
@@ -583,6 +586,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/commission', [AdminCommissionController::class, 'update']);
         Route::get('/wallet', [AdminWalletSettingsController::class, 'show']);
         Route::put('/wallet', [AdminWalletSettingsController::class, 'update']);
+        Route::get('/tips', [AdminTipSettingsController::class, 'show']);
+        Route::put('/tips', [AdminTipSettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:finance')->prefix('reports')->group(function () {

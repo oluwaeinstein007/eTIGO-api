@@ -122,6 +122,49 @@
                   "body": "{\n  \"regions\": [\n    {\n      \"name\": \"South-West\",\n      \"states\": [\n        \"Ekiti\",\n        \"Lagos\",\n        \"Ogun\",\n        \"Ondo\",\n        \"Osun\",\n        \"Oyo\"\n      ]\n    },\n    {\n      \"name\": \"North-Central\",\n      \"states\": [\n        \"Benue\",\n        \"FCT\",\n        \"Kogi\",\n        \"Kwara\",\n        \"Nasarawa\",\n        \"Niger\",\n        \"Plateau\"\n      ]\n    },\n    \"... (6 total)\"\n  ]\n}"
                 }
               ]
+            },
+            {
+              "name": "List Cancellation Reasons",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lookup/cancellation-reasons?role=passenger",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lookup",
+                    "cancellation-reasons"
+                  ],
+                  "query": [
+                    {
+                      "key": "role",
+                      "value": "passenger"
+                    }
+                  ]
+                },
+                "description": "Returns cancellation reasons filtered by `role` (passenger/driver). If omitted and authenticated, role is auto-detected."
+              },
+              "response": [
+                {
+                  "name": "200 — Reasons",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reasons\": [\n    {\n      \"code\": \"changed_mind\",\n      \"label\": \"Changed my mind\",\n      \"roles\": [\n        \"passenger\"\n      ]\n    },\n    {\n      \"code\": \"driver_too_far\",\n      \"label\": \"Driver is too far\",\n      \"roles\": [\n        \"passenger\"\n      ]\n    },\n    {\n      \"code\": \"wrong_address\",\n      \"label\": \"Wrong pickup address\",\n      \"roles\": [\n        \"passenger\",\n        \"driver\"\n      ]\n    }\n  ]\n}"
+                }
+              ]
             }
           ]
         },
@@ -2886,6 +2929,219 @@
                   "body": "{\n  \"message\": \"You are not authorized to view this ride.\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Get Active Ride (Passenger)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/active-ride",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "active-ride"
+                  ]
+                },
+                "description": "Returns the passenger's current active ride (searching, matched, en-route, arrived, or in-progress). Returns `null` if none."
+              },
+              "response": [
+                {
+                  "name": "200 — Active Ride",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"ride\": {\n    \"id\": \"9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n    \"status\": \"in_progress\",\n    \"pickup_address\": \"12 Marina Rd, Lagos Island\",\n    \"destination_address\": \"45 Awolowo Rd, Ikoyi\",\n    \"driver\": {\n      \"id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n      \"first_name\": \"Chukwuma\"\n    },\n    \"created_at\": \"2026-10-13T08:30:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 — No Active Ride",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"ride\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Nearby Drivers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/nearby-drivers?lat=6.5244&lng=3.3792&radius_km=5",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "nearby-drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "lat",
+                      "value": "6.5244"
+                    },
+                    {
+                      "key": "lng",
+                      "value": "3.3792"
+                    },
+                    {
+                      "key": "radius_km",
+                      "value": "5"
+                    }
+                  ]
+                },
+                "description": "Returns nearby online, approved drivers. Requires `lat`, `lng`. Optional `radius_km` (default 10, max 50)."
+              },
+              "response": [
+                {
+                  "name": "200 — Nearby Drivers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f78-90ab-cdef12345678\",\n      \"lat\": 6.525,\n      \"lng\": 3.38,\n      \"heading\": 45.0,\n      \"timestamp\": 1697184600,\n      \"distance_km\": 0.8,\n      \"vehicle_class\": \"Comfort\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Ride Cancellation Reasons",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/cancellation-reasons?role=passenger",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "cancellation-reasons"
+                  ],
+                  "query": [
+                    {
+                      "key": "role",
+                      "value": "passenger"
+                    }
+                  ]
+                },
+                "description": "Returns available cancellation reasons. Optional `role` query param. If omitted, role is inferred from the authenticated user."
+              },
+              "response": [
+                {
+                  "name": "200 — Reasons",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reasons\": [\n    {\n      \"code\": \"changed_mind\",\n      \"label\": \"Changed my mind\",\n      \"roles\": [\n        \"passenger\"\n      ]\n    },\n    {\n      \"code\": \"driver_too_far\",\n      \"label\": \"Driver is too far\",\n      \"roles\": [\n        \"passenger\"\n      ]\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Rebroadcast Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/rebroadcast",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "rebroadcast"
+                  ]
+                },
+                "description": "Retry finding a driver for a ride in `no_driver_found` status. Resets to `searching` and rebroadcasts to nearby drivers."
+              },
+              "response": [
+                {
+                  "name": "200 — Rebroadcast",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride request sent again.\",\n  \"ride\": {\n    \"id\": \"9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n    \"status\": \"searching\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Wrong Status",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This ride can only be retried after no driver was found.\",\n  \"current_status\": \"completed\"\n}"
+                }
+              ]
             }
           ]
         },
@@ -3048,6 +3304,47 @@
                     }
                   ],
                   "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"reference_number\": \"TRP-NG-000142\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"Ikeja City Mall - Gate 2\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"destination\": {\n      \"address\": \"Eko Atlantic City\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"distance_km\": 12.6,\n    \"duration_minutes\": 28,\n    \"vehicle_class\": \"tiGO Lite\",\n    \"driver\": {\n      \"name\": \"Tunde Adeyemi\",\n      \"profile_photo_url\": \"https://storage.example.com/photos/driver-123.jpg\"\n    },\n    \"vehicle\": {\n      \"make\": \"BYD\",\n      \"model\": \"Dolphin\",\n      \"colour\": \"Blue\",\n      \"plate_number\": \"LAG 482 EV\",\n      \"year\": 2025\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 3150.0,\n      \"time_charge\": 1100.0,\n      \"waiting_charge\": 0,\n      \"tip\": 600.0,\n      \"tier_discount\": {\n        \"tier\": \"Gold\",\n        \"percentage\": 5,\n        \"amount\": 63.0\n      },\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"5400.00\",\n    \"final_fare\": \"5350.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"card\",\n      \"method_label\": \"Card\",\n      \"status\": \"captured\",\n      \"status_label\": \"Captured\",\n      \"tip_amount\": \"600.00\",\n      \"card_brand\": \"visa\",\n      \"card_last_four\": \"4242\",\n      \"total_charged\": 5950.0\n    },\n    \"carbon\": {\n      \"estimated_emissions_kg\": 0.4,\n      \"carbon_credit_accrued_kg\": 0.4,\n      \"green_points_earned\": 12\n    },\n    \"city\": \"Lagos\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Tip Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/tip-settings",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "tip-settings"
+                  ]
+                },
+                "description": "Returns the current tip configuration: preset amounts and min/max boundaries."
+              },
+              "response": [
+                {
+                  "name": "200 — Tip Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"presets\": [\n    200,\n    500,\n    1000\n  ],\n  \"min_amount\": 100,\n  \"max_amount\": 10000,\n  \"currency\": \"NGN\"\n}"
                 }
               ]
             }
@@ -3620,6 +3917,431 @@
                 }
               },
               "response": []
+            },
+            {
+              "name": "Validate Promo Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/promos/validate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "promos",
+                    "validate"
+                  ]
+                },
+                "description": "Validates a promo code and optionally previews the discount. `code` required. Optional: `city_id`, `vehicle_class_id`, `pickup_lat`, `pickup_lng`, `fare_amount`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"WELCOME50\",\n  \"city_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"fare_amount\": 5000\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Valid",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"valid\": true,\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000\n  },\n  \"discount_preview\": {\n    \"discount_amount\": 2000,\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000\n  }\n}"
+                },
+                {
+                  "name": "422 — Invalid",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"valid\": false,\n  \"message\": \"This promo code has expired.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Available Promos",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/promos/available",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "promos",
+                    "available"
+                  ]
+                },
+                "description": "Returns active promo codes the user is eligible for (global promos, not yet exhausted)."
+              },
+              "response": [
+                {
+                  "name": "200 — Available Promos",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_value\": 50,\n      \"max_discount_cap\": 2000,\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Wallet",
+          "item": [
+            {
+              "name": "View Wallet",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/wallet",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "wallet"
+                  ]
+                },
+                "description": "Returns passenger wallet balance, available balance, and held amount. Auto-creates wallet on first access."
+              },
+              "response": [
+                {
+                  "name": "200 — Wallet",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"wallet\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"currency\": \"NGN\",\n    \"status\": \"active\",\n    \"balance\": 2500000,\n    \"available\": 2350000,\n    \"held\": 150000\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Wallet Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/wallet/transactions?type=credit&from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "wallet",
+                    "transactions"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "credit"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Returns paginated wallet ledger entries. Optional: `type` (debit/credit), `from`/`to` (date)."
+              },
+              "response": [
+                {
+                  "name": "200 — Transactions",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"transactions\": [\n    {\n      \"id\": \"entry-1\",\n      \"type\": \"credit\",\n      \"amount\": 500000,\n      \"running_balance\": 2500000,\n      \"description\": \"Wallet top-up via Paystack\",\n      \"created_at\": \"2026-10-12T15:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 5\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Top Up Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/wallet/topup",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "wallet",
+                    "topup"
+                  ]
+                },
+                "description": "Initialize wallet top-up via Paystack. Amount in kobo (min 50000 = NGN 500). Returns payment link. Rate-limited: 5/hour, 10/day.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 500000,\n  \"callback_url\": \"https://etigo.app/wallet/callback\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Initialized",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Top-up initialized.\",\n  \"payment_link\": \"https://checkout.paystack.com/abc123xyz\",\n  \"tx_ref\": \"TOPUP-A1B2C3D4E5F6\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Verify Wallet Top-Up",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/wallet/topup/{{transaction_id}}/verify",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "wallet",
+                    "topup",
+                    "{{transaction_id}}",
+                    "verify"
+                  ]
+                },
+                "description": "Verify a Paystack transaction after payment. Dispatches async wallet credit if successful."
+              },
+              "response": [
+                {
+                  "name": "200 — Processing",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Top-up is being processed.\"\n}"
+                },
+                {
+                  "name": "422 — Not Successful",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Transaction was not successful.\",\n  \"status\": \"failed\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Places",
+          "item": [
+            {
+              "name": "Search Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/places/search?q=Lekki&proximity_lat=6.5244&proximity_lng=3.3792&limit=5",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "places",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "Lekki"
+                    },
+                    {
+                      "key": "proximity_lat",
+                      "value": "6.5244"
+                    },
+                    {
+                      "key": "proximity_lng",
+                      "value": "3.3792"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "5"
+                    }
+                  ]
+                },
+                "description": "Search for places by name/address. Cached 6 hours. `q` required. Optional: `proximity_lat`/`proximity_lng`, `limit` (1-20, default 10)."
+              },
+              "response": [
+                {
+                  "name": "200 — Results",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"places\": [\n    {\n      \"name\": \"Lekki Phase 1\",\n      \"address\": \"Lekki Phase 1, Lagos, Nigeria\",\n      \"lat\": 6.4478,\n      \"lng\": 3.4723\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reverse Geocode",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/places/reverse?lat=6.5244&lng=3.3792",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "places",
+                    "reverse"
+                  ],
+                  "query": [
+                    {
+                      "key": "lat",
+                      "value": "6.5244"
+                    },
+                    {
+                      "key": "lng",
+                      "value": "3.3792"
+                    }
+                  ]
+                },
+                "description": "Reverse geocode coordinates to address. Cached 7 days. Requires `lat` and `lng`."
+              },
+              "response": [
+                {
+                  "name": "200 — Place",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"place\": {\n    \"name\": \"12 Marina Rd\",\n    \"address\": \"12 Marina Rd, Lagos Island, Lagos, Nigeria\",\n    \"lat\": 6.5244,\n    \"lng\": 3.3792\n  }\n}"
+                }
+              ]
             }
           ]
         }
@@ -5042,6 +5764,47 @@
                   "body": "{\n  \"message\": \"You must be an approved driver to go online.\",\n  \"error_code\": \"DRIVER_NOT_APPROVED\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Driver Stats",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/stats",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "stats"
+                  ]
+                },
+                "description": "Returns aggregated statistics: completed trips, average rating, ratings count, and this week's earnings."
+              },
+              "response": [
+                {
+                  "name": "200 — Stats",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"stats\": {\n    \"completed_trips\": 142,\n    \"average_rating\": 4.85,\n    \"ratings_count\": 130,\n    \"earnings_this_week\": 87500.0,\n    \"earnings_currency\": \"NGN\"\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -5253,6 +6016,114 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"You must be online to update your location.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Nearby Drivers (Driver View)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/nearby-drivers?lat=6.5244&lng=3.3792&radius_km=5",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "nearby-drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "lat",
+                      "value": "6.5244"
+                    },
+                    {
+                      "key": "lng",
+                      "value": "3.3792"
+                    },
+                    {
+                      "key": "radius_km",
+                      "value": "5"
+                    }
+                  ]
+                },
+                "description": "Returns nearby online drivers visible from the driver's perspective. Requires `lat`, `lng` query params. Optional `radius_km` (default 10, max 50). Excludes the requesting driver."
+              },
+              "response": [
+                {
+                  "name": "200 — Nearby Drivers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f78-90ab-cdef12345678\",\n      \"lat\": 6.525,\n      \"lng\": 3.38,\n      \"heading\": 45.0,\n      \"timestamp\": 1697184600,\n      \"distance_km\": 0.8,\n      \"vehicle_class\": \"Comfort\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Current Location",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/location",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "location"
+                  ]
+                },
+                "description": "Returns the driver's last known cached location. Driver must be online. Returns 409 if offline, 404 if no recent location (>5 min old)."
+              },
+              "response": [
+                {
+                  "name": "200 — Location",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"location\": {\n    \"lat\": 6.5244,\n    \"lng\": 3.3792,\n    \"heading\": 180.0,\n    \"speed\": 35.5,\n    \"timestamp\": 1697184600\n  },\n  \"city_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"vehicle_class_id\": \"9a2b3c4d-5e6f-7890-1abc-def234567890\",\n  \"is_online\": true\n}"
+                },
+                {
+                  "name": "409 — Offline",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver is offline.\"\n}"
                 }
               ]
             }
@@ -5617,6 +6488,106 @@
                   "body": "{\n  \"message\": \"Cannot complete a ride that is not in progress.\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Get Active Ride (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/active-ride",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "active-ride"
+                  ]
+                },
+                "description": "Returns the driver's current active ride (matched, en-route, arrived, or in-progress). Returns `null` when no active ride exists."
+              },
+              "response": [
+                {
+                  "name": "200 — Active Ride",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"ride\": {\n    \"id\": \"9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n    \"status\": \"driver_en_route\",\n    \"pickup_address\": \"12 Marina Rd, Lagos Island\",\n    \"destination_address\": \"45 Awolowo Rd, Ikoyi\",\n    \"passenger\": {\n      \"id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ojo\"\n    },\n    \"created_at\": \"2026-10-13T08:30:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 — No Active Ride",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"ride\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Nearby Rides",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/nearby-rides?radius_km=10",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "nearby-rides"
+                  ],
+                  "query": [
+                    {
+                      "key": "radius_km",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Returns rides in `searching` status near the driver's last known location, filtered to the driver's city and vehicle class. Driver must be online, approved, and have no active ride. Optional `radius_km` (default 10, max 50)."
+              },
+              "response": [
+                {
+                  "name": "200 — Nearby Rides",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"ride_id\": \"9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n      \"pickup_lat\": 6.4541,\n      \"pickup_lng\": 3.3947,\n      \"distance_km\": 1.234,\n      \"created_at\": \"2026-10-13T09:15:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
             }
           ]
         },
@@ -5692,6 +6663,57 @@
                 "description": "Driver disputes an offline trip flag. Notes must be at least 10 characters. Can only dispute flags assigned to the authenticated driver. Cannot dispute already-disputed flags.\n\n**Auth:** Driver token required."
               },
               "response": []
+            },
+            {
+              "name": "Dispute Offline Flag",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/flags/{{flag_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "flags",
+                    "{{flag_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "Dispute an offline trip flag. Requires `notes` (min 10 chars). Can only be disputed once and only by the flagged driver.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"I was stuck in traffic and my phone lost connection. The passenger can confirm the trip was completed.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Disputed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Flag disputed successfully. An admin will review your dispute.\",\n  \"flag\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"is_disputed\": true,\n    \"dispute_notes\": \"I was stuck in traffic and my phone lost connection.\",\n    \"dispute_outcome\": \"pending\"\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -5932,6 +6954,598 @@
                 "description": "Cancel an active or reserved reservation. Cannot cancel already completed or expired reservations."
               },
               "response": []
+            },
+            {
+              "name": "Submit Charge Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ev-reservations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ev-reservations"
+                  ]
+                },
+                "description": "Submit an EV charging request. System assigns nearest active station if `station_id` omitted. Only drivers can submit.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"battery_level\": 25,\n  \"requested_date\": \"2026-10-15\",\n  \"requested_time\": \"2:00 PM\",\n  \"notes\": \"Battery draining faster than usual\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Charge request submitted successfully.\",\n  \"reservation\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"status\": \"pending_review\",\n    \"type\": \"charging\",\n    \"battery_level\": 25,\n    \"requested_date\": \"2026-10-15\",\n    \"requested_time\": \"2:00 PM\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver — Repairs",
+          "item": [
+            {
+              "name": "List Repair Requests",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs"
+                  ]
+                },
+                "description": "Returns all vehicle repair/maintenance requests for the authenticated driver, ordered by most recent."
+              },
+              "response": [
+                {
+                  "name": "200 — List",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"repairs\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"reference_number\": \"REP-A1B2C3\",\n      \"type\": \"routine_maintenance\",\n      \"status\": \"in_progress\",\n      \"title\": \"Oil change and filter replacement\",\n      \"preferred_date\": \"2026-10-15\",\n      \"preferred_time\": \"10:00 AM\",\n      \"created_at\": \"2026-10-13T08:00:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show Repair Request",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs/{{repair_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs",
+                    "{{repair_id}}"
+                  ]
+                },
+                "description": "Returns details for a specific repair request including progress steps and workshop info. Only accessible by the driver who created it."
+              },
+              "response": [
+                {
+                  "name": "200 — Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"repair\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"reference_number\": \"REP-A1B2C3\",\n    \"type\": \"routine_maintenance\",\n    \"status\": \"in_progress\",\n    \"title\": \"Oil change and filter replacement\",\n    \"details\": \"Vehicle due for routine maintenance at 50,000km.\",\n    \"preferred_date\": \"2026-10-15\",\n    \"preferred_time\": \"10:00 AM\",\n    \"summary_note\": \"Request received\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"10:00 AM\",\n      \"instructions\": \"A technician is being assigned for your vehicle.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"state\": \"upcoming\"\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Submit Repair Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs"
+                  ]
+                },
+                "description": "Submit a vehicle repair/maintenance request. Types: `routine_maintenance`, `tyre_replacement`, `brake_service`, `engine_repair`, `body_work`, `electrical`, `ac_repair`, `other`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"routine_maintenance\",\n  \"title\": \"Oil change and filter replacement\",\n  \"details\": \"Vehicle due for routine maintenance at 50,000km. Engine oil needs replacement along with oil and air filters.\",\n  \"preferred_date\": \"2026-10-15\",\n  \"preferred_time\": \"10:00 AM\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle service request submitted successfully.\",\n  \"repair\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"reference_number\": \"REP-A1B2C3\",\n    \"type\": \"routine_maintenance\",\n    \"status\": \"in_progress\",\n    \"title\": \"Oil change and filter replacement\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver — Bank Account",
+          "item": [
+            {
+              "name": "Get Bank Account",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/bank-account",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "bank-account"
+                  ]
+                },
+                "description": "Returns the driver's primary verified bank account."
+              },
+              "response": [
+                {
+                  "name": "200 — Bank Account",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"account_number\": \"****5678\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
+                },
+                {
+                  "name": "404 — No Account",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"No bank account on file.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Bank Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/bank-account",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "bank-account"
+                  ]
+                },
+                "description": "Add and verify a new bank account via Paystack. Requires `bank_code` and 10-digit `account_number`. Automatically becomes the primary account.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"account_number\": \"****6789\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver — Earnings",
+          "item": [
+            {
+              "name": "Get Earnings Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/earnings?period=today",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "earnings"
+                  ],
+                  "query": [
+                    {
+                      "key": "period",
+                      "value": "today"
+                    }
+                  ]
+                },
+                "description": "Returns earnings dashboard with chart data. `period`: `today` (2-hour buckets), `week` (daily), `month` (daily). Also accepts `date` (Y-m-d) and `month` (Y-m) filters. Includes balance summary and period totals."
+              },
+              "response": [
+                {
+                  "name": "200 — Earnings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"earnings\": {\n    \"period\": \"today\",\n    \"currency\": \"NGN\",\n    \"total\": 15600.0,\n    \"completed_rides\": 8,\n    \"balances\": {\n      \"pending_kobo\": 350000,\n      \"available_kobo\": 1200000,\n      \"total_paid_kobo\": 5600000\n    },\n    \"summaries\": {\n      \"today\": 15600.0,\n      \"this_week\": 87500.0,\n      \"this_month\": 342000.0\n    },\n    \"range\": {\n      \"start\": \"2026-10-13T00:00:00+01:00\",\n      \"end_exclusive\": \"2026-10-14T00:00:00+01:00\"\n    },\n    \"chart\": [\n      {\n        \"label\": \"12 AM\",\n        \"date\": \"2026-10-13T00:00:00+01:00\",\n        \"amount\": 0.0,\n        \"completed_rides\": 0\n      },\n      {\n        \"label\": \"6 AM\",\n        \"date\": \"2026-10-13T06:00:00+01:00\",\n        \"amount\": 3200.0,\n        \"completed_rides\": 2\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Ride Earnings Breakdown",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/earnings/rides/{{ride_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "earnings",
+                    "rides",
+                    "{{ride_id}}"
+                  ]
+                },
+                "description": "Returns detailed fare breakdown for a completed ride: fare, commission rate/amount, net earnings, payment method, and tip."
+              },
+              "response": [
+                {
+                  "name": "200 — Breakdown",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"breakdown\": {\n    \"ride_id\": \"9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n    \"currency\": \"NGN\",\n    \"fare_amount\": 3200.0,\n    \"fare_kobo\": 320000,\n    \"commission_rate\": 0.15,\n    \"commission_kobo\": 48000,\n    \"net_earnings_kobo\": 272000,\n    \"payment_method\": \"wallet\",\n    \"tip_amount\": 500.0,\n    \"completed_at\": \"2026-10-13T09:45:00.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver — Ledger",
+          "item": [
+            {
+              "name": "Ledger Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ledger/summary",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ledger",
+                    "summary"
+                  ]
+                },
+                "description": "Returns the driver's earnings account balance: pending, available, and total paid (all in kobo)."
+              },
+              "response": [
+                {
+                  "name": "200 — Summary",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"earnings\": {\n    \"currency\": \"NGN\",\n    \"pending\": 350000,\n    \"available\": 1200000,\n    \"total_paid\": 5600000\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Ledger Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ledger/transactions?type=credit&from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ledger",
+                    "transactions"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "credit"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Returns paginated ledger entries. Optional: `type` (debit/credit), `from`/`to` (date range)."
+              },
+              "response": [
+                {
+                  "name": "200 — Transactions",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"transactions\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"credit\",\n      \"amount\": 272000,\n      \"running_balance\": 1200000,\n      \"description\": \"Ride earnings: Marina to Ikoyi\",\n      \"created_at\": \"2026-10-13T09:45:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 3,\n    \"per_page\": 20,\n    \"total\": 48\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver — Payouts",
+          "item": [
+            {
+              "name": "List My Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/payouts?status=paid",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "payouts"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "paid"
+                    }
+                  ]
+                },
+                "description": "Returns paginated payout history. Optional `status` filter: requested, approved, processing, paid, failed, rejected, reversed."
+              },
+              "response": [
+                {
+                  "name": "200 — Payouts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payouts\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"amount\": 500000,\n      \"status\": \"paid\",\n      \"bank_account\": {\n        \"bank_code\": \"058\",\n        \"account_number\": \"****5678\"\n      },\n      \"requested_at\": \"2026-10-12T14:00:00.000000Z\",\n      \"paid_at\": \"2026-10-12T16:30:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 3\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Request Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/payouts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "payouts"
+                  ]
+                },
+                "description": "Submit a payout request. Amount in kobo (min 100000 = NGN 1,000). Requires verified bank account. Only one pending payout at a time.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 500000\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout request submitted for approval.\",\n  \"payout\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"amount\": 500000,\n    \"status\": \"requested\",\n    \"requested_at\": \"2026-10-13T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
             }
           ]
         }
@@ -7462,6 +9076,81 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Driver or vehicle not found.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Complete Driver Onboarding",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/{{driver_id}}/complete-onboarding",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    "{{driver_id}}",
+                    "complete-onboarding"
+                  ]
+                },
+                "description": "Admin bypass for driver onboarding and KYC (testing/QA only). Approves pending documents, creates KYC records, sets driver to approved. Optional: `notes`, `nin`, `vehicle_ownership_type` (own_vehicle/fleet_vehicle).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Fast-track onboarding for demo driver\",\n  \"nin\": \"12345678901\",\n  \"vehicle_ownership_type\": \"own_vehicle\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Completed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver onboarding completed and approved.\",\n  \"driver\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"status\": \"approved\",\n    \"kyc_status\": \"verified\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Missing Requirements",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot complete onboarding. Driver has not provided all required data.\",\n  \"errors\": [\n    \"Vehicle details must be provided for own-vehicle drivers.\",\n    \"Missing required documents: vehicle_registration, insurance_certificate.\"\n  ]\n}"
+                },
+                {
+                  "name": "422 — Suspended",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver is currently suspended. Please reactivate the driver instead.\"\n}"
                 }
               ]
             }
@@ -12818,6 +14507,1776 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Admin — Finance: Adjustments",
+          "item": [
+            {
+              "name": "List Adjustments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/adjustments?status=pending",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "adjustments"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending"
+                    }
+                  ]
+                },
+                "description": "Returns paginated manual balance adjustments. Optional `status` filter: pending, approved, rejected."
+              },
+              "response": [
+                {
+                  "name": "200 — Adjustments",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"adjustments\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"account_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n      \"type\": \"credit\",\n      \"amount\": 150000,\n      \"reason\": \"Compensation for failed ride charged incorrectly\",\n      \"status\": \"pending\",\n      \"created_by\": {\n        \"id\": \"admin-1\",\n        \"name\": \"Admin User\"\n      },\n      \"created_at\": \"2026-10-13T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Adjustment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/adjustments",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "adjustments"
+                  ]
+                },
+                "description": "Create a manual balance adjustment (credit/debit). Requires a different admin to approve. `type`: credit or debit. `amount` in kobo. `account_id`: target account UUID.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"account_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"type\": \"credit\",\n  \"amount\": 150000,\n  \"reason\": \"Compensation for failed ride that was charged incorrectly\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Adjustment created and pending approval.\",\n  \"adjustment\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"type\": \"credit\",\n    \"amount\": 150000,\n    \"status\": \"pending\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Approve Adjustment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/adjustments/{{adjustment_id}}/approve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "adjustments",
+                    "{{adjustment_id}}",
+                    "approve"
+                  ]
+                },
+                "description": "Approve a pending adjustment. Posts double-entry journal and updates balance. Approver must differ from creator."
+              },
+              "response": [
+                {
+                  "name": "200 — Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Adjustment approved and posted.\",\n  \"adjustment\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"type\": \"credit\",\n    \"amount\": 150000,\n    \"status\": \"approved\",\n    \"approved_at\": \"2026-10-13T11:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Not Pending",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Adjustment is not pending.\"\n}"
+                },
+                {
+                  "name": "403 — Same Admin",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Approver must differ from creator.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reject Adjustment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/adjustments/{{adjustment_id}}/reject",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "adjustments",
+                    "{{adjustment_id}}",
+                    "reject"
+                  ]
+                },
+                "description": "Reject a pending adjustment. Requires `reason` (min 10 chars).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"The amount is incorrect. Please resubmit with the right figure.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Rejected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Adjustment rejected.\"\n}"
+                },
+                {
+                  "name": "422 — Not Pending",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Adjustment is not pending.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Finance: Payouts",
+          "item": [
+            {
+              "name": "List Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts?status=requested&from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "requested"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Paginated payout requests. Filters: `status`, `search` (driver name/email), `from`/`to` (date range)."
+              },
+              "response": [
+                {
+                  "name": "200 — Payouts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payouts\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"driver\": {\n        \"id\": \"driver-1\",\n        \"name\": \"Adebayo Ogundimu\"\n      },\n      \"amount\": 500000,\n      \"status\": \"requested\",\n      \"bank_account\": {\n        \"bank_code\": \"058\",\n        \"account_number\": \"****5678\"\n      },\n      \"requested_at\": \"2026-10-12T14:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Export Payouts (CSV)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts/export?from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts",
+                    "export"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Export payouts as CSV. Requires `from` and `to`. Columns: Payout ID, Driver, Bank, Account, Amount (kobo), Status, Requested At, Paid At."
+              },
+              "response": [
+                {
+                  "name": "200 — CSV Download",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "Payout ID,Driver,Bank,Account,Amount (kobo),Status,Requested At,Paid At\n9e1f-...,Adebayo Ogundimu,058,****5678,500000,paid,2026-10-12T14:00:00+00:00,2026-10-12T16:30:00+00:00"
+                }
+              ]
+            },
+            {
+              "name": "Approve Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts/{{payout_id}}/approve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts",
+                    "{{payout_id}}",
+                    "approve"
+                  ]
+                },
+                "description": "Approve a requested payout and initiate bank transfer via Paystack."
+              },
+              "response": [
+                {
+                  "name": "200 — Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout approved and transfer initiated.\",\n  \"payout\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"amount\": 500000,\n    \"status\": \"approved\",\n    \"approved_at\": \"2026-10-13T11:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Not Requested",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout is not in requested status.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reject Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts/{{payout_id}}/reject",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts",
+                    "{{payout_id}}",
+                    "reject"
+                  ]
+                },
+                "description": "Reject a requested payout. Requires `reason` (min 10 chars).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Bank account details could not be verified. Please update your bank account.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Rejected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout rejected.\"\n}"
+                },
+                {
+                  "name": "422 — Not Requested",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout is not in requested status.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Retry Failed Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts/{{payout_id}}/retry",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts",
+                    "{{payout_id}}",
+                    "retry"
+                  ]
+                },
+                "description": "Retry a failed payout transfer. Only payouts with `failed` status can be retried."
+              },
+              "response": [
+                {
+                  "name": "200 — Retrying",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout retry initiated.\"\n}"
+                },
+                {
+                  "name": "422 — Not Failed",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Only failed payouts can be retried.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Finance: Wallets",
+          "item": [
+            {
+              "name": "List Wallets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets?search=ade&status=active",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "ade"
+                    },
+                    {
+                      "key": "status",
+                      "value": "active"
+                    }
+                  ]
+                },
+                "description": "Paginated passenger wallets. Filters: `search` (name/email/phone), `status` (active/frozen), `min_balance`/`max_balance` (kobo)."
+              },
+              "response": [
+                {
+                  "name": "200 — Wallets",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"wallets\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"passenger_wallet\",\n      \"balance\": 2500000,\n      \"status\": \"active\",\n      \"owner\": {\n        \"id\": \"user-1\",\n        \"name\": \"Ade Ojo\",\n        \"email\": \"ade@example.com\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "View Wallet Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets/{{account_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets",
+                    "{{account_id}}"
+                  ]
+                },
+                "description": "Returns wallet with active holds and recent transactions."
+              },
+              "response": [
+                {
+                  "name": "200 — Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"wallet\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"type\": \"passenger_wallet\",\n    \"balance\": 2500000,\n    \"status\": \"active\"\n  },\n  \"active_holds\": [],\n  \"recent_transactions\": [\n    {\n      \"id\": \"entry-1\",\n      \"type\": \"credit\",\n      \"amount\": 500000,\n      \"description\": \"Wallet top-up\",\n      \"created_at\": \"2026-10-12T15:00:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Freeze Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets/{{account_id}}/freeze",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets",
+                    "{{account_id}}",
+                    "freeze"
+                  ]
+                },
+                "description": "Freeze a passenger wallet. Requires `reason` (min 10 chars).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Suspicious activity detected \\u2014 multiple rapid top-ups from unknown cards\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Frozen",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wallet frozen successfully.\"\n}"
+                },
+                {
+                  "name": "422 — Already Frozen",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wallet is already frozen.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Unfreeze Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets/{{account_id}}/unfreeze",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets",
+                    "{{account_id}}",
+                    "unfreeze"
+                  ]
+                },
+                "description": "Unfreeze a frozen passenger wallet. Requires `reason` (min 10 chars).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Investigation complete \\u2014 account cleared. Unfreezing per support ticket #1234\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Unfrozen",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wallet unfrozen successfully.\"\n}"
+                },
+                {
+                  "name": "422 — Not Frozen",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wallet is not frozen.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Refund to Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/rides/{{ride_id}}/refund",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "rides",
+                    "{{ride_id}}",
+                    "refund"
+                  ]
+                },
+                "description": "Refund to passenger wallet for a completed/cancelled ride. Amount in kobo. Validates against remaining refundable amount.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 150000,\n  \"reason\": \"Overcharged due to incorrect route \\u2014 refunding the difference\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Refunded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Refund credited to passenger wallet.\"\n}"
+                },
+                {
+                  "name": "422 — Exceeds Limit",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Refund exceeds remaining refundable amount of NGN 1,500.00.\"\n}"
+                },
+                {
+                  "name": "422 — Not Terminal",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride must be completed or cancelled to issue a refund.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Finance: Driver Ledgers",
+          "item": [
+            {
+              "name": "List Driver Ledgers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-ledgers?search=adebayo",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-ledgers"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "adebayo"
+                    }
+                  ]
+                },
+                "description": "Paginated driver earnings accounts. Optional `search` by driver name/email."
+              },
+              "response": [
+                {
+                  "name": "200 — Driver Ledgers",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"driver_ledgers\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"driver_earnings_available\",\n      \"balance\": 1200000,\n      \"owner\": {\n        \"id\": \"driver-1\",\n        \"name\": \"Adebayo Ogundimu\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "View Driver Ledger",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-ledgers/{{account_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-ledgers",
+                    "{{account_id}}"
+                  ]
+                },
+                "description": "Driver earnings account with recent transactions and payout history."
+              },
+              "response": [
+                {
+                  "name": "200 — Detail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"driver_ledger\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"type\": \"driver_earnings_available\",\n    \"balance\": 1200000\n  },\n  \"recent_transactions\": [\n    {\n      \"id\": \"entry-1\",\n      \"type\": \"credit\",\n      \"amount\": 272000,\n      \"description\": \"Ride earnings\",\n      \"created_at\": \"2026-10-13T09:45:00.000000Z\"\n    }\n  ],\n  \"recent_payouts\": [\n    {\n      \"id\": \"payout-1\",\n      \"amount\": 500000,\n      \"status\": \"paid\",\n      \"requested_at\": \"2026-10-12T14:00:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Finance: Ledger Explorer",
+          "item": [
+            {
+              "name": "Browse Journals",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ledger?reference=ride&from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ledger"
+                  ],
+                  "query": [
+                    {
+                      "key": "reference",
+                      "value": "ride"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Paginated double-entry journals with line entries. Filters: `reference` (partial match), `from`/`to` (date range)."
+              },
+              "response": [
+                {
+                  "name": "200 — Journals",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"journals\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"reference\": \"ride-9e1f1a2b-3c4d-5e6f-7890-abcdef123456\",\n      \"description\": \"Ride payment settlement\",\n      \"posted_at\": \"2026-10-13T09:45:00.000000Z\",\n      \"entries\": [\n        {\n          \"account_id\": \"acc-1\",\n          \"type\": \"debit\",\n          \"amount\": 320000\n        },\n        {\n          \"account_id\": \"acc-2\",\n          \"type\": \"credit\",\n          \"amount\": 272000\n        },\n        {\n          \"account_id\": \"acc-3\",\n          \"type\": \"credit\",\n          \"amount\": 48000\n        }\n      ]\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 5,\n    \"per_page\": 20,\n    \"total\": 96\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Export Ledger (CSV)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ledger/export?from=2026-10-01&to=2026-10-13",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ledger",
+                    "export"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-13"
+                    }
+                  ]
+                },
+                "description": "Export journal entries as CSV. Requires `from` and `to`. Columns: Reference, Description, Account ID, Account Type, Entry Type, Amount (kobo), Running Balance, Posted At."
+              },
+              "response": [
+                {
+                  "name": "200 — CSV Download",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "Reference,Description,Account ID,Account Type,Entry Type,Amount (kobo),Running Balance,Posted At\nride-9e1f...,Ride payment,acc-1,passenger_wallet,debit,320000,2180000,2026-10-13T09:45:00+00:00"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Finance: Reconciliation",
+          "item": [
+            {
+              "name": "Get Reconciliation Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/reconciliation?date=2026-10-12",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "reconciliation"
+                  ],
+                  "query": [
+                    {
+                      "key": "date",
+                      "value": "2026-10-12"
+                    }
+                  ]
+                },
+                "description": "Daily reconciliation report. Compares gateway charges vs ledger credits, transfers vs payouts. Optional `date` (Y-m-d, defaults to yesterday)."
+              },
+              "response": [
+                {
+                  "name": "200 — Report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"report\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"report_date\": \"2026-10-12\",\n    \"gateway_charges_total\": 25000000,\n    \"ledger_credits_total\": 25000000,\n    \"gateway_transfers_total\": 12000000,\n    \"ledger_payouts_total\": 12000000,\n    \"mismatches_count\": 0,\n    \"mismatches\": [],\n    \"status\": \"balanced\",\n    \"generated_at\": \"2026-10-13T02:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "404 — No Report",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"No reconciliation report found for 2026-10-12.\",\n  \"report\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reconciliation History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/reconciliation/history?status=balanced",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "reconciliation",
+                    "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "balanced"
+                    }
+                  ]
+                },
+                "description": "Paginated past reconciliation reports. Optional `status` filter and `per_page` (1-100, default 15)."
+              },
+              "response": [
+                {
+                  "name": "200 — History",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"report-1\",\n      \"report_date\": \"2026-10-12\",\n      \"mismatches_count\": 0,\n      \"status\": \"balanced\",\n      \"created_at\": \"2026-10-13T02:00:00.000000Z\"\n    },\n    {\n      \"id\": \"report-2\",\n      \"report_date\": \"2026-10-11\",\n      \"mismatches_count\": 2,\n      \"status\": \"mismatch\",\n      \"created_at\": \"2026-10-12T02:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 10,\n    \"per_page\": 15,\n    \"total\": 150\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Wallet Liability Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/reports/reconciliation/wallet-liability",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reports",
+                    "reconciliation",
+                    "wallet-liability"
+                  ]
+                },
+                "description": "Real-time platform financial snapshot: wallet liability, commission collected, driver earnings payable, total payouts processed. All in kobo."
+              },
+              "response": [
+                {
+                  "name": "200 — Liability",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reconciliation\": {\n    \"currency\": \"NGN\",\n    \"wallet_liability\": 125000000,\n    \"commission_collected\": 45000000,\n    \"driver_earnings_payable\": 32000000,\n    \"total_payouts_processed\": 98000000,\n    \"generated_at\": \"2026-10-13T12:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Promo Management",
+          "item": [
+            {
+              "name": "List Promos",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos?status=active&search=WELCOME",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "active"
+                    },
+                    {
+                      "key": "search",
+                      "value": "WELCOME"
+                    }
+                  ]
+                },
+                "description": "Paginated promo codes. Filters: `status` (active/expired/inactive/scheduled), `city_id`, `search` (code/description). Includes redemption counts."
+              },
+              "response": [
+                {
+                  "name": "200 — Promos",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_value\": 50,\n      \"max_discount_cap\": 2000,\n      \"is_active\": true,\n      \"redemptions_count\": 42,\n      \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Promo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos"
+                  ]
+                },
+                "description": "Create a new promo code. `discount_type`: percentage or fixed_amount. Supports geo-fencing, tier targeting, peak/off-peak restrictions.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"LAGOS25\",\n  \"description\": \"25% off rides in Lagos\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 25,\n  \"max_discount_cap\": 2000,\n  \"total_redemption_limit\": 1000,\n  \"per_user_limit\": 3,\n  \"starts_at\": \"2026-10-15T00:00:00Z\",\n  \"expires_at\": \"2026-11-15T23:59:59Z\",\n  \"city_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"is_active\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 — Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code created successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 25,\n    \"is_active\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Promo",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}"
+                  ]
+                },
+                "description": "Returns full promo code details including city, vehicle class, creator and redemptions."
+              },
+              "response": [
+                {
+                  "name": "200 — Promo",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"description\": \"50% off your first ride\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000,\n    \"total_redemption_limit\": 1000,\n    \"per_user_limit\": 1,\n    \"is_active\": true,\n    \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n    \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Promo",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}"
+                  ]
+                },
+                "description": "Update an existing promo code. All fields from create are accepted.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"50% off your first 3 rides\",\n  \"per_user_limit\": 3,\n  \"expires_at\": \"2027-03-31T23:59:59Z\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code updated successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"per_user_limit\": 3\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Toggle Promo Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/status",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}",
+                    "status"
+                  ]
+                },
+                "description": "Activate or deactivate a promo code. Toggles `is_active`."
+              },
+              "response": [
+                {
+                  "name": "200 — Toggled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code deactivated.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"is_active\": false\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Promo Performance",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/performance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}",
+                    "performance"
+                  ]
+                },
+                "description": "Returns performance metrics for a promo: total/unique redemptions, total/average discount given, daily breakdown, and recent redemptions."
+              },
+              "response": [
+                {
+                  "name": "200 — Performance",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\"\n  },\n  \"performance\": {\n    \"total_redemptions\": 42,\n    \"unique_users\": 38,\n    \"total_discount_given\": 84000.0,\n    \"average_discount\": 2000.0,\n    \"remaining_redemptions\": 958,\n    \"redemptions_by_day\": {\n      \"2026-10-12\": {\n        \"count\": 5,\n        \"total_discount\": 10000.0\n      },\n      \"2026-10-13\": {\n        \"count\": 3,\n        \"total_discount\": 6000.0\n      }\n    }\n  },\n  \"recent_redemptions\": []\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin — Settings",
+          "item": [
+            {
+              "name": "Get Commission Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/commission",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "commission"
+                  ]
+                },
+                "description": "Returns the global commission rate and any per-driver overrides."
+              },
+              "response": [
+                {
+                  "name": "200 — Commission",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"global_rate\": 0.15,\n  \"overrides\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"driver_id\": \"driver-1\",\n      \"rate\": 0.1,\n      \"driver\": {\n        \"first_name\": \"Adebayo\",\n        \"last_name\": \"Ogundimu\"\n      }\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Commission Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/commission",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "commission"
+                  ]
+                },
+                "description": "Update the global commission rate or set a per-driver override. `rate` is a decimal (0-1, e.g. 0.15 = 15%). Optional `driver_id` for override.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rate\": 0.15,\n  \"driver_id\": null\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Global commission rate updated.\",\n  \"commission\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"rate\": 0.15,\n    \"driver_id\": null,\n    \"is_active\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Wallet Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/wallet",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "wallet"
+                  ]
+                },
+                "description": "Returns wallet configuration: top-up limits, balance caps, payout minimums, settlement delays, and hold expiry."
+              },
+              "response": [
+                {
+                  "name": "200 — Wallet Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"24h\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 24,\n    \"abandoned_topup_minutes\": 30\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Wallet Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/wallet",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "wallet"
+                  ]
+                },
+                "description": "Update wallet configuration. All fields optional: `min_topup`, `max_balance`, `daily_topup_cap`, `min_payout`, `settlement_delay` (instant/24h/weekly), `max_negative_balance`, `hold_expiry_hours`, `abandoned_topup_minutes`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"min_topup\": 100000,\n  \"max_balance\": 100000000,\n  \"settlement_delay\": \"instant\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wallet settings updated.\",\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 100000,\n    \"max_balance\": 100000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 24,\n    \"abandoned_topup_minutes\": 30\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Tip Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/tips",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "tips"
+                  ]
+                },
+                "description": "Returns the tip configuration: preset amounts and min/max boundaries."
+              },
+              "response": [
+                {
+                  "name": "200 — Tip Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"presets\": [\n      200,\n      500,\n      1000\n    ],\n    \"min_amount\": 100,\n    \"max_amount\": 10000,\n    \"currency\": \"NGN\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Tip Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/tips",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "tips"
+                  ]
+                },
+                "description": "Update tip presets and boundaries. `presets`: array of ints (50-50000). `min_amount`/`max_amount`: ints. min_amount must be less than max_amount.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"presets\": [\n    200,\n    500,\n    1000,\n    2000\n  ],\n  \"min_amount\": 100,\n  \"max_amount\": 20000\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Tip settings updated.\",\n  \"settings\": {\n    \"presets\": [\n      200,\n      500,\n      1000,\n      2000\n    ],\n    \"min_amount\": 100,\n    \"max_amount\": 20000,\n    \"currency\": \"NGN\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Invalid",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"min_amount must be less than max_amount.\"\n}"
+                }
+              ]
+            }
+          ]
         }
       ],
       "description": "Endpoints for authenticated admin users. Requires `user.type:admin` middleware."
@@ -13406,6 +16865,147 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Notification Preferences",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notification-preferences",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notification-preferences"
+                  ]
+                },
+                "description": "Returns notification preferences for each category. Includes defaults for uncustomized categories. Critical categories (safety) are always enabled."
+              },
+              "response": [
+                {
+                  "name": "200 — Preferences",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": [\n    {\n      \"category\": \"ride_updates\",\n      \"label\": \"Ride Updates\",\n      \"description\": \"Notifications about ride status changes\",\n      \"is_critical\": false,\n      \"push_enabled\": true,\n      \"in_app_enabled\": true\n    },\n    {\n      \"category\": \"safety\",\n      \"label\": \"Safety\",\n      \"description\": \"Critical safety notifications\",\n      \"is_critical\": true,\n      \"push_enabled\": true,\n      \"in_app_enabled\": true\n    },\n    {\n      \"category\": \"promotions\",\n      \"label\": \"Promotions\",\n      \"description\": \"Promo codes and special offers\",\n      \"is_critical\": false,\n      \"push_enabled\": false,\n      \"in_app_enabled\": true\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Notification Preferences",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notification-preferences",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notification-preferences"
+                  ]
+                },
+                "description": "Update preferences for one or more categories. Critical categories remain always-on regardless of values sent.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"preferences\": [\n    {\n      \"category\": \"promotions\",\n      \"push_enabled\": false,\n      \"in_app_enabled\": true\n    },\n    {\n      \"category\": \"ride_updates\",\n      \"push_enabled\": true,\n      \"in_app_enabled\": true\n    }\n  ]\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Notification preferences updated.\",\n  \"data\": [\n    {\n      \"category\": \"promotions\",\n      \"label\": \"Promotions\",\n      \"push_enabled\": false,\n      \"in_app_enabled\": true\n    },\n    {\n      \"category\": \"ride_updates\",\n      \"label\": \"Ride Updates\",\n      \"push_enabled\": true,\n      \"in_app_enabled\": true\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/notifications/{{notification_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "{{notification_id}}"
+                  ]
+                },
+                "description": "Permanently deletes a single notification. Only the owner can delete it."
+              },
+              "response": [
+                {
+                  "name": "200 — Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Notification deleted.\"\n}"
+                },
+                {
+                  "name": "403 — Forbidden",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This action is unauthorized.\"\n}"
                 }
               ]
             }
@@ -14323,6 +17923,88 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Invalid webhook signature.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Paystack Wallet Webhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/webhooks/paystack-wallet",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhooks",
+                    "paystack-wallet"
+                  ]
+                },
+                "description": "Receives Paystack webhook events for wallet top-ups and payout transfers. Validates HMAC-SHA512 signature via `x-paystack-signature` header. Handles `charge.success`, `transfer.success`, `transfer.failed`, `transfer.reversed`. Idempotent.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"id\": 123456789,\n    \"reference\": \"TOPUP-A1B2C3D4E5F6\",\n    \"amount\": 500000,\n    \"status\": \"success\",\n    \"metadata\": {\n      \"user_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n      \"account_id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"wallet_topup\"\n    }\n  }\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 — Received",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Webhook received.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "QoreID KYC Webhook (GET)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/webhooks/qoreid",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhooks",
+                    "qoreid"
+                  ]
+                },
+                "description": "GET endpoint for QoreID/VerifyMe to verify the webhook endpoint is active."
+              },
+              "response": [
+                {
+                  "name": "200 — Active",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Webhook endpoint active.\"\n}"
                 }
               ]
             }
