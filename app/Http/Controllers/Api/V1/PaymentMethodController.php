@@ -90,7 +90,7 @@ class PaymentMethodController extends Controller
                     'card_brand' => $result['card_brand'],
                 ],
                 [
-                    'gateway_token' => $result['tx_ref'],
+                    'gateway_token' => $result['authorization_code'],
                     'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
                 ],
             );

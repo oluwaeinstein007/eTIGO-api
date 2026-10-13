@@ -47,6 +47,7 @@ class FakePaymentGateway implements PaymentGateway
             'payment_type' => 'card',
             'card_last_four' => '4242',
             'card_brand' => 'VISA',
+            'authorization_code' => 'AUTH_fake_'.Str::random(10),
         ];
     }
 

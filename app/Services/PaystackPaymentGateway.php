@@ -64,6 +64,7 @@ class PaystackPaymentGateway implements PaymentGateway
             'payment_type' => $authorization['channel'] ?? 'card',
             'card_last_four' => $authorization['last4'] ?? null,
             'card_brand' => $authorization['brand'] ?? null,
+            'authorization_code' => $authorization['authorization_code'] ?? null,
         ];
     }
 
