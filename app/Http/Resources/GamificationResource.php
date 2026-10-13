@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class GamificationResource extends JsonResource
 {
     private static ?array $tierConfigCache = null;
+    private static ?array $scoreTotalsCache = null;
 
     private static function tierConfigs(): array
     {
@@ -19,6 +20,41 @@ class GamificationResource extends JsonResource
         }
 
         return self::$tierConfigCache;
+    }
+
+    /**
+     * @param  array<int>  $userIds
+     */
+    public static function preloadScoreTotals(array $userIds): void
+    {
+        if (empty($userIds)) {
+            self::$scoreTotalsCache = [];
+
+            return;
+        }
+
+        $startOfMonth = now()->startOfMonth();
+
+        $lifetime = TripCarbonScore::whereIn('user_id', $userIds)
+            ->groupBy('user_id')
+            ->selectRaw('user_id, sum(co2_saved) as total_co2')
+            ->pluck('total_co2', 'user_id');
+
+        $monthly = TripCarbonScore::whereIn('user_id', $userIds)
+            ->where('created_at', '>=', $startOfMonth)
+            ->groupBy('user_id')
+            ->selectRaw('user_id, sum(co2_saved) as month_co2, sum(final_points) as month_points')
+            ->get()
+            ->keyBy('user_id');
+
+        self::$scoreTotalsCache = [];
+        foreach ($userIds as $uid) {
+            self::$scoreTotalsCache[$uid] = [
+                'total_co2' => (float) ($lifetime[$uid] ?? 0),
+                'month_co2' => (float) ($monthly[$uid]->month_co2 ?? 0),
+                'month_points' => (int) ($monthly[$uid]->month_points ?? 0),
+            ];
+        }
     }
 
     public function toArray(Request $request): array
@@ -45,14 +81,21 @@ class GamificationResource extends JsonResource
                 : 100;
         }
 
-        $co2Query = TripCarbonScore::where('user_id', $this->user_id);
-        $totalCo2Saved = (float) (clone $co2Query)->sum('co2_saved');
-        $co2SavedThisMonth = (float) (clone $co2Query)
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->sum('co2_saved');
-        $pointsThisMonth = (int) TripCarbonScore::where('user_id', $this->user_id)
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->sum('final_points');
+        if (isset(self::$scoreTotalsCache[$this->user_id])) {
+            $totals = self::$scoreTotalsCache[$this->user_id];
+            $totalCo2Saved = $totals['total_co2'];
+            $co2SavedThisMonth = $totals['month_co2'];
+            $pointsThisMonth = $totals['month_points'];
+        } else {
+            $co2Query = TripCarbonScore::where('user_id', $this->user_id);
+            $totalCo2Saved = (float) (clone $co2Query)->sum('co2_saved');
+            $co2SavedThisMonth = (float) (clone $co2Query)
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->sum('co2_saved');
+            $pointsThisMonth = (int) TripCarbonScore::where('user_id', $this->user_id)
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->sum('final_points');
+        }
 
         return [
             'id' => $this->id,
