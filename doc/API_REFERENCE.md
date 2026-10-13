@@ -7370,6 +7370,61 @@ All events are deduplicated via the `webhook_events` table.
 }
 ```
 
+### Flutterwave Webhook
+
+```
+POST /webhooks/flutterwave
+```
+
+**No authentication** — verified by `verif-hash` header matching `FLUTTERWAVE_WEBHOOK_SECRET`. This is the webhook URL to configure in your Flutterwave dashboard. Flutterwave serves as a failover gateway — if Paystack is unavailable, payments are routed through Flutterwave instead.
+
+**Handled Events:**
+
+| Event | Condition | Action |
+|---|---|---|
+| `charge.completed` | `tx_ref` starts with `TOPUP-` and meta contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up) |
+| `charge.completed` | All other charges | Verifies transaction with Flutterwave API and updates the `Payment` record (ride payment) |
+| `transfer.completed` | — | Dispatches `ProcessPayoutWebhookJob` with status `paid` |
+| `transfer.failed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
+
+All events are deduplicated via the `webhook_events` table (provider = `flutterwave`).
+
+**Response 200:**
+```json
+{
+  "message": "Webhook received."
+}
+```
+
+**Response 200 (duplicate):**
+```json
+{
+  "message": "Already processed."
+}
+```
+
+**Response 403:**
+```json
+{
+  "message": "Invalid signature."
+}
+```
+
+### Payment Gateway Failover
+
+The system supports a primary-with-failover gateway configuration. When both `PAYSTACK_SECRET_KEY` and `FLUTTERWAVE_SECRET_KEY` are set:
+
+- **Paystack** is the primary gateway — all payment operations are attempted through Paystack first
+- **Flutterwave** is the failover — if Paystack is unavailable (timeout, error), the operation is automatically retried through Flutterwave
+- **Token charges** (saved cards) always use the primary gateway since tokens are gateway-specific
+- Configure webhook URLs for **both** gateways in their respective dashboards
+
+| Environment Variable | Purpose |
+|---|---|
+| `PAYSTACK_SECRET_KEY` | Paystack API secret key (primary) |
+| `FLUTTERWAVE_SECRET_KEY` | Flutterwave API secret key (failover) |
+| `FLUTTERWAVE_WEBHOOK_SECRET` | Secret hash for Flutterwave webhook verification |
+
 ---
 
 ## Ratings

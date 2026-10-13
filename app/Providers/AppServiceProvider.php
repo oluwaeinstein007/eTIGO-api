@@ -23,6 +23,8 @@ use App\Services\LocationIqGateway;
 use App\Services\LogPushGateway;
 use App\Services\LogSmsGateway;
 use App\Services\MapboxGateway;
+use App\Services\FallbackPaymentGateway;
+use App\Services\FlutterwavePaymentGateway;
 use App\Services\PaystackPaymentGateway;
 use App\Services\PhotonGateway;
 use App\Services\QoreIdKycGateway;
@@ -220,14 +222,32 @@ class AppServiceProvider extends ServiceProvider
                 return new FakePaymentGateway;
             }
 
-            $secretKey = config('services.paystack.secret_key');
+            $paystackKey = config('services.paystack.secret_key');
+            $flutterwaveKey = config('services.flutterwave.secret_key');
 
-            if ($secretKey) {
-                return new PaystackPaymentGateway($secretKey);
+            if ($paystackKey && $flutterwaveKey) {
+                return new FallbackPaymentGateway(
+                    new PaystackPaymentGateway($paystackKey),
+                    new FlutterwavePaymentGateway(
+                        $flutterwaveKey,
+                        config('services.flutterwave.base_url', 'https://api.flutterwave.com/v3'),
+                    ),
+                );
+            }
+
+            if ($paystackKey) {
+                return new PaystackPaymentGateway($paystackKey);
+            }
+
+            if ($flutterwaveKey) {
+                return new FlutterwavePaymentGateway(
+                    $flutterwaveKey,
+                    config('services.flutterwave.base_url', 'https://api.flutterwave.com/v3'),
+                );
             }
 
             if (! $this->app->environment('local', 'testing', 'staging')) {
-                throw new \RuntimeException('Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in your environment.');
+                throw new \RuntimeException('No payment gateway configured. Set PAYSTACK_SECRET_KEY or FLUTTERWAVE_SECRET_KEY in your environment.');
             }
 
             return new FakePaymentGateway;
