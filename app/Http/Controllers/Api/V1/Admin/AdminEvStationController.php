@@ -155,6 +155,28 @@ class AdminEvStationController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, EvChargingStation $station): JsonResponse
+    {
+        $activeReservations = $station->reservations()
+            ->whereIn('status', ['reserved', 'active', 'queued'])
+            ->exists();
+
+        if ($activeReservations) {
+            return response()->json([
+                'message' => 'Cannot delete station with active reservations.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($request, $station) {
+            AuditLog::record($station, 'ev_station_deleted', $request->user(), $station->toArray());
+
+            $station->stalls()->delete();
+            $station->delete();
+        });
+
+        return response()->json(['message' => 'EV charging station deleted.']);
+    }
+
     public function utilisation(Request $request): JsonResponse
     {
         $stations = EvChargingStation::query()

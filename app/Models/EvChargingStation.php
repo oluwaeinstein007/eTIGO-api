@@ -22,6 +22,10 @@ class EvChargingStation extends Model
         'lng',
         'address',
         'total_stalls',
+        'connector_types',
+        'power_output_kw',
+        'pricing_per_kwh',
+        'operating_hours',
         'status',
     ];
 
@@ -31,6 +35,10 @@ class EvChargingStation extends Model
             'lat' => 'decimal:7',
             'lng' => 'decimal:7',
             'total_stalls' => 'integer',
+            'connector_types' => 'array',
+            'power_output_kw' => 'integer',
+            'pricing_per_kwh' => 'integer',
+            'operating_hours' => 'array',
             'status' => EvStationStatus::class,
         ];
     }

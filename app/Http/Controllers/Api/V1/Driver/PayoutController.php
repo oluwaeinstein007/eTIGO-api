@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Enums\AccountType;
+use App\Enums\PayoutPreference;
 use App\Enums\PayoutStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StorePayoutRequest;
@@ -13,6 +14,7 @@ use App\Models\Payout;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class PayoutController extends Controller
 {
@@ -103,6 +105,35 @@ class PayoutController extends Controller
                 'per_page' => $payouts->perPage(),
                 'total' => $payouts->total(),
             ],
+        ]);
+    }
+
+    public function updatePreference(Request $request): JsonResponse
+    {
+        $request->validate([
+            'payout_preference' => ['required', Rule::enum(PayoutPreference::class)],
+        ]);
+
+        $driver = $request->user()->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if ($request->input('payout_preference') === PayoutPreference::WeeklyAuto->value) {
+            $bankAccount = $driver->primaryBankAccount;
+            if (! $bankAccount || ! $bankAccount->is_verified) {
+                return response()->json([
+                    'message' => 'A verified bank account is required for weekly auto-payout.',
+                ], 422);
+            }
+        }
+
+        $driver->update(['payout_preference' => $request->input('payout_preference')]);
+
+        return response()->json([
+            'message' => 'Payout preference updated.',
+            'payout_preference' => $driver->payout_preference->value,
         ]);
     }
 }

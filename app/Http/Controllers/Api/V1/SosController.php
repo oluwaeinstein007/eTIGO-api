@@ -39,6 +39,7 @@ class SosController extends Controller
         return response()->json([
             'message' => 'SOS triggered. A check-in will be sent shortly.',
             'incident' => new SosIncidentResource($incident),
+            'auto_dial_emergency' => '112',
         ], 201);
     }
 

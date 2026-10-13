@@ -5,6 +5,7 @@ use App\Jobs\DailyRemittanceSettlementJob;
 use App\Jobs\ExpireAbandonedTopupsJob;
 use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
+use App\Jobs\ProcessWeeklyAutoPayoutJob;
 use App\Jobs\RemittanceShortfallAlertJob;
 use App\Jobs\SettleDriverEarningsJob;
 use App\Jobs\StuckTransactionSweeperJob;
@@ -22,6 +23,10 @@ Schedule::job(new SettleDriverEarningsJob)->hourly()->withoutOverlapping();
 Schedule::job(new StuckTransactionSweeperJob)->everyThirtyMinutes()->withoutOverlapping();
 Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::job(new NegativeDriverBalanceReportJob)->weeklyOn(1, '08:00');
+Schedule::job(new ProcessWeeklyAutoPayoutJob)
+    ->weeklyOn(1, '06:00')
+    ->timezone('Africa/Lagos')
+    ->withoutOverlapping();
 
 $resetTime = config('fleet.daily_reset_time', '04:00');
 $settlementDate = now('Africa/Lagos')->subDay()->toDateString();

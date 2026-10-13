@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\SosIncidentStatus;
 use App\Enums\SosTriggerType;
 use App\Events\SosIncidentEscalated;
+use App\Events\SosIncidentTriggered;
 use App\Jobs\SendSosCheckInJob;
+use App\Jobs\SendSosWhatsAppAlertJob;
 use App\Models\Ride;
 use App\Models\SosEventLog;
 use App\Models\SosIncident;
@@ -96,6 +98,19 @@ class SosService
         SendSosCheckInJob::dispatch($incident->id)
             ->afterCommit()
             ->delay(now()->addSeconds($checkInDelay));
+
+        event(new SosIncidentTriggered(
+            incidentId: $incident->id,
+            rideId: $ride->id,
+            triggeredByUserId: $user->id,
+            triggerType: $triggerType->value,
+            gpsLat: (float) $incident->gps_lat,
+            gpsLng: (float) $incident->gps_lng,
+            status: SosIncidentStatus::Triggered->value,
+            triggeredAt: now()->toISOString(),
+        ));
+
+        SendSosWhatsAppAlertJob::dispatch($incident->id)->afterCommit();
 
         Log::warning('SOS incident triggered', [
             'incident_id' => $incident->id,

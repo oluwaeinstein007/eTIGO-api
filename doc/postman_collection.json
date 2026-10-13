@@ -57,6 +57,35 @@
           ]
         },
         {
+          "name": "App Configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "config"
+              ]
+            },
+            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required."
+          },
+          "response": []
+        },
+        {
           "name": "Lookups",
           "item": [
             {
@@ -7602,6 +7631,50 @@
                   "body": "{\n  \"message\": \"Payout request submitted for approval.\",\n  \"payout\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"amount\": 500000,\n    \"status\": \"requested\",\n    \"requested_at\": \"2026-10-13T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
+            },
+            {
+              "name": "Update Payout Preference",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/driver/payouts/preference",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "driver",
+                    "payouts",
+                    "preference"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}"
+                    }
+                  ]
+                },
+                "description": "Sets the driver's payout preference between on-demand requests and weekly automatic payouts (every Monday at 06:00 WAT).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payout_preference\": \"weekly_auto\"\n}"
+                }
+              },
+              "response": []
             }
           ]
         }
@@ -14368,7 +14441,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Lekki Phase 1 Charging Hub\",\n  \"city_id\": \"{{city_id}}\",\n  \"lat\": 6.4378,\n  \"lng\": 3.4709,\n  \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n  \"total_stalls\": 6\n}"
+                  "raw": "{\n  \"name\": \"Lekki Phase 1 Charging Hub\",\n  \"city_id\": \"{{city_id}}\",\n  \"lat\": 6.4378,\n  \"lng\": 3.4709,\n  \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n  \"total_stalls\": 6,\n  \"connector_types\": [\n    \"CCS2\",\n    \"Type2\"\n  ],\n  \"power_output_kw\": 150,\n  \"pricing_per_kwh\": 15000,\n  \"operating_hours\": {\n    \"open\": \"06:00\",\n    \"close\": \"22:00\"\n  }\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/ev-stations",
@@ -14433,7 +14506,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Updated Station Name\",\n  \"address\": \"New Address\"\n}"
+                  "raw": "{\n  \"name\": \"Updated Station Name\",\n  \"address\": \"New Address\",\n  \"connector_types\": [\n    \"CCS2\",\n    \"CHAdeMO\",\n    \"Type2\"\n  ],\n  \"power_output_kw\": 200,\n  \"pricing_per_kwh\": 12000,\n  \"operating_hours\": {\n    \"open\": \"05:30\",\n    \"close\": \"23:00\"\n  }\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}",
@@ -14559,6 +14632,46 @@
                   ]
                 },
                 "description": "Real-time utilisation summary across all active stations. Shows occupancy rates, available stalls, and estimated wait times."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Station",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/ev-stations/{{station_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "ev-stations",
+                    "{{station_id}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}"
+                    }
+                  ]
+                },
+                "description": "Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations."
               },
               "response": []
             }
@@ -17562,7 +17675,7 @@
                 "sos"
               ]
             },
-            "description": "Trigger an SOS distress signal during an active ride. Available to both passengers and drivers who are participants of the ride.\n\nSends telemetry data (GPS coordinates, speed, heading) and initiates the escalation pipeline: a check-in is sent to the user, and if not acknowledged, the incident escalates to operators.\n\n**Auth:** Any authenticated ride participant (passenger or driver)."
+            "description": "Triggers an emergency SOS incident on an active ride. Response includes `auto_dial_emergency: \"112\"` — the mobile client should immediately initiate a phone call to this number. A real-time `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel, and a WhatsApp alert with GPS + trip details is sent to E-tiGo's internal safety number."
           },
           "response": [
             {

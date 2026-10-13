@@ -716,6 +716,32 @@ No authentication required. Returns database and Redis connectivity status.
 
 ---
 
+## App Configuration
+
+```
+GET /config
+```
+
+No authentication required. Returns app configuration including minimum version requirements for force-update enforcement.
+
+**Response 200:**
+```json
+{
+  "min_app_version": {
+    "ios": "1.0.0",
+    "android": "1.0.0"
+  },
+  "force_update": false,
+  "emergency_number": "112",
+  "support_phone": null,
+  "support_email": null
+}
+```
+
+**Usage:** Mobile clients should check `min_app_version` on every launch. If the installed version is below the minimum, show a force-update screen with a link to the App Store / Play Store. When `force_update` is `true`, block usage entirely until updated.
+
+---
+
 ## Passenger
 
 All passenger endpoints require `Authorization: Bearer {token}` from a passenger user.
@@ -8566,9 +8592,14 @@ Triggers an emergency SOS incident on an active ride. Dispatches a check-in job 
     "escalated_at": null,
     "resolved_at": null,
     "created_at": "2026-10-11T12:00:00.000000Z"
-  }
+  },
+  "auto_dial_emergency": "112"
 }
 ```
+
+**`auto_dial_emergency`:** The mobile client should immediately initiate a phone call to this number (Nigeria's emergency line) when receiving this response.
+
+**Real-time:** A `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel immediately, and a WhatsApp alert with GPS + trip details is sent to E-tiGo's internal safety number.
 
 **Errors:** `422` (ride not active, not a participant, invalid coords), `409` (active SOS already exists)
 
@@ -9242,7 +9273,11 @@ Content-Type: application/json
   "lat": 6.4378,
   "lng": 3.4709,
   "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
-  "total_stalls": 6
+  "total_stalls": 6,
+  "connector_types": ["CCS2", "Type2"],
+  "power_output_kw": 150,
+  "pricing_per_kwh": 15000,
+  "operating_hours": { "open": "06:00", "close": "22:00" }
 }
 ```
 
@@ -9254,6 +9289,10 @@ Content-Type: application/json
 | `lng` | numeric | Required, -180 to 180 |
 | `address` | string | Required, max 500 |
 | `total_stalls` | integer | Required, 1–100 |
+| `connector_types` | array | Optional, values: `CCS2`, `CHAdeMO`, `Type2`, `GBT`, `Tesla` |
+| `power_output_kw` | integer | Optional, 1–500 kW |
+| `pricing_per_kwh` | integer | Optional, in kobo per kWh |
+| `operating_hours` | object | Optional, `{ "open": "HH:mm", "close": "HH:mm" }` |
 | `status` | string | Optional: `active`, `inactive`, `maintenance` |
 
 Stalls are auto-generated (numbered 1 to `total_stalls`).
@@ -9416,6 +9455,24 @@ Real-time occupancy across all active stations. Computed from eager-loaded stall
   }
 }
 ```
+
+### Delete Station
+
+```
+DELETE /admin/ev-stations/{station}
+Authorization: Bearer {admin_token}
+```
+
+Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations.
+
+**Response 200:**
+```json
+{
+  "message": "EV charging station deleted."
+}
+```
+
+**Response 422:** Station has active reservations.
 
 ---
 
@@ -10005,6 +10062,34 @@ Requests a withdrawal from driver earnings to their primary bank account via Pay
 
 **Response 201:** Payout request created, pending admin approval.
 **Response 422:** Insufficient balance, no bank account, or wallet frozen.
+
+### Update Payout Preference
+
+```
+PUT /driver/payouts/preference
+Authorization: Bearer {driver_token}
+```
+
+Sets the driver's payout preference between on-demand requests and weekly automatic payouts.
+
+**Request Body:**
+
+| Field | Type | Required | Values |
+|-------|------|----------|--------|
+| `payout_preference` | string | Yes | `on_demand`, `weekly_auto` |
+
+- `on_demand` — Driver manually requests payouts (default)
+- `weekly_auto` — Automatic payout every Monday at 06:00 WAT. Requires a verified bank account. Skips drivers below the minimum payout threshold.
+
+**Response 200:**
+```json
+{
+  "message": "Payout preference updated.",
+  "payout_preference": "weekly_auto"
+}
+```
+
+**Response 422:** Bank account not verified (required for weekly auto).
 
 ---
 
