@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
+use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
@@ -91,6 +92,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::get('/health', HealthController::class);
+Route::get('/config', ConfigController::class);
 
 /*
 |--------------------------------------------------------------------------
@@ -349,6 +351,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::prefix('payouts')->group(function () {
         Route::get('/', [PayoutController::class, 'index']);
         Route::post('/', [PayoutController::class, 'store'])->middleware('throttle:3,1');
+        Route::put('/preference', [PayoutController::class, 'updatePreference']);
     });
 
     Route::prefix('kyc')->group(function () {
@@ -501,6 +504,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{station}', [AdminEvStationController::class, 'update']);
         Route::patch('/{station}/status', [AdminEvStationController::class, 'toggleStatus']);
         Route::put('/{station}/stalls', [AdminEvStationController::class, 'manageStalls']);
+        Route::delete('/{station}', [AdminEvStationController::class, 'destroy']);
     });
 
     Route::middleware('admin.role:operations,safety_operator')->prefix('offline-flags')->group(function () {

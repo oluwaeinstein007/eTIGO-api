@@ -6,6 +6,7 @@ use App\Enums\DisputeOutcome;
 use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
+use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
 use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,6 +31,7 @@ class Driver extends Model
         'licence_number',
         'rejection_reason',
         'is_online',
+        'payout_preference',
         'approved_at',
         'suspended_at',
         'suspension_reason',
@@ -47,6 +49,7 @@ class Driver extends Model
             'status' => DriverStatus::class,
             'kyc_status' => KycStatus::class,
             'vehicle_ownership_type' => VehicleOwnershipType::class,
+            'payout_preference' => PayoutPreference::class,
             'is_online' => 'boolean',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
