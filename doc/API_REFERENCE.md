@@ -8217,7 +8217,7 @@ Content-Type: application/json
 
 Pre-validates a promo code for the authenticated passenger. Checks code existence, active status, time window, and user-level eligibility. Returns the promo's configured discount details so the frontend can display what the user will receive (e.g. "50% off, up to ₦2,000").
 
-**Design rationale:** Only the `code` field is accepted. Ride-context checks (city, vehicle class, geo-fence, fare amount, peak/off-peak) are deferred to apply time — the backend derives all context from the Ride model, preventing frontend spoofing. City-restricted or geo-fenced promos will still pass validation here; their restrictions are returned in the response so the frontend can display them, but enforcement happens server-side when the promo is applied to a ride.
+**Design rationale:** Only the `code` field is used for validation. Extra ride-context fields (city, vehicle class, coordinates, fare) are ignored if sent. Ride-context checks (city, vehicle class, geo-fence, fare amount, peak/off-peak) are deferred to apply time — the backend derives all context from the Ride model, preventing frontend spoofing. City-restricted or geo-fenced promos will still pass validation here; their restrictions are returned in the response so the frontend can display them, but enforcement happens server-side when the promo is applied to a ride.
 
 **Request:**
 ```json

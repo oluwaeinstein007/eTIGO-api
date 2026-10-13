@@ -303,7 +303,7 @@ it('filters out already-used promos from available', function () {
     expect($codes)->not->toContain('USED');
 });
 
-it('only accepts code field in validate payload', function () {
+it('ignores ride-context fields in validate payload', function () {
     PromoCode::factory()->create(['code' => 'SIMPLE']);
 
     $response = $this->withToken($this->token)
