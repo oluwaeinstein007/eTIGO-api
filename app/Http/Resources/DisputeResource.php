@@ -18,24 +18,12 @@ class DisputeResource extends JsonResource
             'category_label' => $this->category->label(),
             'description' => $this->description,
             'evidence_photos' => $this->when($this->evidence_photos, function () {
-                $disk = Storage::disk(config('filesystems.uploads'));
-
-                return collect($this->evidence_photos)->map(function (string $path) use ($disk) {
-                    try {
-                        return $disk->temporaryUrl($path, now()->addMinutes(30));
-                    } catch (\RuntimeException) {
-                        return $disk->url($path);
-                    }
-                })->all();
+                return collect($this->evidence_photos)->map(
+                    fn (string $path) => $this->resolveEvidenceUrl($path),
+                )->all();
             }),
             'evidence_audio' => $this->when($this->evidence_audio, function () {
-                $disk = Storage::disk(config('filesystems.uploads'));
-
-                try {
-                    return $disk->temporaryUrl($this->evidence_audio, now()->addMinutes(30));
-                } catch (\RuntimeException) {
-                    return $disk->url($this->evidence_audio);
-                }
+                return $this->resolveEvidenceUrl($this->evidence_audio);
             }),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
@@ -50,5 +38,28 @@ class DisputeResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    private function resolveEvidenceUrl(string $path): ?string
+    {
+        $uploadsDisk = Storage::disk(config('filesystems.uploads'));
+
+        try {
+            return $uploadsDisk->temporaryUrl($path, now()->addMinutes(30));
+        } catch (\RuntimeException) {
+            try {
+                return $uploadsDisk->url($path);
+            } catch (\RuntimeException) {
+                // Ignore — fall through to local fallback
+            }
+        }
+
+        $localDisk = Storage::disk('local');
+
+        try {
+            return $localDisk->temporaryUrl($path, now()->addMinutes(30));
+        } catch (\RuntimeException) {
+            return $localDisk->url($path);
+        }
     }
 }

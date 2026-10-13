@@ -17,17 +17,19 @@ use League\Flysystem\UrlGeneration\PublicUrlGenerator;
 
 class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 {
-    private Cloudinary $cloudinary;
-
     private UploadApi $uploadApi;
 
     private string $baseUrl;
 
-    public function __construct(Cloudinary $cloudinary)
+    private string $apiSecret;
+
+    private static array $sensitivePathPrefixes = ['disputes/', 'driver-documents/'];
+
+    public function __construct(private Cloudinary $cloudinary)
     {
-        $this->cloudinary = $cloudinary;
         $this->uploadApi = new UploadApi($cloudinary->configuration);
         $this->baseUrl = 'https://res.cloudinary.com/'.$cloudinary->configuration->cloud->cloudName;
+        $this->apiSecret = $cloudinary->configuration->cloud->apiSecret;
     }
 
     public function write(string $path, string $contents, Config $config): void
@@ -58,7 +60,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     public function read(string $path): string
     {
-        $url = $this->publicUrl($path, new Config);
+        $url = $this->buildUrl($path);
 
         $contents = @file_get_contents($url);
 
@@ -69,9 +71,12 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         return $contents;
     }
 
-    public function readStream(string $path)
+    /**
+     * @return resource
+     */
+    public function readStream(string $path): mixed
     {
-        $url = $this->publicUrl($path, new Config);
+        $url = $this->buildUrl($path);
 
         $stream = @fopen($url, 'rb');
 
@@ -88,7 +93,13 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType]);
+            $options = ['resource_type' => $resourceType];
+
+            if ($this->isSensitivePath($path)) {
+                $options['type'] = 'authenticated';
+            }
+
+            $this->uploadApi->destroy($publicId, $options);
         } catch (\Throwable $e) {
             throw UnableToDeleteFile::atLocation($path, $e->getMessage(), $e);
         }
@@ -99,19 +110,12 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         try {
             $this->cloudinary->adminApi()->deleteAssetsByPrefix($path);
         } catch (\Throwable) {
-            // Cloudinary does not have real directories
         }
     }
 
-    public function createDirectory(string $path, Config $config): void
-    {
-        // Cloudinary does not require directory creation
-    }
+    public function createDirectory(string $path, Config $config): void {}
 
-    public function setVisibility(string $path, string $visibility): void
-    {
-        // Cloudinary manages visibility through delivery types
-    }
+    public function setVisibility(string $path, string $visibility): void {}
 
     public function visibility(string $path): FileAttributes
     {
@@ -161,19 +165,21 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     public function copy(string $source, string $destination, Config $config): void
     {
-        $srcPublicId = $this->pathToPublicId($source);
         $dstPublicId = $this->pathToPublicId($destination);
         $resourceType = $this->detectResourceType($source);
 
         try {
-            $this->uploadApi->upload(
-                $this->publicUrl($source, new Config),
-                [
-                    'public_id' => $dstPublicId,
-                    'resource_type' => $resourceType,
-                    'overwrite' => true,
-                ]
-            );
+            $options = [
+                'public_id' => $dstPublicId,
+                'resource_type' => $resourceType,
+                'overwrite' => true,
+            ];
+
+            if ($this->isSensitivePath($destination)) {
+                $options['type'] = 'authenticated';
+            }
+
+            $this->uploadApi->upload($this->buildUrl($source), $options);
         } catch (\Throwable $e) {
             throw UnableToCopyFile::because($e->getMessage(), $source, $destination, $e);
         }
@@ -185,7 +191,13 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType]);
+            $options = ['resource_type' => $resourceType];
+
+            if ($this->isSensitivePath($path)) {
+                $options['type'] = 'authenticated';
+            }
+
+            $this->cloudinary->adminApi()->asset($publicId, $options);
 
             return true;
         } catch (\Throwable) {
@@ -198,10 +210,40 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         return true;
     }
 
+    public function getUrl(string $path): string
+    {
+        return $this->buildUrl($path);
+    }
+
     public function publicUrl(string $path, Config $config): string
+    {
+        return $this->buildUrl($path);
+    }
+
+    private function buildUrl(string $path): string
     {
         $publicId = $this->pathToPublicId($path);
         $resourceType = $this->detectResourceType($path);
+        $isRaw = $resourceType === 'raw';
+
+        if ($this->isSensitivePath($path)) {
+            $timestamp = time();
+            $toSign = "public_id={$publicId}&timestamp={$timestamp}{$this->apiSecret}";
+            $signature = sha1($toSign);
+
+            if ($isRaw) {
+                return "{$this->baseUrl}/{$resourceType}/authenticated/s--".substr(base64_encode(hex2bin($signature)), 0, 8)."--/{$publicId}";
+            }
+
+            $ext = pathinfo($path, PATHINFO_EXTENSION);
+
+            return "{$this->baseUrl}/{$resourceType}/authenticated/s--".substr(base64_encode(hex2bin($signature)), 0, 8)."--/{$publicId}.{$ext}";
+        }
+
+        if ($isRaw) {
+            return "{$this->baseUrl}/{$resourceType}/upload/{$publicId}";
+        }
+
         $ext = pathinfo($path, PATHINFO_EXTENSION);
 
         return "{$this->baseUrl}/{$resourceType}/upload/{$publicId}.{$ext}";
@@ -213,13 +255,19 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($storagePath);
 
         try {
-            $this->uploadApi->upload($filePath, [
+            $options = [
                 'public_id' => $publicId,
                 'resource_type' => $resourceType,
                 'overwrite' => true,
                 'use_filename' => false,
                 'unique_filename' => false,
-            ]);
+            ];
+
+            if ($this->isSensitivePath($storagePath)) {
+                $options['type'] = 'authenticated';
+            }
+
+            $this->uploadApi->upload($filePath, $options);
         } catch (\Throwable $e) {
             throw UnableToWriteFile::atLocation($storagePath, $e->getMessage(), $e);
         }
@@ -227,6 +275,10 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     private function pathToPublicId(string $path): string
     {
+        if ($this->detectResourceType($path) === 'raw') {
+            return $path;
+        }
+
         return pathinfo($path, PATHINFO_FILENAME)
             ? preg_replace('/\.[^.]+$/', '', $path)
             : $path;
@@ -236,14 +288,25 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
     {
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff'])) {
+        if (\in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff'])) {
             return 'image';
         }
 
-        if (in_array($ext, ['mp3', 'm4a', 'wav', 'ogg', 'webm', 'aac', 'mp4', 'avi', 'mov'])) {
+        if (\in_array($ext, ['mp3', 'm4a', 'wav', 'ogg', 'webm', 'aac', 'mp4', 'avi', 'mov'])) {
             return 'video';
         }
 
         return 'raw';
+    }
+
+    private function isSensitivePath(string $path): bool
+    {
+        foreach (self::$sensitivePathPrefixes as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
