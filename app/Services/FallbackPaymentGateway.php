@@ -54,7 +54,62 @@ class FallbackPaymentGateway implements PaymentGateway
 
     public function chargeWithToken(array $data): array
     {
-        return $this->primary->chargeWithToken($data);
+        $token = trim((string) ($data['token'] ?? ''));
+        $targetGateway = $this->resolveGatewayForToken($token);
+
+        if ($targetGateway !== null) {
+            return $targetGateway->chargeWithToken($data);
+        }
+
+        try {
+            return $this->primary->chargeWithToken($data);
+        } catch (\Throwable $e) {
+            Log::warning('Primary payment gateway chargeWithToken failed, trying fallback', [
+                'error' => $e->getMessage(),
+                'tx_ref' => $data['tx_ref'] ?? null,
+            ]);
+
+            return $this->fallback->chargeWithToken($data);
+        }
+    }
+
+    private function resolveGatewayForToken(string $token): ?PaymentGateway
+    {
+        if ($this->isFlutterwaveToken($token)) {
+            if ($this->primary instanceof FlutterwavePaymentGateway) {
+                return $this->primary;
+            }
+
+            if ($this->fallback instanceof FlutterwavePaymentGateway) {
+                return $this->fallback;
+            }
+
+            if ($this->primary instanceof PaystackPaymentGateway) {
+                return $this->fallback;
+            }
+
+            return $this->fallback;
+        }
+
+        if ($this->isPaystackToken($token)) {
+            if ($this->fallback instanceof PaystackPaymentGateway && ! ($this->primary instanceof PaystackPaymentGateway)) {
+                return $this->fallback;
+            }
+
+            return $this->primary;
+        }
+
+        return null;
+    }
+
+    private function isFlutterwaveToken(string $token): bool
+    {
+        return str_starts_with(strtoupper($token), 'FLW');
+    }
+
+    private function isPaystackToken(string $token): bool
+    {
+        return str_starts_with(strtoupper($token), 'AUTH');
     }
 
     public function refund(string $transactionId, float $amount): array

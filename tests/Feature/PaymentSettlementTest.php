@@ -369,6 +369,40 @@ describe('End-to-end flows', function () {
             ->assertJsonPath('payment.tip_amount', '500.00');
     });
 
+    it('returns unprocessable entity when tip charge fails on card payment', function () {
+        $mockGateway = Mockery::mock(PaymentGateway::class);
+        $mockGateway->shouldReceive('chargeWithToken')
+            ->once()
+            ->andThrow(new RuntimeException('Failed to charge tip amount.'));
+        $this->app->instance(PaymentGateway::class, $mockGateway);
+
+        UserPaymentMethod::create([
+            'user_id' => $this->passenger->id,
+            'gateway_token' => 'tok_test',
+            'card_brand' => 'VISA',
+            'card_last_four' => '4242',
+            'is_default' => true,
+        ]);
+
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 5000,
+        ]);
+
+        Payment::factory()->captured()->create([
+            'ride_id' => $ride->id,
+            'amount' => 5000,
+            'tip_amount' => 0,
+        ]);
+
+        $response = $this->withToken($this->passengerToken)
+            ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('message', 'Failed to charge tip amount.');
+    });
+
     it('receipt available after ride completion with full payment details', function () {
         $ride = Ride::factory()->completed()->create([
             'passenger_id' => $this->passenger->id,

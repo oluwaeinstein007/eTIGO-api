@@ -18,7 +18,13 @@ class RideTipController extends Controller
 
     public function store(StoreTipFormRequest $request, Ride $ride): JsonResponse
     {
-        $payment = $this->paymentService->addTip($ride, (float) $request->validated('amount'));
+        try {
+            $payment = $this->paymentService->addTip($ride, (float) $request->validated('amount'));
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
 
         AuditLog::record($ride, 'tip_added', $request->user(), null, [
             'tip_amount' => $request->validated('amount'),
