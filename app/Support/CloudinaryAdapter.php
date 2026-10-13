@@ -21,15 +21,10 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     private string $baseUrl;
 
-    private string $apiSecret;
-
-    private static array $sensitivePathPrefixes = ['disputes/', 'driver-documents/'];
-
     public function __construct(private Cloudinary $cloudinary)
     {
         $this->uploadApi = new UploadApi($cloudinary->configuration);
         $this->baseUrl = 'https://res.cloudinary.com/'.$cloudinary->configuration->cloud->cloudName;
-        $this->apiSecret = $cloudinary->configuration->cloud->apiSecret;
     }
 
     public function write(string $path, string $contents, Config $config): void
@@ -93,13 +88,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $options = ['resource_type' => $resourceType];
-
-            if ($this->isSensitivePath($path)) {
-                $options['type'] = 'authenticated';
-            }
-
-            $this->uploadApi->destroy($publicId, $options);
+            $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType]);
         } catch (\Throwable $e) {
             throw UnableToDeleteFile::atLocation($path, $e->getMessage(), $e);
         }
@@ -169,17 +158,11 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($source);
 
         try {
-            $options = [
+            $this->uploadApi->upload($this->buildUrl($source), [
                 'public_id' => $dstPublicId,
                 'resource_type' => $resourceType,
                 'overwrite' => true,
-            ];
-
-            if ($this->isSensitivePath($destination)) {
-                $options['type'] = 'authenticated';
-            }
-
-            $this->uploadApi->upload($this->buildUrl($source), $options);
+            ]);
         } catch (\Throwable $e) {
             throw UnableToCopyFile::because($e->getMessage(), $source, $destination, $e);
         }
@@ -191,13 +174,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $options = ['resource_type' => $resourceType];
-
-            if ($this->isSensitivePath($path)) {
-                $options['type'] = 'authenticated';
-            }
-
-            $this->cloudinary->adminApi()->asset($publicId, $options);
+            $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType]);
 
             return true;
         } catch (\Throwable) {
@@ -224,23 +201,8 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
     {
         $publicId = $this->pathToPublicId($path);
         $resourceType = $this->detectResourceType($path);
-        $isRaw = $resourceType === 'raw';
 
-        if ($this->isSensitivePath($path)) {
-            $timestamp = time();
-            $toSign = "public_id={$publicId}&timestamp={$timestamp}{$this->apiSecret}";
-            $signature = sha1($toSign);
-
-            if ($isRaw) {
-                return "{$this->baseUrl}/{$resourceType}/authenticated/s--".substr(base64_encode(hex2bin($signature)), 0, 8)."--/{$publicId}";
-            }
-
-            $ext = pathinfo($path, PATHINFO_EXTENSION);
-
-            return "{$this->baseUrl}/{$resourceType}/authenticated/s--".substr(base64_encode(hex2bin($signature)), 0, 8)."--/{$publicId}.{$ext}";
-        }
-
-        if ($isRaw) {
+        if ($resourceType === 'raw') {
             return "{$this->baseUrl}/{$resourceType}/upload/{$publicId}";
         }
 
@@ -255,19 +217,13 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($storagePath);
 
         try {
-            $options = [
+            $this->uploadApi->upload($filePath, [
                 'public_id' => $publicId,
                 'resource_type' => $resourceType,
                 'overwrite' => true,
                 'use_filename' => false,
                 'unique_filename' => false,
-            ];
-
-            if ($this->isSensitivePath($storagePath)) {
-                $options['type'] = 'authenticated';
-            }
-
-            $this->uploadApi->upload($filePath, $options);
+            ]);
         } catch (\Throwable $e) {
             throw UnableToWriteFile::atLocation($storagePath, $e->getMessage(), $e);
         }
@@ -297,16 +253,5 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         }
 
         return 'raw';
-    }
-
-    private function isSensitivePath(string $path): bool
-    {
-        foreach (self::$sensitivePathPrefixes as $prefix) {
-            if (str_starts_with($path, $prefix)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
