@@ -83,10 +83,10 @@ class PromoController extends Controller
     {
         $user = $request->user();
 
-        $redemptions = PromoRedemption::with('promoCode')
-            ->where('user_id', $user->id)
-            ->orderByDesc('created_at')
-            ->paginate(min(max($request->integer('per_page', 15), 1), 100));
+        $redemptions = PromoRedemption::where('user_id', $user->id)
+            ->with(['promoCode', 'ride'])
+            ->orderByDesc('redeemed_at')
+            ->paginate(min(max($request->integer('per_page', 15), 1), 50));
 
         return response()->json([
             'redemptions' => PromoRedemptionResource::collection($redemptions),
