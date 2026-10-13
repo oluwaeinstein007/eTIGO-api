@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Driver;
 use App\Models\Ride;
+use App\Services\DriverEarningsService;
 use App\Services\FleetRemittanceService;
 use App\Services\PaymentService;
 use Illuminate\Bus\Queueable;
@@ -36,8 +37,11 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
         return $this->rideId;
     }
 
-    public function handle(PaymentService $paymentService, FleetRemittanceService $fleetService): void
-    {
+    public function handle(
+        PaymentService $paymentService,
+        FleetRemittanceService $fleetService,
+        DriverEarningsService $earningsService,
+    ): void {
         $ride = DB::transaction(function () {
             $ride = Ride::with('passenger')->lockForUpdate()->find($this->rideId);
 
@@ -70,6 +74,7 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
                 'status' => $payment->status->value,
             ]);
 
+            $this->creditDriverEarnings($ride, $payment, $earningsService);
             $this->recordFleetRemittance($ride, $payment, $fleetService);
         } catch (\Throwable $e) {
             Log::error('Payment processing failed', [
@@ -78,6 +83,31 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
             ]);
 
             throw $e;
+        }
+    }
+
+    private function creditDriverEarnings(Ride $ride, $payment, DriverEarningsService $earningsService): void
+    {
+        $shouldCredit = match ($payment->method) {
+            PaymentMethod::Cash => true,
+            PaymentMethod::Card, PaymentMethod::BankTransfer => $payment->status === PaymentStatus::Captured,
+            default => false,
+        };
+
+        if (! $shouldCredit) {
+            return;
+        }
+
+        $fareAmountKobo = (int) round((float) $payment->amount * 100);
+
+        try {
+            $earningsService->creditRideEarnings($ride, $fareAmountKobo);
+        } catch (\Throwable $e) {
+            Log::error('Failed to credit driver earnings', [
+                'ride_id' => $ride->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

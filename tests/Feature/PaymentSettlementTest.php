@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Notifications\CashChangeWalletCreditNotification;
 use App\Services\FakePaymentGateway;
+use App\Services\DriverEarningsService;
 use App\Services\FleetRemittanceService;
 use App\Services\LedgerService;
 use App\Services\PaymentService;
@@ -127,7 +128,7 @@ describe('ProcessPaymentJob', function () {
         Payment::factory()->captured()->create(['ride_id' => $ride->id]);
 
         $job = new ProcessPaymentJob($ride->id);
-        $job->handle(app(PaymentService::class), app(FleetRemittanceService::class));
+        $job->handle(app(PaymentService::class), app(FleetRemittanceService::class), app(DriverEarningsService::class));
 
         expect(Payment::where('ride_id', $ride->id)->count())->toBe(1);
     });

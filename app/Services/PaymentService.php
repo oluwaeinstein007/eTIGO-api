@@ -91,7 +91,7 @@ class PaymentService
         try {
             $result = $this->paymentGateway->chargeWithToken([
                 'token' => $defaultMethod->gateway_token,
-                'email' => $passenger->email,
+                'email' => $defaultMethod->gateway_email ?? $passenger->email,
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'tx_ref' => $txRef,
@@ -319,7 +319,7 @@ class PaymentService
             try {
                 $result = $this->paymentGateway->chargeWithToken([
                     'token' => $defaultMethod->gateway_token,
-                    'email' => $passenger->email,
+                    'email' => $defaultMethod->gateway_email ?? $passenger->email,
                     'amount' => $tipAmount,
                     'currency' => $ride->fare_currency,
                     'tx_ref' => $txRef,

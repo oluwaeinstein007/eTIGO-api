@@ -92,6 +92,7 @@ class PaymentMethodController extends Controller
                 ],
                 [
                     'gateway_token' => $result['authorization_code'],
+                    'gateway_email' => $request->user()->email,
                     'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
                 ],
             );

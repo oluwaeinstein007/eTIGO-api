@@ -10,6 +10,7 @@ use App\Jobs\ProcessPayoutWebhookJob;
 use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\Payment;
 use App\Models\WebhookEvent;
+use App\Services\DriverEarningsService;
 use App\Services\FlutterwavePaymentGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -170,6 +171,8 @@ class FlutterwaveWebhookController extends Controller
             $newStatus = PaymentStatus::Failed;
         }
 
+        $wasPending = $payment->status === PaymentStatus::Pending;
+
         $payment->update([
             'status' => $newStatus,
             'failure_reason' => $newStatus === PaymentStatus::Failed
@@ -178,6 +181,19 @@ class FlutterwaveWebhookController extends Controller
         ]);
 
         $payment->ride?->update(['payment_status' => $newStatus]);
+
+        if ($wasPending && $newStatus === PaymentStatus::Captured && $payment->ride) {
+            try {
+                $fareAmountKobo = (int) round((float) $payment->amount * 100);
+                app(DriverEarningsService::class)->creditRideEarnings($payment->ride, $fareAmountKobo);
+            } catch (\Throwable $e) {
+                Log::error('Webhook: failed to credit driver earnings', [
+                    'payment_id' => $payment->id,
+                    'ride_id' => $payment->ride_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         try {
             PaymentUpdated::dispatch($payment->fresh());
