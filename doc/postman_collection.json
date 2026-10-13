@@ -18108,6 +18108,67 @@
               ]
             },
             {
+              "name": "Flutterwave Webhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "verif-hash",
+                    "value": "your-webhook-secret-hash"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"charge.completed\",\n  \"data\": {\n    \"id\": 654321,\n    \"tx_ref\": \"ETIGO-RIDE-ABCDEFGHIJKL\",\n    \"flw_ref\": \"FLW-MOCK-REF\",\n    \"amount\": 5000,\n    \"currency\": \"NGN\",\n    \"status\": \"successful\",\n    \"payment_type\": \"card\",\n    \"customer\": {\n      \"email\": \"rider@example.com\"\n    }\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/webhooks/flutterwave",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhooks",
+                    "flutterwave"
+                  ]
+                },
+                "description": "**Flutterwave failover webhook endpoint.** No auth — verified by `verif-hash` header matching `FLUTTERWAVE_WEBHOOK_SECRET`. Handles Flutterwave payment events when Flutterwave is used as a failover gateway.\n\n**Handled events:**\n- `charge.completed` with `TOPUP-` tx_ref → wallet top-up\n- `charge.completed` (other) → ride payment verification\n- `transfer.completed` → payout completed\n- `transfer.failed` → payout failed\n\nAll events are deduplicated via the `webhook_events` table (provider=flutterwave). Idempotent."
+              },
+              "response": [
+                {
+                  "name": "200 — Webhook Received",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Webhook received.\"\n}"
+                },
+                {
+                  "name": "403 — Invalid Signature",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Invalid signature.\"\n}"
+                }
+              ]
+            },
+            {
               "name": "QoreID KYC Webhook (GET)",
               "request": {
                 "method": "GET",

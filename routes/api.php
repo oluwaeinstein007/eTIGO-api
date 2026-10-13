@@ -81,6 +81,7 @@ use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\TipSettingsController;
 use App\Http\Controllers\Api\V1\SosController;
+use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\PaystackWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -119,6 +120,7 @@ Route::get('/ev-stations/{station}', [EvStationController::class, 'show']);
 |--------------------------------------------------------------------------
 */
 Route::post('/webhooks/paystack', [PaystackWebhookController::class, 'handle']);
+Route::post('/webhooks/flutterwave', [FlutterwaveWebhookController::class, 'handle']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
 
 /*

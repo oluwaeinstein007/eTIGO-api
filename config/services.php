@@ -91,6 +91,14 @@ return [
         'fake' => filter_var(env('PAYSTACK_FAKE', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    'flutterwave' => [
+        'secret_key' => env('FLUTTERWAVE_SECRET_KEY'),
+        'public_key' => env('FLUTTERWAVE_PUBLIC_KEY'),
+        'encryption_key' => env('FLUTTERWAVE_ENCRYPTION_KEY'),
+        'webhook_secret' => env('FLUTTERWAVE_WEBHOOK_SECRET'),
+        'base_url' => env('FLUTTERWAVE_BASE_URL', 'https://api.flutterwave.com/v3'),
+    ],
+
     'qoreid' => [
         'client_id' => env('QOREID_CLIENT_ID'),
         'secret_key' => env('QOREID_SECRET_KEY'),
