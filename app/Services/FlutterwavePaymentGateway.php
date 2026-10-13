@@ -65,6 +65,7 @@ class FlutterwavePaymentGateway implements PaymentGateway
             'card_last_four' => $card['last_4digits'] ?? null,
             'card_brand' => $card['type'] ?? null,
             'authorization_code' => $card['token'] ?? null,
+            'provider' => 'flutterwave',
         ];
     }
 

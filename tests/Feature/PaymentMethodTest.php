@@ -21,6 +21,7 @@ it('lists payment methods for the authenticated user', function () {
         'card_last_four' => '4242',
         'card_expiry_month' => 12,
         'card_expiry_year' => 2028,
+        'provider' => 'paystack',
         'is_default' => true,
     ]);
 
@@ -33,6 +34,7 @@ it('lists payment methods for the authenticated user', function () {
         ->assertJsonPath('payment_methods.0.is_default', false)
         ->assertJsonPath('payment_methods.1.type', 'card')
         ->assertJsonPath('payment_methods.1.card_last_four', '4242')
+        ->assertJsonPath('payment_methods.1.provider', 'paystack')
         ->assertJsonPath('payment_methods.1.is_default', true)
         ->assertJsonMissing(['gateway_token' => 'tok_test_123']);
 });
@@ -112,6 +114,7 @@ it('verifies a transaction and saves the payment method', function () {
         'user_id' => $this->user->id,
         'card_last_four' => '4242',
         'card_brand' => 'VISA',
+        'provider' => 'paystack',
         'is_default' => true,
     ]);
 });

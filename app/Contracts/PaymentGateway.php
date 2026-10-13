@@ -16,12 +16,12 @@ interface PaymentGateway
     public function initializePayment(array $data): array;
 
     /**
-     * @return array{status: string, tx_ref: string, transaction_id: string, amount: float, currency: string, payment_type: string, card_last_four: ?string, card_brand: ?string}
+     * @return array{status: string, tx_ref: string, transaction_id: string, amount: float, currency: string, payment_type: string, card_last_four: ?string, card_brand: ?string, authorization_code?: ?string, provider?: string}
      */
     public function verifyTransaction(string $transactionId): array;
 
     /**
-     * @param  array{token: string, email: string, amount: float, currency: string, tx_ref: string}  $data
+     * @param  array{token: string, email: string, amount: float, currency: string, tx_ref: string, provider?: ?string}  $data
      * @return array{status: string, transaction_id: string, amount: float}
      */
     public function chargeWithToken(array $data): array;

@@ -132,16 +132,47 @@ describe('FallbackPaymentGateway token charging', function () {
             ->and($result['transaction_id'])->toBe('pstk_tx_101');
     });
 
-    it('tries primary first and succeeds for unrecognized token prefix', function () {
-        $primary = Mockery::mock(PaymentGateway::class);
-        $fallback = Mockery::mock(PaymentGateway::class);
+    it('routes by explicit provider flutterwave directly to Flutterwave gateway', function () {
+        $primary = Mockery::mock(PaystackPaymentGateway::class);
+        $fallback = Mockery::mock(FlutterwavePaymentGateway::class);
 
         $payload = [
-            'token' => 'custom_token_format_999',
-            'email' => 'user@example.com',
-            'amount' => 200.0,
+            'provider' => 'flutterwave',
+            'token' => 'custom_token_123',
+            'email' => 'passenger@example.com',
+            'amount' => 500.0,
             'currency' => 'NGN',
-            'tx_ref' => 'ETIGO-202',
+            'tx_ref' => 'ETIGO-TIP-FW1',
+        ];
+
+        $primary->shouldNotReceive('chargeWithToken');
+        $fallback->shouldReceive('chargeWithToken')
+            ->once()
+            ->with($payload)
+            ->andReturn([
+                'status' => 'successful',
+                'transaction_id' => 'flw_tx_fw1',
+                'amount' => 500.0,
+            ]);
+
+        $gateway = new FallbackPaymentGateway($primary, $fallback);
+        $result = $gateway->chargeWithToken($payload);
+
+        expect($result['status'])->toBe('successful')
+            ->and($result['transaction_id'])->toBe('flw_tx_fw1');
+    });
+
+    it('routes by explicit provider paystack directly to Paystack gateway', function () {
+        $primary = Mockery::mock(PaystackPaymentGateway::class);
+        $fallback = Mockery::mock(FlutterwavePaymentGateway::class);
+
+        $payload = [
+            'provider' => 'paystack',
+            'token' => 'custom_token_456',
+            'email' => 'passenger@example.com',
+            'amount' => 500.0,
+            'currency' => 'NGN',
+            'tx_ref' => 'ETIGO-TIP-PSTK1',
         ];
 
         $primary->shouldReceive('chargeWithToken')
@@ -149,50 +180,43 @@ describe('FallbackPaymentGateway token charging', function () {
             ->with($payload)
             ->andReturn([
                 'status' => 'successful',
-                'transaction_id' => 'custom_tx_202',
-                'amount' => 200.0,
+                'transaction_id' => 'pstk_tx_p1',
+                'amount' => 500.0,
             ]);
-
         $fallback->shouldNotReceive('chargeWithToken');
 
         $gateway = new FallbackPaymentGateway($primary, $fallback);
         $result = $gateway->chargeWithToken($payload);
 
         expect($result['status'])->toBe('successful')
-            ->and($result['transaction_id'])->toBe('custom_tx_202');
+            ->and($result['transaction_id'])->toBe('pstk_tx_p1');
     });
 
-    it('falls back to secondary gateway when primary fails for unrecognized token prefix', function () {
-        $primary = Mockery::mock(PaymentGateway::class);
-        $fallback = Mockery::mock(PaymentGateway::class);
+    it('does not fall back to other gateway when chargeWithToken throws', function () {
+        $primary = Mockery::mock(PaystackPaymentGateway::class);
+        $fallback = Mockery::mock(FlutterwavePaymentGateway::class);
 
         $payload = [
-            'token' => 'custom_token_format_999',
-            'email' => 'user@example.com',
-            'amount' => 200.0,
+            'provider' => 'paystack',
+            'token' => 'AUTH_expired_card',
+            'email' => 'passenger@example.com',
+            'amount' => 500.0,
             'currency' => 'NGN',
-            'tx_ref' => 'ETIGO-203',
+            'tx_ref' => 'ETIGO-FAIL-1',
         ];
 
         $primary->shouldReceive('chargeWithToken')
             ->once()
             ->with($payload)
-            ->andThrow(new RuntimeException('Network timeout on primary'));
+            ->andThrow(new RuntimeException('Card declined'));
 
-        $fallback->shouldReceive('chargeWithToken')
-            ->once()
-            ->with($payload)
-            ->andReturn([
-                'status' => 'successful',
-                'transaction_id' => 'fallback_tx_203',
-                'amount' => 200.0,
-            ]);
+        // Fallback MUST NOT be called because tokens cannot be transferred across gateways
+        $fallback->shouldNotReceive('chargeWithToken');
 
         $gateway = new FallbackPaymentGateway($primary, $fallback);
-        $result = $gateway->chargeWithToken($payload);
 
-        expect($result['status'])->toBe('successful')
-            ->and($result['transaction_id'])->toBe('fallback_tx_203');
+        expect(fn () => $gateway->chargeWithToken($payload))
+            ->toThrow(RuntimeException::class, 'Card declined');
     });
 });
 
