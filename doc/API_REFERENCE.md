@@ -8215,19 +8215,20 @@ Content-Type: application/json
 
 `POST /api/v1/promos/validate`
 
-Validates a promo code against all eligibility rules. Returns discount preview when `fare_amount` is provided.
+Pre-validates a promo code for the authenticated passenger. Checks code existence, active status, time window, and user-level eligibility. Returns the promo's configured discount details so the frontend can display what the user will receive (e.g. "50% off, up to ₦2,000").
+
+**Design rationale:** Only the `code` field is used for validation. Extra ride-context fields (city, vehicle class, coordinates, fare) are ignored if sent. Ride-context checks (city, vehicle class, geo-fence, fare amount, peak/off-peak) are deferred to apply time — the backend derives all context from the Ride model, preventing frontend spoofing. City-restricted or geo-fenced promos will still pass validation here; their restrictions are returned in the response so the frontend can display them, but enforcement happens server-side when the promo is applied to a ride.
 
 **Request:**
 ```json
 {
-  "code": "WELCOME20",
-  "city_id": "uuid (optional)",
-  "vehicle_class_id": "uuid (optional)",
-  "pickup_lat": 9.0579 (optional),
-  "pickup_lng": 7.4951 (optional),
-  "fare_amount": 5000.00 (optional)
+  "code": "WELCOME50"
 }
 ```
+
+| Field  | Type   | Required | Description              |
+|--------|--------|----------|--------------------------|
+| `code` | string | Yes      | The promo code to check  |
 
 **Response (200 — valid):**
 ```json
@@ -8235,28 +8236,55 @@ Validates a promo code against all eligibility rules. Returns discount preview w
   "valid": true,
   "promo": {
     "id": "uuid",
-    "code": "WELCOME20",
-    "description": "Welcome discount for new riders",
+    "code": "WELCOME50",
+    "description": "50% off your first ride",
     "discount_type": "percentage",
     "discount_type_label": "Percentage",
-    "discount_value": "20.00",
+    "discount_value": "50.00",
     "max_discount_cap": "2000.00",
     "per_user_limit": 1,
-    "starts_at": "2026-10-01T00:00:00.000Z",
-    "expires_at": "2026-11-01T00:00:00.000Z",
+    "starts_at": "2026-10-01T00:00:00.000000Z",
+    "expires_at": "2026-12-31T23:59:59.000000Z",
     "min_tier_level": null,
     "peak_only": false,
     "off_peak_only": false,
     "city_id": null,
     "vehicle_class_id": null,
     "minimum_fare_amount": null,
-    "is_active": true
-  },
-  "discount_preview": {
-    "discount_amount": 1000,
+    "is_active": true,
+    "city": null,
+    "vehicle_class": null
+  }
+}
+```
+
+**Response (200 — valid, city-restricted promo):**
+
+City/vehicle restrictions are returned as informational data. The frontend should display these to the user (e.g. "Valid in Lagos only"), but enforcement happens at apply time.
+
+```json
+{
+  "valid": true,
+  "promo": {
+    "id": "uuid",
+    "code": "LAGOS30",
+    "description": "30% off rides in Lagos",
     "discount_type": "percentage",
-    "discount_value": "20.00",
-    "max_discount_cap": "2000.00"
+    "discount_type_label": "Percentage",
+    "discount_value": "30.00",
+    "max_discount_cap": "1500.00",
+    "per_user_limit": 3,
+    "starts_at": "2026-10-01T00:00:00.000000Z",
+    "expires_at": "2026-12-31T23:59:59.000000Z",
+    "city_id": "uuid",
+    "vehicle_class_id": null,
+    "minimum_fare_amount": "1000.00",
+    "is_active": true,
+    "city": {
+      "id": "uuid",
+      "name": "Lagos"
+    },
+    "vehicle_class": null
   }
 }
 ```
@@ -8269,25 +8297,44 @@ Validates a promo code against all eligibility rules. Returns discount preview w
 }
 ```
 
-**Validation rules checked (in order):**
+**Possible rejection messages:**
+- `"Invalid promo code."` — code does not exist
+- `"This promo code is no longer active."` — admin deactivated
+- `"This promo code is not yet active."` — starts_at is in the future
+- `"This promo code has expired."` — past expires_at
+- `"Your tier level does not qualify for this promo code."` — user tier too low
+- `"You need at least {n} completed rides to use this code."` — min ride count not met
+- `"This promo code is for new users only."` — max ride count exceeded
+- `"You have already used this promo code the maximum number of times."` — per-user limit
+- `"This promo code has reached its redemption limit."` — global limit
+
+**Validation rules checked at this stage (user eligibility):**
 1. Code exists
 2. Code is active
 3. Within time window (starts_at ≤ now < expires_at)
-4. City restriction (if set)
-5. Vehicle class restriction (if set)
-6. Minimum fare requirement (if set)
-7. Geo-fence (radius or polygon, if set)
-8. Peak/off-peak constraint (if set)
-9. Tier level requirement (if set)
-10. Completed ride count (min_order_count / max_order_count)
-11. Per-user redemption limit
-12. Global redemption limit
+4. Tier level requirement (if set)
+5. Completed ride count (min_order_count / max_order_count)
+6. Per-user redemption limit
+7. Global redemption limit
+
+**Rules deferred to apply time (ride context — derived from Ride model):**
+1. City restriction (matched against ride's pickup city)
+2. Vehicle class restriction (matched against ride's vehicle class)
+3. Minimum fare requirement (checked against ride's fare)
+4. Geo-fence (radius or polygon, checked against ride's pickup coordinates)
+5. Peak/off-peak constraint (checked at time of ride)
 
 ### Available Promos
 
 `GET /api/v1/promos/available`
 
-Returns promo codes the authenticated user is currently eligible to use.
+Returns active promo codes the authenticated user is currently eligible for. Pass `city_id` to also include promos restricted to that city alongside universal ones.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description                                                                                |
+|-----------|------|----------|--------------------------------------------------------------------------------------------|
+| `city_id` | uuid | No       | Include promos restricted to this city. Without it, only universal (no city restriction) promos are returned. |
 
 **Response (200):**
 ```json
@@ -8295,14 +8342,30 @@ Returns promo codes the authenticated user is currently eligible to use.
   "promos": [
     {
       "id": "uuid",
-      "code": "WELCOME20",
-      "description": "Welcome discount",
+      "code": "WELCOME50",
+      "description": "50% off your first ride",
       "discount_type": "percentage",
-      "discount_value": "20.00",
+      "discount_type_label": "Percentage",
+      "discount_value": "50.00",
       "max_discount_cap": "2000.00",
       "per_user_limit": 1,
-      "starts_at": "...",
-      "expires_at": "..."
+      "starts_at": "2026-10-01T00:00:00.000000Z",
+      "expires_at": "2026-12-31T23:59:59.000000Z",
+      "city_id": null,
+      "is_active": true,
+      "city": null,
+      "vehicle_class": null
+    },
+    {
+      "id": "uuid",
+      "code": "LAGOS30",
+      "description": "30% off rides in Lagos",
+      "discount_type": "percentage",
+      "discount_value": "30.00",
+      "max_discount_cap": "1500.00",
+      "city_id": "uuid",
+      "city": { "id": "uuid", "name": "Lagos" },
+      "vehicle_class": null
     }
   ]
 }

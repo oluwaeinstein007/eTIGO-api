@@ -3946,10 +3946,10 @@
                     "validate"
                   ]
                 },
-                "description": "Validates a promo code and optionally previews the discount. `code` required. Optional: `city_id`, `vehicle_class_id`, `pickup_lat`, `pickup_lng`, `fare_amount`.",
+                "description": "Pre-validates a promo code for the authenticated passenger. Checks code existence, active status, time window, and user-level eligibility (tier, ride count, redemption limits). Returns the promo's configured discount details so the frontend can display what the user will receive (e.g. \"50% off, up to ₦2,000\"). Ride-context checks (city, vehicle class, geo-fence, fare amount, peak/off-peak) are deferred to apply time when the ride is created — the backend derives all context from the Ride model, not from frontend input. Only the  field is accepted.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"code\": \"WELCOME50\",\n  \"city_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"fare_amount\": 5000\n}"
+                  "raw": "{\n  \"code\": \"WELCOME50\"\n}"
                 }
               },
               "response": [
@@ -3963,10 +3963,34 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"valid\": true,\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000\n  },\n  \"discount_preview\": {\n    \"discount_amount\": 2000,\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000\n  }\n}"
+                  "body": "{\n  \"valid\": true,\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"description\": \"50% off your first ride\",\n    \"discount_type\": \"percentage\",\n    \"discount_type_label\": \"Percentage\",\n    \"discount_value\": \"50.00\",\n    \"max_discount_cap\": \"2000.00\",\n    \"per_user_limit\": 1,\n    \"starts_at\": \"2026-10-01T00:00:00.000000Z\",\n    \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n    \"min_tier_level\": null,\n    \"peak_only\": false,\n    \"off_peak_only\": false,\n    \"city_id\": null,\n    \"vehicle_class_id\": null,\n    \"minimum_fare_amount\": null,\n    \"is_active\": true,\n    \"city\": null,\n    \"vehicle_class\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\",\n    \"updated_at\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "422 — Invalid",
+                  "name": "200 — Valid (city-restricted promo)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"valid\": true,\n  \"promo\": {\n    \"id\": \"8d2e3f4a-5b6c-7d8e-9012-bcdef2345678\",\n    \"code\": \"LAGOS30\",\n    \"description\": \"30% off rides in Lagos\",\n    \"discount_type\": \"percentage\",\n    \"discount_type_label\": \"Percentage\",\n    \"discount_value\": \"30.00\",\n    \"max_discount_cap\": \"1500.00\",\n    \"per_user_limit\": 3,\n    \"starts_at\": \"2026-10-01T00:00:00.000000Z\",\n    \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n    \"min_tier_level\": null,\n    \"peak_only\": false,\n    \"off_peak_only\": false,\n    \"city_id\": \"1a2b3c4d-5e6f-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": null,\n    \"minimum_fare_amount\": \"1000.00\",\n    \"is_active\": true,\n    \"city\": {\n      \"id\": \"1a2b3c4d-5e6f-7890-abcd-ef1234567890\",\n      \"name\": \"Lagos\"\n    },\n    \"vehicle_class\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\",\n    \"updated_at\": \"2026-10-01T00:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 — Invalid code",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"valid\": false,\n  \"message\": \"Invalid promo code.\"\n}"
+                },
+                {
+                  "name": "422 — Expired",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -3976,6 +4000,18 @@
                     }
                   ],
                   "body": "{\n  \"valid\": false,\n  \"message\": \"This promo code has expired.\"\n}"
+                },
+                {
+                  "name": "422 — User limit reached",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"valid\": false,\n  \"message\": \"You have already used this promo code the maximum number of times.\"\n}"
                 }
               ]
             },
@@ -3994,16 +4030,24 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/promos/available",
+                  "raw": "{{base_url}}/promos/available?city_id=",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "promos",
                     "available"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Optional. UUID of the city to include city-specific promos alongside universal ones. Without this, only universal promos (no city restriction) are returned.",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "Returns active promo codes the user is eligible for (global promos, not yet exhausted)."
+                "description": "Returns active promo codes the authenticated user is currently eligible for. Pass  as a query parameter to also include promos restricted to that city. Without , only universal (city-unrestricted) promos are listed. Eligibility checks: active status, time window, tier level, ride count, per-user and global redemption limits."
               },
               "response": [
                 {
@@ -4016,7 +4060,19 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_value\": 50,\n      \"max_discount_cap\": 2000,\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n    }\n  ]\n}"
+                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_type_label\": \"Percentage\",\n      \"discount_value\": \"50.00\",\n      \"max_discount_cap\": \"2000.00\",\n      \"per_user_limit\": 1,\n      \"starts_at\": \"2026-10-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n      \"min_tier_level\": null,\n      \"peak_only\": false,\n      \"off_peak_only\": false,\n      \"city_id\": null,\n      \"vehicle_class_id\": null,\n      \"minimum_fare_amount\": null,\n      \"is_active\": true,\n      \"city\": null,\n      \"vehicle_class\": null\n    },\n    {\n      \"id\": \"8d2e3f4a-5b6c-7d8e-9012-bcdef2345678\",\n      \"code\": \"LAGOS30\",\n      \"description\": \"30% off rides in Lagos\",\n      \"discount_type\": \"percentage\",\n      \"discount_type_label\": \"Percentage\",\n      \"discount_value\": \"30.00\",\n      \"max_discount_cap\": \"1500.00\",\n      \"per_user_limit\": 3,\n      \"starts_at\": \"2026-10-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n      \"min_tier_level\": null,\n      \"peak_only\": false,\n      \"off_peak_only\": false,\n      \"city_id\": \"1a2b3c4d-5e6f-7890-abcd-ef1234567890\",\n      \"vehicle_class_id\": null,\n      \"minimum_fare_amount\": \"1000.00\",\n      \"is_active\": true,\n      \"city\": {\n        \"id\": \"1a2b3c4d-5e6f-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": null\n    }\n  ]\n}"
+                },
+                {
+                  "name": "200 — No city (universal only)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_type_label\": \"Percentage\",\n      \"discount_value\": \"50.00\",\n      \"max_discount_cap\": \"2000.00\",\n      \"per_user_limit\": 1,\n      \"starts_at\": \"2026-10-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n      \"city_id\": null,\n      \"is_active\": true\n    }\n  ]\n}"
                 }
               ]
             }

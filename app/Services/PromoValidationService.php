@@ -101,6 +101,63 @@ class PromoValidationService
     }
 
     /**
+     * Validate a promo code for a user without ride context.
+     * Checks: code existence, active status, time window, user eligibility.
+     * Defers ride-context checks (city, vehicle class, fare, geo-fence, peak/off-peak) to apply time.
+     *
+     * @return array{valid: bool, promo: PromoCode|null, reason: string|null}
+     */
+    public function validateForUser(string $code, string $userId): array
+    {
+        $promo = PromoCode::byCode($code)->first();
+
+        if (! $promo) {
+            return $this->reject('Invalid promo code.');
+        }
+
+        if (! $promo->is_active) {
+            return $this->reject('This promo code is no longer active.');
+        }
+
+        if (! $promo->isWithinTimeWindow()) {
+            if (now()->lt($promo->starts_at)) {
+                return $this->reject('This promo code is not yet active.');
+            }
+
+            return $this->reject('This promo code has expired.');
+        }
+
+        if ($promo->min_tier_level) {
+            $userTier = $this->tierGateService->getUserTierLevel($userId);
+            if ($userTier < $promo->min_tier_level) {
+                return $this->reject('Your tier level does not qualify for this promo code.');
+            }
+        }
+
+        $userCompletedRides = $this->getUserCompletedRideCount($userId);
+
+        if ($promo->min_order_count !== null && $userCompletedRides < $promo->min_order_count) {
+            return $this->reject("You need at least {$promo->min_order_count} completed rides to use this code.");
+        }
+
+        if ($promo->max_order_count !== null && $userCompletedRides > $promo->max_order_count) {
+            return $this->reject('This promo code is for new users only.');
+        }
+
+        if ($promo->hasReachedUserLimit($userId)) {
+            return $this->reject('You have already used this promo code the maximum number of times.');
+        }
+
+        if ($promo->hasReachedGlobalLimit()) {
+            return $this->reject('This promo code has reached its redemption limit.');
+        }
+
+        $promo->load(['city', 'vehicleClass']);
+
+        return ['valid' => true, 'promo' => $promo, 'reason' => null];
+    }
+
+    /**
      * Check user-level eligibility only (tier, order count, redemption limits).
      * Skips ride-context checks (city, vehicle class, fare, geo-fence, peak/off-peak).
      * Used by the available promos listing where ride context is unknown.

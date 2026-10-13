@@ -26,44 +26,30 @@ it('validates a valid promo code', function () {
 
     $response->assertOk()
         ->assertJsonPath('valid', true)
-        ->assertJsonPath('promo.code', 'VALID20');
+        ->assertJsonPath('promo.code', 'VALID20')
+        ->assertJsonPath('promo.discount_type', $promo->discount_type->value)
+        ->assertJsonPath('promo.discount_value', $promo->discount_value);
 });
 
-it('returns discount preview when fare_amount provided', function () {
+it('returns promo details with discount info for frontend display', function () {
     PromoCode::factory()->create([
-        'code' => 'PREVIEW',
+        'code' => 'DISPLAY50',
         'discount_type' => 'percentage',
-        'discount_value' => 20,
+        'discount_value' => 50,
         'max_discount_cap' => 1000,
     ]);
 
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/promos/validate', [
-            'code' => 'PREVIEW',
-            'fare_amount' => 3000,
+            'code' => 'DISPLAY50',
         ]);
 
     $response->assertOk()
         ->assertJsonPath('valid', true)
-        ->assertJsonPath('discount_preview.discount_amount', 600);
-});
-
-it('caps percentage discount at max_discount_cap', function () {
-    PromoCode::factory()->create([
-        'code' => 'CAPPED',
-        'discount_type' => 'percentage',
-        'discount_value' => 50,
-        'max_discount_cap' => 500,
-    ]);
-
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/promos/validate', [
-            'code' => 'CAPPED',
-            'fare_amount' => 5000,
-        ]);
-
-    $response->assertOk()
-        ->assertJsonPath('discount_preview.discount_amount', 500);
+        ->assertJsonPath('promo.discount_type', 'percentage')
+        ->assertJsonPath('promo.discount_value', '50.00')
+        ->assertJsonPath('promo.max_discount_cap', '1000.00')
+        ->assertJsonMissing(['discount_preview']);
 });
 
 it('rejects invalid promo code', function () {
@@ -140,55 +126,53 @@ it('rejects promo when global limit reached', function () {
         ->assertJsonPath('valid', false);
 });
 
-it('rejects promo for wrong city', function () {
-    $otherCity = City::factory()->create();
+it('accepts city-restricted promo at validation time (context checked at apply)', function () {
+    $city = City::factory()->create();
     PromoCode::factory()->create([
         'code' => 'CITYONLY',
-        'city_id' => $otherCity->id,
+        'city_id' => $city->id,
     ]);
 
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/promos/validate', [
             'code' => 'CITYONLY',
-            'city_id' => $this->city->id,
         ]);
 
-    $response->assertUnprocessable()
-        ->assertJsonPath('valid', false)
-        ->assertJsonPath('message', 'This promo code is not valid in your city.');
+    $response->assertOk()
+        ->assertJsonPath('valid', true)
+        ->assertJsonPath('promo.city_id', $city->id);
 });
 
-it('rejects promo for wrong vehicle class', function () {
-    $otherVc = VehicleClass::factory()->create();
+it('accepts vehicle-class-restricted promo at validation time', function () {
+    $vc = VehicleClass::factory()->create();
     PromoCode::factory()->create([
         'code' => 'VCONLY',
-        'vehicle_class_id' => $otherVc->id,
+        'vehicle_class_id' => $vc->id,
     ]);
 
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/promos/validate', [
             'code' => 'VCONLY',
-            'vehicle_class_id' => $this->vehicleClass->id,
         ]);
 
-    $response->assertUnprocessable()
-        ->assertJsonPath('valid', false);
+    $response->assertOk()
+        ->assertJsonPath('valid', true)
+        ->assertJsonPath('promo.vehicle_class_id', $vc->id);
 });
 
-it('rejects promo when minimum fare not met', function () {
+it('accepts geo-fenced promo at validation time', function () {
     PromoCode::factory()->create([
-        'code' => 'MINFARE',
-        'minimum_fare_amount' => 2000,
+        'code' => 'GEOPROMO',
+        'geo_fence' => ['center_lat' => 9.0, 'center_lng' => 7.5, 'radius_km' => 10],
     ]);
 
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/promos/validate', [
-            'code' => 'MINFARE',
-            'fare_amount' => 1000,
+            'code' => 'GEOPROMO',
         ]);
 
-    $response->assertUnprocessable()
-        ->assertJsonPath('valid', false);
+    $response->assertOk()
+        ->assertJsonPath('valid', true);
 });
 
 it('rejects promo for new users only when user has too many rides', function () {
@@ -243,69 +227,6 @@ it('accepts promo when user tier meets minimum', function () {
         ->assertJsonPath('valid', true);
 });
 
-it('rejects city-restricted promo when no city context provided', function () {
-    $city = City::factory()->create();
-    PromoCode::factory()->create([
-        'code' => 'CITYNOCTX',
-        'city_id' => $city->id,
-    ]);
-
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/promos/validate', [
-            'code' => 'CITYNOCTX',
-        ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonPath('valid', false)
-        ->assertJsonPath('message', 'This promo code is not valid in your city.');
-});
-
-it('rejects geo-fenced promo when no pickup coords provided', function () {
-    PromoCode::factory()->create([
-        'code' => 'GEONOCTX',
-        'geo_fence' => ['center_lat' => 9.0, 'center_lng' => 7.5, 'radius_km' => 10],
-    ]);
-
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/promos/validate', [
-            'code' => 'GEONOCTX',
-        ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonPath('valid', false)
-        ->assertJsonPath('message', 'This promo code is not valid in your area.');
-});
-
-it('accepts city-restricted promo when matching city provided', function () {
-    $city = City::factory()->create();
-    PromoCode::factory()->create([
-        'code' => 'CITYOK',
-        'city_id' => $city->id,
-    ]);
-
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/promos/validate', [
-            'code' => 'CITYOK',
-            'city_id' => $city->id,
-        ]);
-
-    $response->assertOk()
-        ->assertJsonPath('valid', true);
-});
-
-it('shows city-restricted promos in available list via user eligibility', function () {
-    $city = City::factory()->create();
-    PromoCode::factory()->create(['code' => 'UNIVERSAL']);
-    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
-
-    $response = $this->withToken($this->token)
-        ->getJson('/api/v1/promos/available');
-
-    $response->assertOk();
-    $codes = collect($response->json('promos'))->pluck('code')->all();
-    expect($codes)->toContain('UNIVERSAL');
-});
-
 it('is case-insensitive on promo code input', function () {
     PromoCode::factory()->create(['code' => 'UPPER']);
 
@@ -331,6 +252,34 @@ it('returns available promos for user', function () {
         ->assertJsonCount(2, 'promos');
 });
 
+it('includes city-specific promos when city_id provided', function () {
+    $city = City::factory()->create();
+    PromoCode::factory()->create(['code' => 'UNIVERSAL']);
+    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
+
+    $response = $this->withToken($this->token)
+        ->getJson('/api/v1/promos/available?city_id=' . $city->id);
+
+    $response->assertOk();
+    $codes = collect($response->json('promos'))->pluck('code')->all();
+    expect($codes)->toContain('UNIVERSAL')
+        ->and($codes)->toContain('CITYPROMO');
+});
+
+it('excludes city-specific promos when no city_id provided', function () {
+    $city = City::factory()->create();
+    PromoCode::factory()->create(['code' => 'UNIVERSAL']);
+    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
+
+    $response = $this->withToken($this->token)
+        ->getJson('/api/v1/promos/available');
+
+    $response->assertOk();
+    $codes = collect($response->json('promos'))->pluck('code')->all();
+    expect($codes)->toContain('UNIVERSAL')
+        ->and($codes)->not->toContain('CITYPROMO');
+});
+
 it('filters out already-used promos from available', function () {
     $promo = PromoCode::factory()->create([
         'code' => 'USED',
@@ -352,4 +301,19 @@ it('filters out already-used promos from available', function () {
     $codes = collect($response->json('promos'))->pluck('code')->all();
     expect($codes)->toContain('FRESH');
     expect($codes)->not->toContain('USED');
+});
+
+it('ignores ride-context fields in validate payload', function () {
+    PromoCode::factory()->create(['code' => 'SIMPLE']);
+
+    $response = $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', [
+            'code' => 'SIMPLE',
+            'city_id' => '9a1b2c3d-4e5f-6789-0abc-def123456789',
+            'fare_amount' => 5000,
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('valid', true)
+        ->assertJsonMissing(['discount_preview']);
 });

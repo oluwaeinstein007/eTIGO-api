@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\DiscountType;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
+use App\Models\Ride;
 use Illuminate\Support\Facades\DB;
 
 class PromoApplicationService
@@ -39,20 +40,15 @@ class PromoApplicationService
 
     /**
      * Atomically validate and apply a promo code to a ride.
+     * All context (city, vehicle class, pickup location, fare) is derived from the Ride model.
      *
      * @return array{success: bool, discount_amount: float|null, promo_code_id: string|null, reason: string|null}
      */
-    public function apply(
-        string $code,
-        string $userId,
-        string $rideId,
-        float $fareAmount,
-        ?string $cityId = null,
-        ?string $vehicleClassId = null,
-        ?float $pickupLat = null,
-        ?float $pickupLng = null,
-    ): array {
-        return DB::transaction(function () use ($code, $userId, $rideId, $fareAmount, $cityId, $vehicleClassId, $pickupLat, $pickupLng) {
+    public function applyToRide(string $code, Ride $ride): array
+    {
+        $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
+
+        return DB::transaction(function () use ($code, $ride, $fareAmount) {
             $promo = PromoCode::byCode($code)->lockForUpdate()->first();
 
             if (! $promo) {
@@ -60,7 +56,13 @@ class PromoApplicationService
             }
 
             $validation = $this->validationService->validate(
-                $code, $userId, $cityId, $vehicleClassId, $pickupLat, $pickupLng, $fareAmount,
+                code: $code,
+                userId: $ride->passenger_id,
+                cityId: $ride->city_id,
+                vehicleClassId: $ride->vehicle_class_id,
+                pickupLat: $ride->pickup_lat ? (float) $ride->pickup_lat : null,
+                pickupLng: $ride->pickup_lng ? (float) $ride->pickup_lng : null,
+                fareAmount: $fareAmount,
             );
 
             if (! $validation['valid']) {
@@ -75,8 +77,8 @@ class PromoApplicationService
 
             PromoRedemption::create([
                 'promo_code_id' => $promo->id,
-                'user_id' => $userId,
-                'ride_id' => $rideId,
+                'user_id' => $ride->passenger_id,
+                'ride_id' => $ride->id,
                 'discount_amount' => $calculation['discount_amount'],
                 'redeemed_at' => now(),
             ]);
