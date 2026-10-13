@@ -2,6 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Enums\AccountStatus;
+use App\Enums\AccountType;
+use App\Enums\DisputeCategory;
+use App\Enums\DisputeOutcome;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
@@ -12,10 +16,13 @@ use App\Enums\FleetAgreementStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
 use App\Enums\NotificationCategory;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Enums\SanctionTier;
 use App\Enums\SosTriggerType;
 use App\Enums\SurgeType;
 use App\Enums\UserType;
+use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\BankAccount;
 use App\Models\City;
@@ -30,6 +37,7 @@ use App\Models\GamificationProfile;
 use App\Models\KycVerification;
 use App\Models\Notification;
 use App\Models\NotificationPreference;
+use App\Models\OfflineTripFlag;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\SavedPlace;
@@ -79,6 +87,8 @@ class DemoSeeder extends Seeder
         $this->seedEvCharging($drivers);
         $this->seedFleetAgreements($drivers);
         $this->seedSosIncident($rides);
+        $this->seedWalletAccounts($passengers, $drivers);
+        $this->seedOfflineTripFlags($rides, $drivers);
     }
 
     private function seedVehicleClasses(): void
@@ -496,6 +506,20 @@ class DemoSeeder extends Seeder
                 'cancelled_by' => $passengers['ngozi']->id, 'cancellation_reason' => 'Driver was taking too long to arrive.',
             ],
             [
+                'passenger' => $passengers['funmi'], 'driver' => $drivers['bayo'],
+                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[2],
+                'status' => 'completed', 'fare' => 2200.00, 'payment_status' => PaymentStatus::Collected->value,
+                'payment_method' => PaymentMethod::Cash,
+                'created' => now()->subDays(3), 'started' => now()->subDays(3)->addMinutes(5), 'completed' => now()->subDays(3)->addMinutes(28),
+            ],
+            [
+                'passenger' => $passengers['ngozi'], 'driver' => $drivers['kemi'],
+                'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[3],
+                'status' => 'completed', 'fare' => 4800.00, 'payment_status' => PaymentStatus::Settled->value,
+                'payment_method' => PaymentMethod::Wallet,
+                'created' => now()->subDays(2), 'started' => now()->subDays(2)->addMinutes(4), 'completed' => now()->subDays(2)->addMinutes(35),
+            ],
+            [
                 'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
                 'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[0],
                 'status' => 'in_progress', 'fare' => null, 'payment_status' => 'pending',
@@ -539,7 +563,7 @@ class DemoSeeder extends Seeder
                 'final_fare_amount' => $data['status'] === 'completed' ? $data['fare'] : null,
                 'fare_currency' => 'NGN',
                 'pricing_snapshot' => $pricingSnapshot,
-                'payment_method' => 'card',
+                'payment_method' => isset($data['payment_method']) ? $data['payment_method']->value : PaymentMethod::Card->value,
                 'payment_status' => $data['payment_status'],
                 'cancelled_by' => $data['cancelled_by'] ?? null,
                 'cancellation_reason' => $data['cancellation_reason'] ?? null,
@@ -553,15 +577,16 @@ class DemoSeeder extends Seeder
             $this->seedRideTransitions($ride, $data);
 
             if ($data['status'] === 'completed' && $data['fare']) {
+                $paymentMethod = $data['payment_method'] ?? PaymentMethod::Card;
                 Payment::create([
                     'ride_id' => $ride->id,
                     'amount' => $data['fare'],
                     'currency' => 'NGN',
-                    'method' => 'card',
-                    'gateway_transaction_id' => 'FLW_TXN_'.Str::random(16),
-                    'gateway_payment_method_id' => 'FLW_PM_'.Str::random(12),
+                    'method' => $paymentMethod->value,
+                    'gateway_transaction_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_TXN_'.Str::random(16),
+                    'gateway_payment_method_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_PM_'.Str::random(12),
                     'tip_amount' => rand(0, 3) === 0 ? rand(2, 10) * 100 : 0,
-                    'status' => PaymentStatus::Settled->value,
+                    'status' => $data['payment_status'],
                     'created_at' => $data['completed'],
                     'updated_at' => $data['completed'],
                 ]);
@@ -677,14 +702,14 @@ class DemoSeeder extends Seeder
         $disputes = [
             [
                 'ride' => $disputeRides[0],
-                'category' => 'fare_dispute',
+                'category' => DisputeCategory::FareDispute->value,
                 'description' => 'I was charged more than the estimated fare. The driver took a longer route through heavy traffic instead of the shorter route I suggested.',
                 'status' => 'resolved',
                 'resolution_notes' => 'Fare adjusted. Partial refund of ₦500 issued to passenger. Driver route deviation confirmed via GPS logs.',
             ],
             [
                 'ride' => $disputeRides[1],
-                'category' => 'service_quality',
+                'category' => DisputeCategory::VehicleCondition->value,
                 'description' => 'The vehicle was not clean and the air conditioning was not working during the ride.',
                 'status' => 'open',
                 'resolution_notes' => null,
@@ -1019,13 +1044,13 @@ class DemoSeeder extends Seeder
         }
 
         $settings = [
-            ['key' => 'wallet.min_topup', 'value' => '500', 'group' => 'wallet'],
-            ['key' => 'wallet.max_balance', 'value' => '500000', 'group' => 'wallet'],
-            ['key' => 'wallet.daily_topup_cap', 'value' => '100000', 'group' => 'wallet'],
-            ['key' => 'wallet.min_payout', 'value' => '1000', 'group' => 'wallet'],
-            ['key' => 'wallet.settlement_delay', 'value' => '24', 'group' => 'wallet'],
-            ['key' => 'wallet.max_negative_balance', 'value' => '0', 'group' => 'wallet'],
-            ['key' => 'wallet.hold_expiry_hours', 'value' => '72', 'group' => 'wallet'],
+            ['key' => 'wallet.min_topup', 'value' => '50000', 'group' => 'wallet'],
+            ['key' => 'wallet.max_balance', 'value' => '50000000', 'group' => 'wallet'],
+            ['key' => 'wallet.daily_topup_cap', 'value' => '10000000', 'group' => 'wallet'],
+            ['key' => 'wallet.min_payout', 'value' => '100000', 'group' => 'wallet'],
+            ['key' => 'wallet.settlement_delay', 'value' => 'instant', 'group' => 'wallet'],
+            ['key' => 'wallet.max_negative_balance', 'value' => '-500000', 'group' => 'wallet'],
+            ['key' => 'wallet.hold_expiry_hours', 'value' => '4', 'group' => 'wallet'],
             ['key' => 'wallet.abandoned_topup_minutes', 'value' => '30', 'group' => 'wallet'],
             ['key' => 'ride.max_search_radius_km', 'value' => '10', 'group' => 'ride'],
             ['key' => 'ride.max_search_attempts', 'value' => '3', 'group' => 'ride'],
@@ -1312,5 +1337,143 @@ class DemoSeeder extends Seeder
                 'created_at' => $event['created_at'],
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, User>  $passengers
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedWalletAccounts(array $passengers, array $drivers): void
+    {
+        if (Account::where('type', AccountType::PassengerWallet)->exists()) {
+            return;
+        }
+
+        $walletBalances = [
+            'ade' => 1500000,
+            'ngozi' => 750000,
+            'emeka' => 3200000,
+            'funmi' => 250000,
+            'chidi' => 0,
+        ];
+
+        foreach ($passengers as $key => $passenger) {
+            Account::create([
+                'owner_type' => User::class,
+                'owner_id' => $passenger->id,
+                'type' => AccountType::PassengerWallet,
+                'currency' => 'NGN',
+                'status' => AccountStatus::Active,
+                'balance' => $walletBalances[$key] ?? 0,
+                'balance_version' => 0,
+            ]);
+        }
+
+        foreach ($drivers as $key => $data) {
+            if (! in_array($data['driver']->status, [DriverStatus::Approved, DriverStatus::Suspended])) {
+                continue;
+            }
+
+            Account::create([
+                'owner_type' => User::class,
+                'owner_id' => $data['user']->id,
+                'type' => AccountType::DriverEarningsPending,
+                'currency' => 'NGN',
+                'status' => AccountStatus::Active,
+                'balance' => 0,
+                'balance_version' => 0,
+            ]);
+
+            $availableBalance = match ($key) {
+                'bayo' => 850000,
+                'kemi' => 420000,
+                'segun' => 1200000,
+                'tunde' => -150000,
+                default => 0,
+            };
+
+            Account::create([
+                'owner_type' => User::class,
+                'owner_id' => $data['user']->id,
+                'type' => AccountType::DriverEarningsAvailable,
+                'currency' => 'NGN',
+                'status' => AccountStatus::Active,
+                'balance' => $availableBalance,
+                'balance_version' => 0,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, Ride>  $rides
+     * @param  array<string, array{user: User, driver: Driver}>  $drivers
+     */
+    private function seedOfflineTripFlags(array $rides, array $drivers): void
+    {
+        if (OfflineTripFlag::exists()) {
+            return;
+        }
+
+        $cancelledRide = collect($rides)->first(fn (Ride $r) => $r->status === 'cancelled');
+        $completedRides = collect($rides)->filter(fn (Ride $r) => $r->status === 'completed')->values();
+        $admin = User::where('email', 'admin@etigo.com')->first();
+
+        if (! $cancelledRide || $completedRides->count() < 3) {
+            return;
+        }
+
+        OfflineTripFlag::create([
+            'ride_id' => $cancelledRide->id,
+            'driver_id' => $cancelledRide->driver_id,
+            'passenger_id' => $cancelledRide->passenger_id,
+            'detection_data' => [
+                'collocation_points' => 5,
+                'route_match_pct' => 72.5,
+                'monitoring_duration_minutes' => 15,
+                'max_distance_from_route_m' => 85,
+            ],
+            'sanction_tier' => SanctionTier::Warning,
+            'sanction_action' => SanctionTier::Warning->action(),
+            'is_disputed' => false,
+            'flagged_at' => $cancelledRide->created_at->addMinutes(35),
+        ]);
+
+        OfflineTripFlag::create([
+            'ride_id' => $completedRides[1]->id,
+            'driver_id' => $completedRides[1]->driver_id,
+            'passenger_id' => $completedRides[1]->passenger_id,
+            'detection_data' => [
+                'collocation_points' => 8,
+                'route_match_pct' => 88.3,
+                'monitoring_duration_minutes' => 15,
+                'max_distance_from_route_m' => 42,
+            ],
+            'sanction_tier' => SanctionTier::Suspension,
+            'sanction_action' => SanctionTier::Suspension->action(),
+            'is_disputed' => true,
+            'dispute_notes' => 'The passenger asked me to pull over briefly to pick up a package. We continued the trip normally after.',
+            'dispute_outcome' => DisputeOutcome::Overturned,
+            'dispute_resolved_by_admin_id' => $admin?->id,
+            'flagged_at' => now()->subDays(20),
+            'resolved_at' => now()->subDays(18),
+        ]);
+
+        OfflineTripFlag::create([
+            'ride_id' => $completedRides[2]->id,
+            'driver_id' => $completedRides[2]->driver_id,
+            'passenger_id' => $completedRides[2]->passenger_id,
+            'detection_data' => [
+                'collocation_points' => 6,
+                'route_match_pct' => 65.1,
+                'monitoring_duration_minutes' => 15,
+                'max_distance_from_route_m' => 120,
+            ],
+            'sanction_tier' => SanctionTier::Warning,
+            'sanction_action' => SanctionTier::Warning->action(),
+            'is_disputed' => true,
+            'dispute_notes' => 'This was a legitimate ride that I completed on the app. The detection must be a false positive.',
+            'dispute_outcome' => DisputeOutcome::Pending,
+            'flagged_at' => now()->subDays(2),
+        ]);
     }
 }
