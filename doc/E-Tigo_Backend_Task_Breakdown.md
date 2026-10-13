@@ -1034,7 +1034,7 @@
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
 | OQ-15 | EV station data source? | BE-EV-02 | `[x]` **Resolved:** E-tiGo's own proprietary charging network only — Admin-managed via `AdminEvStationController` CRUD. External station owners may apply to join the network via an onboarding form (Phase 2). Station data: name, location, stall count, connector types, power output (kW), pricing, operating hours, real-time availability |
-| OQ-16 | Fee waiver applies to driver, passenger, or both? | BE-EV-12 | `[x]` **Resolved:** Driver only — `ReservationService` checks the requesting driver's tier via `TierGateService@isEvFeeWaiverEligible()`. Drivers are the ones making EV reservations |
+| OQ-16 | Fee waiver applies to driver, passenger, or both? | BE-EV-12 | `[x]` **Resolved:** Driver only — `ReservationService` checks the requesting driver's tier via `TierGateService@isEvReservationFeeWaived()`. Drivers are the ones making EV reservations |
 
 ### Wallet & Ledger Decisions
 
