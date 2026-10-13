@@ -114,56 +114,81 @@ class PaystackWebhookController extends Controller
         }
 
         if (! $payment) {
-            $payment = Payment::where('status', PaymentStatus::Pending)
-                ->whereHas('ride', fn ($q) => $q->whereIn('payment_method', ['card', 'bank_transfer']))
-                ->latest()
-                ->first();
+            Log::warning('Paystack webhook: no payment matched charge', [
+                'transaction_id' => $transactionId,
+                'tx_ref' => $verification['tx_ref'] ?? null,
+            ]);
+            $webhookEvent->markProcessed();
+
+            return;
         }
 
-        if ($payment && ! $payment->gateway_transaction_id) {
+        if (! $payment->gateway_transaction_id) {
             $payment->update(['gateway_transaction_id' => $transactionId]);
         }
 
-        if ($payment) {
-            $terminalStatuses = [
-                PaymentStatus::Refunded,
-                PaymentStatus::Collected,
-                PaymentStatus::Settled,
-            ];
+        $terminalStatuses = [
+            PaymentStatus::Refunded,
+            PaymentStatus::Collected,
+            PaymentStatus::Settled,
+        ];
 
-            if (in_array($payment->status, $terminalStatuses)) {
-                Log::info('Paystack webhook: skipping update for terminal payment', [
+        if (in_array($payment->status, $terminalStatuses)) {
+            Log::info('Paystack webhook: skipping update for terminal payment', [
+                'payment_id' => $payment->id,
+                'current_status' => $payment->status->value,
+            ]);
+
+            $webhookEvent->markProcessed();
+
+            return;
+        }
+
+        if ($verification['status'] === 'successful') {
+            $verifiedAmount = (float) $verification['amount'];
+            $verifiedCurrency = $verification['currency'] ?? 'NGN';
+
+            if ((float) $payment->amount !== $verifiedAmount || strcasecmp($payment->currency ?? 'NGN', $verifiedCurrency) !== 0) {
+                Log::warning('Paystack webhook: amount/currency mismatch', [
                     'payment_id' => $payment->id,
-                    'current_status' => $payment->status->value,
+                    'expected_amount' => $payment->amount,
+                    'verified_amount' => $verifiedAmount,
+                    'expected_currency' => $payment->currency,
+                    'verified_currency' => $verifiedCurrency,
                 ]);
 
+                $payment->update([
+                    'status' => PaymentStatus::Failed,
+                    'failure_reason' => 'Amount or currency mismatch',
+                ]);
+                $payment->ride?->update(['payment_status' => PaymentStatus::Failed]);
                 $webhookEvent->markProcessed();
 
                 return;
             }
 
-            $newStatus = $verification['status'] === 'successful'
-                ? PaymentStatus::Captured
-                : PaymentStatus::Failed;
+            $newStatus = PaymentStatus::Captured;
+        } else {
+            $newStatus = PaymentStatus::Failed;
+        }
 
-            $payment->update([
-                'status' => $newStatus,
-                'failure_reason' => $newStatus === PaymentStatus::Failed
-                    ? "Gateway status: {$verification['status']}"
-                    : null,
+        $payment->update([
+            'status' => $newStatus,
+            'failure_reason' => $newStatus === PaymentStatus::Failed
+                ? "Gateway status: {$verification['status']}"
+                : null,
+        ]);
+
+        $payment->ride?->update(['payment_status' => $newStatus]);
+
+        try {
+            PaymentUpdated::dispatch($payment->fresh());
+        } catch (\Throwable $exception) {
+            Log::warning('Payment update broadcast failed', [
+                'payment_id' => $payment->id,
+                'ride_id' => $payment->ride_id,
+                'error' => $exception->getMessage(),
             ]);
-
-            $payment->ride?->update(['payment_status' => $newStatus]);
-
-            try {
-                PaymentUpdated::dispatch($payment->fresh());
-            } catch (\Throwable $exception) {
-                Log::warning('Payment update broadcast failed', [
-                    'payment_id' => $payment->id,
-                    'ride_id' => $payment->ride_id,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
         }
 
         $webhookEvent->markProcessed();
