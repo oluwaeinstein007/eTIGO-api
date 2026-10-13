@@ -58,6 +58,9 @@ class TelemetryServerCommand extends Command
             $argv[] = '-d';
         }
 
+        Worker::$logFile = storage_path('logs/telemetry_worker.log');
+        Worker::$pidFile = storage_path('logs/telemetry.pid');
+
         $worker = new Worker("websocket://{$host}:{$port}");
         $worker->count = $workers;
         $worker->name = 'EtigoTelemetryGateway';
