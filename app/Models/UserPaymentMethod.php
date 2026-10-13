@@ -12,6 +12,7 @@ class UserPaymentMethod extends Model
 
     protected $fillable = [
         'user_id',
+        'provider',
         'gateway_token',
         'card_brand',
         'card_last_four',

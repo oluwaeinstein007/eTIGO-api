@@ -44,6 +44,7 @@ class PaymentMethodController extends Controller
                     : 'Card •••• '.$card->card_last_four,
                 'card_brand' => $card->card_brand,
                 'card_last_four' => $card->card_last_four,
+                'provider' => $card->provider,
                 'is_default' => $card->is_default,
             ]);
         }
@@ -84,6 +85,9 @@ class PaymentMethodController extends Controller
         }
 
         if ($result['status'] === 'successful' && $result['card_last_four']) {
+            $authCode = (string) ($result['authorization_code'] ?? '');
+            $provider = $result['provider'] ?? (str_starts_with(strtoupper($authCode), 'FLW') ? 'flutterwave' : 'paystack');
+
             UserPaymentMethod::firstOrCreate(
                 [
                     'user_id' => $request->user()->id,
@@ -91,6 +95,7 @@ class PaymentMethodController extends Controller
                     'card_brand' => $result['card_brand'],
                 ],
                 [
+                    'provider' => $provider,
                     'gateway_token' => $result['authorization_code'],
                     'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
                 ],

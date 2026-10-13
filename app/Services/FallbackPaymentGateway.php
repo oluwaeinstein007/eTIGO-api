@@ -54,44 +54,25 @@ class FallbackPaymentGateway implements PaymentGateway
 
     public function chargeWithToken(array $data): array
     {
+        $provider = strtolower(trim((string) ($data['provider'] ?? '')));
         $token = trim((string) ($data['token'] ?? ''));
-        $targetGateway = $this->resolveGatewayForToken($token);
 
-        if ($targetGateway !== null) {
-            return $targetGateway->chargeWithToken($data);
-        }
+        $targetGateway = $this->resolveGateway($provider, $token);
 
-        try {
-            return $this->primary->chargeWithToken($data);
-        } catch (\Throwable $e) {
-            Log::warning('Primary payment gateway chargeWithToken failed, trying fallback', [
-                'error' => $e->getMessage(),
-                'tx_ref' => $data['tx_ref'] ?? null,
-            ]);
-
-            return $this->fallback->chargeWithToken($data);
-        }
+        return $targetGateway->chargeWithToken($data);
     }
 
-    private function resolveGatewayForToken(string $token): ?PaymentGateway
+    private function resolveGateway(string $provider, string $token): PaymentGateway
     {
-        if ($this->isFlutterwaveToken($token)) {
+        if ($provider === 'flutterwave' || ($provider === '' && $this->isFlutterwaveToken($token))) {
             if ($this->primary instanceof FlutterwavePaymentGateway) {
                 return $this->primary;
-            }
-
-            if ($this->fallback instanceof FlutterwavePaymentGateway) {
-                return $this->fallback;
-            }
-
-            if ($this->primary instanceof PaystackPaymentGateway) {
-                return $this->fallback;
             }
 
             return $this->fallback;
         }
 
-        if ($this->isPaystackToken($token)) {
+        if ($provider === 'paystack' || ($provider === '' && $this->isPaystackToken($token))) {
             if ($this->fallback instanceof PaystackPaymentGateway && ! ($this->primary instanceof PaystackPaymentGateway)) {
                 return $this->fallback;
             }
@@ -99,7 +80,7 @@ class FallbackPaymentGateway implements PaymentGateway
             return $this->primary;
         }
 
-        return null;
+        return $this->primary;
     }
 
     private function isFlutterwaveToken(string $token): bool
