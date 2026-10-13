@@ -18004,11 +18004,11 @@
                     "paystack"
                   ]
                 },
-                "description": "No auth — verified by HMAC-SHA512 signature (x-paystack-signature header) using PAYSTACK_SECRET_KEY. Updates Payment record status. Returns 401 if signature is invalid."
+                "description": "**Single Paystack webhook endpoint.** No auth — verified by HMAC-SHA512 signature (`x-paystack-signature` header) using `PAYSTACK_SECRET_KEY`. This is the only webhook URL to configure in the Paystack dashboard.\n\n**Handled events:**\n- `charge.success` with `TOPUP-` reference → wallet top-up\n- `charge.success` (other) → ride payment verification\n- `transfer.success` → payout completed\n- `transfer.failed` / `transfer.reversed` → payout failed\n\nAll events are deduplicated via the `webhook_events` table. Idempotent."
               },
               "response": [
                 {
-                  "name": "200 — Webhook Processed",
+                  "name": "200 — Webhook Received",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -18017,19 +18017,31 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"status\": \"ok\"\n}"
+                  "body": "{\n  \"message\": \"Webhook received.\"\n}"
                 },
                 {
-                  "name": "400 — Invalid Signature",
-                  "status": "Bad Request",
-                  "code": 400,
+                  "name": "200 — Already Processed (duplicate)",
+                  "status": "OK",
+                  "code": 200,
                   "header": [
                     {
                       "key": "Content-Type",
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Invalid webhook signature.\"\n}"
+                  "body": "{\n  \"message\": \"Already processed.\"\n}"
+                },
+                {
+                  "name": "403 — Invalid Signature",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Invalid signature.\"\n}"
                 }
               ]
             },
@@ -18092,51 +18104,6 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Invalid webhook signature.\"\n}"
-                }
-              ]
-            },
-            {
-              "name": "Paystack Wallet Webhook",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Accept",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{base_url}}/webhooks/paystack-wallet",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "webhooks",
-                    "paystack-wallet"
-                  ]
-                },
-                "description": "Receives Paystack webhook events for wallet top-ups and payout transfers. Validates HMAC-SHA512 signature via `x-paystack-signature` header. Handles `charge.success`, `transfer.success`, `transfer.failed`, `transfer.reversed`. Idempotent.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"id\": 123456789,\n    \"reference\": \"TOPUP-A1B2C3D4E5F6\",\n    \"amount\": 500000,\n    \"status\": \"success\",\n    \"metadata\": {\n      \"user_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n      \"account_id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"wallet_topup\"\n    }\n  }\n}"
-                }
-              },
-              "response": [
-                {
-                  "name": "200 — Received",
-                  "status": "OK",
-                  "code": 200,
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"message\": \"Webhook received.\"\n}"
                 }
               ]
             },

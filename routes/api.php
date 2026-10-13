@@ -67,7 +67,6 @@ use App\Http\Controllers\Api\V1\Passenger\SavedPlaceController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
 use App\Http\Controllers\Api\V1\Passenger\WalletTopupController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
-use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\PlaceController;
 use App\Http\Controllers\Api\V1\PromoController;
 use App\Http\Controllers\Api\V1\RideCancellationReasonController;
@@ -119,9 +118,8 @@ Route::get('/ev-stations/{station}', [EvStationController::class, 'show']);
 | Payment Webhooks (unauthenticated — verified by signature)
 |--------------------------------------------------------------------------
 */
-Route::post('/webhooks/paystack', [PaymentWebhookController::class, 'handlePaystack']);
+Route::post('/webhooks/paystack', [PaystackWebhookController::class, 'handle']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
-Route::post('/webhooks/paystack-wallet', [PaystackWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
