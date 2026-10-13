@@ -90,11 +90,26 @@ class MapboxGateway implements MapsGateway
 
         $data = $response->json();
 
-        if (empty($data['features'])) {
+        $features = $data['features'] ?? [];
+
+        if (empty($features)) {
             throw new RuntimeException('Mapbox Reverse Geocoding API returned no results.');
         }
 
-        $feature = $data['features'][0];
+        $feature = null;
+        $coarseTypes = ['postcode', 'region', 'country'];
+        foreach ($features as $candidate) {
+            $type = $candidate['properties']['feature_type'] ?? null;
+            if ($type === null || ! in_array($type, $coarseTypes, true)) {
+                $feature = $candidate;
+                break;
+            }
+        }
+
+        if (! $feature) {
+            throw new RuntimeException('Mapbox Reverse Geocoding returned only coarse postcode or regional results.');
+        }
+
         $context = $feature['properties']['context'] ?? [];
         $name = $feature['properties']['name'] ?? '';
         $fullAddress = $feature['properties']['full_address'] ?? "{$lat},{$lng}";
