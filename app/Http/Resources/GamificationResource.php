@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\TierLevel;
 use App\Models\TierConfig;
+use App\Models\TripCarbonScore;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -44,6 +45,15 @@ class GamificationResource extends JsonResource
                 : 100;
         }
 
+        $co2Query = TripCarbonScore::where('user_id', $this->user_id);
+        $totalCo2Saved = (float) (clone $co2Query)->sum('co2_saved');
+        $co2SavedThisMonth = (float) (clone $co2Query)
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->sum('co2_saved');
+        $pointsThisMonth = (int) TripCarbonScore::where('user_id', $this->user_id)
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->sum('final_points');
+
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
@@ -51,6 +61,9 @@ class GamificationResource extends JsonResource
             'tier_name' => $currentTier->label(),
             'total_ranking_points' => $this->total_ranking_points,
             'total_carbon_score' => (float) $this->total_carbon_score,
+            'total_co2_saved_kg' => round($totalCo2Saved, 2),
+            'co2_saved_this_month_kg' => round($co2SavedThisMonth, 2),
+            'points_this_month' => $pointsThisMonth,
             'tier_upgraded_at' => $this->tier_upgraded_at,
             'progress_to_next_tier' => $progressToNext,
             'points_to_next_tier' => $nextTierConfig
