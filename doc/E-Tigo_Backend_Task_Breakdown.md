@@ -1003,52 +1003,52 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-01 | Which SMS/OTP gateway is approved? | SETUP-55, SETUP-56, BE-AUTH-13 | `[ ]` Partially resolved: `SmsGateway` contract + `LogSmsGateway` adapter in place; real provider TBD |
-| OQ-02 | Which maps/geocoding provider is approved? | SETUP-59, SETUP-60 | `[ ]` Unresolved |
-| OQ-03 | Which card payment gateway is approved? | SETUP-61, SETUP-62 | `[ ]` Unresolved |
-| OQ-04 | Which emergency-services dispatch integration is approved? | BE-SOS-11 | `[ ]` Unresolved |
-| OQ-17 | Minimum supported iOS and Android versions? | Mobile app tasks (frontend doc) | `[ ]` Unresolved |
+| OQ-01 | Which SMS/OTP gateway is approved? | SETUP-55, SETUP-56, BE-AUTH-13 | `[x]` **Resolved:** WhatsApp Business API (`WhatsAppGateway`) is the primary delivery channel; auto-selected in `AppServiceProvider` when `WHATSAPP_PHONE_NUMBER_ID` + `WHATSAPP_ACCESS_TOKEN` are set; `LogSmsGateway` as dev/testing fallback |
+| OQ-02 | Which maps/geocoding provider is approved? | SETUP-59, SETUP-60 | `[x]` **Resolved:** **Mapbox** for directions/distance/duration (`MapboxGateway`); `HaversineMapsGateway` fallback. Place search: **LocationIQ/Geoapify/Photon** failover chain via `FailoverPlaceSearchGateway`. Auto-selected by credentials in `AppServiceProvider` |
+| OQ-03 | Which card payment gateway is approved? | SETUP-61, SETUP-62 | `[x]` **Resolved:** **Paystack** — `PaystackPaymentGateway` for card tokenization, `PaystackWalletGateway` for wallet top-ups and transfers. Config: `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` in `config/services.php`. `FakePaymentGateway` for dev/testing |
+| OQ-04 | Which emergency-services dispatch integration is approved? | BE-SOS-11 | `[ ]` Unresolved — currently logs dispatch metadata for manual operator outreach; no external API integration |
+| OQ-17 | Minimum supported iOS and Android versions? | Mobile app tasks (frontend doc) | `[ ]` Unresolved — placeholder values 1.0.0/1.0.0 seeded in app_settings; frontend team to confirm |
 
 ### Business Rule Decisions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-05 | Does Phase 1 include a cancellation fee, and under what conditions? | BE-RIDE-06 | `[ ]` Unresolved |
-| OQ-06 | How and how often are driver earnings paid out? | BE-PAY (payout logic) | `[ ]` Unresolved |
-| OQ-07 | Single Admin role or role-based tiers (Ops/Support/Finance/Safety)? | SETUP-35, SETUP-52 | `[x]` **Resolved:** Role-based tiers implemented — super_admin, operations, safety_operator, support; enforced via `EnsureAdminRole` middleware |
-| OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | BE-RATE-09 | `[ ]` Unresolved |
-| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | BE-GAME-11, SETUP-24 seed | `[ ]` Unresolved |
-| OQ-10 | Source for baseline/per-vehicle-class emissions data? | BE-GAME-02 | `[ ]` Unresolved |
-| OQ-11 | Is surge pricing in scope in Phase 1? | BE-GAME-08 | `[ ]` Unresolved |
-| OQ-12 | Auto-apply promos in Phase 1, or code-entry only? | BE-PROMO-12 | `[ ]` Unresolved |
+| OQ-05 | Does Phase 1 include a cancellation fee, and under what conditions? | BE-RIDE-06 | `[ ]` Unresolved — `ride.free_cancellation_window_seconds` (60s) seeded in app_settings but no fee is actually charged; cancellation fee logic not implemented |
+| OQ-06 | How and how often are driver earnings paid out? | BE-PAY (payout logic) | `[x]` **Resolved:** On-demand payout requests by driver (`PayoutController@store`) with Admin approval (`AdminPayoutController@approve`); processed via Paystack Transfer API. No automated schedule — drivers request when ready, Admin approves and triggers transfer |
+| OQ-07 | Single Admin role or role-based tiers (Ops/Support/Finance/Safety)? | SETUP-35, SETUP-52 | `[x]` **Resolved:** Role-based tiers implemented — super_admin, operations, safety_operator, support, finance; enforced via `EnsureAdminRole` middleware |
+| OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | BE-RATE-09 | `[x]` **Resolved:** `AdminRefundController@refundToWallet` — `POST /api/v1/admin/rides/{ride}/refund` issues full or partial refund to passenger wallet via `WalletRefundService`; linked to dispute if one exists; claws back driver earnings via `WalletRefundService@clawbackDriverEarnings()` |
+| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | BE-GAME-11, SETUP-24 seed | `[x]` **Resolved:** Option A — Bronze (0 pts) → Silver (500) → Gold (2,000) → Platinum (5,000) → Diamond (15,000). Implemented in `TierLevel` enum and `TierConfigSeeder` |
+| OQ-10 | Source for baseline/per-vehicle-class emissions data? | BE-GAME-02 | `[x]` **Resolved:** EU/IPCC averages adjusted for ride-sharing occupancy, configured in `config/gamification.php`: baseline 120 g CO₂/km, economy 65, comfort 80, premium 95, EV 0, default 75 |
+| OQ-11 | Is surge pricing in scope in Phase 1? | BE-GAME-08 | `[x]` **Resolved:** Yes — fully built. `SurgePricingService` evaluates active rules by priority (manual/time_based/demand_based), `SurgeRule` model, `AdminSurgeRuleController` CRUD + toggle, integrated into `FareEstimationService`. Multiplier range 1.00–5.00 |
+| OQ-12 | Auto-apply promos in Phase 1, or code-entry only? | BE-PROMO-12 | `[x]` **Resolved:** Code-entry only in Phase 1. `PromoController@validate` validates user-entered codes; `PromoController@available` lists eligible promos. Auto-apply can be layered onto ride creation flow in Phase 2 |
 
 ### Detection & Enforcement Thresholds
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-13 | GPS collocation threshold and jitter tolerance? | BE-AO-02 | `[ ]` Unresolved |
-| OQ-14 | False-positive rate target and L3 overturn authority? | BE-AO-02, BE-AO-11 | `[ ]` Unresolved |
+| OQ-13 | GPS collocation threshold and jitter tolerance? | BE-AO-02 | `[x]` **Resolved:** 200m collocation threshold, 60% route match, min 3 GPS points, 300m pickup proximity, 30s sample interval, 15-min monitoring window. All configurable via `config/offline_detection.php` and env vars |
+| OQ-14 | False-positive rate target and L3 overturn authority? | BE-AO-02, BE-AO-11 | `[x]` **Resolved:** Super admin can overturn L3 (permanent deactivation) via `AdminOfflineFlagController@review` with outcome=overturned; `SanctionService@reverseSanction()` reinstates driver and notifies. 30-day lookback window for tier determination |
 
 ### EV Charging Decisions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-15 | EV station data source? | BE-EV-02 | `[ ]` Unresolved |
-| OQ-16 | Fee waiver applies to driver, passenger, or both? | BE-EV-12 | `[ ]` Unresolved |
+| OQ-15 | EV station data source? | BE-EV-02 | `[x]` **Resolved:** Admin-managed via `AdminEvStationController` CRUD endpoints. No external data feed — stations and stalls are manually entered. External integration can be added later via the existing model structure |
+| OQ-16 | Fee waiver applies to driver, passenger, or both? | BE-EV-12 | `[x]` **Resolved:** Driver only — `ReservationService` checks the requesting driver's tier via `TierGateService@isEvFeeWaiverEligible()`. Drivers are the ones making EV reservations |
 
 ### Wallet & Ledger Decisions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[ ]` Unresolved |
+| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | BE-WAL-03, BE-WAL-04 | `[x]` **Resolved:** Min top-up ₦500 (50,000 kobo), max balance ₦500,000 (50,000,000 kobo), daily cap ₦100,000 (10,000,000 kobo). Configured in `config/wallet.php`; admin-adjustable at runtime via `AdminWalletSettingsController`. All amounts stored and validated in kobo |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | BE-WAL-12 | `[x]` Resolved — partial settlement: capture available balance, record shortfall, mark payment Failed for admin review |
-| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[ ]` Unresolved |
+| OQ-27 | Refund policy: wallet credit only, or back to original payment method (card)? | BE-WAL-16 | `[~]` Partially resolved — wallet-credit refunds implemented via `WalletRefundService@refundToWallet()`; refund-to-original-card not built. Needs product decision on whether card refund path is required for launch |
 | OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[x]` Resolved — all three options supported via `config('wallet.settlement_delay')`; default is `instant`; configurable at runtime via Admin Wallet Settings endpoint; `SettleDriverEarningsJob` runs hourly to move pending→available when delay is 24h or weekly |
 | OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[x]` Resolved — cash rides debit commission from `DriverEarningsAvailable` (driver already has the cash); negative balance allowed up to configurable threshold (`max_negative_balance`, default −₦5,000 / −500000 kobo); warning logged when threshold exceeded; `hasExcessiveNegativeBalance()` helper available for ride-blocking logic |
-| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[ ]` Unresolved |
-| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[ ]` Unresolved |
-| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[ ]` Unresolved |
-| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[ ]` Unresolved |
+| OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[x]` **Resolved:** ₦1,000 (100,000 kobo) — configured in `config/wallet.php` as `min_payout`; admin-adjustable via wallet settings endpoint |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` **Resolved:** On-demand with Admin approval — driver requests payout via `PayoutController@store`, Admin approves via `AdminPayoutController@approve`, transfer processed via Paystack Transfer API. No automated schedule enforced |
+| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[~]` Partially resolved — tips work for card payment rides (`PaymentService@addTip()` charges via Paystack). Wallet-debit tip path not implemented. Cash tips are logged as tip_amount on the Payment record |
+| OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[ ]` Unresolved — requires consultation with PSP and Nigerian fintech lawyer. Wallet infrastructure built with double-entry bookkeeping and audit trail, but regulatory compliance not validated |
 
 ### Phase 2 Decisions
 
