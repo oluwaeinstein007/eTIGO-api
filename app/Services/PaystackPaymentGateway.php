@@ -113,7 +113,7 @@ class PaystackPaymentGateway implements PaymentGateway
         $body = $response->json();
 
         if (($body['status'] ?? false) !== true) {
-            throw new RuntimeException('Paystack API error: ' . ($body['message'] ?? 'Unknown error'));
+            throw new RuntimeException('Paystack API error: '.($body['message'] ?? 'Unknown error'));
         }
 
         return $body;

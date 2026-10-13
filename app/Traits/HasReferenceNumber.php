@@ -33,11 +33,11 @@ trait HasReferenceNumber
                 ->value('max_num');
 
             $nextNum = $maxNum + 1;
-            $referenceNumber = $prefix . str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+            $referenceNumber = $prefix.str_pad($nextNum, 6, '0', STR_PAD_LEFT);
 
             while (DB::table($table)->where('reference_number', $referenceNumber)->exists()) {
                 $nextNum++;
-                $referenceNumber = $prefix . str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+                $referenceNumber = $prefix.str_pad($nextNum, 6, '0', STR_PAD_LEFT);
             }
 
             return $referenceNumber;

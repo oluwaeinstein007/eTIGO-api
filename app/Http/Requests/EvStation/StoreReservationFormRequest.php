@@ -27,11 +27,13 @@ class StoreReservationFormRequest extends FormRequest
 
                 if (! $station) {
                     $validator->errors()->add('station', 'Station not found.');
+
                     return;
                 }
 
                 if (! $station->isOperational()) {
                     $validator->errors()->add('station', 'This station is not currently operational.');
+
                     return;
                 }
 

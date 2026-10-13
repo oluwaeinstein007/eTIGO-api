@@ -10,7 +10,6 @@ use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\OfflineTripFlag;
 use App\Models\Ride;
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

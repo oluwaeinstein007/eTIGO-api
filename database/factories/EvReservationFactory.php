@@ -3,8 +3,8 @@
 namespace Database\Factories;
 
 use App\Enums\EvReservationStatus;
-use App\Models\EvChargingStation;
 use App\Models\EvChargingStall;
+use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;

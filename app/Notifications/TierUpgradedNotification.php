@@ -39,7 +39,7 @@ class TierUpgradedNotification extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->action('View Rewards', config('app.frontend_url', config('app.url')) . '/rewards')
+            ->action('View Rewards', config('app.frontend_url', config('app.url')).'/rewards')
             ->salutation('Keep riding green!');
     }
 

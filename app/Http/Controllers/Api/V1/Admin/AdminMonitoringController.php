@@ -33,7 +33,9 @@ class AdminMonitoringController extends Controller
             $resource = (new RideResource($ride))->resolve();
 
             if ($ride->driver_id) {
-                $location = $this->locationService->getDriverLocation($ride->driver_id);
+                $driverModelId = $ride->driver?->driver?->id;
+                $location = ($driverModelId ? $this->locationService->getDriverLocation((string) $driverModelId) : null)
+                    ?? $this->locationService->getDriverLocation($ride->driver_id);
                 $resource['driver_location'] = $location;
             }
 
@@ -82,14 +84,15 @@ class AdminMonitoringController extends Controller
             ->keyBy('driver_id');
 
         $driversWithLocations = $drivers->map(function (Driver $driver) use ($activeRides) {
-            $location = $this->locationService->getDriverLocation($driver->user_id);
+            $location = $this->locationService->getDriverLocation((string) $driver->id)
+                ?? $this->locationService->getDriverLocation($driver->user_id);
 
             $activeRide = $activeRides->get($driver->user_id);
 
             return [
                 'driver_id' => $driver->id,
                 'user_id' => $driver->user_id,
-                'name' => $driver->user->first_name . ' ' . $driver->user->last_name,
+                'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
                 'city' => $driver->city?->name,
@@ -167,7 +170,7 @@ class AdminMonitoringController extends Controller
             return response()->json(['drivers' => [], 'meta' => ['total' => 0, 'radius_km' => $radiusKm]]);
         }
 
-        $userIds = array_column($nearbyFromRedis, 'driver_id');
+        $driverIds = array_column($nearbyFromRedis, 'driver_id');
         $distanceMap = [];
         foreach ($nearbyFromRedis as $entry) {
             $distanceMap[$entry['driver_id']] = $entry['distance_km'];
@@ -176,7 +179,7 @@ class AdminMonitoringController extends Controller
         $drivers = Driver::where('status', DriverStatus::Approved)
             ->where('is_online', true)
             ->where('city_id', $ride->city_id)
-            ->whereIn('user_id', $userIds)
+            ->whereIn('id', $driverIds)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
             ->whereDoesntHave('user', function ($q) {
                 $q->whereHas('driverRides', fn ($r) => $r->whereIn('status', [
@@ -190,12 +193,13 @@ class AdminMonitoringController extends Controller
             ->get();
 
         $result = $drivers->map(function (Driver $driver) use ($distanceMap) {
-            $location = $this->locationService->getDriverLocation($driver->user_id);
+            $location = $this->locationService->getDriverLocation((string) $driver->id)
+                ?? $this->locationService->getDriverLocation($driver->user_id);
 
             return [
                 'driver_id' => $driver->id,
                 'user_id' => $driver->user_id,
-                'name' => $driver->user->first_name . ' ' . $driver->user->last_name,
+                'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
                 'vehicle' => [
@@ -206,7 +210,7 @@ class AdminMonitoringController extends Controller
                     'vehicle_class' => $driver->vehicle->vehicleClass?->name,
                 ],
                 'location' => $location,
-                'distance_km' => round($distanceMap[$driver->user_id] ?? 0, 2),
+                'distance_km' => round($distanceMap[$driver->id] ?? 0, 2),
             ];
         })->sortBy('distance_km')->values()->take($limit);
 

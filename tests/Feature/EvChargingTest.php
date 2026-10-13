@@ -8,8 +8,8 @@ use App\Enums\EvStationStatus;
 use App\Enums\UserType;
 use App\Models\City;
 use App\Models\Driver;
-use App\Models\EvChargingStation;
 use App\Models\EvChargingStall;
+use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Models\User;
 
@@ -354,4 +354,3 @@ describe('Driver Charge Request Form Submission', function () {
             ->assertJsonValidationErrors(['battery_level']);
     });
 });
-

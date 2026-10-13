@@ -64,7 +64,7 @@ class DriverController extends Controller
 
         if (! $driver->is_online) {
             try {
-                $this->locationService->removeDriver($driver->id);
+                $this->locationService->removeDriver($driver->id, $user->id);
             } catch (\Throwable $e) {
                 Log::warning('Failed to remove driver location from cache', [
                     'driver_id' => $driver->id,

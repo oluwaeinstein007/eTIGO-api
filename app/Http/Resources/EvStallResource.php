@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\EvChargingStall;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\EvChargingStall */
+/** @mixin EvChargingStall */
 class EvStallResource extends JsonResource
 {
     public function toArray(Request $request): array

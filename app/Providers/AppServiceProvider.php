@@ -9,7 +9,9 @@ use App\Contracts\PlaceSearchGateway;
 use App\Contracts\PushNotificationGateway;
 use App\Contracts\SmsGateway;
 use App\Contracts\WalletGateway;
+use App\Events\TierUpgraded;
 use App\Gateways\PaystackWalletGateway;
+use App\Listeners\SendTierUpgradedNotification;
 use App\Models\PersonalAccessToken;
 use App\Services\FailoverPlaceSearchGateway;
 use App\Services\FakeKycGateway;
@@ -55,7 +57,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
-        Event::listen(\App\Events\TierUpgraded::class, \App\Listeners\SendTierUpgradedNotification::class);
+        Event::listen(TierUpgraded::class, SendTierUpgradedNotification::class);
     }
 
     private function registerMapsGateway(): void

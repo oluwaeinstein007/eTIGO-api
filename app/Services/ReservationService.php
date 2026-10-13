@@ -3,9 +3,8 @@
 namespace App\Services;
 
 use App\Enums\EvReservationStatus;
-use App\Enums\EvStallStatus;
-use App\Models\EvChargingStation;
 use App\Models\EvChargingStall;
+use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;

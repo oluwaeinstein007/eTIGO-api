@@ -18,31 +18,43 @@ class DriverLocationService
         return Redis::connection('geolocation');
     }
 
-    public function updateLocation(string $driverId, float $lat, float $lng, float $heading = 0, float $speed = 0): void
+    public function updateLocation(string $driverId, float $lat, float $lng, float $heading = 0, float $speed = 0, ?string $userId = null): void
     {
         $conn = $this->redis();
         $member = (string) $driverId;
 
         $conn->client()->rawCommand('GEOADD', self::GEO_KEY, (string) $lng, (string) $lat, $member);
 
-        $key = sprintf(self::DRIVER_KEY_PREFIX, $driverId);
-        $conn->hmset($key, [
+        $data = [
             'lat' => $lat,
             'lng' => $lng,
             'heading' => $heading,
             'speed' => $speed,
             'timestamp' => now()->timestamp,
-        ]);
+        ];
+
+        $key = sprintf(self::DRIVER_KEY_PREFIX, $driverId);
+        $conn->hmset($key, $data);
         $conn->expire($key, self::LOCATION_TTL);
+
+        if ($userId !== null && $userId !== $driverId) {
+            $userKey = sprintf(self::DRIVER_KEY_PREFIX, $userId);
+            $conn->hmset($userKey, $data);
+            $conn->expire($userKey, self::LOCATION_TTL);
+        }
     }
 
-    public function removeDriver(string $driverId): void
+    public function removeDriver(string $driverId, ?string $userId = null): void
     {
         $conn = $this->redis();
         $member = (string) $driverId;
 
         $conn->zrem(self::GEO_KEY, $member);
         $conn->del(sprintf(self::DRIVER_KEY_PREFIX, $driverId));
+
+        if ($userId !== null && $userId !== $driverId) {
+            $conn->del(sprintf(self::DRIVER_KEY_PREFIX, $userId));
+        }
     }
 
     /**

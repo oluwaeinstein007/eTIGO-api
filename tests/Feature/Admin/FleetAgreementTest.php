@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\CommissionService;
 
 function adminToken(): array
 {
@@ -355,7 +357,7 @@ it('excuses a remittance day and adjusts shortfall streak', function () {
         'shortfall_streak_days' => 3,
     ]);
 
-    $remittance = \App\Models\DailyRemittance::factory()->create([
+    $remittance = DailyRemittance::factory()->create([
         'agreement_id' => $agreement->id,
         'driver_id' => $driver->id,
         'settled' => true,
@@ -389,7 +391,7 @@ it('returns zero commission rate for fleet drivers', function () {
         'created_by_admin_id' => $admin->id,
     ]);
 
-    $commissionService = app(\App\Services\CommissionService::class);
+    $commissionService = app(CommissionService::class);
     $rate = $commissionService->getRate($driver->id);
 
     expect($rate)->toBe(0.0);

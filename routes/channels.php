@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AdminRole;
 use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
@@ -35,7 +36,7 @@ Broadcast::channel('admin.rides', function (User $user): bool {
 
 Broadcast::channel('admin.sos', function (User $user): bool {
     return $user->isAdmin() && $user->isSafetyOperator()
-        || $user->admin_role === \App\Enums\AdminRole::SuperAdmin;
+        || $user->admin_role === AdminRole::SuperAdmin;
 });
 
 Broadcast::channel('driver.{driverUserId}', function (User $user, string $driverUserId): bool {

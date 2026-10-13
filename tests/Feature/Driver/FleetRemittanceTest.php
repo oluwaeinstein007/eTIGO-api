@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\FleetAgreementStatus;
+use App\Jobs\RemittanceShortfallAlertJob;
 use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
@@ -198,7 +199,7 @@ it('does not increment shortfall streak for excused days', function () {
 });
 
 it('flags agreements at shortfall escalation thresholds', function () {
-    $admin = \App\Models\User::factory()->admin()->create();
+    $admin = User::factory()->admin()->create();
 
     $agreement3 = FleetAgreement::factory()->create([
         'shortfall_streak_days' => 3,
@@ -215,7 +216,7 @@ it('flags agreements at shortfall escalation thresholds', function () {
         'created_by_admin_id' => $admin->id,
     ]);
 
-    $job = new \App\Jobs\RemittanceShortfallAlertJob;
+    $job = new RemittanceShortfallAlertJob;
     $job->handle();
 
     $agreement3->refresh();
@@ -228,7 +229,7 @@ it('flags agreements at shortfall escalation thresholds', function () {
 });
 
 it('does not re-flag agreements already at the correct escalation level', function () {
-    $admin = \App\Models\User::factory()->admin()->create();
+    $admin = User::factory()->admin()->create();
 
     $agreement = FleetAgreement::factory()->create([
         'shortfall_streak_days' => 3,
@@ -239,7 +240,7 @@ it('does not re-flag agreements already at the correct escalation level', functi
 
     $originalFlaggedAt = $agreement->shortfall_flagged_at;
 
-    $job = new \App\Jobs\RemittanceShortfallAlertJob;
+    $job = new RemittanceShortfallAlertJob;
     $job->handle();
 
     $agreement->refresh();

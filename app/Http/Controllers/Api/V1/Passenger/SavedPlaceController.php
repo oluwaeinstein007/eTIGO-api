@@ -43,7 +43,7 @@ class SavedPlaceController extends Controller
             $action = $place->wasRecentlyCreated ? 'saved' : 'updated';
 
             return response()->json([
-                'message' => ucfirst($type) . " address {$action}.",
+                'message' => ucfirst($type)." address {$action}.",
                 'saved_place' => new SavedPlaceResource($place),
             ], $place->wasRecentlyCreated ? 201 : 200);
         }

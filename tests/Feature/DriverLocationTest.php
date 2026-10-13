@@ -65,7 +65,7 @@ it('calls location service with correct parameters', function () {
 
     $this->mockLocationService->shouldHaveReceived('updateLocation')
         ->once()
-        ->with($this->driver->id, 9.0579, 7.4951, 45.0, 30.0);
+        ->with($this->driver->id, 9.0579, 7.4951, 45.0, 30.0, $this->driverUser->id);
 });
 
 it('returns 403 for offline driver', function () {
@@ -229,5 +229,5 @@ it('removes driver from geo set when going offline', function () {
 
     $this->mockLocationService->shouldHaveReceived('removeDriver')
         ->once()
-        ->with($this->driver->id);
+        ->with($this->driver->id, $this->driverUser->id);
 });

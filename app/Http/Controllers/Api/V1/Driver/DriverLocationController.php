@@ -45,7 +45,7 @@ class DriverLocationController extends Controller
         $heading = (float) $request->input('heading', 0);
         $speed = (float) $request->input('speed', 0);
 
-        $this->locationService->updateLocation($driver->id, $lat, $lng, $heading, $speed);
+        $this->locationService->updateLocation($driver->id, $lat, $lng, $heading, $speed, $user->id);
 
         $location = [
             'lat' => $lat,
