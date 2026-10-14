@@ -2184,6 +2184,7 @@ GET /admin/drivers
       "bank_account": {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
         "bank_code": "058",
+        "bank_name": "GTBank",
         "account_number": "******7890",
         "account_name": "Bayo Akinola",
         "is_verified": true,
@@ -2252,6 +2253,7 @@ GET /admin/drivers/{driver_id}
         "created_at": "2026-10-03T09:00:00+00:00"
       }
     ],
+    "is_profile_complete": true,
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-04T10:00:00.000000Z"
   },
@@ -2261,10 +2263,15 @@ GET /admin/drivers/{driver_id}
     "completed_trips": 135,
     "cancelled_trips": 7,
     "cancellation_rate": 4.9,
+    "acceptance_rate": 92.5,
     "total_earnings": 285000.00
   }
 }
 ```
+
+**Field Notes:**
+- `driver.is_profile_complete` (boolean) — `true` when the driver has: user details, city, vehicle, KYC verified, bank account, and documents uploaded.
+- `performance.acceptance_rate` (float, 0–100) — Calculated from AuditLog records of `ride_accepted` and `ride_rejected` events. Defaults to `100.0` if no offers have been recorded.
 
 ---
 
@@ -5915,6 +5922,7 @@ Returns all rides in active (non-terminal) status with current driver GPS positi
       "vehicle_class": { "id": "...", "name": "economy", "display_name": "Economy" },
       "fare_estimate_amount": "3750.00",
       "fare_currency": "NGN",
+      "driver_rating": 4.75,
       "driver_location": {
         "lat": 6.5251,
         "lng": 3.3801,
@@ -5922,6 +5930,14 @@ Returns all rides in active (non-terminal) status with current driver GPS positi
         "speed": 32.5,
         "timestamp": 1728742800
       },
+      "stage_timestamps": {
+        "requested_at": "2026-10-06T14:00:00.000000Z",
+        "matched_at": "2026-10-06T14:00:35.000000Z",
+        "driver_arrived_at": "2026-10-06T14:08:00.000000Z",
+        "started_at": "2026-10-06T14:10:00.000000Z"
+      },
+      "has_active_sos": false,
+      "sos": null,
       "created_at": "2026-10-06T14:00:00.000000Z",
       "..."
     }
@@ -5944,6 +5960,12 @@ Returns all rides in active (non-terminal) status with current driver GPS positi
   }
 }
 ```
+
+**Per-ride fields:**
+- `driver_rating` (float, nullable) — The driver's average rating.
+- `stage_timestamps` (object) — ISO 8601 timestamps for each ride stage: `requested_at`, `matched_at`, `driver_arrived_at`, `started_at` (all nullable).
+- `has_active_sos` (boolean) — Whether the ride has an active SOS incident.
+- `sos` (object, nullable) — Present when `has_active_sos` is `true`. Contains: `id`, `status`, `trigger_type`, `created_at`.
 
 ### List Online Drivers
 ```
@@ -5988,6 +6010,7 @@ Returns all online approved drivers with live GPS positions and whether they're 
         "pickup_address": "123 Herbert Macaulay Way, Yaba",
         "destination_address": "456 Broad Street, Lagos Island"
       },
+      "rating": 4.75,
       "is_on_trip": true
     }
   ],
@@ -6099,6 +6122,7 @@ Returns eligible drivers near the ride's pickup point for manual assignment. Sor
         "speed": 0,
         "timestamp": 1728742800
       },
+      "rating": 4.75,
       "distance_km": 0.85
     }
   ],
@@ -8106,17 +8130,24 @@ Downloads a PDF report of the authenticated user's green impact: total rides, CO
 ### List Gamification Users
 
 ```
-GET /admin/gamification/users?tier=2&search=ade&sort_by=total_ranking_points&sort_dir=desc&per_page=15
+GET /admin/gamification/users?tier=2&search=ade&sort_by=total_ranking_points&sort_dir=desc&per_page=15&city_id={uuid}
 Authorization: Bearer {admin_token}
 ```
 
-**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc)
+**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `city_id` (uuid — filters users who have rides in that city), `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc)
 
 **Response `200`:**
 
 ```json
 {
-  "profiles": [ { "...GamificationResource..." } ],
+  "profiles": [
+    {
+      "...GamificationResource...",
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "email": "ade@demo.etigo.com"
+    }
+  ],
   "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 5 }
 }
 ```
@@ -8128,6 +8159,14 @@ GET /admin/gamification/aggregate
 Authorization: Bearer {admin_token}
 ```
 
+**Query Parameters:**
+
+| Param     | Type | Description                                           |
+|-----------|------|-------------------------------------------------------|
+| `from`    | date | Filter carbon score data from this date               |
+| `to`      | date | Filter carbon score data to this date                 |
+| `city_id` | uuid | Filter by city                                        |
+
 **Response `200`:**
 
 ```json
@@ -8137,6 +8176,8 @@ Authorization: Bearer {admin_token}
     "average_carbon_score": 45.20,
     "average_ranking_points": 1200,
     "total_co2_saved_kg": 6780.50,
+    "total_points_awarded": 180000,
+    "average_co2_per_trip": 0.85,
     "tier_distribution": [
       { "tier_level": 1, "tier_name": "Bronze", "count": 80 },
       { "tier_level": 2, "tier_name": "Silver", "count": 40 },
@@ -9683,6 +9724,7 @@ Verifies the bank account via Paystack account resolution and saves it as the dr
   "bank_account": {
     "id": "uuid",
     "bank_code": "058",
+    "bank_name": "GTBank",
     "account_number": "0123456789",
     "account_name": "JOHN DOE",
     "is_verified": true,
@@ -10493,14 +10535,23 @@ Authorization: Bearer {admin_token}
     ],
     "trend": [
       { "period": "2026-10-01", "count": 42 },
-      { "period": "2026-10-02", "count": 55 }
+      { "period": "2026-10-02", "count": 55 },
+      { "period": "2026-10-03", "count": 0 }
     ],
+    "previous_period": {
+      "from": "2026-08-31",
+      "to": "2026-09-30",
+      "total_rides": 1100,
+      "change_pct": 13.6
+    },
     "generated_at": "2026-10-10T14:30:00+01:00"
   }
 }
 ```
 
-`trend` is only included when `group_by` is specified.
+`trend` is only included when `group_by` is specified. When `from` and `to` are provided, empty periods (days/weeks/months with no rides) are filled with `count: 0` entries.
+
+`previous_period` is included when both `from` and `to` are provided. It covers the same-length period immediately preceding the requested range.
 
 ---
 
@@ -10544,10 +10595,24 @@ Authorization: Bearer {admin_token}
       "passenger": 100,
       "driver": 50
     },
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "total": 800, "completed": 640, "cancelled": 96, "completion_rate": 80.0 },
+      { "city_id": "uuid", "city_name": "Abuja", "total": 450, "completed": 340, "cancelled": 54, "completion_rate": 75.6 }
+    ],
+    "previous_period": {
+      "from": "2026-08-31",
+      "to": "2026-09-30",
+      "total_rides": 1100,
+      "completed": 880,
+      "completion_rate": 80.0,
+      "change_pct": -2.0
+    },
     "generated_at": "2026-10-10T14:30:00+01:00"
   }
 }
 ```
+
+`previous_period` is included when both `from` and `to` are provided. It covers the same-length period immediately preceding the requested range.
 
 ---
 
@@ -10590,14 +10655,27 @@ Authorization: Bearer {admin_token}
       { "city_id": "uuid", "city_name": "Abuja", "count": 380, "total": 1900000.00 }
     ],
     "trend": [
-      { "period": "2026-10", "count": 980, "total": 4900000.00 }
+      { "period": "2026-10-01", "count": 35, "total": 175000.00 },
+      { "period": "2026-10-02", "count": 0, "total": 0 },
+      { "period": "2026-10-03", "count": 42, "total": 210000.00 }
     ],
+    "previous_period": {
+      "from": "2026-08-31",
+      "to": "2026-09-30",
+      "total_revenue": 4500000.00,
+      "ride_count": 920,
+      "average_fare": 4891.30,
+      "revenue_change_pct": 8.9,
+      "count_change_pct": 6.5
+    },
     "generated_at": "2026-10-10T14:30:00+01:00"
   }
 }
 ```
 
-`trend` is only included when `group_by` is specified.
+`trend` is only included when `group_by` is specified. When `from` and `to` are provided, empty periods (days/weeks/months with no rides) are filled with `count: 0` and `total: 0` entries.
+
+`previous_period` is included when both `from` and `to` are provided. It covers the same-length period immediately preceding the requested range.
 
 ---
 
@@ -10627,6 +10705,8 @@ Authorization: Bearer {admin_token}
     "period": { "from": "2026-10-01", "to": "2026-10-31" },
     "currency": "NGN",
     "total_active_drivers": 85,
+    "total_approved_drivers": 120,
+    "utilisation_rate": 70.8,
     "total_trips": 980,
     "average_trips_per_driver": 11.53,
     "total_earnings": 4900000.00,
@@ -10641,10 +10721,28 @@ Authorization: Bearer {admin_token}
         "average_fare": 5000.00
       }
     ],
+    "by_city": [
+      { "city_id": "uuid", "city_name": "Lagos", "trip_count": 600, "active_drivers": 50, "total_earnings": 3000000.00 },
+      { "city_id": "uuid", "city_name": "Abuja", "trip_count": 380, "active_drivers": 35, "total_earnings": 1900000.00 }
+    ],
+    "previous_period": {
+      "from": "2026-08-31",
+      "to": "2026-09-30",
+      "total_active_drivers": 78,
+      "total_trips": 900,
+      "drivers_change_pct": 9.0,
+      "trips_change_pct": 8.9
+    },
     "generated_at": "2026-10-10T14:30:00+01:00"
   }
 }
 ```
+
+**Field Notes:**
+- `total_approved_drivers` (int) — Total approved drivers in the system (or filtered city).
+- `utilisation_rate` (float) — Percentage of approved drivers who completed at least one trip in the period.
+
+`previous_period` is included when both `from` and `to` are provided. It covers the same-length period immediately preceding the requested range.
 
 ---
 
@@ -10661,7 +10759,7 @@ Authorization: Bearer {admin_token}
 
 | Param     | Type   | Description                                                            |
 |-----------|--------|------------------------------------------------------------------------|
-| `type`    | string | Report type: `ride_volume`, `completion_rate`, `revenue`, `driver_utilisation` |
+| `type`    | string | Report type: `ride_volume`, `completion_rate`, `revenue`, `driver_utilisation`, `all` |
 | `from`    | date   | Start date (inclusive)                                                 |
 | `to`      | date   | End date (inclusive)                                                   |
 | `city_id` | uuid   | Optional city filter                                                   |
@@ -10673,6 +10771,7 @@ CSV columns per report type:
 - **completion_rate:** Ride ID, Status, City, Cancellation Reason, Cancelled By, Created At
 - **revenue:** Ride ID, City, Vehicle Class, Final Fare, Tip, Payment Method, Payment Status, Completed At
 - **driver_utilisation:** Driver ID, Driver Name, Trip Count, Total Earnings, Average Fare, First Trip, Last Trip
+- **all:** Ride ID, Status, City, Vehicle Class, Fare Estimate, Final Fare, Payment Method, Payment Status, Tip, Cancellation Reason, Cancelled By, Driver ID, Driver Name, Created At, Completed At
 
 ---
 

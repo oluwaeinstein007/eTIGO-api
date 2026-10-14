@@ -26,6 +26,7 @@ class DriverResource extends JsonResource
             'rejection_reason' => $this->rejection_reason,
             'suspension_reason' => $this->when($this->resource->status === DriverStatus::Suspended, $this->suspension_reason),
             'is_online' => $this->is_online,
+            'is_profile_complete' => $this->resource->isProfileComplete(),
             'approved_at' => $this->approved_at,
             'suspended_at' => $this->suspended_at,
             'documents' => DriverDocumentResource::collection($this->whenLoaded('documents')),

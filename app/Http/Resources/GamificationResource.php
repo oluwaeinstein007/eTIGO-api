@@ -100,6 +100,9 @@ class GamificationResource extends JsonResource
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
+            'first_name' => $this->whenLoaded('user', fn () => $this->user?->first_name),
+            'last_name' => $this->whenLoaded('user', fn () => $this->user?->last_name),
+            'email' => $this->whenLoaded('user', fn () => $this->user?->email),
             'current_tier' => $this->current_tier,
             'tier_name' => $currentTier->label(),
             'total_ranking_points' => $this->total_ranking_points,

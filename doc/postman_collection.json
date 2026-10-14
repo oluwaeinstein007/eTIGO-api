@@ -7268,7 +7268,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"account_number\": \"****5678\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
+                  "body": "{\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"****5678\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 No Account",
@@ -7329,7 +7329,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"account_number\": \"****6789\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
+                  "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"****6789\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
                 }
               ]
             }
@@ -8527,7 +8527,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"reference_number\": \"DRV-20261009-A1B2C3\",\n    \"user\": {\n      \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"phone\": \"+2348200000001\"\n    },\n    \"status\": \"approved\",\n    \"vehicle_ownership_type\": \"own_vehicle\",\n    \"kyc_status\": \"verified\",\n    \"rejection_reason\": null,\n    \"is_online\": true,\n    \"suspended_at\": null,\n    \"bank_account\": {\n      \"bank_name\": \"GTBank\",\n      \"account_number\": \"0123456789\",\n      \"account_name\": \"Bayo Akinola\"\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"plate_number\": \"ABC-1234\",\n      \"year\": 2022\n    },\n    \"documents\": [\n      {\n        \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n        \"type\": \"driving_licence\",\n        \"original_filename\": \"licence.pdf\",\n        \"file_size\": 245760,\n        \"file_url\": \"https://res.cloudinary.com/etigo/raw/upload/driver-documents/7/licence.pdf\",\n        \"status\": \"approved\",\n        \"rejection_reason\": null,\n        \"created_at\": \"2026-10-09T08:00:00.000000Z\"\n      }\n    ],\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T14:30:00.000000Z\"\n  },\n  \"performance\": {\n    \"rating\": 4.7,\n    \"total_trips\": 156,\n    \"completed_trips\": 148,\n    \"cancelled_trips\": 8,\n    \"cancellation_rate\": 5.1,\n    \"total_earnings\": 1245600.0\n  }\n}"
+                  "body": "{\n  \"driver\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"reference_number\": \"DRV-20261009-A1B2C3\",\n    \"user\": {\n      \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"phone\": \"+2348200000001\"\n    },\n    \"status\": \"approved\",\n    \"vehicle_ownership_type\": \"own_vehicle\",\n    \"kyc_status\": \"verified\",\n    \"rejection_reason\": null,\n    \"is_online\": true,\n    \"is_profile_complete\": true,\n    \"suspended_at\": null,\n    \"bank_account\": {\n      \"bank_name\": \"GTBank\",\n      \"account_number\": \"0123456789\",\n      \"account_name\": \"Bayo Akinola\"\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"plate_number\": \"ABC-1234\",\n      \"year\": 2022\n    },\n    \"documents\": [\n      {\n        \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n        \"type\": \"driving_licence\",\n        \"original_filename\": \"licence.pdf\",\n        \"file_size\": 245760,\n        \"file_url\": \"https://res.cloudinary.com/etigo/raw/upload/driver-documents/7/licence.pdf\",\n        \"status\": \"approved\",\n        \"rejection_reason\": null,\n        \"created_at\": \"2026-10-09T08:00:00.000000Z\"\n      }\n    ],\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T14:30:00.000000Z\"\n  },\n  \"performance\": {\n    \"rating\": 4.7,\n    \"total_trips\": 156,\n    \"completed_trips\": 148,\n    \"cancelled_trips\": 8,\n    \"cancellation_rate\": 5.1,\n    \"acceptance_rate\": 92.3,\n    \"total_earnings\": 1245600.0\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 Not Found",
@@ -12294,7 +12294,7 @@
                     }
                   ]
                 },
-                "description": "Returns nearby online drivers who are eligible to be assigned to a specific ride. Drivers are filtered by approval status, online status, matching vehicle class, same city, and no active ride. Results are sorted by proximity to the ride pickup location.\n\nUse this before calling \"Manually Assign Driver\" to see which drivers are available and how far away they are. The radius_km parameter controls the search radius (default 5 km) and limit caps the number of results (default 20).\n\nThe meta block includes the search radius, ride ID, and the pickup coordinates for reference.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+                "description": "Returns nearby online drivers who are eligible to be assigned to a specific ride. Drivers are filtered by approval status, online status, matching vehicle class, same city, and no active ride. Results are sorted by proximity to the ride pickup location.\n\nUse this before calling \"Manually Assign Driver\" to see which drivers are available and how far away they are. Each driver includes a `rating` field. The radius_km parameter controls the search radius (default 5 km) and limit caps the number of results (default 20).\n\nThe meta block includes the search radius, ride ID, and the pickup coordinates for reference.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
               },
               "response": [
                 {
@@ -12307,7 +12307,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-567-AB\",\n        \"colour\": \"White\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.528,\n        \"lng\": 3.3815,\n        \"heading\": 170.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:30:15.000000Z\"\n      },\n      \"distance_km\": 0.85\n    },\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Camry\",\n        \"plate_number\": \"LAG-890-CD\",\n        \"colour\": \"Blue\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.518,\n        \"lng\": 3.39,\n        \"heading\": 265.0,\n        \"speed\": 15.2,\n        \"updated_at\": \"2026-10-12T09:29:58.000000Z\"\n      },\n      \"distance_km\": 1.42\n    },\n    {\n      \"driver_id\": \"ab3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n      \"user_id\": 8,\n      \"name\": \"Kola Adebayo\",\n      \"phone\": \"+2348200000007\",\n      \"reference_number\": \"DRV-20261009-G7H8I9\",\n      \"vehicle\": {\n        \"make\": \"Honda\",\n        \"model\": \"Civic\",\n        \"plate_number\": \"LAG-345-EF\",\n        \"colour\": \"Grey\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.505,\n        \"lng\": 3.365,\n        \"heading\": 320.0,\n        \"speed\": 22.8,\n        \"updated_at\": \"2026-10-12T09:30:02.000000Z\"\n      },\n      \"distance_km\": 2.67\n    }\n  ],\n  \"meta\": {\n    \"total\": 3,\n    \"radius_km\": 5.0,\n    \"ride_id\": \"03c32g8h-67he-946g-1c9f-05dc1fh12g58\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"8 University Road, Akoka, Yaba, Lagos\"\n    }\n  }\n}"
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"rating\": 4.5,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-567-AB\",\n        \"colour\": \"White\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.528,\n        \"lng\": 3.3815,\n        \"heading\": 170.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:30:15.000000Z\"\n      },\n      \"distance_km\": 0.85\n    },\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"rating\": 4.7,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Camry\",\n        \"plate_number\": \"LAG-890-CD\",\n        \"colour\": \"Blue\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.518,\n        \"lng\": 3.39,\n        \"heading\": 265.0,\n        \"speed\": 15.2,\n        \"updated_at\": \"2026-10-12T09:29:58.000000Z\"\n      },\n      \"distance_km\": 1.42\n    },\n    {\n      \"driver_id\": \"ab3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e\",\n      \"user_id\": 8,\n      \"name\": \"Kola Adebayo\",\n      \"phone\": \"+2348200000007\",\n      \"reference_number\": \"DRV-20261009-G7H8I9\",\n      \"rating\": 4.3,\n      \"vehicle\": {\n        \"make\": \"Honda\",\n        \"model\": \"Civic\",\n        \"plate_number\": \"LAG-345-EF\",\n        \"colour\": \"Grey\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.505,\n        \"lng\": 3.365,\n        \"heading\": 320.0,\n        \"speed\": 22.8,\n        \"updated_at\": \"2026-10-12T09:30:02.000000Z\"\n      },\n      \"distance_km\": 2.67\n    }\n  ],\n  \"meta\": {\n    \"total\": 3,\n    \"radius_km\": 5.0,\n    \"ride_id\": \"03c32g8h-67he-946g-1c9f-05dc1fh12g58\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"8 University Road, Akoka, Yaba, Lagos\"\n    }\n  }\n}"
                 }
               ]
             },
@@ -12436,7 +12436,7 @@
                     }
                   ]
                 },
-                "description": "Returns all currently active rides (matched, driver en route, driver arrived, in progress) with real-time driver locations. Use this for the live monitoring dashboard to track rides across all cities or filter by a specific city and status.\n\nThe response includes a summary block with total active rides and a breakdown by status. Each ride object includes a driver_location block with the driver's last-known GPS coordinates.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+                "description": "Returns all currently active rides (matched, driver en route, driver arrived, in progress) with real-time driver locations, driver rating, stage timestamps, and SOS status. Use this for the live monitoring dashboard to track rides across all cities or filter by a specific city and status.\n\nThe response includes a summary block with total active rides and a breakdown by status. Each ride object includes a driver_location block with the driver's last-known GPS coordinates, `driver_rating`, `stage_timestamps` (requested_at, matched_at, driver_arrived_at, started_at), `has_active_sos` boolean, and an `sos` object when an SOS incident is active.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
               },
               "response": [
                 {
@@ -12449,7 +12449,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n      \"reference_number\": \"RDE-20261012-X7K9M2\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 1,\n        \"name\": \"Economy\"\n      },\n      \"passenger\": {\n        \"id\": 1,\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\"\n      },\n      \"driver\": {\n        \"id\": 2,\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.5100000\",\n        \"lng\": \"3.3750000\",\n        \"address\": \"15 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4650000\",\n        \"lng\": \"3.4060000\",\n        \"address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"status\": \"in_progress\",\n      \"status_label\": \"In Progress\",\n      \"fare_estimate_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"cash\",\n      \"created_at\": \"2026-10-12T09:15:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.4832,\n        \"lng\": 3.3791,\n        \"heading\": 185.5,\n        \"speed\": 32.0,\n        \"updated_at\": \"2026-10-12T09:28:45.000000Z\"\n      }\n    },\n    {\n      \"id\": \"02b21f7g-56gd-835f-0b8e-94cb0eg01f47\",\n      \"reference_number\": \"RDE-20261012-P3N5Q8\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 3,\n        \"name\": \"Premium\"\n      },\n      \"passenger\": {\n        \"id\": 3,\n        \"first_name\": \"Emeka\",\n        \"last_name\": \"Nwosu\",\n        \"phone\": \"+2348100000003\"\n      },\n      \"driver\": {\n        \"id\": 5,\n        \"first_name\": \"Segun\",\n        \"last_name\": \"Obaseki\",\n        \"phone\": \"+2348200000003\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.4310000\",\n        \"lng\": \"3.4240000\",\n        \"address\": \"4 Ozumba Mbadiwe Avenue, Victoria Island, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5950000\",\n        \"lng\": \"3.3420000\",\n        \"address\": \"22 Allen Avenue, Ikeja, Lagos\"\n      },\n      \"status\": \"driver_en_route\",\n      \"status_label\": \"Driver En Route\",\n      \"fare_estimate_amount\": \"8500.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"created_at\": \"2026-10-12T09:22:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:24:12.000000Z\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 50,\n    \"total\": 2\n  },\n  \"summary\": {\n    \"total_active\": 5,\n    \"by_status\": {\n      \"matched\": 1,\n      \"driver_en_route\": 2,\n      \"driver_arrived\": 0,\n      \"in_progress\": 2\n    }\n  }\n}"
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n      \"reference_number\": \"RDE-20261012-X7K9M2\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 1,\n        \"name\": \"Economy\"\n      },\n      \"passenger\": {\n        \"id\": 1,\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\"\n      },\n      \"driver\": {\n        \"id\": 2,\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.5100000\",\n        \"lng\": \"3.3750000\",\n        \"address\": \"15 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4650000\",\n        \"lng\": \"3.4060000\",\n        \"address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"status\": \"in_progress\",\n      \"status_label\": \"In Progress\",\n      \"fare_estimate_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"cash\",\n      \"created_at\": \"2026-10-12T09:15:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.4832,\n        \"lng\": 3.3791,\n        \"heading\": 185.5,\n        \"speed\": 32.0,\n        \"updated_at\": \"2026-10-12T09:28:45.000000Z\"\n      },\n      \"driver_rating\": 4.7,\n      \"stage_timestamps\": {\n        \"requested_at\": \"2026-10-12T09:15:00+01:00\",\n        \"matched_at\": \"2026-10-12T09:16:30+01:00\",\n        \"driver_arrived_at\": \"2026-10-12T09:22:00+01:00\",\n        \"started_at\": \"2026-10-12T09:23:15+01:00\"\n      },\n      \"has_active_sos\": false\n    },\n    {\n      \"id\": \"02b21f7g-56gd-835f-0b8e-94cb0eg01f47\",\n      \"reference_number\": \"RDE-20261012-P3N5Q8\",\n      \"city\": {\n        \"id\": 1,\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_class\": {\n        \"id\": 3,\n        \"name\": \"Premium\"\n      },\n      \"passenger\": {\n        \"id\": 3,\n        \"first_name\": \"Emeka\",\n        \"last_name\": \"Nwosu\",\n        \"phone\": \"+2348100000003\"\n      },\n      \"driver\": {\n        \"id\": 5,\n        \"first_name\": \"Segun\",\n        \"last_name\": \"Obaseki\",\n        \"phone\": \"+2348200000003\"\n      },\n      \"pickup\": {\n        \"lat\": \"6.4310000\",\n        \"lng\": \"3.4240000\",\n        \"address\": \"4 Ozumba Mbadiwe Avenue, Victoria Island, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5950000\",\n        \"lng\": \"3.3420000\",\n        \"address\": \"22 Allen Avenue, Ikeja, Lagos\"\n      },\n      \"status\": \"driver_en_route\",\n      \"status_label\": \"Driver En Route\",\n      \"fare_estimate_amount\": \"8500.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"created_at\": \"2026-10-12T09:22:00.000000Z\",\n      \"driver_location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:24:12.000000Z\"\n      },\n      \"driver_rating\": 4.5,\n      \"stage_timestamps\": {\n        \"requested_at\": \"2026-10-12T09:22:00+01:00\",\n        \"matched_at\": \"2026-10-12T09:22:45+01:00\",\n        \"driver_arrived_at\": null,\n        \"started_at\": null\n      },\n      \"has_active_sos\": true,\n      \"sos\": {\n        \"id\": \"uuid-sos-1\",\n        \"status\": \"triggered\",\n        \"trigger_type\": \"manual\",\n        \"created_at\": \"2026-10-12T09:23:30+01:00\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 50,\n    \"total\": 2\n  },\n  \"summary\": {\n    \"total_active\": 5,\n    \"by_status\": {\n      \"matched\": 1,\n      \"driver_en_route\": 2,\n      \"driver_arrived\": 0,\n      \"in_progress\": 2\n    }\n  }\n}"
                 }
               ]
             },
@@ -12486,7 +12486,7 @@
                     }
                   ]
                 },
-                "description": "Returns all currently online and approved drivers with their real-time GPS locations, vehicle details, and active ride information (if any). Use this for the live monitoring map to see all available and occupied drivers.\n\nThe response includes a summary block with counts of total online, on-trip, and available drivers. Each driver entry indicates whether they are currently on a trip via the is_on_trip boolean and provides the active_ride details if applicable.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
+                "description": "Returns all currently online and approved drivers with their real-time GPS locations, vehicle details, rating, and active ride information (if any). Use this for the live monitoring map to see all available and occupied drivers.\n\nThe response includes a summary block with counts of total online, on-trip, and available drivers. Each driver entry includes a `rating` field and indicates whether they are currently on a trip via the is_on_trip boolean, providing the active_ride details if applicable.\n\nRequires admin authentication. Accessible to Operations and Super Admin roles."
               },
               "response": [
                 {
@@ -12499,7 +12499,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-234-XY\",\n        \"colour\": \"Silver\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.51,\n        \"lng\": 3.375,\n        \"heading\": 90.0,\n        \"speed\": 28.5,\n        \"updated_at\": \"2026-10-12T09:30:00.000000Z\"\n      },\n      \"active_ride\": {\n        \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n        \"reference_number\": \"RDE-20261012-X7K9M2\",\n        \"status\": \"in_progress\",\n        \"pickup_address\": \"15 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"is_on_trip\": true\n    },\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Mercedes\",\n        \"model\": \"E-Class\",\n        \"plate_number\": \"ABJ-789-KL\",\n        \"colour\": \"Black\",\n        \"vehicle_class\": \"Premium\"\n      },\n      \"location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:29:50.000000Z\"\n      },\n      \"active_ride\": null,\n      \"is_on_trip\": false\n    }\n  ],\n  \"summary\": {\n    \"total_online\": 8,\n    \"on_trip\": 3,\n    \"available\": 5\n  }\n}"
+                  "body": "{\n  \"drivers\": [\n    {\n      \"driver_id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n      \"user_id\": 2,\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"reference_number\": \"DRV-20261009-A1B2C3\",\n      \"rating\": 4.7,\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"plate_number\": \"LAG-234-XY\",\n        \"colour\": \"Silver\",\n        \"vehicle_class\": \"Economy\"\n      },\n      \"location\": {\n        \"lat\": 6.51,\n        \"lng\": 3.375,\n        \"heading\": 90.0,\n        \"speed\": 28.5,\n        \"updated_at\": \"2026-10-12T09:30:00.000000Z\"\n      },\n      \"active_ride\": {\n        \"id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n        \"reference_number\": \"RDE-20261012-X7K9M2\",\n        \"status\": \"in_progress\",\n        \"pickup_address\": \"15 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"12 Adeola Odeku Street, Victoria Island, Lagos\"\n      },\n      \"is_on_trip\": true\n    },\n    {\n      \"driver_id\": \"7c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f\",\n      \"user_id\": 5,\n      \"name\": \"Segun Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"reference_number\": \"DRV-20261009-D4E5F6\",\n      \"rating\": 4.5,\n      \"city\": \"Lagos\",\n      \"vehicle\": {\n        \"make\": \"Mercedes\",\n        \"model\": \"E-Class\",\n        \"plate_number\": \"ABJ-789-KL\",\n        \"colour\": \"Black\",\n        \"vehicle_class\": \"Premium\"\n      },\n      \"location\": {\n        \"lat\": 6.438,\n        \"lng\": 3.421,\n        \"heading\": 42.0,\n        \"speed\": 0.0,\n        \"updated_at\": \"2026-10-12T09:29:50.000000Z\"\n      },\n      \"active_ride\": null,\n      \"is_on_trip\": false\n    }\n  ],\n  \"summary\": {\n    \"total_online\": 8,\n    \"on_trip\": 3,\n    \"available\": 5\n  }\n}"
                 }
               ]
             }
@@ -13209,6 +13209,12 @@
                       "disabled": true
                     },
                     {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID (users who have rides in this city)",
+                      "disabled": true
+                    },
+                    {
                       "key": "sort_by",
                       "value": "total_ranking_points",
                       "description": "Sort field: total_ranking_points, total_carbon_score, current_tier, created_at"
@@ -13230,7 +13236,7 @@
                     }
                   ]
                 },
-                "description": "List all users with gamification profiles. Supports filtering by tier, searching by name/email, and sorting.\n\n**Required Role:** Operations or Super Admin"
+                "description": "List all users with gamification profiles. Supports filtering by tier and city, searching by name/email, and sorting. Response profiles include `first_name`, `last_name`, and `email` from the user relation.\n\n**Required Role:** Operations or Super Admin"
               },
               "response": [
                 {
@@ -13243,7 +13249,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"profiles\": [\n    \"...GamificationResource...\"\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 5\n  }\n}"
+                  "body": "{\n  \"profiles\": [\n    {\n      \"id\": \"uuid\",\n      \"user_id\": 1,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"current_tier\": 3,\n      \"tier_name\": \"Gold\",\n      \"total_ranking_points\": 5200,\n      \"total_carbon_score\": 320.5,\n      \"total_co2_saved_kg\": 45.2,\n      \"co2_saved_this_month_kg\": 8.3,\n      \"points_this_month\": 450,\n      \"tier_upgraded_at\": \"2026-09-15T10:00:00.000000Z\",\n      \"progress_to_next_tier\": 73.3,\n      \"points_to_next_tier\": 800,\n      \"next_tier\": \"Platinum\",\n      \"benefits\": {\n        \"booking_fee_discount_pct\": 5.0,\n        \"priority_matching\": true,\n        \"ev_reservation_fee_waived\": false\n      },\n      \"created_at\": \"2026-08-01T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-10T14:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 5\n  }\n}"
                 }
               ]
             },
@@ -13274,9 +13280,29 @@
                     "admin",
                     "gamification",
                     "aggregate"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "description": "Start date for carbon score filtering (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "description": "End date for carbon score filtering (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "Filter by city UUID",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "Returns aggregate gamification statistics: tier distribution, average scores, total CO\u2082 saved, and top 10 users.\n\n**Required Role:** Operations or Super Admin"
+                "description": "Returns aggregate gamification statistics: tier distribution, average scores, total CO\u2082 saved, total points awarded, average CO\u2082 per trip, and top 10 users. Supports filtering by city and date range for carbon score metrics.\n\n**Required Role:** Operations or Super Admin"
               },
               "response": [
                 {
@@ -13289,7 +13315,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"aggregate\": {\n    \"total_profiles\": 150,\n    \"average_carbon_score\": 45.2,\n    \"average_ranking_points\": 1200,\n    \"total_co2_saved_kg\": 6780.5,\n    \"tier_distribution\": [\n      {\n        \"tier_level\": 1,\n        \"tier_name\": \"Bronze\",\n        \"count\": 80\n      },\n      {\n        \"tier_level\": 2,\n        \"tier_name\": \"Silver\",\n        \"count\": 40\n      },\n      {\n        \"tier_level\": 3,\n        \"tier_name\": \"Gold\",\n        \"count\": 20\n      },\n      {\n        \"tier_level\": 4,\n        \"tier_name\": \"Platinum\",\n        \"count\": 8\n      },\n      {\n        \"tier_level\": 5,\n        \"tier_name\": \"Diamond\",\n        \"count\": 2\n      }\n    ],\n    \"top_users\": [\n      {\n        \"user_id\": \"uuid\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"tier\": 5,\n        \"tier_name\": \"Diamond\",\n        \"total_ranking_points\": 18500,\n        \"total_carbon_score\": 890.25\n      }\n    ]\n  }\n}"
+                  "body": "{\n  \"aggregate\": {\n    \"total_profiles\": 150,\n    \"average_carbon_score\": 45.2,\n    \"average_ranking_points\": 1200,\n    \"total_co2_saved_kg\": 6780.5,\n    \"total_points_awarded\": 180000,\n    \"average_co2_per_trip\": 1.35,\n    \"tier_distribution\": [\n      {\n        \"tier_level\": 1,\n        \"tier_name\": \"Bronze\",\n        \"count\": 80\n      },\n      {\n        \"tier_level\": 2,\n        \"tier_name\": \"Silver\",\n        \"count\": 40\n      },\n      {\n        \"tier_level\": 3,\n        \"tier_name\": \"Gold\",\n        \"count\": 20\n      },\n      {\n        \"tier_level\": 4,\n        \"tier_name\": \"Platinum\",\n        \"count\": 8\n      },\n      {\n        \"tier_level\": 5,\n        \"tier_name\": \"Diamond\",\n        \"count\": 2\n      }\n    ],\n    \"top_users\": [\n      {\n        \"user_id\": \"uuid\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"tier\": 5,\n        \"tier_name\": \"Diamond\",\n        \"total_ranking_points\": 18500,\n        \"total_carbon_score\": 890.25\n      }\n    ]\n  }\n}"
                 }
               ]
             },
@@ -13540,7 +13566,7 @@
                     }
                   ]
                 },
-                "description": "Returns ride volume statistics: total rides, breakdown by status, city, and vehicle class. Optional trend data when group_by is specified. Accessible to Operations and Finance admins."
+                "description": "Returns ride volume statistics: total rides, breakdown by status, city, and vehicle class. Optional trend data when group_by is specified (empty periods are filled with 0-count entries). When `from` and `to` are provided, includes a `previous_period` object comparing the equivalent preceding date range. Accessible to Operations and Finance admins."
               },
               "response": [
                 {
@@ -13553,7 +13579,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"report\": {\n    \"type\": \"ride_volume\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"by_status\": {\n      \"completed\": 980,\n      \"cancelled\": 150,\n      \"no_driver_found\": 45,\n      \"in_progress\": 30,\n      \"searching\": 15,\n      \"requested\": 30\n    },\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 800\n      }\n    ],\n    \"by_vehicle_class\": [\n      {\n        \"vehicle_class_id\": \"uuid\",\n        \"vehicle_class\": \"Comfort\",\n        \"count\": 600\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                  "body": "{\n  \"report\": {\n    \"type\": \"ride_volume\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"by_status\": {\n      \"completed\": 980,\n      \"cancelled\": 150,\n      \"no_driver_found\": 45,\n      \"in_progress\": 30,\n      \"searching\": 15,\n      \"requested\": 30\n    },\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 800\n      }\n    ],\n    \"by_vehicle_class\": [\n      {\n        \"vehicle_class_id\": \"uuid\",\n        \"vehicle_class\": \"Comfort\",\n        \"count\": 600\n      }\n    ],\n    \"previous_period\": {\n      \"from\": \"2026-08-31\",\n      \"to\": \"2026-09-30\",\n      \"total_rides\": 1100,\n      \"change_pct\": 13.64\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
                 }
               ]
             },
@@ -13600,7 +13626,7 @@
                     }
                   ]
                 },
-                "description": "Returns completion and cancellation rate statistics: completed vs cancelled counts, cancellation reasons breakdown, cancelled-by-role breakdown. Accessible to Operations and Finance admins."
+                "description": "Returns completion and cancellation rate statistics: completed vs cancelled counts, cancellation reasons breakdown, cancelled-by-role breakdown, and per-city completion rates. When `from` and `to` are provided, includes a `previous_period` object comparing the equivalent preceding date range. Accessible to Operations and Finance admins."
               },
               "response": [
                 {
@@ -13613,7 +13639,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"report\": {\n    \"type\": \"completion_rate\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"completed\": 980,\n    \"cancelled\": 150,\n    \"no_driver_found\": 45,\n    \"completion_rate\": 78.4,\n    \"cancellation_rate\": 12.0,\n    \"cancellation_reasons\": {\n      \"changed_mind\": 50,\n      \"driver_too_far\": 35,\n      \"wait_too_long\": 25\n    },\n    \"cancelled_by_role\": {\n      \"passenger\": 100,\n      \"driver\": 50\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                  "body": "{\n  \"report\": {\n    \"type\": \"completion_rate\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"total_rides\": 1250,\n    \"completed\": 980,\n    \"cancelled\": 150,\n    \"no_driver_found\": 45,\n    \"completion_rate\": 78.4,\n    \"cancellation_rate\": 12.0,\n    \"cancellation_reasons\": {\n      \"changed_mind\": 50,\n      \"driver_too_far\": 35,\n      \"wait_too_long\": 25\n    },\n    \"cancelled_by_role\": {\n      \"passenger\": 100,\n      \"driver\": 50\n    },\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"total\": 900,\n        \"completed\": 720,\n        \"cancelled\": 100,\n        \"completion_rate\": 80.0\n      }\n    ],\n    \"previous_period\": {\n      \"from\": \"2026-08-31\",\n      \"to\": \"2026-09-30\",\n      \"total_rides\": 1100,\n      \"completed\": 850,\n      \"completion_rate\": 77.27,\n      \"change_pct\": 1.46\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
                 }
               ]
             },
@@ -13666,7 +13692,7 @@
                     }
                   ]
                 },
-                "description": "Returns revenue statistics: total revenue, total tips, average fare, breakdown by payment method and city. Optional trend data when group_by is specified. Accessible to Operations and Finance admins."
+                "description": "Returns revenue statistics: total revenue, total tips, average fare, breakdown by payment method and city. Optional trend data when group_by is specified (empty periods are filled with 0-count entries). When `from` and `to` are provided, includes a `previous_period` object comparing the equivalent preceding date range. Accessible to Operations and Finance admins."
               },
               "response": [
                 {
@@ -13679,7 +13705,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"report\": {\n    \"type\": \"revenue\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_revenue\": 4900000.0,\n    \"total_tips\": 125000.0,\n    \"ride_count\": 980,\n    \"average_fare\": 5000.0,\n    \"by_payment_method\": [\n      {\n        \"method\": \"cash\",\n        \"count\": 400,\n        \"total\": 2000000.0\n      }\n    ],\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 600,\n        \"total\": 3000000.0\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                  "body": "{\n  \"report\": {\n    \"type\": \"revenue\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_revenue\": 4900000.0,\n    \"total_tips\": 125000.0,\n    \"ride_count\": 980,\n    \"average_fare\": 5000.0,\n    \"by_payment_method\": [\n      {\n        \"method\": \"cash\",\n        \"count\": 400,\n        \"total\": 2000000.0\n      }\n    ],\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"count\": 600,\n        \"total\": 3000000.0\n      }\n    ],\n    \"previous_period\": {\n      \"from\": \"2026-08-31\",\n      \"to\": \"2026-09-30\",\n      \"total_revenue\": 4200000.0,\n      \"ride_count\": 870,\n      \"average_fare\": 4827.59,\n      \"revenue_change_pct\": 16.67,\n      \"count_change_pct\": 12.64\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
                 }
               ]
             },
@@ -13732,7 +13758,7 @@
                     }
                   ]
                 },
-                "description": "Returns driver utilisation statistics: active drivers count, trips per driver, earnings per driver, average trip duration, top drivers leaderboard. Accessible to Operations and Finance admins."
+                "description": "Returns driver utilisation statistics: active drivers count, total approved drivers, utilisation rate, trips per driver, earnings per driver, average trip duration, per-city breakdown, and top drivers leaderboard. When `from` and `to` are provided, includes a `previous_period` object comparing the equivalent preceding date range. Accessible to Operations and Finance admins."
               },
               "response": [
                 {
@@ -13745,7 +13771,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"report\": {\n    \"type\": \"driver_utilisation\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_active_drivers\": 85,\n    \"total_trips\": 980,\n    \"average_trips_per_driver\": 11.53,\n    \"total_earnings\": 4900000.0,\n    \"average_earnings_per_driver\": 57647.06,\n    \"average_trip_duration_minutes\": 22.5,\n    \"top_drivers\": [\n      {\n        \"driver_id\": \"uuid\",\n        \"driver_name\": \"John Doe\",\n        \"trip_count\": 45,\n        \"total_earnings\": 225000.0,\n        \"average_fare\": 5000.0\n      }\n    ],\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
+                  "body": "{\n  \"report\": {\n    \"type\": \"driver_utilisation\",\n    \"period\": {\n      \"from\": \"2026-10-01\",\n      \"to\": \"2026-10-31\"\n    },\n    \"currency\": \"NGN\",\n    \"total_active_drivers\": 85,\n    \"total_approved_drivers\": 120,\n    \"utilisation_rate\": 70.83,\n    \"total_trips\": 980,\n    \"average_trips_per_driver\": 11.53,\n    \"total_earnings\": 4900000.0,\n    \"average_earnings_per_driver\": 57647.06,\n    \"average_trip_duration_minutes\": 22.5,\n    \"by_city\": [\n      {\n        \"city_id\": \"uuid\",\n        \"city_name\": \"Lagos\",\n        \"trip_count\": 700,\n        \"active_drivers\": 60,\n        \"total_earnings\": 3500000.0\n      }\n    ],\n    \"top_drivers\": [\n      {\n        \"driver_id\": \"uuid\",\n        \"driver_name\": \"John Doe\",\n        \"trip_count\": 45,\n        \"total_earnings\": 225000.0,\n        \"average_fare\": 5000.0\n      }\n    ],\n    \"previous_period\": {\n      \"from\": \"2026-08-31\",\n      \"to\": \"2026-09-30\",\n      \"total_active_drivers\": 78,\n      \"total_trips\": 870,\n      \"drivers_change_pct\": 8.97,\n      \"trips_change_pct\": 12.64\n    },\n    \"generated_at\": \"2026-10-10T14:30:00+01:00\"\n  }\n}"
                 }
               ]
             },
@@ -13777,7 +13803,7 @@
                     {
                       "key": "type",
                       "value": "ride_volume",
-                      "description": "Report type: ride_volume, completion_rate, revenue, driver_utilisation"
+                      "description": "Report type: ride_volume, completion_rate, revenue, driver_utilisation, all"
                     },
                     {
                       "key": "from",
@@ -13797,7 +13823,7 @@
                     }
                   ]
                 },
-                "description": "Export any report type as a streamed CSV file. Requires type, from, and to parameters. Accessible to Operations and Finance admins."
+                "description": "Export any report type as a streamed CSV file. Use `type=all` to export a combined report with all ride data. Requires type, from, and to parameters. Accessible to Operations and Finance admins."
               },
               "response": [
                 {
