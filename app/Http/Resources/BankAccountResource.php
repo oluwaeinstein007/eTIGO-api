@@ -29,9 +29,13 @@ class BankAccountResource extends JsonResource
             return null;
         }
 
-        $banks = Cache::remember('banks_nigeria', 86400, function () {
-            return app(WalletGateway::class)->listBanks();
-        });
+        try {
+            $banks = Cache::remember('banks_nigeria', 86400, function () {
+                return app(WalletGateway::class)->listBanks();
+            });
+        } catch (\Throwable) {
+            $banks = [];
+        }
 
         foreach ($banks as $bank) {
             if (($bank['code'] ?? null) === $this->bank_code) {
