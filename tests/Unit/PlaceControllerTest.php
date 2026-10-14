@@ -5,6 +5,7 @@ use App\Contracts\PlaceSearchGateway;
 use App\Http\Controllers\Api\V1\PlaceController;
 use App\Services\FailoverPlaceSearchGateway;
 use App\Services\GeoapifyGateway;
+use App\Services\GooglePlacesGateway;
 use App\Services\HaversineMapsGateway;
 use App\Services\MapboxGateway;
 use App\Services\PhotonGateway;
@@ -109,9 +110,28 @@ test('container resolves Haversine fallback when no valid drivers configured', f
     config()->set('services.mapbox.access_token', null);
     config()->set('services.geoapify.api_key', null);
     config()->set('services.locationiq.api_key', null);
+    config()->set('services.google_maps.api_key', null);
+    config()->set('services.google.places_api_key', null);
     config()->set('services.places.drivers', 'nonexistent');
 
     $resolved = app(PlaceSearchGateway::class);
 
     expect($resolved)->toBeInstanceOf(HaversineMapsGateway::class);
+});
+
+test('container resolves GooglePlacesGateway when google driver configured', function () {
+    config()->set('services.google_maps.api_key', 'test-google-key');
+    config()->set('services.places.drivers', 'google');
+
+    $resolved = app(PlaceSearchGateway::class);
+
+    expect($resolved)->toBeInstanceOf(GooglePlacesGateway::class);
+});
+
+test('container resolves MapsGateway as GooglePlacesGateway when google api key configured', function () {
+    config()->set('services.google_maps.api_key', 'test-google-key');
+
+    $resolved = app(MapsGateway::class);
+
+    expect($resolved)->toBeInstanceOf(GooglePlacesGateway::class);
 });

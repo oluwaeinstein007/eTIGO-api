@@ -38,6 +38,7 @@ class RideResource extends JsonResource
             'fare_currency' => $this->fare_currency,
             'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
+            'co2_saved_kg' => (float) (\App\Models\TripCarbonScore::where('ride_id', $this->id)->where('user_id', $this->passenger_id)->value('co2_saved') ?? round(((float) data_get($this->pricing_snapshot, 'distance_km', 0)) * 0.12, 2)),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,
             'tip_amount' => $this->relationLoaded('payment') ? $this->payment?->tip_amount : null,

@@ -20,6 +20,7 @@ use App\Services\FallbackPaymentGateway;
 use App\Services\FirebasePushGateway;
 use App\Services\FlutterwavePaymentGateway;
 use App\Services\GeoapifyGateway;
+use App\Services\GooglePlacesGateway;
 use App\Services\HaversineMapsGateway;
 use App\Services\LocationIqGateway;
 use App\Services\LogPushGateway;
@@ -100,6 +101,16 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(MapsGateway::class, function () {
+            $googleApiKey = config('services.google.places_api_key')
+                ?? config('services.google_maps.api_key');
+
+            if ($googleApiKey) {
+                return new GooglePlacesGateway(
+                    $googleApiKey,
+                    config('services.places.country', 'ng'),
+                );
+            }
+
             $accessToken = config('services.mapbox.access_token');
 
             if ($accessToken) {
@@ -112,13 +123,16 @@ class AppServiceProvider extends ServiceProvider
 
     private function createPlaceSearchGateway(): PlaceSearchGateway
     {
-        $driversConfig = config('services.places.drivers', 'mapbox,geoapify,locationiq,photon');
+        $driversConfig = config('services.places.drivers', 'google,mapbox,geoapify,locationiq,photon');
         $driverList = array_filter(array_map('trim', explode(',', (string) $driversConfig)));
         $country = config('services.places.country', 'ng');
 
         $drivers = [];
         foreach ($driverList as $driverName) {
             $gateway = match (strtolower($driverName)) {
+                'google', 'google_places', 'google_maps' => ($apiKey = config('services.google.places_api_key') ?? config('services.google_maps.api_key'))
+                    ? new GooglePlacesGateway($apiKey, $country)
+                    : null,
                 'mapbox' => config('services.mapbox.access_token')
                     ? new MapboxGateway(config('services.mapbox.access_token'))
                     : null,

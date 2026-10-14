@@ -47,6 +47,11 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'places_api_key' => env('GOOGLE_PLACES_API_KEY', env('GOOGLE_MAPS_API_KEY')),
+    ],
+
+    'google_maps' => [
+        'api_key' => env('GOOGLE_MAPS_API_KEY', env('GOOGLE_PLACES_API_KEY')),
     ],
 
     'apple' => [
@@ -75,7 +80,7 @@ return [
     ],
 
     'places' => [
-        'drivers' => env('PLACE_SEARCH_DRIVERS', 'mapbox,geoapify,locationiq,photon'),
+        'drivers' => env('PLACE_SEARCH_DRIVERS', 'google,mapbox,geoapify,locationiq,photon'),
         'country' => env('PLACE_SEARCH_COUNTRY', 'ng'),
     ],
 
