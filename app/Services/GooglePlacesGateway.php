@@ -192,10 +192,15 @@ class GooglePlacesGateway implements MapsGateway
             }
         }
 
+        $displayName = $name !== '' ? $name : $fullAddress;
+        if ($city !== null && mb_strtolower(trim($displayName)) === mb_strtolower(trim($city)) && $fullAddress !== '') {
+            $displayName = $fullAddress;
+        }
+
         return [
             'id' => $id,
             'place_id' => $id,
-            'name' => $name !== '' ? $name : $fullAddress,
+            'name' => $displayName,
             'address' => $fullAddress,
             'latitude' => $lat,
             'longitude' => $lng,
@@ -268,16 +273,11 @@ class GooglePlacesGateway implements MapsGateway
 
             $name = $place['displayName']['text'] ?? '';
             $fullAddress = $place['formattedAddress'] ?? $name;
-            $address = $fullAddress;
-
-            if ($name !== '' && $name !== $fullAddress && str_starts_with($fullAddress, "{$name}, ")) {
-                $address = substr($fullAddress, strlen("{$name}, "));
-            }
 
             $results[] = [
                 'id' => (string) ($place['id'] ?? ''),
                 'name' => $name !== '' ? $name : $fullAddress,
-                'address' => $address !== '' ? $address : $fullAddress,
+                'address' => $fullAddress,
                 'latitude' => (float) $location['latitude'],
                 'longitude' => (float) $location['longitude'],
             ];

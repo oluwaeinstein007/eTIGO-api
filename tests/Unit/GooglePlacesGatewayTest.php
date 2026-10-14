@@ -196,7 +196,7 @@ it('searches places using Places searchText', function () {
     expect($results)->toHaveCount(2)
         ->and($results[0]['id'])->toBe('ChIJ_mall')
         ->and($results[0]['name'])->toBe('Ikeja City Mall')
-        ->and($results[0]['address'])->toBe('Obafemi Awolowo Way, Alausa, Lagos, Nigeria')
+        ->and($results[0]['address'])->toBe('Ikeja City Mall, Obafemi Awolowo Way, Alausa, Lagos, Nigeria')
         ->and($results[0]['latitude'])->toBe(6.6190)
         ->and($results[0]['longitude'])->toBe(3.3582)
         ->and($results[1]['name'])->toBe('First Bank')
