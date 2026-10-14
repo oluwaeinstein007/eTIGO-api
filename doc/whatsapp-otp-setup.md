@@ -21,7 +21,7 @@ We use Termii to send one-time verification codes and SOS emergency alerts via W
 |---|---|
 | `TERMII_API_KEY` | Termii Dashboard → Settings → API Key |
 | `TERMII_SENDER_ID` | The Sender ID you registered (default: `Etigo`) |
-| `TERMII_SAFETY_NUMBER` | The phone number for SOS emergency alerts (E.164 format, e.g. `+234...`) |
+| `ETIGO_SAFETY_NUMBER` | The phone number for SOS emergency alerts (E.164 format, e.g. `+234...`) |
 
 ### How delivery works
 
@@ -95,7 +95,7 @@ We use Termii to send one-time verification codes and SOS emergency alerts via W
 # Termii (WhatsApp + SMS fallback)
 TERMII_API_KEY=your_termii_api_key
 TERMII_SENDER_ID=Etigo
-TERMII_SAFETY_NUMBER=+234xxxxxxxxxx
+ETIGO_SAFETY_NUMBER=+234xxxxxxxxxx
 
 # Google
 GOOGLE_CLIENT_ID=your_google_client_id

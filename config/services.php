@@ -39,7 +39,7 @@ return [
         'api_key' => env('TERMII_API_KEY'),
         'sender_id' => env('TERMII_SENDER_ID', 'Etigo'),
         'base_url' => env('TERMII_BASE_URL', 'https://v3.api.termii.com'),
-        'safety_number' => env('TERMII_SAFETY_NUMBER'),
+        'safety_number' => env('ETIGO_SAFETY_NUMBER'),
     ],
 
     'google' => [
