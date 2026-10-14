@@ -169,6 +169,16 @@ class Driver extends Model
             && $this->vehicle === null;
     }
 
+    public function isProfileComplete(): bool
+    {
+        return $this->user !== null
+            && $this->city_id !== null
+            && $this->vehicle !== null
+            && $this->isKycVerified()
+            && $this->bankAccounts()->exists()
+            && $this->documents()->exists();
+    }
+
     public function canGoOnline(): bool
     {
         return $this->isApproved()

@@ -41,6 +41,11 @@ class AdminGamificationController extends Controller
             $query->where('total_ranking_points', '>=', $request->integer('min_points'));
         }
 
+        if ($request->filled('city_id')) {
+            $cityId = $request->input('city_id');
+            $query->whereHas('user', fn ($q) => $q->whereHas('rides', fn ($r) => $r->where('city_id', $cityId)));
+        }
+
         $sortBy = $request->input('sort_by', 'total_ranking_points');
         $sortDir = $request->input('sort_dir', 'desc');
 
@@ -63,9 +68,26 @@ class AdminGamificationController extends Controller
         ]);
     }
 
-    public function aggregate(): JsonResponse
+    public function aggregate(Request $request): JsonResponse
     {
-        $tierDistribution = GamificationProfile::select('current_tier', DB::raw('count(*) as count'))
+        $profileQuery = GamificationProfile::query();
+        $carbonQuery = TripCarbonScore::query();
+
+        if ($request->filled('city_id')) {
+            $cityId = $request->input('city_id');
+            $profileQuery->whereHas('user', fn ($q) => $q->whereHas('rides', fn ($r) => $r->where('city_id', $cityId)));
+            $carbonQuery->whereHas('ride', fn ($q) => $q->where('city_id', $cityId));
+        }
+
+        if ($request->filled('from')) {
+            $carbonQuery->whereDate('created_at', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $carbonQuery->whereDate('created_at', '<=', $request->input('to'));
+        }
+
+        $tierDistribution = (clone $profileQuery)
+            ->select('current_tier', DB::raw('count(*) as count'))
             ->groupBy('current_tier')
             ->orderBy('current_tier')
             ->get()
@@ -75,11 +97,11 @@ class AdminGamificationController extends Controller
                 'count' => $row->count,
             ]);
 
-        $averageCarbonScore = GamificationProfile::avg('total_carbon_score');
-        $averageRankingPoints = GamificationProfile::avg('total_ranking_points');
-        $totalProfiles = GamificationProfile::count();
+        $averageCarbonScore = (clone $profileQuery)->avg('total_carbon_score');
+        $averageRankingPoints = (clone $profileQuery)->avg('total_ranking_points');
+        $totalProfiles = (clone $profileQuery)->count();
 
-        $topUsers = GamificationProfile::with('user')
+        $topUsers = (clone $profileQuery)->with('user')
             ->orderByDesc('total_ranking_points')
             ->limit(10)
             ->get()
@@ -93,7 +115,12 @@ class AdminGamificationController extends Controller
                 'total_carbon_score' => (float) $p->total_carbon_score,
             ]);
 
-        $totalCo2Saved = TripCarbonScore::sum('co2_saved');
+        $totalCo2Saved = (clone $carbonQuery)->sum('co2_saved');
+        $totalPointsAwarded = (clone $carbonQuery)->sum('final_points');
+        $totalCarbonTrips = (clone $carbonQuery)->count();
+        $averageCo2PerTrip = $totalCarbonTrips > 0
+            ? round((float) $totalCo2Saved / $totalCarbonTrips, 4)
+            : 0;
 
         return response()->json([
             'aggregate' => [
@@ -101,6 +128,8 @@ class AdminGamificationController extends Controller
                 'average_carbon_score' => round((float) ($averageCarbonScore ?? 0), 2),
                 'average_ranking_points' => round((float) ($averageRankingPoints ?? 0), 0),
                 'total_co2_saved_kg' => round((float) $totalCo2Saved, 2),
+                'total_points_awarded' => (int) $totalPointsAwarded,
+                'average_co2_per_trip' => $averageCo2PerTrip,
                 'tier_distribution' => $tierDistribution,
                 'top_users' => $topUsers,
             ],

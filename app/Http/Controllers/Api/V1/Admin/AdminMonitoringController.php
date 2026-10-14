@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
+use App\Enums\SosIncidentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Models\Driver;
 use App\Models\Ride;
+use App\Models\SosIncident;
 use App\Services\DriverLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,13 +25,19 @@ class AdminMonitoringController extends Controller
         $perPage = min(max((int) $request->input('per_page', 50), 1), 100);
 
         $rides = Ride::whereIn('status', RideStatus::activeStatuses())
-            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver'])
+            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver', 'stateTransitions'])
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        $ridesData = $rides->through(function (Ride $ride) {
+        $rideIds = $rides->pluck('id')->all();
+        $activeSos = SosIncident::whereIn('ride_id', $rideIds)
+            ->whereIn('status', [SosIncidentStatus::Triggered, SosIncidentStatus::CheckInSent, SosIncidentStatus::Escalated])
+            ->get()
+            ->groupBy('ride_id');
+
+        $ridesData = $rides->through(function (Ride $ride) use ($activeSos) {
             $resource = (new RideResource($ride))->resolve();
 
             if ($ride->driver_id) {
@@ -37,6 +45,27 @@ class AdminMonitoringController extends Controller
                 $location = ($driverModelId ? $this->locationService->getDriverLocation((string) $driverModelId) : null)
                     ?? $this->locationService->getDriverLocation($ride->driver_id);
                 $resource['driver_location'] = $location;
+                $resource['driver_rating'] = $ride->driver?->averageRating();
+            }
+
+            $transitions = $ride->stateTransitions->sortBy('created_at');
+            $resource['stage_timestamps'] = [
+                'requested_at' => $ride->created_at?->toIso8601String(),
+                'matched_at' => $ride->matched_at?->toIso8601String(),
+                'driver_arrived_at' => $transitions->firstWhere('to_state', RideStatus::DriverArrived)?->created_at?->toIso8601String(),
+                'started_at' => $ride->started_at?->toIso8601String(),
+            ];
+
+            $rideSos = $activeSos->get($ride->id);
+            $resource['has_active_sos'] = $rideSos !== null && $rideSos->isNotEmpty();
+            if ($resource['has_active_sos']) {
+                $incident = $rideSos->first();
+                $resource['sos'] = [
+                    'id' => $incident->id,
+                    'status' => $incident->status->value,
+                    'trigger_type' => $incident->trigger_type->value,
+                    'created_at' => $incident->created_at?->toIso8601String(),
+                ];
             }
 
             return $resource;
@@ -95,6 +124,7 @@ class AdminMonitoringController extends Controller
                 'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
+                'rating' => $driver->user->averageRating(),
                 'city' => $driver->city?->name,
                 'vehicle' => $driver->vehicle ? [
                     'make' => $driver->vehicle->make,
@@ -202,6 +232,7 @@ class AdminMonitoringController extends Controller
                 'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
+                'rating' => $driver->user->averageRating(),
                 'vehicle' => [
                     'make' => $driver->vehicle->make,
                     'model' => $driver->vehicle->model,
