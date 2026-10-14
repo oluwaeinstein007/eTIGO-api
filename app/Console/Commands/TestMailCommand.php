@@ -6,6 +6,7 @@ use App\Enums\AdminRole;
 use App\Enums\DocumentType;
 use App\Enums\PaymentMethod;
 use App\Models\AdminInvitation;
+use App\Models\Dispute;
 use App\Models\Driver;
 use App\Models\DriverDocument;
 use App\Models\Ride;
@@ -17,17 +18,19 @@ use App\Notifications\DriverApprovedNotification;
 use App\Notifications\DriverDocumentExpiringNotification;
 use App\Notifications\DriverOnboardingWelcomeNotification;
 use App\Notifications\AccountDeactivatedNotification;
+use App\Notifications\DisputeResolvedNotification;
 use App\Notifications\InvoiceActivatedNotification;
 use App\Notifications\PassengerWelcomeNotification;
 use App\Notifications\PaymentReceiptNotification;
 use App\Notifications\RideCompletedNotification;
+use App\Notifications\TierUpgradedNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class TestMailCommand extends Command
 {
-    protected $signature = 'mail:test {email} {--type=all : invitation|reset|welcome|receipt|passenger|driver-onboarding|driver-approved|driver-document|payment|invoice|deactivated|all}';
+    protected $signature = 'mail:test {email} {--type=all : invitation|reset|welcome|receipt|passenger|driver-onboarding|driver-approved|driver-document|payment|invoice|deactivated|dispute|tier|all}';
 
     protected $description = 'Send test emails to verify mail delivery';
 
@@ -40,6 +43,7 @@ class TestMailCommand extends Command
             'invitation', 'reset', 'welcome', 'receipt',
             'passenger', 'driver-onboarding', 'driver-approved',
             'driver-document', 'payment', 'invoice', 'deactivated',
+            'dispute', 'tier',
         ];
 
         $types = $type === 'all' ? $allTypes : [$type];
@@ -57,6 +61,8 @@ class TestMailCommand extends Command
                 'payment' => $this->sendPaymentReceipt($email),
                 'invoice' => $this->sendInvoiceActivated($email),
                 'deactivated' => $this->sendAccountDeactivated($email),
+                'dispute' => $this->sendDisputeResolved($email),
+                'tier' => $this->sendTierUpgraded($email),
                 default => $this->error("Unknown type: {$t}"),
             };
         }
@@ -316,5 +322,41 @@ class TestMailCommand extends Command
         $this->getOrMakeUser($email)->notifyNow($notification);
 
         $this->info("Account deactivated email sent to {$email}");
+    }
+
+    private function sendDisputeResolved(string $email): void
+    {
+        $dispute = Dispute::latest()->first();
+
+        if (! $dispute) {
+            $dispute = new Dispute([
+                'reference_number' => 'DSP-261013-0042',
+                'status' => \App\Enums\DisputeStatus::Resolved,
+                'resolution_notes' => 'After reviewing the trip details, a partial refund has been issued for the fare overcharge.',
+                'refund_amount' => 1500.00,
+                'refund_currency' => 'NGN',
+            ]);
+            $dispute->id = Str::uuid()->toString();
+            $dispute->exists = false;
+        }
+
+        $notification = new DisputeResolvedNotification($dispute);
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Dispute resolved email sent to {$email}");
+    }
+
+    private function sendTierUpgraded(string $email): void
+    {
+        $notification = new TierUpgradedNotification(
+            tierName: 'Silver',
+            previousTier: 1,
+            newTier: 2,
+        );
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Tier upgraded email sent to {$email}");
     }
 }

@@ -26,21 +26,25 @@ class TierUpgradedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $previousName = TierLevel::from($this->previousTier)->label();
+        $newName = TierLevel::from($this->newTier)->label();
         $benefits = $this->tierBenefits();
+        $rewardsUrl = config('app.frontend_url', config('app.url')).'/rewards';
 
-        $mail = (new MailMessage)
+        return (new MailMessage)
             ->subject("You've levelled up to {$this->tierName}!")
-            ->greeting("Congratulations {$notifiable->first_name}!")
-            ->line("Your lower carbon footprint has unlocked **{$this->tierName}** tier (up from {$previousName}).")
-            ->line('Your new benefits:');
-
-        foreach ($benefits as $benefit) {
-            $mail->line("- {$benefit}");
-        }
-
-        return $mail
-            ->action('View Rewards', config('app.frontend_url', config('app.url')).'/rewards')
-            ->salutation('Keep riding green!');
+            ->view('emails.tier-upgraded', [
+                'preheader' => "You've moved from {$previousName} to {$newName}. Check out your new benefits.",
+                'preheaderLabel' => 'Rewards',
+                'preheaderTitle' => "You've levelled up to {$newName}!",
+                'preheaderSub' => "Your eco-friendly rides have earned you {$newName} tier.",
+                'subject' => "You've levelled up to {$this->tierName}!",
+                'userName' => $notifiable->first_name,
+                'recipientEmail' => $notifiable->email,
+                'previousTierName' => $previousName,
+                'newTierName' => $newName,
+                'benefits' => $benefits,
+                'rewardsUrl' => $rewardsUrl,
+            ]);
     }
 
     private function tierBenefits(): array

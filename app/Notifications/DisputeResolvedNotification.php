@@ -25,24 +25,24 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
     {
         $status = $this->dispute->status->label();
         $ref = $this->dispute->reference_number;
+        $supportUrl = config('app.frontend_url', config('app.url')).'/rides';
 
-        $mail = (new MailMessage)
+        return (new MailMessage)
             ->subject("Report {$ref} — {$status}")
-            ->greeting("Hi {$notifiable->first_name},")
-            ->line("Your report **{$ref}** has been reviewed by our operations team.")
-            ->line("**Status:** {$status}");
-
-        if ($this->dispute->resolution_notes) {
-            $mail->line("**Resolution notes:** {$this->dispute->resolution_notes}");
-        }
-
-        if ($this->dispute->refund_amount) {
-            $currency = $this->dispute->refund_currency ?? 'NGN';
-            $mail->line("A refund of **{$currency} ".number_format($this->dispute->refund_amount, 2).'** has been issued to your original payment method.');
-        }
-
-        return $mail
-            ->line('Thank you for helping us improve your ride experience.')
-            ->salutation('— The Etigo Team');
+            ->view('emails.dispute-resolved', [
+                'preheader' => "Your report {$ref} has been reviewed. Status: {$status}.",
+                'preheaderLabel' => 'Dispute update',
+                'preheaderTitle' => "Report {$ref} — {$status}",
+                'preheaderSub' => 'Our operations team has reached a decision on your report.',
+                'subject' => "Report {$ref} — {$status}",
+                'userName' => $notifiable->first_name,
+                'recipientEmail' => $notifiable->email,
+                'referenceNumber' => $ref,
+                'status' => $status,
+                'resolutionNotes' => $this->dispute->resolution_notes,
+                'refundAmount' => $this->dispute->refund_amount,
+                'refundCurrency' => $this->dispute->refund_currency ?? 'NGN',
+                'supportUrl' => $supportUrl,
+            ]);
     }
 }
