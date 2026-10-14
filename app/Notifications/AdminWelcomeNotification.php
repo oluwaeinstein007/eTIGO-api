@@ -18,17 +18,25 @@ class AdminWelcomeNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $loginUrl = config('app.frontend_url').'/admin/login';
+        $dashboardUrl = config('app.frontend_url', config('app.url')).'/admin/dashboard';
         $role = $notifiable->admin_role
-            ? str_replace('_', ' ', $notifiable->admin_role->value)
-            : 'admin';
+            ? ucwords(str_replace('_', ' ', $notifiable->admin_role->value))
+            : 'Administrator';
+        $workspaceName = config('app.name', 'Etigo');
 
         return (new MailMessage)
-            ->subject('Welcome to Etigo!')
-            ->greeting("Welcome, {$notifiable->first_name}!")
-            ->line("Your admin account has been set up successfully. You've been assigned the **{$role}** role.")
-            ->line('You can now log in to the admin dashboard to get started.')
-            ->action('Go to Dashboard', $loginUrl)
-            ->line('If you have any questions, reach out to your team lead.');
+            ->subject("Welcome to your Etigo workspace, {$notifiable->first_name}")
+            ->view('emails.admin-welcome', [
+                'preheader' => "Welcome to your Etigo workspace, {$notifiable->first_name}. Your admin account is ready.",
+                'preheaderLabel' => 'Admin welcome',
+                'preheaderTitle' => "Welcome to your Etigo workspace, {$notifiable->first_name}",
+                'preheaderSub' => 'Your admin account is ready. Take a look around your dashboard.',
+                'subject' => "Welcome to your Etigo workspace, {$notifiable->first_name}",
+                'userName' => $notifiable->first_name,
+                'workspaceName' => $workspaceName,
+                'roleName' => $role,
+                'dashboardUrl' => $dashboardUrl,
+                'recipientEmail' => $notifiable->email,
+            ]);
     }
 }

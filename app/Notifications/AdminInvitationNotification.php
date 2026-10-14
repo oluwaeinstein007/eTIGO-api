@@ -23,16 +23,29 @@ class AdminInvitationNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $acceptUrl = config('app.frontend_url').'/admin/accept-invite?token='.$this->invitation->token;
-        $role = str_replace('_', ' ', $this->invitation->admin_role->value);
+        $acceptUrl = config('app.frontend_url', config('app.url')).'/admin/accept-invite?token='.$this->invitation->token;
+        $role = ucwords(str_replace('_', ' ', $this->invitation->admin_role->value));
+        $inviter = $this->invitation->inviter;
+        $inviterName = $inviter ? trim($inviter->first_name.' '.$inviter->last_name) : 'Your administrator';
+        $email = $this->invitation->email;
+        $workspaceName = config('app.name', 'Etigo');
 
         return (new MailMessage)
-            ->subject('You\'ve been invited to join Etigo as an admin')
-            ->greeting('Hello!')
-            ->line("You've been invited to join Etigo as **{$role}**.")
-            ->line('Click the button below to set up your account.')
-            ->action('Accept Invitation', $acceptUrl)
-            ->line('This invitation expires in 48 hours.')
-            ->line('If you did not expect this invitation, no action is needed.');
+            ->subject("You're invited to the Etigo admin team")
+            ->view('emails.admin-invitation', [
+                'preheader' => "You're invited to the Etigo admin team. Join {$workspaceName}. Your invitation is valid for 48 hours.",
+                'preheaderLabel' => 'Admin invitation',
+                'preheaderTitle' => "You're invited to the Etigo admin team",
+                'preheaderSub' => "Join {$workspaceName}. Your invitation is valid for 48 hours.",
+                'subject' => "You're invited to the Etigo admin team",
+                'inviteeFirstName' => $notifiable->first_name ?? null,
+                'inviterName' => $inviterName,
+                'workspaceName' => $workspaceName,
+                'roleName' => $role,
+                'acceptUrl' => $acceptUrl,
+                'recipientEmail' => $email,
+                'expiresAt' => $this->invitation->expires_at->format('j F Y').' at '.
+                               $this->invitation->expires_at->format('H:i').' WAT',
+            ]);
     }
 }

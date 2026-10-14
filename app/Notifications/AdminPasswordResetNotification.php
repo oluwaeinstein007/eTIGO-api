@@ -22,14 +22,23 @@ class AdminPasswordResetNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $resetUrl = config('app.frontend_url').'/admin/reset-password?token='.$this->token.'&email='.urlencode($notifiable->email);
+        $resetUrl = config('app.frontend_url', config('app.url')).'/admin/reset-password?token='.$this->token.'&email='.urlencode($notifiable->email);
+        $requestedAt = now();
+        $expiresAt = $requestedAt->copy()->addMinutes(30);
 
         return (new MailMessage)
-            ->subject('Reset Your Admin Password')
-            ->greeting("Hello {$notifiable->first_name},")
-            ->line('You are receiving this email because we received a password reset request for your admin account.')
-            ->action('Reset Password', $resetUrl)
-            ->line('This password reset link will expire in 60 minutes.')
-            ->line('If you did not request a password reset, no further action is required.');
+            ->subject('Reset your Etigo admin password')
+            ->view('emails.admin-password-reset', [
+                'preheader' => 'Reset your Etigo admin password. Your secure reset link expires in 30 minutes.',
+                'preheaderLabel' => 'Admin password reset',
+                'preheaderTitle' => 'Reset your Etigo admin password',
+                'preheaderSub' => 'Your secure reset link expires in 30 minutes.',
+                'subject' => 'Reset your Etigo admin password',
+                'userName' => $notifiable->first_name ?? 'there',
+                'resetUrl' => $resetUrl,
+                'recipientEmail' => $notifiable->email,
+                'requestedAt' => $requestedAt->format('j F Y').' · '.$requestedAt->format('H:i').' WAT',
+                'expiresAt' => $expiresAt->format('H:i').' WAT on '.$expiresAt->format('j F Y'),
+            ]);
     }
 }

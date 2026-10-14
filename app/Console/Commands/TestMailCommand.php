@@ -3,13 +3,23 @@
 namespace App\Console\Commands;
 
 use App\Enums\AdminRole;
+use App\Enums\DocumentType;
 use App\Enums\PaymentMethod;
 use App\Models\AdminInvitation;
+use App\Models\Driver;
+use App\Models\DriverDocument;
 use App\Models\Ride;
 use App\Models\User;
 use App\Notifications\AdminInvitationNotification;
 use App\Notifications\AdminPasswordResetNotification;
 use App\Notifications\AdminWelcomeNotification;
+use App\Notifications\DriverApprovedNotification;
+use App\Notifications\DriverDocumentExpiringNotification;
+use App\Notifications\DriverOnboardingWelcomeNotification;
+use App\Notifications\AccountDeactivatedNotification;
+use App\Notifications\InvoiceActivatedNotification;
+use App\Notifications\PassengerWelcomeNotification;
+use App\Notifications\PaymentReceiptNotification;
 use App\Notifications\RideCompletedNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Notification;
@@ -17,7 +27,7 @@ use Illuminate\Support\Str;
 
 class TestMailCommand extends Command
 {
-    protected $signature = 'mail:test {email} {--type=all : invitation|reset|welcome|receipt|all}';
+    protected $signature = 'mail:test {email} {--type=all : invitation|reset|welcome|receipt|passenger|driver-onboarding|driver-approved|driver-document|payment|invoice|deactivated|all}';
 
     protected $description = 'Send test emails to verify mail delivery';
 
@@ -26,9 +36,13 @@ class TestMailCommand extends Command
         $email = $this->argument('email');
         $type = $this->option('type');
 
-        $types = $type === 'all'
-            ? ['invitation', 'reset', 'welcome', 'receipt']
-            : [$type];
+        $allTypes = [
+            'invitation', 'reset', 'welcome', 'receipt',
+            'passenger', 'driver-onboarding', 'driver-approved',
+            'driver-document', 'payment', 'invoice', 'deactivated',
+        ];
+
+        $types = $type === 'all' ? $allTypes : [$type];
 
         foreach ($types as $t) {
             match ($t) {
@@ -36,6 +50,13 @@ class TestMailCommand extends Command
                 'reset' => $this->sendReset($email),
                 'welcome' => $this->sendWelcome($email),
                 'receipt' => $this->sendReceipt($email),
+                'passenger' => $this->sendPassengerWelcome($email),
+                'driver-onboarding' => $this->sendDriverOnboarding($email),
+                'driver-approved' => $this->sendDriverApproved($email),
+                'driver-document' => $this->sendDriverDocumentExpiring($email),
+                'payment' => $this->sendPaymentReceipt($email),
+                'invoice' => $this->sendInvoiceActivated($email),
+                'deactivated' => $this->sendAccountDeactivated($email),
                 default => $this->error("Unknown type: {$t}"),
             };
         }
@@ -47,8 +68,8 @@ class TestMailCommand extends Command
     {
         $user = User::where('email', $email)->first()
             ?? tap(new User([
-                'first_name' => 'Test',
-                'last_name' => 'User',
+                'first_name' => 'Amara',
+                'last_name' => 'Okafor',
                 'email' => $email,
             ]), fn ($u) => $u->exists = false);
 
@@ -61,28 +82,35 @@ class TestMailCommand extends Command
 
     private function sendInvitation(string $email): void
     {
+        $inviter = User::first();
+
+        if (! $inviter) {
+            $this->warn('No users in DB — creating mock invitation.');
+            $inviter = new User(['first_name' => 'Naomi', 'last_name' => 'Adeyemi']);
+            $inviter->id = Str::uuid()->toString();
+            $inviter->exists = false;
+        }
+
         $invitation = AdminInvitation::create([
             'email' => $email,
             'admin_role' => AdminRole::Operations,
             'token' => Str::random(64),
-            'invited_by' => User::first()->id,
+            'invited_by' => $inviter->id,
             'expires_at' => now()->addHours(48),
         ]);
 
         $notification = new AdminInvitationNotification($invitation);
-        $notification->onConnection('sync');
 
-        Notification::route('mail', $email)->notify($notification);
+        Notification::route('mail', $email)->notifyNow($notification);
 
-        $this->info("Invitation email sent to {$email}");
+        $this->info("Admin invitation email sent to {$email}");
     }
 
     private function sendReset(string $email): void
     {
         $notification = new AdminPasswordResetNotification(Str::random(64));
-        $notification->onConnection('sync');
 
-        $this->getOrMakeUser($email)->notify($notification);
+        $this->getOrMakeUser($email)->notifyNow($notification);
 
         $this->info("Password reset email sent to {$email}");
     }
@@ -90,11 +118,10 @@ class TestMailCommand extends Command
     private function sendWelcome(string $email): void
     {
         $notification = new AdminWelcomeNotification;
-        $notification->onConnection('sync');
 
-        $this->getOrMakeUser($email)->notify($notification);
+        $this->getOrMakeUser($email)->notifyNow($notification);
 
-        $this->info("Welcome email sent to {$email}");
+        $this->info("Admin welcome email sent to {$email}");
     }
 
     private function sendReceipt(string $email): void
@@ -102,24 +129,27 @@ class TestMailCommand extends Command
         $ride = Ride::latest()->first();
 
         if (! $ride) {
-            $this->warn('No rides in DB — sending receipt with mock data.');
             $fareDetails = [
-                'final_fare' => 3500.00,
-                'distance_km' => 12.4,
-                'duration_minutes' => 25,
-                'waiting_charge' => 200.00,
+                'final_fare' => 4500.00,
+                'distance_km' => 7.2,
+                'duration_minutes' => 18,
+                'waiting_charge' => 0,
                 'fare_breakdown' => [
-                    'base_fare' => 500.00,
-                    'distance_charge' => 1860.00,
-                    'time_charge' => 750.00,
-                    'waiting_charge' => 200.00,
-                    'minimum_fare' => 800.00,
+                    'base_fare' => 4200.00,
+                    'distance_charge' => 300.00,
+                    'time_charge' => 200.00,
+                    'waiting_charge' => 0,
+                    'booking_fee' => 300.00,
                 ],
             ];
 
             $ride = new Ride([
-                'pickup_address' => '123 Lekki Phase 1, Lagos',
-                'destination_address' => '45 Victoria Island, Lagos',
+                'pickup_address' => 'Tejuosho Market, Yaba',
+                'destination_address' => 'Bode Thomas Street, Surulere',
+                'pickup_lat' => 6.5095,
+                'pickup_lng' => 3.3711,
+                'destination_lat' => 6.4920,
+                'destination_lng' => 3.3567,
                 'fare_currency' => 'NGN',
                 'payment_method' => PaymentMethod::Card,
             ]);
@@ -134,16 +164,158 @@ class TestMailCommand extends Command
                     'distance_charge' => 0,
                     'time_charge' => 0,
                     'waiting_charge' => 0,
-                    'minimum_fare' => 0,
                 ],
             ];
         }
 
         $notification = new RideCompletedNotification($ride, $fareDetails);
-        $notification->onConnection('sync');
 
-        $this->getOrMakeUser($email)->notify($notification);
+        $this->getOrMakeUser($email)->notifyNow($notification);
 
         $this->info("Ride receipt email sent to {$email}");
+    }
+
+    private function sendPassengerWelcome(string $email): void
+    {
+        $notification = new PassengerWelcomeNotification;
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Passenger welcome email sent to {$email}");
+    }
+
+    private function sendDriverOnboarding(string $email): void
+    {
+        $driver = Driver::first();
+
+        if (! $driver) {
+            $driver = new Driver([
+                'reference_number' => 'DRV-261013-0176',
+            ]);
+            $driver->id = Str::uuid()->toString();
+            $driver->created_at = now();
+            $driver->exists = false;
+        }
+
+        $notification = new DriverOnboardingWelcomeNotification(
+            $driver,
+            ['driving_licence', 'insurance_certificate'],
+        );
+
+        $user = $this->getOrMakeUser($email);
+        $user->first_name = 'Tunde';
+        $user->last_name = 'Bello';
+        $user->notifyNow($notification);
+
+        $this->info("Driver onboarding email sent to {$email}");
+    }
+
+    private function sendDriverApproved(string $email): void
+    {
+        $driver = Driver::first();
+
+        if (! $driver) {
+            $driver = new Driver([
+                'reference_number' => 'DRV-261013-0176',
+                'approved_at' => now(),
+            ]);
+            $driver->id = Str::uuid()->toString();
+            $driver->exists = false;
+        }
+
+        $notification = new DriverApprovedNotification($driver);
+
+        $user = $this->getOrMakeUser($email);
+        $user->first_name = 'Tunde';
+        $user->last_name = 'Bello';
+        $user->notifyNow($notification);
+
+        $this->info("Driver approved email sent to {$email}");
+    }
+
+    private function sendDriverDocumentExpiring(string $email): void
+    {
+        $driver = Driver::first();
+
+        if (! $driver) {
+            $driver = new Driver([
+                'reference_number' => 'DRV-261013-0176',
+            ]);
+            $driver->id = Str::uuid()->toString();
+            $driver->exists = false;
+        }
+
+        $document = new DriverDocument([
+            'type' => DocumentType::DrivingLicence,
+            'expires_at' => now()->addDays(14),
+            'original_filename' => 'licence_4821.pdf',
+        ]);
+        $document->id = Str::uuid()->toString();
+        $document->exists = false;
+
+        $notification = new DriverDocumentExpiringNotification($driver, $document);
+
+        $user = $this->getOrMakeUser($email);
+        $user->first_name = 'Tunde';
+        $user->last_name = 'Bello';
+        $user->notifyNow($notification);
+
+        $this->info("Driver document expiring email sent to {$email}");
+    }
+
+    private function sendPaymentReceipt(string $email): void
+    {
+        $ride = Ride::latest()->first();
+
+        if (! $ride) {
+            $ride = new Ride([
+                'pickup_address' => 'Tejuosho Market, Yaba',
+                'destination_address' => 'Bode Thomas Street, Surulere',
+                'fare_currency' => 'NGN',
+                'payment_method' => PaymentMethod::Card,
+            ]);
+            $ride->id = Str::uuid()->toString();
+            $ride->reference_number = 'ETG-261013-0842';
+        }
+
+        $notification = new PaymentReceiptNotification(
+            ride: $ride,
+            amountKobo: 450000,
+            paymentMethod: 'card',
+            paymentReference: 'PAY-261013-0398',
+            cardLast4: '4242',
+        );
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Payment receipt email sent to {$email}");
+    }
+
+    private function sendInvoiceActivated(string $email): void
+    {
+        $activator = User::first();
+        $activatorName = $activator
+            ? trim($activator->first_name.' '.$activator->last_name).' · Administrator'
+            : 'Naomi Adeyemi · Administrator';
+
+        $notification = new InvoiceActivatedNotification(
+            activatedByName: $activatorName,
+            workspaceName: 'Mainland Mobility',
+        );
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Invoice activated email sent to {$email}");
+    }
+
+    private function sendAccountDeactivated(string $email): void
+    {
+        $notification = new AccountDeactivatedNotification(
+            reason: 'Violation of community guidelines',
+        );
+
+        $this->getOrMakeUser($email)->notifyNow($notification);
+
+        $this->info("Account deactivated email sent to {$email}");
     }
 }
