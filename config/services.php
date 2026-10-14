@@ -63,6 +63,7 @@ return [
 
     'mapbox' => [
         'access_token' => env('MAPBOX_ACCESS_TOKEN'),
+        'public_token' => env('MAPBOX_PUBLIC_TOKEN'),
     ],
 
     'geoapify' => [
