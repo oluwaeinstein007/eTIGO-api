@@ -86,6 +86,17 @@ class AdminGamificationController extends Controller
             $carbonQuery->whereDate('created_at', '<=', $request->input('to'));
         }
 
+        if ($request->filled('from') || $request->filled('to')) {
+            $profileQuery->whereHas('carbonScores', function ($q) use ($request) {
+                if ($request->filled('from')) {
+                    $q->whereDate('created_at', '>=', $request->input('from'));
+                }
+                if ($request->filled('to')) {
+                    $q->whereDate('created_at', '<=', $request->input('to'));
+                }
+            });
+        }
+
         $tierDistribution = (clone $profileQuery)
             ->select('current_tier', DB::raw('count(*) as count'))
             ->groupBy('current_tier')

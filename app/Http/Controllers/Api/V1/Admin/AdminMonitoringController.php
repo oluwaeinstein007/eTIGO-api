@@ -4,21 +4,36 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
-use App\Enums\SosIncidentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Models\Driver;
+use App\Models\Rating;
 use App\Models\Ride;
 use App\Models\SosIncident;
 use App\Services\DriverLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminMonitoringController extends Controller
 {
     public function __construct(
         private DriverLocationService $locationService,
     ) {}
+
+    private function bulkAverageRatings(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        return Rating::whereIn('rated_user_id', $userIds)
+            ->groupBy('rated_user_id')
+            ->select('rated_user_id', DB::raw('round(avg(score)::numeric, 2) as avg_rating'))
+            ->pluck('avg_rating', 'rated_user_id')
+            ->map(fn ($v) => (float) $v)
+            ->all();
+    }
 
     public function activeRides(Request $request): JsonResponse
     {
@@ -32,12 +47,15 @@ class AdminMonitoringController extends Controller
             ->paginate($perPage);
 
         $rideIds = $rides->pluck('id')->all();
+        $driverUserIds = $rides->pluck('driver_id')->filter()->unique()->values()->all();
+        $ratings = $this->bulkAverageRatings($driverUserIds);
+
         $activeSos = SosIncident::whereIn('ride_id', $rideIds)
-            ->whereIn('status', [SosIncidentStatus::Triggered, SosIncidentStatus::CheckInSent, SosIncidentStatus::Escalated])
+            ->active()
             ->get()
             ->groupBy('ride_id');
 
-        $ridesData = $rides->through(function (Ride $ride) use ($activeSos) {
+        $ridesData = $rides->through(function (Ride $ride) use ($activeSos, $ratings) {
             $resource = (new RideResource($ride))->resolve();
 
             if ($ride->driver_id) {
@@ -45,7 +63,7 @@ class AdminMonitoringController extends Controller
                 $location = ($driverModelId ? $this->locationService->getDriverLocation((string) $driverModelId) : null)
                     ?? $this->locationService->getDriverLocation($ride->driver_id);
                 $resource['driver_location'] = $location;
-                $resource['driver_rating'] = $ride->driver?->averageRating();
+                $resource['driver_rating'] = $ratings[$ride->driver_id] ?? null;
             }
 
             $transitions = $ride->stateTransitions->sortBy('created_at');
@@ -102,6 +120,8 @@ class AdminMonitoringController extends Controller
             ->get();
 
         $userIds = $drivers->pluck('user_id')->all();
+        $ratings = $this->bulkAverageRatings($userIds);
+
         $activeRides = Ride::whereIn('driver_id', $userIds)
             ->whereIn('status', [
                 RideStatus::Matched,
@@ -112,7 +132,7 @@ class AdminMonitoringController extends Controller
             ->get(['id', 'driver_id', 'reference_number', 'status', 'pickup_address', 'destination_address'])
             ->keyBy('driver_id');
 
-        $driversWithLocations = $drivers->map(function (Driver $driver) use ($activeRides) {
+        $driversWithLocations = $drivers->map(function (Driver $driver) use ($activeRides, $ratings) {
             $location = $this->locationService->getDriverLocation((string) $driver->id)
                 ?? $this->locationService->getDriverLocation($driver->user_id);
 
@@ -124,7 +144,7 @@ class AdminMonitoringController extends Controller
                 'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
-                'rating' => $driver->user->averageRating(),
+                'rating' => $ratings[$driver->user_id] ?? null,
                 'city' => $driver->city?->name,
                 'vehicle' => $driver->vehicle ? [
                     'make' => $driver->vehicle->make,
@@ -222,7 +242,10 @@ class AdminMonitoringController extends Controller
             ->with(['user', 'vehicle.vehicleClass'])
             ->get();
 
-        $result = $drivers->map(function (Driver $driver) use ($distanceMap) {
+        $availableUserIds = $drivers->pluck('user_id')->all();
+        $ratings = $this->bulkAverageRatings($availableUserIds);
+
+        $result = $drivers->map(function (Driver $driver) use ($distanceMap, $ratings) {
             $location = $this->locationService->getDriverLocation((string) $driver->id)
                 ?? $this->locationService->getDriverLocation($driver->user_id);
 
@@ -232,7 +255,7 @@ class AdminMonitoringController extends Controller
                 'name' => $driver->user->first_name.' '.$driver->user->last_name,
                 'phone' => $driver->user->phone,
                 'reference_number' => $driver->reference_number,
-                'rating' => $driver->user->averageRating(),
+                'rating' => $ratings[$driver->user_id] ?? null,
                 'vehicle' => [
                     'make' => $driver->vehicle->make,
                     'model' => $driver->vehicle->model,

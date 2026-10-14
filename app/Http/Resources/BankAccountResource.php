@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Contracts\WalletGateway;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Cache;
@@ -28,7 +29,9 @@ class BankAccountResource extends JsonResource
             return null;
         }
 
-        $banks = Cache::get('banks_nigeria', []);
+        $banks = Cache::remember('banks_nigeria', 86400, function () {
+            return app(WalletGateway::class)->listBanks();
+        });
 
         foreach ($banks as $bank) {
             if (($bank['code'] ?? null) === $this->bank_code) {

@@ -327,11 +327,12 @@ class AdminReportController extends Controller
                 'average_fare' => round((float) $row->avg_fare, 2),
             ]);
 
-        $totalApprovedDrivers = Driver::where('status', DriverStatus::Approved)
-            ->when($request->filled('city_id'), fn ($q) => $q->where('city_id', $request->input('city_id')))
-            ->count();
-        $utilisationRate = $totalApprovedDrivers > 0
-            ? round(($totalDrivers / $totalApprovedDrivers) * 100, 2)
+        $approvedQuery = Driver::where('status', DriverStatus::Approved)
+            ->when($request->filled('city_id'), fn ($q) => $q->where('city_id', $request->input('city_id')));
+        $totalApprovedDrivers = (clone $approvedQuery)->count();
+        $denominator = max($totalApprovedDrivers, $totalDrivers);
+        $utilisationRate = $denominator > 0
+            ? round(($totalDrivers / $denominator) * 100, 2)
             : 0;
 
         $byCity = (clone $rideQuery)
@@ -581,9 +582,9 @@ class AdminReportController extends Controller
     private function revenueTrend(Builder $query, string $groupBy, Request $request): array
     {
         $dateExpr = match ($groupBy) {
-            'day' => "to_char(completed_at, 'YYYY-MM-DD')",
-            'week' => "to_char(date_trunc('week', completed_at), 'YYYY-MM-DD')",
-            'month' => "to_char(completed_at, 'YYYY-MM')",
+            'day' => "to_char(created_at, 'YYYY-MM-DD')",
+            'week' => "to_char(date_trunc('week', created_at), 'YYYY-MM-DD')",
+            'month' => "to_char(created_at, 'YYYY-MM')",
         };
 
         $trend = $query

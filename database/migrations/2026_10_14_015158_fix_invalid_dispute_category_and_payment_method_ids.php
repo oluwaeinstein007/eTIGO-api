@@ -19,7 +19,7 @@ return new class extends Migration
 
         DB::table('payments')
             ->whereNotNull('gateway_payment_method_id')
-            ->whereRaw("gateway_payment_method_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'")
+            ->whereRaw("gateway_payment_method_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'")
             ->update(['gateway_payment_method_id' => null]);
     }
 

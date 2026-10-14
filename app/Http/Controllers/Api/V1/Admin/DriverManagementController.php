@@ -97,7 +97,7 @@ class DriverManagementController extends Controller
             'completed_trips' => $completedCount,
             'cancelled_trips' => $cancelledCount,
             'cancellation_rate' => $totalCount > 0 ? round(($cancelledCount / $totalCount) * 100, 1) : 0,
-            'acceptance_rate' => $totalOffers > 0 ? round(($accepted / $totalOffers) * 100, 1) : 100.0,
+            'acceptance_rate' => $totalOffers > 0 ? round(($accepted / $totalOffers) * 100, 1) : null,
             'total_earnings' => (float) Ride::where('driver_id', $driver->user_id)
                 ->where('status', 'completed')
                 ->sum('final_fare_amount'),

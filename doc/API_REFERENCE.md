@@ -10539,7 +10539,7 @@ Authorization: Bearer {admin_token}
       { "period": "2026-10-03", "count": 0 }
     ],
     "previous_period": {
-      "from": "2026-09-01",
+      "from": "2026-08-31",
       "to": "2026-09-30",
       "total_rides": 1100,
       "change_pct": 13.6
@@ -10600,7 +10600,7 @@ Authorization: Bearer {admin_token}
       { "city_id": "uuid", "city_name": "Abuja", "total": 450, "completed": 340, "cancelled": 54, "completion_rate": 75.6 }
     ],
     "previous_period": {
-      "from": "2026-09-01",
+      "from": "2026-08-31",
       "to": "2026-09-30",
       "total_rides": 1100,
       "completed": 880,
@@ -10660,7 +10660,7 @@ Authorization: Bearer {admin_token}
       { "period": "2026-10-03", "count": 42, "total": 210000.00 }
     ],
     "previous_period": {
-      "from": "2026-09-01",
+      "from": "2026-08-31",
       "to": "2026-09-30",
       "total_revenue": 4500000.00,
       "ride_count": 920,
@@ -10726,7 +10726,7 @@ Authorization: Bearer {admin_token}
       { "city_id": "uuid", "city_name": "Abuja", "trip_count": 380, "active_drivers": 35, "total_earnings": 1900000.00 }
     ],
     "previous_period": {
-      "from": "2026-09-01",
+      "from": "2026-08-31",
       "to": "2026-09-30",
       "total_active_drivers": 78,
       "total_trips": 900,

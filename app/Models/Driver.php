@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DisputeOutcome;
+use App\Enums\DocumentStatus;
 use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
@@ -171,12 +172,37 @@ class Driver extends Model
 
     public function isProfileComplete(): bool
     {
-        return $this->user !== null
-            && $this->city_id !== null
-            && $this->vehicle !== null
-            && $this->isKycVerified()
-            && $this->bankAccounts()->exists()
-            && $this->documents()->exists();
+        if ($this->user === null || $this->city_id === null || $this->vehicle === null || ! $this->isKycVerified()) {
+            return false;
+        }
+
+        $hasBankAccount = $this->relationLoaded('primaryBankAccount')
+            ? $this->primaryBankAccount !== null
+            : ($this->relationLoaded('bankAccounts')
+                ? $this->bankAccounts->isNotEmpty()
+                : $this->bankAccounts()->exists());
+
+        if (! $hasBankAccount) {
+            return false;
+        }
+
+        $requiredDocTypes = ['driving_licence', 'government_id'];
+        if ($this->isOwnVehicle()) {
+            $requiredDocTypes[] = 'vehicle_registration';
+            $requiredDocTypes[] = 'insurance_certificate';
+        }
+
+        $docs = $this->relationLoaded('documents')
+            ? $this->documents
+            : $this->documents()->get();
+
+        $uploadedTypes = $docs
+            ->filter(fn ($d) => ($d->status ?? null) !== DocumentStatus::Rejected)
+            ->pluck('type')
+            ->map(fn ($t) => is_object($t) ? $t->value : (string) $t)
+            ->toArray();
+
+        return empty(array_diff($requiredDocTypes, $uploadedTypes));
     }
 
     public function canGoOnline(): bool
