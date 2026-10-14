@@ -39,7 +39,7 @@ return [
         'api_key' => env('TERMII_API_KEY'),
         'sender_id' => env('TERMII_SENDER_ID', 'Etigo'),
         'whatsapp_from' => env('TERMII_WHATSAPP_FROM', env('TERMII_SENDER_ID', 'Etigo')),
-        'base_url' => env('TERMII_BASE_URL', 'https://v3.api.termii.com'),
+        'base_url' => env('TERMII_BASE_URL', 'https://api.ng.termii.com'),
         'safety_number' => env('ETIGO_SAFETY_NUMBER'),
     ],
 

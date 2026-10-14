@@ -22,7 +22,7 @@ class TermiiGateway implements SmsGateway
         $this->apiKey = config('services.termii.api_key');
         $this->senderId = config('services.termii.sender_id', 'Etigo');
         $this->whatsappFrom = config('services.termii.whatsapp_from', $this->senderId);
-        $this->baseUrl = config('services.termii.base_url', 'https://v3.api.termii.com');
+        $this->baseUrl = config('services.termii.base_url', 'https://api.ng.termii.com');
     }
 
     public function send(string $phone, string $message): bool
