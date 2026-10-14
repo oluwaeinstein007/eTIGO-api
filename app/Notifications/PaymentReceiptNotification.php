@@ -18,6 +18,7 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
         public readonly string $paymentMethod,
         public readonly ?string $paymentReference = null,
         public readonly ?string $cardLast4 = null,
+        public readonly ?string $cardBrand = null,
     ) {}
 
     public function via(object $notifiable): array
@@ -34,7 +35,9 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
         $ref = $this->paymentReference ?? 'PAY-'.now()->format('ymd').'-'.str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
         $methodDetail = match ($this->paymentMethod) {
-            'card' => $this->cardLast4 ? "Visa ending in {$this->cardLast4}" : 'Card payment',
+            'card' => $this->cardLast4
+                ? ($this->cardBrand ? ucfirst($this->cardBrand) : 'Card')." ending in {$this->cardLast4}"
+                : 'Card payment',
             'wallet' => 'Etigo Wallet',
             'bank_transfer' => 'Bank Transfer',
             default => ucfirst($this->paymentMethod),

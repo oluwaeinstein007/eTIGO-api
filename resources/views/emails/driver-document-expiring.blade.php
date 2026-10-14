@@ -5,7 +5,7 @@
 <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 700; color: #0d7c3d; text-transform: uppercase; letter-spacing: 0.5px;">Document reminder</p>
 
 {{-- Headline --}}
-<h1 style="margin: 0 0 16px 0; font-size: 26px; font-weight: 700; color: #18181b; line-height: 1.2;">Keep your licence up to date.</h1>
+<h1 style="margin: 0 0 16px 0; font-size: 26px; font-weight: 700; color: #18181b; line-height: 1.2;">Keep your {{ strtolower($documentType) }} up to date.</h1>
 
 {{-- Body --}}
 <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #18181b;">Hi {{ $userName }},</p>
@@ -76,7 +76,7 @@
         <div style="width: 32px; height: 32px; background-color: #0d7c3d; border-radius: 50%; text-align: center; line-height: 32px; font-size: 13px; font-weight: 700; color: #ffffff;">01</div>
     </td>
     <td valign="top">
-        <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">Upload your renewed licence</p>
+        <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">Upload your renewed {{ strtolower($documentType) }}</p>
         <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5;">In Etigo Driver, open Account &gt; Documents &gt; {{ $documentType }}.</p>
     </td>
 </tr>
@@ -105,7 +105,7 @@
             <div style="width: 28px; height: 28px; background-color: #fee2e2; border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;">&#9888;</div>
         </td>
         <td>
-            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Don't let an expired licence pause your rides</p>
+            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Don't let an expired document pause your rides</p>
             <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.</p>
         </td>
     </tr>

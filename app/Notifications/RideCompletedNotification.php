@@ -53,10 +53,10 @@ class RideCompletedNotification extends Notification implements ShouldQueue
             : now()->format('j F Y');
 
         $paymentNote = match ($this->ride->payment_method?->value ?? 'card') {
-            'card' => "Charged to {$paymentMethod}. No further payment is due.",
-            'wallet' => 'Paid from your Etigo wallet. No further payment is due.',
+            'card' => "Payment will be charged to {$paymentMethod}.",
+            'wallet' => 'Payment will be deducted from your Etigo wallet.',
             'cash' => 'Paid in cash to your driver.',
-            default => 'No further payment is due.',
+            default => '',
         };
 
         return (new MailMessage)
@@ -82,8 +82,8 @@ class RideCompletedNotification extends Notification implements ShouldQueue
                 'rideReference' => $rideRef,
                 'rideDate' => $rideDate,
                 'passengerName' => trim(($notifiable->first_name ?? '').' '.($notifiable->last_name ?? '')),
-                'driverName' => $this->ride->driver?->user?->first_name
-                    ? trim($this->ride->driver->user->first_name.' '.$this->ride->driver->user->last_name)
+                'driverName' => $this->ride->driver?->first_name
+                    ? trim($this->ride->driver->first_name.' '.$this->ride->driver->last_name)
                     : 'Your driver',
                 'vehicleType' => $this->ride->rideOption?->name ?? 'Etigo',
                 'duration' => $this->fareDetails['duration_minutes'].' min',
@@ -97,7 +97,7 @@ class RideCompletedNotification extends Notification implements ShouldQueue
 
     private function buildMapUrl(): ?string
     {
-        $token = env('MAPBOX_PUBLIC_TOKEN');
+        $token = config('services.mapbox.public_token');
 
         if (! $token || ! $this->ride->pickup_lat || ! $this->ride->destination_lat) {
             return null;

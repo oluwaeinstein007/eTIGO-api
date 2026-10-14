@@ -10,7 +10,7 @@
 {{-- Body --}}
 <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #18181b;">Hi {{ $userName }},</p>
 <p style="margin: 0 0 24px 0; font-size: 15px; color: #4b5563; line-height: 1.6;">
-    Good news: our admin team has approved your driver documents. Your Etigo driver account is now active, and you can start accepting rides.
+    Good news: our admin team has approved your driver documents. Your Etigo driver account is now active. Complete any remaining setup steps in the app to start accepting rides.
 </p>
 
 {{-- Approval status card --}}

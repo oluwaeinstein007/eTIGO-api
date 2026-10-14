@@ -37,7 +37,7 @@
             .info-label { color: #6b7280 !important; font-size: 13px !important; padding-bottom: 2px !important; }
             .info-value { font-weight: 600 !important; padding-bottom: 12px !important; }
             .cta-button { width: 100% !important; }
-            .cta-button a { display: block !important; width: 100% !important; text-align: center !important; }
+            .cta-button a { display: block !important; width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
             .step-number { width: 32px !important; }
             .hero-image img { width: 100% !important; height: auto !important; }
             .footer-cell { padding: 24px 20px !important; }

@@ -24,15 +24,16 @@ class AdminPasswordResetNotification extends Notification implements ShouldQueue
     {
         $resetUrl = config('app.frontend_url', config('app.url')).'/admin/reset-password?token='.$this->token.'&email='.urlencode($notifiable->email);
         $requestedAt = now();
-        $expiresAt = $requestedAt->copy()->addMinutes(30);
+        $expiryMinutes = config('auth.passwords.users.expire', 60);
+        $expiresAt = $requestedAt->copy()->addMinutes($expiryMinutes);
 
         return (new MailMessage)
             ->subject('Reset your Etigo admin password')
             ->view('emails.admin-password-reset', [
-                'preheader' => 'Reset your Etigo admin password. Your secure reset link expires in 30 minutes.',
+                'preheader' => "Reset your Etigo admin password. Your secure reset link expires in {$expiryMinutes} minutes.",
                 'preheaderLabel' => 'Admin password reset',
                 'preheaderTitle' => 'Reset your Etigo admin password',
-                'preheaderSub' => 'Your secure reset link expires in 30 minutes.',
+                'preheaderSub' => "Your secure reset link expires in {$expiryMinutes} minutes.",
                 'subject' => 'Reset your Etigo admin password',
                 'userName' => $notifiable->first_name ?? 'there',
                 'resetUrl' => $resetUrl,

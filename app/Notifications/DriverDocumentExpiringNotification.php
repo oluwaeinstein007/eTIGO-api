@@ -38,16 +38,14 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
                 'preheader' => "Your {$documentType} expires on {$expiryDate}. {$daysRemaining} days left. Upload your renewed document.",
                 'preheaderLabel' => 'Driver document expiring',
                 'preheaderTitle' => "Your {$documentType} expires on {$this->document->expires_at->format('j F')}",
-                'preheaderSub' => "{$daysRemaining} days left. Upload your renewed licence to keep your documents current.",
+                'preheaderSub' => "{$daysRemaining} days left. Upload your renewed document to keep your records current.",
                 'subject' => "Your {$documentType} expires on {$this->document->expires_at->format('j F')}",
                 'userName' => $notifiable->first_name,
                 'recipientEmail' => $notifiable->email,
                 'documentType' => $documentType,
                 'expiryDate' => $expiryDate,
                 'daysRemaining' => $daysRemaining,
-                'documentEnding' => $this->document->original_filename
-                    ? substr($this->document->original_filename, -4)
-                    : null,
+                'documentEnding' => $this->document->document_number ?? null,
                 'driverName' => $driverName,
                 'driverId' => $driverId,
                 'updateDocumentUrl' => $updateDocumentUrl,

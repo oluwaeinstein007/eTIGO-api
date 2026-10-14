@@ -85,10 +85,13 @@ class TestMailCommand extends Command
         $inviter = User::first();
 
         if (! $inviter) {
-            $this->warn('No users in DB — creating mock invitation.');
-            $inviter = new User(['first_name' => 'Naomi', 'last_name' => 'Adeyemi']);
-            $inviter->id = Str::uuid()->toString();
-            $inviter->exists = false;
+            $this->warn('No users in DB — creating mock inviter.');
+            $inviter = User::create([
+                'first_name' => 'Naomi',
+                'last_name' => 'Adeyemi',
+                'email' => 'mock-inviter-'.Str::random(6).'@etigo.test',
+                'password' => bcrypt(Str::random(16)),
+            ]);
         }
 
         $invitation = AdminInvitation::create([
@@ -135,8 +138,8 @@ class TestMailCommand extends Command
                 'duration_minutes' => 18,
                 'waiting_charge' => 0,
                 'fare_breakdown' => [
-                    'base_fare' => 4200.00,
-                    'distance_charge' => 300.00,
+                    'base_fare' => 3500.00,
+                    'distance_charge' => 500.00,
                     'time_charge' => 200.00,
                     'waiting_charge' => 0,
                     'booking_fee' => 300.00,
@@ -265,18 +268,14 @@ class TestMailCommand extends Command
 
     private function sendPaymentReceipt(string $email): void
     {
-        $ride = Ride::latest()->first();
-
-        if (! $ride) {
-            $ride = new Ride([
-                'pickup_address' => 'Tejuosho Market, Yaba',
-                'destination_address' => 'Bode Thomas Street, Surulere',
-                'fare_currency' => 'NGN',
-                'payment_method' => PaymentMethod::Card,
-            ]);
-            $ride->id = Str::uuid()->toString();
-            $ride->reference_number = 'ETG-261013-0842';
-        }
+        $ride = new Ride([
+            'pickup_address' => 'Tejuosho Market, Yaba',
+            'destination_address' => 'Bode Thomas Street, Surulere',
+            'fare_currency' => 'NGN',
+            'payment_method' => PaymentMethod::Card,
+        ]);
+        $ride->id = Str::uuid()->toString();
+        $ride->reference_number = 'ETG-261013-0842';
 
         $notification = new PaymentReceiptNotification(
             ride: $ride,

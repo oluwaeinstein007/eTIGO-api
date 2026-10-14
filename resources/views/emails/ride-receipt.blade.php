@@ -13,8 +13,8 @@
     You've arrived. Here's the receipt for your ride from {{ $pickupArea }} to {{ $dropoffArea }} on {{ $rideDate }}.
 </p>
 
-{{-- Total paid --}}
-<p style="margin: 0 0 4px 0; font-size: 13px; color: #6b7280;">Total paid &middot; {{ $currency }}</p>
+{{-- Total --}}
+<p style="margin: 0 0 4px 0; font-size: 13px; color: #6b7280;">Total &middot; {{ $currency }}</p>
 <p style="margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: #18181b; letter-spacing: -1px;">{{ $currencySymbol }}{{ $totalPaid }}</p>
 
 {{-- Payment badge --}}
@@ -101,7 +101,7 @@
 {{-- Total --}}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top: 2px solid #18181b; margin-bottom: 8px;">
 <tr>
-    <td style="padding: 12px 0; font-size: 15px; font-weight: 700; color: #18181b;">Total paid</td>
+    <td style="padding: 12px 0; font-size: 15px; font-weight: 700; color: #18181b;">Total</td>
     <td align="right" style="padding: 12px 0; font-size: 15px; font-weight: 700; color: #18181b;">{{ $currencySymbol }}{{ $totalPaid }}</td>
 </tr>
 </table>
