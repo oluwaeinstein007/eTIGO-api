@@ -2,10 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Contracts\SmsGateway;
 use App\Models\SosIncident;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class SendSosWhatsAppAlertJob implements ShouldQueue
@@ -20,7 +20,7 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
         private readonly string $incidentId,
     ) {}
 
-    public function handle(): void
+    public function handle(SmsGateway $gateway): void
     {
         $incident = SosIncident::with(['ride.passenger', 'ride.driver', 'triggeredBy'])->find($this->incidentId);
 
@@ -28,18 +28,14 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
             return;
         }
 
-        $safetyNumber = config('services.whatsapp.safety_number');
+        $safetyNumber = config('services.termii.safety_number');
         if (! $safetyNumber) {
-            Log::warning('SOS WhatsApp alert skipped — no safety number configured', [
+            Log::warning('SOS alert skipped — no safety number configured', [
                 'incident_id' => $this->incidentId,
             ]);
 
             return;
         }
-
-        $phoneNumberId = config('services.whatsapp.phone_number_id');
-        $accessToken = config('services.whatsapp.access_token');
-        $templateName = config('services.whatsapp.sos_template_name', 'sos_emergency_alert');
 
         $ride = $incident->ride;
         $triggeredBy = $incident->triggeredBy;
@@ -54,44 +50,16 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
             'Time: '.now()->toDateTimeString(),
         ]);
 
-        try {
-            $response = Http::withToken($accessToken)
-                ->connectTimeout(5)
-                ->timeout(10)
-                ->post("https://graph.facebook.com/v21.0/{$phoneNumberId}/messages", [
-                    'messaging_product' => 'whatsapp',
-                    'to' => ltrim($safetyNumber, '+'),
-                    'type' => 'template',
-                    'template' => [
-                        'name' => $templateName,
-                        'language' => ['code' => 'en'],
-                        'components' => [
-                            [
-                                'type' => 'body',
-                                'parameters' => [
-                                    ['type' => 'text', 'text' => $alertBody],
-                                ],
-                            ],
-                        ],
-                    ],
-                ]);
+        $sent = $gateway->send($safetyNumber, $alertBody);
 
-            if ($response->failed()) {
-                Log::error('SOS WhatsApp alert delivery failed', [
-                    'incident_id' => $this->incidentId,
-                    'status' => $response->status(),
-                    'body' => $response->json(),
-                ]);
-            } else {
-                Log::info('SOS WhatsApp alert sent', ['incident_id' => $this->incidentId]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('SOS WhatsApp alert connection failed', [
+        if ($sent) {
+            Log::info('SOS alert sent', ['incident_id' => $this->incidentId]);
+        } else {
+            Log::error('SOS alert delivery failed on all channels', [
                 'incident_id' => $this->incidentId,
-                'error' => $e->getMessage(),
             ]);
 
-            throw $e;
+            $this->fail(new \RuntimeException("SOS alert delivery failed for incident {$this->incidentId}"));
         }
     }
 }
