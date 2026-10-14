@@ -50,6 +50,8 @@ class AdminGamificationController extends Controller
 
         $profiles = $query->paginate(min(max($request->integer('per_page', 15), 1), 100));
 
+        GamificationResource::preloadScoreTotals($profiles->pluck('user_id')->all());
+
         return response()->json([
             'profiles' => GamificationResource::collection($profiles),
             'meta' => [
