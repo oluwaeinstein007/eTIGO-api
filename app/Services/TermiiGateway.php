@@ -13,12 +13,15 @@ class TermiiGateway implements SmsGateway
 
     private string $senderId;
 
+    private string $whatsappFrom;
+
     private string $baseUrl;
 
     public function __construct()
     {
         $this->apiKey = config('services.termii.api_key');
         $this->senderId = config('services.termii.sender_id', 'Etigo');
+        $this->whatsappFrom = config('services.termii.whatsapp_from', $this->senderId);
         $this->baseUrl = config('services.termii.base_url', 'https://v3.api.termii.com');
     }
 
@@ -41,7 +44,7 @@ class TermiiGateway implements SmsGateway
                 ->timeout(15)
                 ->post("{$this->baseUrl}/api/sms/send", [
                     'to' => ltrim($phone, '+'),
-                    'from' => $this->senderId,
+                    'from' => $channel === 'whatsapp' ? $this->whatsappFrom : $this->senderId,
                     'sms' => $message,
                     'type' => 'plain',
                     'channel' => $channel,
