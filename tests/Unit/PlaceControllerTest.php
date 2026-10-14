@@ -121,6 +121,7 @@ test('container resolves Haversine fallback when no valid drivers configured', f
 
 test('container resolves GooglePlacesGateway when google driver configured', function () {
     config()->set('services.google_maps.api_key', 'test-google-key');
+    config()->set('services.google.places_api_key', 'test-google-key');
     config()->set('services.places.drivers', 'google');
 
     $resolved = app(PlaceSearchGateway::class);
@@ -130,6 +131,7 @@ test('container resolves GooglePlacesGateway when google driver configured', fun
 
 test('container resolves MapsGateway as GooglePlacesGateway when google api key configured', function () {
     config()->set('services.google_maps.api_key', 'test-google-key');
+    config()->set('services.google.places_api_key', 'test-google-key');
 
     $resolved = app(MapsGateway::class);
 

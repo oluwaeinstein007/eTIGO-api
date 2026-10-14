@@ -101,10 +101,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(MapsGateway::class, function () {
-            $googleApiKey = config('services.google.places_api_key')
-                ?? config('services.google_maps.api_key');
+            $googleApiKey = config('services.google_maps.api_key')
+                ?: config('services.google.places_api_key');
 
-            if ($googleApiKey) {
+            if (! empty($googleApiKey)) {
                 return new GooglePlacesGateway(
                     $googleApiKey,
                     config('services.places.country', 'ng'),
@@ -130,7 +130,7 @@ class AppServiceProvider extends ServiceProvider
         $drivers = [];
         foreach ($driverList as $driverName) {
             $gateway = match (strtolower($driverName)) {
-                'google', 'google_places', 'google_maps' => ($apiKey = config('services.google.places_api_key') ?? config('services.google_maps.api_key'))
+                'google', 'google_places', 'google_maps' => ($apiKey = config('services.google_maps.api_key') ?: config('services.google.places_api_key'))
                     ? new GooglePlacesGateway($apiKey, $country)
                     : null,
                 'mapbox' => config('services.mapbox.access_token')
