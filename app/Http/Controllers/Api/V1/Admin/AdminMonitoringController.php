@@ -177,16 +177,64 @@ class AdminMonitoringController extends Controller
 
     public function pendingRides(Request $request): JsonResponse
     {
-        $rides = Ride::whereIn('status', [RideStatus::Requested, RideStatus::Searching, RideStatus::NoDriverFound])
-            ->whereNull('driver_id')
-            ->with(['city', 'vehicleClass', 'passenger'])
+        $allowedStatuses = [
+            RideStatus::Requested,
+            RideStatus::Searching,
+            RideStatus::NoDriverFound,
+            RideStatus::Matched,
+            RideStatus::DriverEnRoute,
+        ];
+
+        $rides = Ride::whereIn('status', $allowedStatuses)
+            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle'])
+            ->when($request->input('status'), function ($q, $v) use ($allowedStatuses) {
+                $statuses = array_filter(
+                    array_map(fn ($s) => RideStatus::tryFrom($s), explode(',', $v)),
+                    fn ($s) => $s !== null && in_array($s, $allowedStatuses),
+                );
+                if ($statuses) {
+                    $q->whereIn('status', $statuses);
+                }
+            }, fn ($q) => $q->whereNull('driver_id'))
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('vehicle_class_id', $v))
+            ->when($request->input('search'), function ($q, $search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('reference_number', 'ilike', "%{$search}%")
+                        ->orWhereHas('passenger', function ($q) use ($search) {
+                            $q->where(DB::raw("concat(first_name, ' ', last_name)"), 'ilike', "%{$search}%");
+                        });
+                });
+            })
             ->orderBy('created_at')
             ->paginate(min(max((int) $request->input('per_page', 25), 1), 100));
 
+        $driverUserIds = $rides->pluck('driver_id')->filter()->unique()->values()->all();
+        $ratings = $this->bulkAverageRatings($driverUserIds);
+
+        $ridesData = $rides->through(function (Ride $ride) use ($ratings) {
+            $resource = (new RideResource($ride))->resolve();
+
+            if ($ride->driver_id) {
+                $resource['driver_rating'] = $ratings[$ride->driver_id] ?? null;
+                $resource['matched_at'] = $ride->matched_at?->toIso8601String();
+
+                $driverProfile = $ride->driver?->driver;
+                if ($driverProfile?->vehicle) {
+                    $resource['driver_vehicle'] = [
+                        'make' => $driverProfile->vehicle->make,
+                        'model' => $driverProfile->vehicle->model,
+                        'colour' => $driverProfile->vehicle->colour,
+                        'plate_number' => $driverProfile->vehicle->plate_number,
+                    ];
+                }
+            }
+
+            return $resource;
+        });
+
         return response()->json([
-            'rides' => RideResource::collection($rides),
+            'rides' => $ridesData->items(),
             'meta' => [
                 'current_page' => $rides->currentPage(),
                 'last_page' => $rides->lastPage(),
@@ -249,6 +297,10 @@ class AdminMonitoringController extends Controller
             $location = $this->locationService->getDriverLocation((string) $driver->id)
                 ?? $this->locationService->getDriverLocation($driver->user_id);
 
+            $distanceKm = round($distanceMap[$driver->id] ?? 0, 2);
+            $avgSpeedKmh = 30;
+            $etaMinutes = $distanceKm > 0 ? round(($distanceKm / $avgSpeedKmh) * 60, 1) : 0;
+
             return [
                 'driver_id' => $driver->id,
                 'user_id' => $driver->user_id,
@@ -264,7 +316,8 @@ class AdminMonitoringController extends Controller
                     'vehicle_class' => $driver->vehicle->vehicleClass?->name,
                 ],
                 'location' => $location,
-                'distance_km' => round($distanceMap[$driver->id] ?? 0, 2),
+                'distance_km' => $distanceKm,
+                'eta_minutes' => $etaMinutes,
             ];
         })->sortBy('distance_km')->values()->take($limit);
 
