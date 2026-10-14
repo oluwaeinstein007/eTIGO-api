@@ -69,13 +69,13 @@ Run `php artisan db:seed` to populate the database with the test data below.
 
 ### Static OTP (Non-Production Only)
 
-In **local**, **staging**, and **testing** environments, all OTP codes are set to **`123456`**. SMS delivery is skipped entirely — no WhatsApp messages are sent. This allows developers and testers to create and verify accounts freely without OTP costs or delivery delays.
+In **local**, **staging**, and **testing** environments, all OTP codes are set to **`123456`**. Message delivery is skipped entirely. This allows developers and testers to create and verify accounts freely without OTP costs or delivery delays.
 
 **How to use:**
 1. `POST /auth/otp/send` with any valid phone number → returns success immediately
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
-This static OTP is **disabled in production** — production always generates random codes and sends via SMS.
+This static OTP is **disabled in production** — production always generates random codes and sends via WhatsApp (with SMS fallback).
 
 ### Dual Account Support
 
@@ -8679,7 +8679,7 @@ Triggers an emergency SOS incident on an active ride. Dispatches a check-in job 
 
 **`auto_dial_emergency`:** The mobile client should immediately initiate a phone call to this number (Nigeria's emergency line) when receiving this response.
 
-**Real-time:** A `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel immediately, and a WhatsApp alert with GPS + trip details is sent to E-tiGo's internal safety number.
+**Real-time:** A `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel immediately, and an alert with GPS + trip details is sent to E-tiGo's internal safety number via WhatsApp (with SMS fallback).
 
 **Errors:** `422` (ride not active, not a participant, invalid coords), `409` (active SOS already exists)
 

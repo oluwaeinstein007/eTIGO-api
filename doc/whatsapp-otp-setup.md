@@ -1,36 +1,33 @@
-# WhatsApp OTP & Social Auth — Setup Guide
+# OTP & Social Auth — Setup Guide
 
-This document lists what the development team needs from you (the client / business owner) to enable WhatsApp OTP login and social OAuth for the e-tiGO app.
+This document lists what the development team needs from you (the client / business owner) to enable OTP login and social OAuth for the e-tiGO app.
 
 ---
 
-## 1. WhatsApp Business Cloud API (for OTP delivery)
+## 1. Termii (for OTP & SOS alert delivery)
 
-We use Meta's WhatsApp Cloud API to send one-time verification codes to users via WhatsApp.
+We use Termii to send one-time verification codes and SOS emergency alerts via WhatsApp, with automatic SMS fallback if WhatsApp delivery fails.
 
 ### What you need to do
 
-1. **Create a Meta Business account** at [business.facebook.com](https://business.facebook.com) (if you don't already have one).
-2. **Create a Meta App** at [developers.facebook.com](https://developers.facebook.com/apps/) — select "Business" type.
-3. **Add the WhatsApp product** to the app (from the app dashboard, click "Add Product" → WhatsApp).
-4. **Complete business verification** — Meta requires this for production access. Go to Business Settings → Security Center → Start Verification.
-5. **Register a phone number** — this is the number that will appear as the sender (e.g. your business number). You can use Meta's test number during development.
-6. **Create an OTP message template** — in the WhatsApp Manager, create a message template:
-   - **Name:** `otp_verification`
-   - **Category:** Authentication
-   - **Language:** English
-   - **Body:** `Your e-tiGO verification code is: {{1}}`
-   - Submit for approval (usually approved within minutes for auth templates).
+1. **Create a Termii account** at [termii.com](https://termii.com).
+2. **Register a Sender ID** — this is the name that appears as the sender for SMS messages (e.g. `Etigo`). Go to your Termii dashboard → Sender ID → Request a Sender ID.
+3. **Enable WhatsApp channel** — in the Termii dashboard, set up your WhatsApp Business number for WhatsApp messaging.
+4. **Get your API key** — go to your Termii dashboard → Settings → API Key.
 
 ### What to send the dev team
 
 | Variable | Where to find it |
 |---|---|
-| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp > API Setup > Phone Number ID |
-| `WHATSAPP_ACCESS_TOKEN` | WhatsApp > API Setup > Generate permanent token (or use System User token for production) |
-| `WHATSAPP_OTP_TEMPLATE` | The template name you created (default: `otp_verification`) |
+| `TERMII_API_KEY` | Termii Dashboard → Settings → API Key |
+| `TERMII_SENDER_ID` | The Sender ID you registered (default: `Etigo`) |
+| `ETIGO_SAFETY_NUMBER` | The phone number for SOS emergency alerts (E.164 format, e.g. `+234...`) |
 
-> **Production note:** For production, create a System User in Business Settings, assign it to the WhatsApp app with `whatsapp_business_messaging` permission, and generate a permanent access token. The temporary token from the dashboard expires after 24 hours.
+### How delivery works
+
+- **OTP codes** are sent via WhatsApp first. If WhatsApp delivery fails, the system automatically retries via SMS.
+- **SOS emergency alerts** follow the same WhatsApp-first, SMS-fallback pattern and are sent to the configured safety number.
+- In **non-production** environments (local, staging, testing), OTP is always `123456` and no messages are sent.
 
 ---
 
@@ -78,7 +75,7 @@ We use Meta's WhatsApp Cloud API to send one-time verification codes to users vi
 ### What you need to do
 
 1. Go to [Meta for Developers](https://developers.facebook.com/apps/).
-2. Use the same app from the WhatsApp setup above (or create a separate one).
+2. Create a new app (or use an existing one).
 3. Add the **Facebook Login** product.
 4. Under **Settings** → **Basic**, note the App ID and App Secret.
 5. Under **Facebook Login** → **Settings**, add your app's redirect URIs (the mobile team will provide these).
@@ -95,10 +92,10 @@ We use Meta's WhatsApp Cloud API to send one-time verification codes to users vi
 ## Summary — All env values needed
 
 ```env
-# WhatsApp Cloud API
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
-WHATSAPP_ACCESS_TOKEN=your_access_token
-WHATSAPP_OTP_TEMPLATE=otp_verification
+# Termii (WhatsApp + SMS fallback)
+TERMII_API_KEY=your_termii_api_key
+TERMII_SENDER_ID=Etigo
+ETIGO_SAFETY_NUMBER=+234xxxxxxxxxx
 
 # Google
 GOOGLE_CLIENT_ID=your_google_client_id

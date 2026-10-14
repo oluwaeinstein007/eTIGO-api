@@ -29,7 +29,7 @@ use App\Services\MapboxGateway;
 use App\Services\PaystackPaymentGateway;
 use App\Services\PhotonGateway;
 use App\Services\QoreIdKycGateway;
-use App\Services\WhatsAppGateway;
+use App\Services\TermiiGateway;
 use App\Support\CloudinaryAdapter;
 use Cloudinary\Cloudinary;
 use Illuminate\Filesystem\FilesystemAdapter;
@@ -47,8 +47,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SmsGateway::class, function () {
-            if (config('services.whatsapp.phone_number_id') && config('services.whatsapp.access_token')) {
-                return new WhatsAppGateway;
+            if (config('services.termii.api_key')) {
+                return new TermiiGateway;
             }
 
             return new LogSmsGateway;

@@ -35,12 +35,12 @@ return [
         ],
     ],
 
-    'whatsapp' => [
-        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
-        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
-        'otp_template_name' => env('WHATSAPP_OTP_TEMPLATE', 'otp_verification'),
-        'safety_number' => env('WHATSAPP_SAFETY_NUMBER'),
-        'sos_template_name' => env('WHATSAPP_SOS_TEMPLATE', 'sos_emergency_alert'),
+    'termii' => [
+        'api_key' => env('TERMII_API_KEY'),
+        'sender_id' => env('TERMII_SENDER_ID', 'Etigo'),
+        'whatsapp_from' => env('TERMII_WHATSAPP_FROM', env('TERMII_SENDER_ID', 'Etigo')),
+        'base_url' => env('TERMII_BASE_URL', 'https://api.ng.termii.com'),
+        'safety_number' => env('ETIGO_SAFETY_NUMBER'),
     ],
 
     'google' => [
