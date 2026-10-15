@@ -86,14 +86,22 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             }
         }
 
-        $payout->update([
-            'gateway_reference' => $reference,
-        ]);
-
         try {
+            $recipientCode = $walletGateway->createTransferRecipient(
+                $payout->bankAccount->account_number,
+                $payout->bankAccount->bank_code,
+            );
+
+            // Saved before the transfer starts: Paystack asks our transfer
+            // approval URL about it, and the approval checks the reference,
+            // amount and recipient against this payout.
+            $payout->update([
+                'gateway_reference' => $reference,
+                'gateway_recipient_code' => $recipientCode,
+            ]);
+
             $transfer = $walletGateway->initiateTransfer([
-                'account_bank' => $payout->bankAccount->bank_code,
-                'account_number' => $payout->bankAccount->account_number,
+                'recipient_code' => $recipientCode,
                 'amount' => $payout->amount / 100,
                 'narration' => "E-tiGo driver payout #{$payout->id}",
                 'currency' => 'NGN',

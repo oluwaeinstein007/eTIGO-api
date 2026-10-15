@@ -19,6 +19,7 @@ class Payout extends Model
         'status',
         'gateway_transfer_id',
         'gateway_reference',
+        'gateway_recipient_code',
         'provider_status',
         'failure_reason',
         'requested_at',
