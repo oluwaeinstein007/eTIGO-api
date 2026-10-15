@@ -368,3 +368,18 @@ it('counts the rides awaiting a driver for the needs attention badge', function 
         ->assertJsonPath('summary.by_status.no_driver_found', 1)
         ->assertJsonPath('summary.by_status.driver_en_route', 1);
 });
+
+it('drops rides that found no driver from the pending list once the assignment window has passed', function () {
+    $attributes = ['city_id' => $this->city->id, 'vehicle_class_id' => $this->vehicleClass->id];
+
+    $recent = Ride::factory()->create($attributes + ['status' => RideStatus::NoDriverFound, 'created_at' => now()->subHours(23)]);
+    Ride::factory()->create($attributes + ['status' => RideStatus::NoDriverFound, 'created_at' => now()->subHours(25)]);
+    $stuckSearching = Ride::factory()->create($attributes + ['status' => RideStatus::Searching, 'created_at' => now()->subHours(30)]);
+
+    $response = $this->withToken($this->adminToken)->getJson('/api/v1/admin/rides/pending');
+
+    $response->assertOk()
+        ->assertJsonPath('summary.awaiting_driver', 2)
+        ->assertJsonPath('summary.by_status.no_driver_found', 1);
+    expect(collect($response->json('rides'))->pluck('id')->all())->toBe([$stuckSearching->id, $recent->id]);
+});
