@@ -306,8 +306,8 @@ class PaymentService
             throw new \RuntimeException('No payment record found for this ride.');
         }
 
-        if (! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Cash], true)) {
-            throw new \RuntimeException('Tips can only be added to card or cash rides.');
+        if (! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
+            throw new \RuntimeException('Tips can only be added to card, wallet or cash rides.');
         }
 
         // Claim the tip slot before any charge so concurrent requests cannot
@@ -341,6 +341,16 @@ class PaymentService
                 ]);
             }
 
+        }
+
+        if ($ride->payment_method === PaymentMethod::Wallet && $tipAmount > 0) {
+            try {
+                $this->walletPaymentService->payTip($ride, (int) round($tipAmount * 100));
+            } catch (\Throwable $e) {
+                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+
+                throw new \RuntimeException($e instanceof \DomainException ? $e->getMessage() : 'Failed to pay the tip from your wallet.');
+            }
         }
 
         $this->broadcastPaymentUpdate($payment->fresh());

@@ -58,6 +58,55 @@ class WalletPaymentService
     }
 
     /**
+     * Pay a tip from the passenger's wallet straight to the driver, in full
+     * (tips carry no commission), as one journal.
+     *
+     * @throws \DomainException when the wallet is frozen or cannot cover the tip
+     */
+    public function payTip(Ride $ride, int $tipKobo): void
+    {
+        DB::transaction(function () use ($ride, $tipKobo) {
+            $wallet = $this->ledgerService->findOrCreateAccount(
+                'App\\Models\\User',
+                $ride->passenger_id,
+                AccountType::PassengerWallet,
+            );
+            $wallet = Account::whereKey($wallet->id)->lockForUpdate()->first();
+
+            if (! $wallet->isActive()) {
+                throw new \DomainException('Wallet is frozen or closed.');
+            }
+
+            if ($wallet->availableBalance() < $tipKobo) {
+                throw new \DomainException('Your wallet balance is too low for this tip.');
+            }
+
+            $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+            $driverAccount = $this->ledgerService->findOrCreateAccount(
+                'App\\Models\\Driver',
+                $driver->id,
+                AppSetting::wallet('settlement_delay') === 'instant'
+                    ? AccountType::DriverEarningsAvailable
+                    : AccountType::DriverEarningsPending,
+            );
+
+            $this->ledgerService->postJournal([
+                ['account_id' => $wallet->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $tipKobo],
+                ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $tipKobo],
+            ], [
+                'description' => "Tip for ride {$ride->id}",
+                'idempotency_key' => "wallet-tip-{$ride->id}",
+                'metadata' => [
+                    'ride_id' => $ride->id,
+                    'tip_amount_kobo' => $tipKobo,
+                    'category' => 'tip',
+                    'payment_method' => 'wallet',
+                ],
+            ]);
+        });
+    }
+
+    /**
      * Settle a ride: capture the hold, post journal entries for fare split.
      *
      * When the final fare exceeds the passenger's available balance, charges
