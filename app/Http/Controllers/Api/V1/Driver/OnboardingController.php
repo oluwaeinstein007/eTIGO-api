@@ -264,8 +264,18 @@ class OnboardingController extends Controller
             ], 422);
         }
 
+        $requestedFuelType = $request->validated('fuel_type');
+
+        if ($vehicle->fuel_type !== null && $requestedFuelType !== $vehicle->fuel_type->value && ! $isOnboarding && $request->has('fuel_type')) {
+            // Fuel type gates EV charging; once declared it is corrected by E-tiGo.
+            return response()->json([
+                'message' => "Your vehicle's fuel type can only be changed by E-tiGo after your application is submitted. Contact support.",
+                'errors' => ['fuel_type' => ['Fuel type changes require admin approval.']],
+            ], 422);
+        }
+
         $oldPlate = $vehicle->plate_number;
-        $oldValues = $vehicle->only(['make', 'model', 'colour', 'plate_number', 'year']);
+        $oldValues = $vehicle->only(['make', 'model', 'colour', 'plate_number', 'year', 'fuel_type']);
 
         $vehicle->update($request->validated());
 

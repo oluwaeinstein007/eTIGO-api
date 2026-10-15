@@ -95,13 +95,7 @@ class PointMultiplierService
 
     private function isEvRide(Ride $ride): bool
     {
-        $vehicleClass = $ride->vehicleClass;
-
-        if (! $vehicleClass) {
-            return false;
-        }
-
-        return CarbonScoreService::resolveVehicleEmission($vehicleClass) <= 0;
+        return CarbonScoreService::isElectricRide($ride);
     }
 
     private function isOffPeak(Ride $ride): bool

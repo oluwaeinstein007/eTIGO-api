@@ -10,6 +10,7 @@ enum AccountType: string
     case PlatformCommission = 'platform_commission';
     case PspClearing = 'psp_clearing';
     case Refunds = 'refunds';
+    case PlatformFees = 'platform_fees';
 
     public function label(): string
     {
@@ -20,12 +21,13 @@ enum AccountType: string
             self::PlatformCommission => 'Platform Commission',
             self::PspClearing => 'PSP Clearing',
             self::Refunds => 'Refunds',
+            self::PlatformFees => 'Platform Fees',
         };
     }
 
     public function isSystemAccount(): bool
     {
-        return in_array($this, [self::PlatformCommission, self::PspClearing, self::Refunds]);
+        return in_array($this, [self::PlatformCommission, self::PspClearing, self::Refunds, self::PlatformFees]);
     }
 
     public function isDriverAccount(): bool

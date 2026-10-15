@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DriverStatus;
+use App\Enums\FuelType;
 use App\Enums\KycStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
@@ -345,7 +346,8 @@ class DriverManagementController extends Controller
     public function updateVehicleClass(Request $request, Driver $driver): JsonResponse
     {
         $validated = $request->validate([
-            'vehicle_class_id' => ['required', 'uuid', Rule::exists('vehicle_classes', 'id')->where('is_active', true)],
+            'vehicle_class_id' => ['required_without:fuel_type', 'uuid', Rule::exists('vehicle_classes', 'id')->where('is_active', true)],
+            'fuel_type' => ['required_without:vehicle_class_id', Rule::enum(FuelType::class)],
         ]);
 
         $vehicle = $driver->vehicle;
@@ -354,7 +356,8 @@ class DriverManagementController extends Controller
             return response()->json(['message' => 'Driver has no registered vehicle.'], 422);
         }
 
-        $hasActiveRide = Ride::where('driver_id', $driver->user_id)
+        // The class decides the fares of the ride in progress; fuel type does not.
+        $hasActiveRide = isset($validated['vehicle_class_id']) && Ride::where('driver_id', $driver->user_id)
             ->whereIn('status', RideStatus::activeStatuses())
             ->exists();
 
@@ -364,22 +367,26 @@ class DriverManagementController extends Controller
             ], 409);
         }
 
-        $oldClassId = $vehicle->vehicle_class_id;
+        $changes = array_filter([
+            'vehicle_class_id' => $validated['vehicle_class_id'] ?? null,
+            'fuel_type' => $validated['fuel_type'] ?? null,
+        ]);
 
-        DB::transaction(function () use ($vehicle, $validated, $oldClassId, $request) {
-            $vehicle->update(['vehicle_class_id' => $validated['vehicle_class_id']]);
+        DB::transaction(function () use ($vehicle, $changes, $request) {
+            $old = ['vehicle_class_id' => $vehicle->vehicle_class_id, 'fuel_type' => $vehicle->fuel_type?->value];
+            $vehicle->update($changes);
 
             AuditLog::record(
                 $vehicle,
-                'vehicle_class_changed',
+                isset($changes['vehicle_class_id']) ? 'vehicle_class_changed' : 'vehicle_fuel_type_changed',
                 $request->user(),
-                ['vehicle_class_id' => $oldClassId],
-                ['vehicle_class_id' => $validated['vehicle_class_id']],
+                array_intersect_key($old, $changes),
+                $changes,
             );
         });
 
         return response()->json([
-            'message' => 'Vehicle class updated.',
+            'message' => isset($changes['vehicle_class_id']) ? 'Vehicle class updated.' : 'Vehicle fuel type updated.',
             'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
         ]);
     }

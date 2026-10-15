@@ -14,6 +14,7 @@ class SystemAccountSeeder extends Seeder
             AccountType::PlatformCommission,
             AccountType::PspClearing,
             AccountType::Refunds,
+            AccountType::PlatformFees,
         ];
 
         foreach ($systemAccounts as $type) {

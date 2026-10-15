@@ -12,6 +12,7 @@ use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Models\User;
+use App\Models\Vehicle;
 
 beforeEach(function () {
     $this->city = City::factory()->create();
@@ -23,6 +24,7 @@ beforeEach(function () {
         'is_online' => true,
     ]);
     $this->driverToken = $this->driverUser->createToken('auth', ['driver'])->plainTextToken;
+    Vehicle::factory()->electric()->create(['driver_id' => $this->driver->id]);
 
     $this->admin = User::factory()->create([
         'type' => UserType::Admin,

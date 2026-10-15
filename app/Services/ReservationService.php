@@ -16,6 +16,7 @@ class ReservationService
     public function __construct(
         private readonly StallAvailabilityService $stallService,
         private readonly TierGateService $tierGate,
+        private readonly EvReservationFeeService $fees,
     ) {}
 
     public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
@@ -111,6 +112,8 @@ class ReservationService
                 'status' => EvReservationStatus::Cancelled,
             ]);
 
+            $this->fees->refundIfWithinGracePeriod($reservation);
+
             if ($hadStall && $reservation->stall) {
                 $this->stallService->releaseStall($reservation->stall);
                 TransferReservationJob::dispatch($station->id)->afterCommit();
@@ -174,18 +177,34 @@ class ReservationService
      */
     public function transferToNextQueued(EvChargingStation $station): ?EvReservation
     {
-        $nextInQueue = EvReservation::forStation($station->id)
-            ->queued()
-            ->lockForUpdate()
-            ->first();
-
-        if (! $nextInQueue) {
-            return null;
-        }
-
         $availableStall = $this->stallService->findAvailableStall($station);
 
         if (! $availableStall) {
+            return null;
+        }
+
+        $nextInQueue = null;
+
+        foreach (EvReservation::forStation($station->id)->queued()->lockForUpdate()->get() as $queued) {
+            try {
+                // The fee is collected when the stall is actually held for the driver.
+                $this->fees->charge($queued);
+                $nextInQueue = $queued;
+
+                break;
+            } catch (\RuntimeException $e) {
+                $queued->update([
+                    'status' => EvReservationStatus::Cancelled,
+                    'notes' => 'Cancelled: the earnings balance could not cover the reservation fee.',
+                ]);
+
+                Log::info('Queued EV reservation skipped: fee not covered', ['reservation_id' => $queued->id]);
+            }
+        }
+
+        if (! $nextInQueue) {
+            $this->reorderQueue($station->id);
+
             return null;
         }
 
@@ -229,6 +248,9 @@ class ReservationService
             'reserved_at' => now(),
         ]);
 
+        // Throws when the driver's earnings cannot cover the fee, rolling back the hold.
+        $this->fees->charge($reservation);
+
         Log::info('EV stall reserved immediately', [
             'reservation_id' => $reservation->id,
             'stall_id' => $stall->id,
@@ -255,6 +277,7 @@ class ReservationService
 
         $queuePosition = $currentQueueSize + 1;
         $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
+        $this->fees->assertCanPay($driver, $feeWaived ? 0 : (int) round((float) config('ev_charging.reservation_fee', 500.00) * 100));
 
         $reservation = EvReservation::create([
             'station_id' => $station->id,
@@ -300,6 +323,8 @@ class ReservationService
             throw new \RuntimeException('Only drivers can reserve EV charging stalls.');
         }
 
+        $this->assertCanCharge($driver);
+
         $maxActive = config('ev_charging.max_active_reservations_per_driver', 1);
 
         $activeCount = EvReservation::forDriver($driver->id)
@@ -308,6 +333,16 @@ class ReservationService
 
         if ($activeCount >= $maxActive) {
             throw new \RuntimeException('You already have an active reservation.');
+        }
+    }
+
+    /**
+     * Charging stalls are for plug-in vehicles only (electric or plug-in hybrid).
+     */
+    public function assertCanCharge(User $driver): void
+    {
+        if (! $driver->driver?->vehicle?->fuel_type?->canCharge()) {
+            throw new \RuntimeException("EV charging is only available for electric and plug-in hybrid vehicles. Set your vehicle's fuel type if it is one.");
         }
     }
 
