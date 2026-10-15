@@ -291,6 +291,8 @@ it('debits the driver again when a failed payout is retried and sent', function 
 
         return ['id' => 'TRF-1', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'pending'];
     });
+    // The refused first attempt never created a transfer under its reference.
+    $gateway->shouldReceive('verifyTransfer')->once()->with("PAYOUT-{$payout->id}")->andReturnNull();
     $this->app->instance(WalletGateway::class, $gateway);
     app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
     expect($payout->fresh()->status)->toBe(PayoutStatus::Failed)
@@ -299,6 +301,42 @@ it('debits the driver again when a failed payout is retried and sent', function 
     $this->actingAs($this->finance)->postJson("/api/v1/admin/payouts/{$payout->id}/retry")->assertOk();
 
     expect($payout->fresh()->status)->toBe(PayoutStatus::Processing)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('sends a retried payout under a new reference once Paystack has failed the earlier transfer', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    $payout->update(['status' => PayoutStatus::Failed, 'gateway_reference' => "PAYOUT-{$payout->id}", 'gateway_transfer_id' => 'TRF-OLD']);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->once()->with("PAYOUT-{$payout->id}")
+        ->andReturn(['id' => 'TRF-OLD', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'failed']);
+    $gateway->shouldReceive('initiateTransfer')->once()
+        ->withArgs(fn (array $data) => $data['reference'] === "PAYOUT-{$payout->id}-2")
+        ->andReturn(['id' => 'TRF-NEW', 'reference' => "PAYOUT-{$payout->id}-2", 'status' => 'pending']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($this->finance)->postJson("/api/v1/admin/payouts/{$payout->id}/retry")->assertOk();
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Processing)
+        ->and($payout->fresh()->gateway_transfer_id)->toBe('TRF-NEW')
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('marks a payout paid without sending it again when the earlier transfer went through', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    // The previous try timed out after Paystack had accepted the transfer.
+    $payout->update(['gateway_reference' => "PAYOUT-{$payout->id}"]);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->once()
+        ->andReturn(['id' => 'TRF-9', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'success']);
+    $gateway->shouldNotReceive('initiateTransfer');
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Paid)
         ->and(driverAvailableKobo($this))->toBe(300000);
 });
 

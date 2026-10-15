@@ -16,6 +16,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
 {
@@ -26,6 +27,9 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
     public int $backoff = 30;
 
     public int $uniqueFor = 300;
+
+    /** Paystack transfer statuses after which the transfer will never pay out. */
+    private const FAILED_TRANSFER_STATUSES = ['failed', 'reversed', 'abandoned', 'rejected', 'blocked'];
 
     public function __construct(public readonly string $payoutId) {}
 
@@ -54,7 +58,34 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $reference = "PAYOUT-{$payout->id}";
+        $reference = $payout->gateway_reference ?? "PAYOUT-{$payout->id}";
+
+        if ($payout->gateway_reference !== null) {
+            // An earlier attempt used this reference, and Paystack treats a
+            // reused reference as the same transfer. Find out what became of it
+            // before sending: never pay twice, never resend a spent reference.
+            $previous = $walletGateway->verifyTransfer($reference);
+            $previousStatus = strtolower((string) ($previous['status'] ?? ''));
+
+            if ($previousStatus === 'success') {
+                ProcessPayoutWebhookJob::dispatchSync((string) $previous['id'], 'paid', null, $reference);
+
+                return;
+            }
+
+            if ($previous !== null && ! in_array($previousStatus, self::FAILED_TRANSFER_STATUSES, true)) {
+                $payout->update([
+                    'status' => PayoutStatus::Processing,
+                    'gateway_transfer_id' => (string) $previous['id'],
+                ]);
+
+                return;
+            }
+
+            if ($previous !== null) {
+                $reference = $this->nextReference($payout, $reference);
+            }
+        }
 
         $payout->update([
             'gateway_reference' => $reference,
@@ -69,6 +100,10 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
                 'currency' => 'NGN',
                 'reference' => $reference,
             ]);
+
+            if (in_array(strtolower((string) ($transfer['status'] ?? '')), self::FAILED_TRANSFER_STATUSES, true)) {
+                throw new \RuntimeException("Transfer {$transfer['status']} by the payment provider.");
+            }
 
             $payout->update([
                 'status' => PayoutStatus::Processing,
@@ -86,6 +121,17 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
 
             Log::error("Payout transfer failed: {$payout->id}", ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * A new attempt after a definitive failure: PAYOUT-{id} → PAYOUT-{id}-2 → -3 …
+     */
+    private function nextReference(Payout $payout, string $previous): string
+    {
+        $suffix = Str::after($previous, "PAYOUT-{$payout->id}");
+        $attempt = preg_match('/^-(\d+)$/', $suffix, $matches) ? (int) $matches[1] + 1 : 2;
+
+        return "PAYOUT-{$payout->id}-{$attempt}";
     }
 
     private function markFailed(Payout $payout, string $reason): void

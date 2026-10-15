@@ -3,6 +3,8 @@
 namespace App\Gateways;
 
 use App\Contracts\WalletGateway;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 class PaystackWalletGateway implements WalletGateway
@@ -79,6 +81,23 @@ class PaystackWalletGateway implements WalletGateway
         ];
     }
 
+    public function verifyTransfer(string $reference): ?array
+    {
+        $response = $this->http()->get('/transfer/verify/'.rawurlencode($reference));
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $data = $this->ensureSuccessful($response)['data'];
+
+        return [
+            'id' => $data['id'],
+            'reference' => $data['reference'],
+            'status' => $data['status'],
+        ];
+    }
+
     public function resolveAccountNumber(string $accountNumber, string $bankCode): array
     {
         $response = $this->request('get', '/bank/resolve', [
@@ -123,16 +142,24 @@ class PaystackWalletGateway implements WalletGateway
 
     private function request(string $method, string $path, array $data = []): array
     {
-        $http = Http::withToken($this->secretKey)
+        $response = $method === 'get'
+            ? $this->http()->get($path, $data)
+            : $this->http()->post($path, $data);
+
+        return $this->ensureSuccessful($response);
+    }
+
+    private function http(): PendingRequest
+    {
+        return Http::withToken($this->secretKey)
             ->baseUrl($this->baseUrl)
             ->acceptJson()
             ->timeout(15)
             ->connectTimeout(5);
+    }
 
-        $response = $method === 'get'
-            ? $http->get($path, $data)
-            : $http->post($path, $data);
-
+    private function ensureSuccessful(Response $response): array
+    {
         if (! $response->successful()) {
             throw new \RuntimeException(
                 "Paystack API error: {$response->status()} - ".($response->json('message') ?? $response->body())
