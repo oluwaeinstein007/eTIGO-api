@@ -34,6 +34,7 @@ class PromoCode extends Model
         'vehicle_class_id',
         'minimum_fare_amount',
         'is_active',
+        'cancelled_at',
         'created_by_admin_id',
     ];
 
@@ -55,6 +56,7 @@ class PromoCode extends Model
             'off_peak_only' => 'boolean',
             'minimum_fare_amount' => 'decimal:2',
             'is_active' => 'boolean',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -81,8 +83,14 @@ class PromoCode extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true)
+            ->whereNull('cancelled_at')
             ->where('starts_at', '<=', now())
             ->where('expires_at', '>', now());
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
     }
 
     public function scopeByCode(Builder $query, string $code): Builder
@@ -95,6 +103,7 @@ class PromoCode extends Model
         $now = now();
 
         return $this->is_active
+            && ! $this->isCancelled()
             && $now->gte($this->starts_at)
             && $now->lt($this->expires_at);
     }

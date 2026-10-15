@@ -39,24 +39,35 @@ class PromoApplicationService
     }
 
     /**
-     * Atomically validate and apply a promo code to a ride.
-     * All context (city, vehicle class, pickup location, fare) is derived from the Ride model.
+     * Atomically validate and apply a promo code to a completed ride.
      *
-     * @return array{success: bool, discount_amount: float|null, promo_code_id: string|null, reason: string|null}
+     * @return array{success: bool, discount_amount: float|null, promo_code_id: string|null, code: string|null, reason: string|null}
      */
-    public function applyToRide(string $code, Ride $ride): array
+    public function applyToRide(PromoCode $promo, Ride $ride, float $fareAmount): array
     {
-        $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
+        return DB::transaction(function () use ($promo, $ride, $fareAmount) {
+            $existing = PromoRedemption::where('ride_id', $ride->id)
+                ->where('promo_code_id', $promo->id)
+                ->first();
 
-        return DB::transaction(function () use ($code, $ride, $fareAmount) {
-            $promo = PromoCode::byCode($code)->lockForUpdate()->first();
+            if ($existing) {
+                return [
+                    'success' => true,
+                    'discount_amount' => (float) $existing->discount_amount,
+                    'promo_code_id' => $existing->promo_code_id,
+                    'code' => $promo->code,
+                    'reason' => null,
+                ];
+            }
+
+            $promo = PromoCode::lockForUpdate()->find($promo->id);
 
             if (! $promo) {
-                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'reason' => 'Invalid promo code.'];
+                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'code' => null, 'reason' => 'Promo code no longer exists.'];
             }
 
             $validation = $this->validationService->validate(
-                code: $code,
+                code: $promo->code,
                 userId: $ride->passenger_id,
                 cityId: $ride->city_id,
                 vehicleClassId: $ride->vehicle_class_id,
@@ -66,13 +77,13 @@ class PromoApplicationService
             );
 
             if (! $validation['valid']) {
-                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'reason' => $validation['reason']];
+                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'code' => null, 'reason' => $validation['reason']];
             }
 
             $calculation = $this->calculateDiscount($promo, $fareAmount);
 
             if ($calculation['discount_amount'] <= 0) {
-                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'reason' => 'No discount applicable for this fare.'];
+                return ['success' => false, 'discount_amount' => null, 'promo_code_id' => null, 'code' => null, 'reason' => 'No discount applicable for this fare.'];
             }
 
             PromoRedemption::create([
@@ -87,6 +98,7 @@ class PromoApplicationService
                 'success' => true,
                 'discount_amount' => $calculation['discount_amount'],
                 'promo_code_id' => $promo->id,
+                'code' => $promo->code,
                 'reason' => null,
             ];
         });

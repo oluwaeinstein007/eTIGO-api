@@ -34,6 +34,8 @@ class RideService
         private DriverMatchingService $matchingService,
         private WalletPaymentService $walletPaymentService,
         private OfflineTripDetectionService $offlineTripDetectionService,
+        private PromoValidationService $promoValidationService,
+        private PromoApplicationService $promoApplicationService,
     ) {}
 
     /**
@@ -50,6 +52,7 @@ class RideService
         float $destinationLng,
         string $destinationAddress,
         PaymentMethod $paymentMethod,
+        ?string $promoCode = null,
     ): array {
         $pricing = PricingConfig::currentFor($cityId, $vehicleClassId);
 
@@ -64,11 +67,22 @@ class RideService
             $pricing->city->currency_code ?? 'NGN',
         );
 
+        $validatedPromoId = null;
+        if ($promoCode) {
+            $validation = $this->promoValidationService->validateForUser($promoCode, $passenger->id);
+            if (! $validation['valid']) {
+                throw ValidationException::withMessages([
+                    'promo_code' => [$validation['reason']],
+                ]);
+            }
+            $validatedPromoId = $validation['promo']->id;
+        }
+
         $result = DB::transaction(function () use (
             $passenger, $cityId, $vehicleClassId,
             $pickupLat, $pickupLng, $pickupAddress,
             $destinationLat, $destinationLng, $destinationAddress,
-            $paymentMethod, $estimate,
+            $paymentMethod, $estimate, $validatedPromoId,
         ) {
             $ride = Ride::create([
                 'city_id' => $cityId,
@@ -89,6 +103,7 @@ class RideService
                     'distance_km' => $estimate['distance_km'],
                     'duration_minutes' => $estimate['duration_minutes'],
                 ],
+                'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,
                 'payment_status' => PaymentStatus::Pending,
             ]);
@@ -460,24 +475,58 @@ class RideService
             }
         }
 
-        $finalFare = $this->fareEstimationService->calculateFare(
+        $rawFare = $this->fareEstimationService->calculateFare(
             $pricing,
             $route['distance_km'],
             $route['duration_minutes'],
             $waitingMinutes,
         );
 
+        $finalFare = $rawFare;
+        $discountAmount = null;
+        $promoSnapshot = null;
+
+        if ($ride->promo_code_id) {
+            $promo = $ride->promoCode;
+
+            if (! $promo) {
+                Log::warning('Promo code attached to ride no longer exists', [
+                    'ride_id' => $ride->id,
+                    'promo_code_id' => $ride->promo_code_id,
+                ]);
+            }
+
+            $promoResult = $promo
+                ? $this->promoApplicationService->applyToRide($promo, $ride, $rawFare)
+                : ['success' => false];
+
+            if ($promoResult['success']) {
+                $discountAmount = $promoResult['discount_amount'];
+                $finalFare = round(max(0, $rawFare - $discountAmount), 2);
+                $promoSnapshot = [
+                    'promo_code_id' => $promoResult['promo_code_id'],
+                    'promo_code' => $promoResult['code'],
+                    'discount_amount' => $discountAmount,
+                    'raw_fare' => $rawFare,
+                ];
+            }
+        }
+
         $ride->update([
             'final_fare_amount' => $finalFare,
+            'discount_amount' => $discountAmount,
             'pricing_snapshot' => [
                 ...(is_array($snapshot) ? $snapshot : []),
                 'distance_km' => $route['distance_km'],
                 'duration_minutes' => $route['duration_minutes'],
+                ...($promoSnapshot ? ['promo' => $promoSnapshot] : []),
             ],
         ]);
 
         return [
             'final_fare' => $finalFare,
+            'raw_fare' => $rawFare,
+            'discount_amount' => $discountAmount,
             'distance_km' => $route['distance_km'],
             'duration_minutes' => $route['duration_minutes'],
             'waiting_charge' => $this->fareEstimationService->calculateWaitingCharge($pricing, $waitingMinutes),
@@ -487,6 +536,7 @@ class RideService
                 'time_charge' => round($route['duration_minutes'] * (float) $pricing->per_minute_rate, 2),
                 'waiting_charge' => $this->fareEstimationService->calculateWaitingCharge($pricing, $waitingMinutes),
                 'minimum_fare' => (float) $pricing->minimum_fare,
+                'promo_discount' => $discountAmount,
             ],
         ];
     }

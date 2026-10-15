@@ -486,6 +486,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{promo}', [AdminPromoController::class, 'show']);
         Route::put('/{promo}', [AdminPromoController::class, 'update']);
         Route::patch('/{promo}/status', [AdminPromoController::class, 'toggleStatus']);
+        Route::post('/{promo}/cancel', [AdminPromoController::class, 'cancel']);
         Route::get('/{promo}/performance', [AdminPromoController::class, 'performance']);
     });
 

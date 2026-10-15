@@ -4992,6 +4992,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
 | payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
+| promo_code         | string  | No       | A valid promo code to apply at ride completion (max 50 chars). Validated for user eligibility at creation; fully applied (with city/geo/fare checks) at ride completion. |
 
 **Response 201:**
 ```json
@@ -5018,7 +5019,9 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
     "share_token": "abc123xyz789def456ghi012jkl345mno",
     "fare_estimate_amount": "3750.00",
     "final_fare_amount": null,
+    "discount_amount": null,
     "fare_currency": "NGN",
+    "promo_code": null,
     "payment_method": "cash",
     "payment_status": "pending",
     "cancellation_reason": null,
@@ -5128,7 +5131,12 @@ GET /rides
       "share_token": "abc123xyz789def456ghi012jkl345mno",
       "fare_estimate_amount": "3750.00",
       "final_fare_amount": "3900.00",
+      "discount_amount": "500.00",
       "fare_currency": "NGN",
+      "promo_code": {
+        "id": "9e1f2a3b-4c5d-6e7f-8901-abcdef123456",
+        "code": "LAGOS20"
+      },
       "payment_method": "cash",
       "payment_status": "collected",
       "cancellation_reason": null,
@@ -5193,7 +5201,9 @@ GET /rides/{ride}
     "share_token": "abc123xyz789def456ghi012jkl345mno",
     "fare_estimate_amount": "3750.00",
     "final_fare_amount": null,
+    "discount_amount": null,
     "fare_currency": "NGN",
+    "promo_code": null,
     "pricing_snapshot": {
       "pricing_config_id": 1,
       "version": 1,
@@ -7300,6 +7310,11 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
         "percentage": 5,
         "amount": 63.0
       },
+      "promo_discount": {
+        "code": "LAGOS20",
+        "discount_amount": 500.0,
+        "raw_fare": 4000.0
+      },
       "minimum_fare": 1500.0,
       "surge_multiplier": null
     },
@@ -7335,6 +7350,7 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
 | `vehicle` | object\|null | Driver's vehicle details (make, model, colour, plate, year) |
 | `fare_breakdown.tip` | number | Tip amount added by passenger |
 | `fare_breakdown.tier_discount` | object\|null | Tier-based discount (tier name, percentage, amount) |
+| `fare_breakdown.promo_discount` | object\|null | Promo code discount details — `null` when no promo was applied. Contains `code` (the promo code string), `discount_amount` (discount applied), and `raw_fare` (pre-discount fare amount). |
 | `payment.card_brand` | string\|null | Card brand (visa, mastercard, etc.) — only for card payments |
 | `payment.card_last_four` | string\|null | Last 4 digits of card — only for card payments |
 | `carbon` | object\|null | Carbon emissions and credits — null if not yet calculated |
@@ -8358,6 +8374,8 @@ Pre-validates a promo code for the authenticated passenger. Checks code existenc
     "vehicle_class_id": null,
     "minimum_fare_amount": null,
     "is_active": true,
+    "cancelled_at": null,
+    "is_cancelled": false,
     "city": null,
     "vehicle_class": null
   }
@@ -8386,6 +8404,8 @@ City/vehicle restrictions are returned as informational data. The frontend shoul
     "vehicle_class_id": null,
     "minimum_fare_amount": "1000.00",
     "is_active": true,
+    "cancelled_at": null,
+    "is_cancelled": false,
     "city": {
       "id": "uuid",
       "name": "Lagos"
@@ -8459,6 +8479,8 @@ Returns active promo codes the authenticated user is currently eligible for. Pas
       "expires_at": "2026-12-31T23:59:59.000000Z",
       "city_id": null,
       "is_active": true,
+      "cancelled_at": null,
+      "is_cancelled": false,
       "city": null,
       "vehicle_class": null
     },
@@ -8470,6 +8492,8 @@ Returns active promo codes the authenticated user is currently eligible for. Pas
       "discount_value": "30.00",
       "max_discount_cap": "1500.00",
       "city_id": "uuid",
+      "cancelled_at": null,
+      "is_cancelled": false,
       "city": { "id": "uuid", "name": "Lagos" },
       "vehicle_class": null
     }
@@ -8527,7 +8551,7 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 `GET /api/v1/admin/promos`
 
 **Query parameters:**
-- `status` — `active`, `expired`, `inactive`, `scheduled`
+- `status` — `active`, `expired`, `inactive`, `scheduled`, `cancelled`. The `active`, `expired`, `inactive`, and `scheduled` filters automatically exclude cancelled promos (i.e. they only return promos where `cancelled_at` is null). Use `cancelled` to list only permanently cancelled promos.
 - `city_id` — filter by city
 - `search` — search by code or description
 - `per_page` — pagination size (default 20, max 100)
@@ -8595,15 +8619,77 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 
 All fields from create are accepted; only provided fields are updated.
 
+**Response 422 (cancelled promo):**
+```json
+{
+  "message": "Cannot update a cancelled promo code."
+}
+```
+
 ### Toggle Promo Status
 
 `PATCH /api/v1/admin/promos/{promo}/status`
 
 Activates or deactivates the promo. Audit logged.
 
+**Response 422 (cancelled promo):**
+```json
+{
+  "message": "Cannot change status of a cancelled promo code."
+}
+```
+
+---
+
+### Cancel Promo
+
+`POST /api/v1/admin/promos/{promo}/cancel`
+
+Permanently cancels a promo code. Sets `is_active = false` and records `cancelled_at` timestamp. This action **cannot be undone** — a cancelled promo can never be reactivated or updated.
+
+**Cancel vs. Pause:** Toggling status (via `PATCH .../status`) is reversible — it simply flips `is_active` on/off. Cancelling is permanent: once cancelled, the promo is frozen and cannot be toggled, updated, or reused.
+
+**Response (200):**
+```json
+{
+  "message": "Promo code cancelled permanently.",
+  "promo": {
+    "id": "uuid",
+    "code": "WELCOME20",
+    "description": "20% off for new riders",
+    "discount_type": "percentage",
+    "discount_type_label": "Percentage",
+    "discount_value": "20.00",
+    "max_discount_cap": "2000.00",
+    "is_active": false,
+    "cancelled_at": "2026-10-15T12:00:00.000000Z",
+    "is_cancelled": true,
+    "...": "..."
+  }
+}
+```
+
+**Response 422 (already cancelled):**
+```json
+{
+  "message": "This promo code has already been cancelled."
+}
+```
+
+---
+
 ### Promo Performance Analytics
 
 `GET /api/v1/admin/promos/{promo}/performance`
+
+**Query parameters:**
+
+| Parameter    | Type | Required | Description                                                      |
+|--------------|------|----------|------------------------------------------------------------------|
+| `start_date` | date | No       | Filter redemption stats from this date (inclusive)                |
+| `end_date`   | date | No       | Filter redemption stats until this date (inclusive, must be >= `start_date`) |
+
+Date filtering applies to `total_redemptions`, `unique_users`, `total_discount_given`, `average_discount`, `total_fare_value`, and `redemptions_by_day`. The `remaining_redemptions` and `usage_percentage` fields always use unfiltered (all-time) counts.
 
 **Response (200):**
 ```json
@@ -8614,7 +8700,9 @@ Activates or deactivates the promo. Audit logged.
     "unique_users": 38,
     "total_discount_given": 84000.00,
     "average_discount": 2000.00,
+    "total_fare_value": 252000.00,
     "remaining_redemptions": 458,
+    "usage_percentage": 8.4,
     "redemptions_by_day": {
       "2026-10-05": { "count": 12, "total_discount": 24000.00 },
       "2026-10-06": { "count": 30, "total_discount": 60000.00 }
@@ -8623,6 +8711,13 @@ Activates or deactivates the promo. Audit logged.
   "recent_redemptions": [...]
 }
 ```
+
+**Response fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_fare_value` | number | Pre-discount fare total (SUM of `final_fare_amount + discount_amount` for all redemptions in the date range) |
+| `usage_percentage` | number\|null | Percentage of `total_redemption_limit` used (all-time, ignoring date filter). `null` if the promo has no redemption limit. |
 
 ---
 

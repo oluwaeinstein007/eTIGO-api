@@ -2488,7 +2488,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"pickup_address\": \"Wuse 2, Abuja\",\n  \"destination_lat\": 9.0765,\n  \"destination_lng\": 7.3986,\n  \"destination_address\": \"Garki, Abuja\",\n  \"payment_method\": \"cash\"\n}"
+                  "raw": "{\n  \"city_id\": 1,\n  \"vehicle_class_id\": 1,\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"pickup_address\": \"Wuse 2, Abuja\",\n  \"destination_lat\": 9.0765,\n  \"destination_lng\": 7.3986,\n  \"destination_address\": \"Garki, Abuja\",\n  \"payment_method\": \"cash\",\n  \"promo_code\": \"WELCOME50\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/rides",
@@ -2499,7 +2499,7 @@
                     "rides"
                   ]
                 },
-                "description": "Passenger creates a new ride. Returns ride details with a 4-digit PIN for driver verification. Status transitions: requested \u2192 searching. Only one active ride per passenger. Accepted payment_method values: cash, card, wallet, bank_transfer. Bank transfer rides generate a Paystack checkout link (supports bank transfer, USSD, card, and OPay via bank transfer) \u2014 the payment_link is returned in the payment object after ride completion."
+                "description": "Passenger creates a new ride. Returns ride details with a 4-digit PIN for driver verification. Status transitions: requested \u2192 searching. Only one active ride per passenger. Accepted payment_method values: cash, card, wallet, bank_transfer. Bank transfer rides generate a Paystack checkout link (supports bank transfer, USSD, card, and OPay via bank transfer) \u2014 the payment_link is returned in the payment object after ride completion. Optional `promo_code` field applies a valid promo discount to the ride fare."
               },
               "response": [
                 {
@@ -3319,7 +3319,7 @@
                     "receipt"
                   ]
                 },
-                "description": "Returns a detailed receipt for a completed ride including fare breakdown, vehicle details, card info, tip, tier discount, carbon emissions, and payment details. Accessible by the ride's passenger, driver, or any admin."
+                "description": "Returns a detailed receipt for a completed ride including fare breakdown, vehicle details, card info, tip, tier discount, promo discount, carbon emissions, and payment details. Accessible by the ride's passenger, driver, or any admin."
               },
               "response": [
                 {
@@ -3332,7 +3332,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"reference_number\": \"TRP-NG-000142\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"Ikeja City Mall - Gate 2\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"destination\": {\n      \"address\": \"Eko Atlantic City\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"distance_km\": 12.6,\n    \"duration_minutes\": 28,\n    \"vehicle_class\": \"tiGO Lite\",\n    \"driver\": {\n      \"name\": \"Tunde Adeyemi\",\n      \"profile_photo_url\": \"https://res.cloudinary.com/etigo/image/upload/profile-photos/5/driver-123.jpg\"\n    },\n    \"vehicle\": {\n      \"make\": \"BYD\",\n      \"model\": \"Dolphin\",\n      \"colour\": \"Blue\",\n      \"plate_number\": \"LAG 482 EV\",\n      \"year\": 2025\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 3150.0,\n      \"time_charge\": 1100.0,\n      \"waiting_charge\": 0,\n      \"tip\": 600.0,\n      \"tier_discount\": {\n        \"tier\": \"Gold\",\n        \"percentage\": 5,\n        \"amount\": 63.0\n      },\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"5400.00\",\n    \"final_fare\": \"5350.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"card\",\n      \"method_label\": \"Card\",\n      \"status\": \"captured\",\n      \"status_label\": \"Captured\",\n      \"tip_amount\": \"600.00\",\n      \"card_brand\": \"visa\",\n      \"card_last_four\": \"4242\",\n      \"total_charged\": 5950.0\n    },\n    \"carbon\": {\n      \"estimated_emissions_kg\": 0.4,\n      \"carbon_credit_accrued_kg\": 0.4,\n      \"green_points_earned\": 12\n    },\n    \"city\": \"Lagos\"\n  }\n}"
+                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"reference_number\": \"TRP-NG-000142\",\n    \"date\": \"2026-10-08T14:30:00+01:00\",\n    \"pickup\": {\n      \"address\": \"Ikeja City Mall - Gate 2\",\n      \"lat\": \"6.6180000\",\n      \"lng\": \"3.3420000\"\n    },\n    \"destination\": {\n      \"address\": \"Eko Atlantic City\",\n      \"lat\": \"6.4280000\",\n      \"lng\": \"3.4220000\"\n    },\n    \"distance_km\": 12.6,\n    \"duration_minutes\": 28,\n    \"vehicle_class\": \"tiGO Lite\",\n    \"driver\": {\n      \"name\": \"Tunde Adeyemi\",\n      \"profile_photo_url\": \"https://res.cloudinary.com/etigo/image/upload/profile-photos/5/driver-123.jpg\"\n    },\n    \"vehicle\": {\n      \"make\": \"BYD\",\n      \"model\": \"Dolphin\",\n      \"colour\": \"Blue\",\n      \"plate_number\": \"LAG 482 EV\",\n      \"year\": 2025\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600.0,\n      \"per_km_rate\": 250.0,\n      \"per_minute_rate\": 40.0,\n      \"distance_charge\": 3150.0,\n      \"time_charge\": 1100.0,\n      \"waiting_charge\": 0,\n      \"tip\": 600.0,\n      \"tier_discount\": {\n        \"tier\": \"Gold\",\n        \"percentage\": 5,\n        \"amount\": 63.0\n      },\n      \"promo_discount\": {\n        \"code\": \"LAGOS20\",\n        \"discount_amount\": 500.00,\n        \"raw_fare\": 4000.00\n      },\n      \"minimum_fare\": 1500.0,\n      \"surge_multiplier\": null\n    },\n    \"fare_estimate\": \"5400.00\",\n    \"final_fare\": \"5350.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"card\",\n      \"method_label\": \"Card\",\n      \"status\": \"captured\",\n      \"status_label\": \"Captured\",\n      \"tip_amount\": \"600.00\",\n      \"card_brand\": \"visa\",\n      \"card_last_four\": \"4242\",\n      \"total_charged\": 5950.0\n    },\n    \"carbon\": {\n      \"estimated_emissions_kg\": 0.4,\n      \"carbon_credit_accrued_kg\": 0.4,\n      \"green_points_earned\": 12\n    },\n    \"city\": \"Lagos\"\n  }\n}"
                 }
               ]
             },
@@ -15930,7 +15930,7 @@
                     }
                   ]
                 },
-                "description": "Paginated promo codes. Filters: `status` (active/expired/inactive/scheduled), `city_id`, `search` (code/description). Includes redemption counts."
+                "description": "Paginated promo codes. Filters: `status` (active/expired/inactive/scheduled/cancelled), `city_id`, `search` (code/description). Includes redemption counts."
               },
               "response": [
                 {
@@ -15943,7 +15943,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_value\": 50,\n      \"max_discount_cap\": 2000,\n      \"is_active\": true,\n      \"redemptions_count\": 42,\n      \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                  "body": "{\n  \"promos\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"code\": \"WELCOME50\",\n      \"description\": \"50% off your first ride\",\n      \"discount_type\": \"percentage\",\n      \"discount_value\": 50,\n      \"max_discount_cap\": 2000,\n      \"is_active\": true,\n      \"redemptions_count\": 42,\n      \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n      \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n      \"cancelled_at\": null,\n      \"is_cancelled\": false\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -16034,7 +16034,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"description\": \"50% off your first ride\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000,\n    \"total_redemption_limit\": 1000,\n    \"per_user_limit\": 1,\n    \"is_active\": true,\n    \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n    \"expires_at\": \"2026-12-31T23:59:59.000000Z\"\n  }\n}"
+                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"description\": \"50% off your first ride\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 50,\n    \"max_discount_cap\": 2000,\n    \"total_redemption_limit\": 1000,\n    \"per_user_limit\": 1,\n    \"is_active\": true,\n    \"starts_at\": \"2026-01-01T00:00:00.000000Z\",\n    \"expires_at\": \"2026-12-31T23:59:59.000000Z\",\n    \"cancelled_at\": null,\n    \"is_cancelled\": false\n  }\n}"
                 }
               ]
             },
@@ -16067,7 +16067,7 @@
                     "{{promo_id}}"
                   ]
                 },
-                "description": "Update an existing promo code. All fields from create are accepted.",
+                "description": "Update an existing promo code. All fields from create are accepted. Returns 422 if the promo has been cancelled.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"description\": \"50% off your first 3 rides\",\n  \"per_user_limit\": 3,\n  \"expires_at\": \"2027-03-31T23:59:59Z\"\n}"
@@ -16085,6 +16085,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Promo code updated successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"per_user_limit\": 3\n  }\n}"
+                },
+                {
+                  "name": "422 — Cancelled Promo",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot update a cancelled promo code.\"\n}"
                 }
               ]
             },
@@ -16118,7 +16130,7 @@
                     "status"
                   ]
                 },
-                "description": "Activate or deactivate a promo code. Toggles `is_active`."
+                "description": "Activate or deactivate a promo code. Toggles `is_active`. Returns 422 if the promo has been cancelled."
               },
               "response": [
                 {
@@ -16132,6 +16144,77 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Promo code deactivated.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"is_active\": false\n  }\n}"
+                },
+                {
+                  "name": "422 — Cancelled Promo",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot change status of a cancelled promo code.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Promo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Permanently cancels a promo code. Sets is_active=false and cancelled_at timestamp. This action is irreversible — use Toggle Status (pause) for temporary deactivation. Returns 422 if already cancelled."
+              },
+              "response": [
+                {
+                  "name": "200 — Cancelled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code cancelled permanently.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"is_active\": false,\n    \"cancelled_at\": \"2026-10-15T12:00:00.000000Z\",\n    \"is_cancelled\": true\n  }\n}"
+                },
+                {
+                  "name": "422 — Already Cancelled",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This promo code has already been cancelled.\"\n}"
                 }
               ]
             },
@@ -16150,7 +16233,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/performance",
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/performance?start_date=2026-10-01&end_date=2026-10-15",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -16159,9 +16242,19 @@
                     "promos",
                     "{{promo_id}}",
                     "performance"
+                  ],
+                  "query": [
+                    {
+                      "key": "start_date",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "end_date",
+                      "value": "2026-10-15"
+                    }
                   ]
                 },
-                "description": "Returns performance metrics for a promo: total/unique redemptions, total/average discount given, daily breakdown, and recent redemptions."
+                "description": "Returns performance metrics for a promo: total/unique redemptions, total/average discount given, total fare value, usage percentage, daily breakdown, and recent redemptions. Supports optional `start_date` and `end_date` query params (YYYY-MM-DD) to filter by date range."
               },
               "response": [
                 {
@@ -16174,7 +16267,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\"\n  },\n  \"performance\": {\n    \"total_redemptions\": 42,\n    \"unique_users\": 38,\n    \"total_discount_given\": 84000.0,\n    \"average_discount\": 2000.0,\n    \"remaining_redemptions\": 958,\n    \"redemptions_by_day\": {\n      \"2026-10-12\": {\n        \"count\": 5,\n        \"total_discount\": 10000.0\n      },\n      \"2026-10-13\": {\n        \"count\": 3,\n        \"total_discount\": 6000.0\n      }\n    }\n  },\n  \"recent_redemptions\": []\n}"
+                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\"\n  },\n  \"performance\": {\n    \"total_redemptions\": 42,\n    \"unique_users\": 38,\n    \"total_discount_given\": 84000.0,\n    \"average_discount\": 2000.0,\n    \"remaining_redemptions\": 958,\n    \"total_fare_value\": 420000.00,\n    \"usage_percentage\": 4.2,\n    \"redemptions_by_day\": {\n      \"2026-10-12\": {\n        \"count\": 5,\n        \"total_discount\": 10000.0\n      },\n      \"2026-10-13\": {\n        \"count\": 3,\n        \"total_discount\": 6000.0\n      }\n    }\n  },\n  \"recent_redemptions\": []\n}"
                 }
               ]
             }

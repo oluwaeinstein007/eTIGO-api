@@ -31,6 +31,7 @@ class StoreRideRequest extends FormRequest
             'destination_lng' => ['required', 'numeric', 'between:-180,180'],
             'destination_address' => ['required', 'string', 'max:500'],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'promo_code' => ['nullable', 'string', 'max:50'],
         ];
     }
 

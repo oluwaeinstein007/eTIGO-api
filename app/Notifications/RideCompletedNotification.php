@@ -45,6 +45,9 @@ class RideCompletedNotification extends Notification implements ShouldQueue
         if (($breakdown['waiting_charge'] ?? 0) > 0) {
             $fareItems[] = ['label' => 'Waiting charge', 'amount' => number_format($breakdown['waiting_charge'], 2)];
         }
+        if (($breakdown['promo_discount'] ?? 0) > 0) {
+            $fareItems[] = ['label' => 'Promo discount', 'amount' => '-'.number_format($breakdown['promo_discount'], 2)];
+        }
 
         $rideRef = $this->ride->reference_number ?? 'ETG-'.now()->format('ymd').'-'.substr($this->ride->id ?? '0000', 0, 4);
 

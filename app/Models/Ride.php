@@ -40,6 +40,8 @@ class Ride extends Model
         'final_fare_amount',
         'fare_currency',
         'pricing_snapshot',
+        'promo_code_id',
+        'discount_amount',
         'payment_method',
         'payment_status',
         'cancelled_by',
@@ -61,6 +63,7 @@ class Ride extends Model
             'destination_lng' => 'decimal:7',
             'fare_estimate_amount' => 'decimal:2',
             'final_fare_amount' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'pricing_snapshot' => 'array',
             'matched_at' => 'datetime',
             'started_at' => 'datetime',
@@ -113,6 +116,16 @@ class Ride extends Model
     public function cancelledByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function promoCode(): BelongsTo
+    {
+        return $this->belongsTo(PromoCode::class);
+    }
+
+    public function promoRedemption(): HasOne
+    {
+        return $this->hasOne(PromoRedemption::class);
     }
 
     public function stateTransitions(): HasMany

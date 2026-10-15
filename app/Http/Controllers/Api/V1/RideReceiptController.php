@@ -26,7 +26,7 @@ class RideReceiptController extends Controller
             abort(404, 'Receipt is only available for completed rides.');
         }
 
-        $ride->load(['passenger', 'driver.driver.vehicle', 'vehicleClass', 'payment.paymentMethod', 'city']);
+        $ride->load(['passenger', 'driver.driver.vehicle', 'vehicleClass', 'payment.paymentMethod', 'city', 'promoCode']);
 
         $snapshot = $ride->pricing_snapshot ?? [];
         $payment = $ride->payment;
@@ -36,6 +36,7 @@ class RideReceiptController extends Controller
             ->first();
 
         $tierDiscount = $snapshot['tier_discount'] ?? null;
+        $promoDiscount = $snapshot['promo'] ?? null;
 
         return response()->json([
             'receipt' => [
@@ -84,6 +85,11 @@ class RideReceiptController extends Controller
                         'tier' => $tierDiscount['tier'] ?? null,
                         'percentage' => $tierDiscount['percentage'] ?? null,
                         'amount' => (float) ($tierDiscount['amount'] ?? 0),
+                    ] : null,
+                    'promo_discount' => $promoDiscount ? [
+                        'code' => $promoDiscount['promo_code'] ?? null,
+                        'discount_amount' => (float) ($promoDiscount['discount_amount'] ?? 0),
+                        'raw_fare' => (float) ($promoDiscount['raw_fare'] ?? 0),
                     ] : null,
                     'minimum_fare' => (float) ($snapshot['minimum_fare'] ?? 0),
                     'surge_multiplier' => $snapshot['surge_multiplier'] ?? null,

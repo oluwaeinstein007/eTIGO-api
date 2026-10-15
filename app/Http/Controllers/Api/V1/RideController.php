@@ -71,6 +71,7 @@ class RideController extends Controller
                     destinationLng: (float) $request->input('destination_lng'),
                     destinationAddress: $request->input('destination_address'),
                     paymentMethod: PaymentMethod::from($request->input('payment_method')),
+                    promoCode: $request->input('promo_code'),
                 );
             });
         } catch (\DomainException $e) {
@@ -86,7 +87,7 @@ class RideController extends Controller
             ], 409);
         }
 
-        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger']);
+        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode']);
 
         return response()->json([
             'message' => 'Ride created successfully.',
@@ -103,7 +104,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),
@@ -143,7 +144,7 @@ class RideController extends Controller
 
         $perPage = min($request->integer('per_page', 15), 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -327,7 +328,7 @@ class RideController extends Controller
 
         FinalFareCalculationJob::dispatch($ride->id);
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'promoCode']);
 
         return response()->json([
             'message' => 'Ride completed successfully.',

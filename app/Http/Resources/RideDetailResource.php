@@ -34,7 +34,12 @@ class RideDetailResource extends JsonResource
             'share_token' => $this->share_token,
             'fare_estimate_amount' => $this->fare_estimate_amount,
             'final_fare_amount' => $this->final_fare_amount,
+            'discount_amount' => $this->discount_amount,
             'fare_currency' => $this->fare_currency,
+            'promo_code' => $this->when($this->promo_code_id, fn () => [
+                'id' => $this->promo_code_id,
+                'code' => $this->whenLoaded('promoCode', fn () => $this->promoCode->code),
+            ]),
             'pricing_snapshot' => $this->pricing_snapshot,
             'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),

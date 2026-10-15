@@ -36,6 +36,8 @@ class PromoCodeResource extends JsonResource
             'vehicle_class_id' => $this->vehicle_class_id,
             'minimum_fare_amount' => $this->minimum_fare_amount,
             'is_active' => $this->is_active,
+            'cancelled_at' => $this->cancelled_at?->toISOString(),
+            'is_cancelled' => $this->isCancelled(),
             'city' => new CityResource($this->whenLoaded('city')),
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_by' => $this->when($isAdmin, fn () => $this->whenLoaded('createdByAdmin', fn () => [

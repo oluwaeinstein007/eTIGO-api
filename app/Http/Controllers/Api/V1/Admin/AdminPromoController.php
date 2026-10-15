@@ -9,6 +9,7 @@ use App\Http\Resources\PromoCodeResource;
 use App\Http\Resources\PromoRedemptionResource;
 use App\Models\AuditLog;
 use App\Models\PromoCode;
+use App\Models\Ride;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,9 +22,10 @@ class AdminPromoController extends Controller
         if ($request->filled('status')) {
             match ($request->input('status')) {
                 'active' => $query->active(),
-                'expired' => $query->where('expires_at', '<', now()),
-                'inactive' => $query->where('is_active', false),
-                'scheduled' => $query->where('is_active', true)->where('starts_at', '>', now()),
+                'expired' => $query->whereNull('cancelled_at')->where('expires_at', '<', now()),
+                'inactive' => $query->whereNull('cancelled_at')->where('is_active', false),
+                'scheduled' => $query->whereNull('cancelled_at')->where('is_active', true)->where('starts_at', '>', now()),
+                'cancelled' => $query->whereNotNull('cancelled_at'),
                 default => null,
             };
         }
@@ -88,6 +90,12 @@ class AdminPromoController extends Controller
 
     public function update(UpdatePromoFormRequest $request, PromoCode $promo): JsonResponse
     {
+        if ($promo->isCancelled()) {
+            return response()->json([
+                'message' => 'Cannot update a cancelled promo code.',
+            ], 422);
+        }
+
         $validated = $request->validated();
         $admin = $request->user();
 
@@ -109,6 +117,12 @@ class AdminPromoController extends Controller
 
     public function toggleStatus(Request $request, PromoCode $promo): JsonResponse
     {
+        if ($promo->isCancelled()) {
+            return response()->json([
+                'message' => 'Cannot change status of a cancelled promo code.',
+            ], 422);
+        }
+
         $admin = $request->user();
 
         $promo->update(['is_active' => ! $promo->is_active]);
@@ -123,14 +137,62 @@ class AdminPromoController extends Controller
         ]);
     }
 
-    public function performance(PromoCode $promo): JsonResponse
+    public function cancel(Request $request, PromoCode $promo): JsonResponse
     {
-        $redemptions = $promo->redemptions()->with('user')->get();
+        if ($promo->isCancelled()) {
+            return response()->json([
+                'message' => 'This promo code has already been cancelled.',
+            ], 422);
+        }
+
+        $admin = $request->user();
+
+        $promo->update([
+            'is_active' => false,
+            'cancelled_at' => now(),
+        ]);
+
+        AuditLog::record($promo, 'promo_code_cancelled', $admin, null, [
+            'code' => $promo->code,
+        ]);
+
+        return response()->json([
+            'message' => 'Promo code cancelled permanently.',
+            'promo' => new PromoCodeResource($promo),
+        ]);
+    }
+
+    public function performance(Request $request, PromoCode $promo): JsonResponse
+    {
+        $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $redemptionQuery = $promo->redemptions()->with('user');
+
+        if ($request->filled('start_date')) {
+            $redemptionQuery->whereDate('redeemed_at', '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $redemptionQuery->whereDate('redeemed_at', '<=', $request->input('end_date'));
+        }
+
+        $redemptions = $redemptionQuery->get();
 
         $totalDiscount = (float) $redemptions->sum('discount_amount');
         $redemptionCount = $redemptions->count();
         $uniqueUsers = $redemptions->pluck('user_id')->unique()->count();
         $avgDiscount = $redemptionCount > 0 ? round($totalDiscount / $redemptionCount, 2) : 0;
+
+        $rideIds = $redemptions->pluck('ride_id')->filter();
+        $totalFareValue = 0;
+        if ($rideIds->isNotEmpty()) {
+            $fareSum = Ride::whereIn('id', $rideIds)
+                ->selectRaw('COALESCE(SUM(COALESCE(final_fare_amount, 0) + COALESCE(discount_amount, 0)), 0) as total')
+                ->value('total');
+            $totalFareValue = (float) $fareSum;
+        }
 
         $redemptionsByDay = $redemptions
             ->groupBy(fn ($r) => $r->redeemed_at->format('Y-m-d'))
@@ -140,8 +202,13 @@ class AdminPromoController extends Controller
             ])
             ->sortKeys();
 
+        $allRedemptionCount = $promo->redemptions()->count();
         $remainingRedemptions = $promo->total_redemption_limit
-            ? max(0, $promo->total_redemption_limit - $redemptionCount)
+            ? max(0, $promo->total_redemption_limit - $allRedemptionCount)
+            : null;
+
+        $usagePercentage = $promo->total_redemption_limit
+            ? round(($allRedemptionCount / $promo->total_redemption_limit) * 100, 1)
             : null;
 
         return response()->json([
@@ -150,8 +217,10 @@ class AdminPromoController extends Controller
                 'total_redemptions' => $redemptionCount,
                 'unique_users' => $uniqueUsers,
                 'total_discount_given' => $totalDiscount,
+                'total_fare_value' => round($totalFareValue, 2),
                 'average_discount' => $avgDiscount,
                 'remaining_redemptions' => $remainingRedemptions,
+                'usage_percentage' => $usagePercentage,
                 'redemptions_by_day' => $redemptionsByDay,
             ],
             'recent_redemptions' => PromoRedemptionResource::collection(
