@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\TripCarbonScore;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Cache;
@@ -43,7 +44,7 @@ class RideResource extends JsonResource
             ]),
             'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
-            'co2_saved_kg' => (float) (\App\Models\TripCarbonScore::where('ride_id', $this->id)->where('user_id', $this->passenger_id)->value('co2_saved') ?? round(((float) data_get($this->pricing_snapshot, 'distance_km', 0)) * 0.12, 2)),
+            'co2_saved_kg' => (float) ($this->passengerCo2Saved() ?? round(((float) data_get($this->pricing_snapshot, 'distance_km', 0)) * 0.12, 2)),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,
             'tip_amount' => $this->relationLoaded('payment') ? $this->payment?->tip_amount : null,
@@ -77,5 +78,20 @@ class RideResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /**
+     * Uses eager-loaded carbon scores when available so ride lists do not run
+     * one query per ride.
+     */
+    private function passengerCo2Saved(): mixed
+    {
+        if ($this->relationLoaded('carbonScores')) {
+            return $this->carbonScores->firstWhere('user_id', $this->passenger_id)?->co2_saved;
+        }
+
+        return TripCarbonScore::where('ride_id', $this->id)
+            ->where('user_id', $this->passenger_id)
+            ->value('co2_saved');
     }
 }

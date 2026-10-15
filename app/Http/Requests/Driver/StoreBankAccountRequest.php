@@ -16,6 +16,7 @@ class StoreBankAccountRequest extends FormRequest
         return [
             'bank_code' => ['required', 'string', 'max:10'],
             'account_number' => ['required', 'string', 'digits:10'],
+            'otp_code' => ['nullable', 'string', 'digits:6'],
         ];
     }
 }

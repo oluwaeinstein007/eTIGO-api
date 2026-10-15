@@ -53,7 +53,7 @@ class TierConfigSeeder extends Seeder
         ];
 
         foreach ($tiers as $tier) {
-            TierConfig::updateOrCreate(
+            TierConfig::firstOrCreate(
                 ['tier_level' => $tier['tier_level']],
                 $tier,
             );

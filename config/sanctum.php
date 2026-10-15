@@ -50,7 +50,23 @@ return [
     |
     */
 
-    'expiration' => env('SANCTUM_TOKEN_EXPIRATION', 1440),
+    'expiration' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Token Lifetimes Per Audience (minutes)
+    |--------------------------------------------------------------------------
+    |
+    | Enforced in AppServiceProvider from each token's creation time. Admin
+    | dashboard sessions are short-lived; passenger and driver app sessions
+    | last longer so riders are not forced to re-verify by OTP every day.
+    | Set either value to 0 to disable expiry for that audience.
+    |
+    */
+
+    'admin_token_expiration' => (int) env('SANCTUM_TOKEN_EXPIRATION', 480),
+
+    'app_token_expiration' => (int) env('SANCTUM_APP_TOKEN_EXPIRATION', 43200),
 
     /*
     |--------------------------------------------------------------------------

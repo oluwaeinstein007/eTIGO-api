@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Notification extends Model
 {
-    use HasUuids;
+    use HasUuids, Prunable;
 
     public $timestamps = false;
 
@@ -35,6 +37,14 @@ class Notification extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * In-app notifications are kept for notification.retention_days.
+     */
+    public function prunable(): Builder
+    {
+        return static::where('created_at', '<', now()->subDays((int) config('notification.retention_days', 90)));
     }
 
     public function markAsRead(): void

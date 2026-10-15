@@ -16,6 +16,8 @@ class OtpCode extends Model
         'attempts',
         'expires_at',
         'verified_at',
+        'verified_for_type',
+        'consumed_at',
     ];
 
     protected function casts(): array
@@ -23,6 +25,7 @@ class OtpCode extends Model
         return [
             'expires_at' => 'datetime',
             'verified_at' => 'datetime',
+            'consumed_at' => 'datetime',
             'attempts' => 'integer',
         ];
     }
@@ -47,9 +50,12 @@ class OtpCode extends Model
         $this->increment('attempts');
     }
 
-    public function markAsVerified(): void
+    public function markAsVerified(?string $forType = null): void
     {
-        $this->update(['verified_at' => now()]);
+        $this->update([
+            'verified_at' => now(),
+            'verified_for_type' => $forType,
+        ]);
     }
 
     public function scopeForPhone($query, string $phone)

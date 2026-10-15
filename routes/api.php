@@ -350,6 +350,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::post('/', [BankAccountController::class, 'store']);
         Route::get('/banks', [BankAccountController::class, 'banks']);
         Route::post('/resolve', [BankAccountController::class, 'resolve'])->middleware('throttle:30,1');
+        Route::post('/otp', [BankAccountController::class, 'requestChangeCode'])->middleware('throttle:3,1');
     });
 
     Route::prefix('payouts')->group(function () {
@@ -403,6 +404,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
         Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
+        Route::put('/{driver}/vehicle-class', [DriverManagementController::class, 'updateVehicleClass']);
         // Testing/QA only: remove before production go-live
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });

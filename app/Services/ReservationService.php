@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\EvReservationStatus;
+use App\Jobs\TransferReservationJob;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
@@ -84,7 +85,7 @@ class ReservationService
 
             if ($reservation->stall_id) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($reservation->station);
+                TransferReservationJob::dispatch($reservation->station_id)->afterCommit();
             }
 
             Log::info('EV reservation completed', ['reservation_id' => $reservation->id]);
@@ -112,7 +113,7 @@ class ReservationService
 
             if ($hadStall && $reservation->stall) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($station);
+                TransferReservationJob::dispatch($station->id)->afterCommit();
             }
 
             if ($wasQueued) {
@@ -123,6 +124,24 @@ class ReservationService
 
             return $reservation->fresh();
         });
+    }
+
+    /**
+     * Release reserved stalls whose driver never arrived within the expiry window.
+     *
+     * @return int Number of reservations expired
+     */
+    public function expireOverdueReservations(): int
+    {
+        $overdue = EvReservation::where('status', EvReservationStatus::Reserved)
+            ->where('reserved_at', '<=', now()->subMinutes((int) config('ev_charging.reservation_expiry_minutes', 30)))
+            ->get();
+
+        foreach ($overdue as $reservation) {
+            $this->expire($reservation);
+        }
+
+        return $overdue->count();
     }
 
     public function expire(EvReservation $reservation): EvReservation
@@ -140,7 +159,7 @@ class ReservationService
 
             if ($reservation->stall_id && $reservation->stall) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($reservation->station);
+                TransferReservationJob::dispatch($reservation->station_id)->afterCommit();
             }
 
             Log::info('EV reservation expired', ['reservation_id' => $reservation->id]);
@@ -149,6 +168,10 @@ class ReservationService
         });
     }
 
+    /**
+     * Hand a freed stall to the next queued driver. Callers that release a
+     * stall dispatch TransferReservationJob, which also notifies that driver.
+     */
     public function transferToNextQueued(EvChargingStation $station): ?EvReservation
     {
         $nextInQueue = EvReservation::forStation($station->id)

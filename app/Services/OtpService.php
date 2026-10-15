@@ -33,12 +33,13 @@ class OtpService
     ) {}
 
     /**
+     * @param  string  $purpose  'login' for sign-in, or a sensitive action such as 'bank_account_change'
      * @return array{sent: bool, error: ?string, expires_at: ?string}
      */
-    public function sendAuthOtp(string $phone): array
+    public function sendAuthOtp(string $phone, string $purpose = 'login'): array
     {
         $recentOtp = OtpCode::forPhone($phone)
-            ->where('purpose', 'login')
+            ->where('purpose', $purpose)
             ->where('created_at', '>', now()->subSeconds(self::AUTH_OTP_COOLDOWN_SECONDS))
             ->first();
 
@@ -51,7 +52,7 @@ class OtpService
         }
 
         OtpCode::forPhone($phone)
-            ->where('purpose', 'login')
+            ->where('purpose', $purpose)
             ->active()
             ->update(['expires_at' => now()]);
 
@@ -61,7 +62,7 @@ class OtpService
         $otp = OtpCode::create([
             'phone' => $phone,
             'code' => hash('sha256', $plainCode),
-            'purpose' => 'login',
+            'purpose' => $purpose,
             'expires_at' => now()->addMinutes(self::AUTH_OTP_EXPIRY_MINUTES),
         ]);
 
@@ -87,12 +88,14 @@ class OtpService
     }
 
     /**
+     * @param  string|null  $forType  The account type (passenger/driver) the caller is signing in as;
+     *                                a new user may only register that type with this verification
      * @return array{valid: bool, phone: ?string, error: ?string}
      */
-    public function verifyAuthOtp(string $phone, string $code): array
+    public function verifyAuthOtp(string $phone, string $code, ?string $forType = null, string $purpose = 'login'): array
     {
         $otpCode = OtpCode::forPhone($phone)
-            ->where('purpose', 'login')
+            ->where('purpose', $purpose)
             ->active()
             ->latest()
             ->first();
@@ -119,7 +122,7 @@ class OtpService
             return ['valid' => false, 'phone' => null, 'error' => 'Invalid verification code.'];
         }
 
-        $otpCode->markAsVerified();
+        $otpCode->markAsVerified($forType);
 
         return ['valid' => true, 'phone' => $phone, 'error' => null];
     }

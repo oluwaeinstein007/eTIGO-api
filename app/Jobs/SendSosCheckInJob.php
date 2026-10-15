@@ -36,7 +36,9 @@ class SendSosCheckInJob implements ShouldQueue
             return;
         }
 
-        $sosService->sendCheckIn($incident);
+        if (! $sosService->sendCheckIn($incident)) {
+            return;
+        }
 
         $escalationTimeout = config('sos.escalation_timeout_seconds', 30);
 

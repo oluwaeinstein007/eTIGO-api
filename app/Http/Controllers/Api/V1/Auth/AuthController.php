@@ -21,6 +21,7 @@ use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -48,7 +49,7 @@ class AuthController extends Controller
     public function verifyOtp(VerifyOtpRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $result = $this->otpService->verifyAuthOtp($validated['phone'], $validated['code']);
+        $result = $this->otpService->verifyAuthOtp($validated['phone'], $validated['code'], $validated['type']);
 
         if (! $result['valid']) {
             return response()->json([
@@ -106,47 +107,68 @@ class AuthController extends Controller
             ], 409);
         }
 
-        $recentlyVerified = OtpCode::forPhone($phone)
-            ->where('purpose', 'login')
-            ->whereNotNull('verified_at')
-            ->where('verified_at', '>', now()->subMinutes(10))
-            ->exists();
+        // The OTP verification is bound to the account type it was requested for
+        // and can complete exactly one registration, so a verified phone cannot
+        // be reused to open a different type of account.
+        $registration = DB::transaction(function () use ($phone, $userType, $validated) {
+            $verification = OtpCode::forPhone($phone)
+                ->where('purpose', 'login')
+                ->whereNotNull('verified_at')
+                ->where('verified_at', '>', now()->subMinutes(10))
+                ->whereNull('consumed_at')
+                ->where(fn ($query) => $query->whereNull('verified_for_type')->orWhere('verified_for_type', $userType->value))
+                ->latest('verified_at')
+                ->lockForUpdate()
+                ->first();
 
-        if (! $recentlyVerified) {
+            if (! $verification) {
+                return null;
+            }
+
+            $verification->update(['consumed_at' => now()]);
+
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'phone' => $phone,
+                'email' => $validated['email'] ?? null,
+                'type' => $userType,
+                'phone_verified_at' => now(),
+            ]);
+
+            if ($userType === UserType::Driver) {
+                Driver::create([
+                    'user_id' => $user->id,
+                    'city_id' => $validated['city_id'] ?? null,
+                    'status' => DriverStatus::Onboarding,
+                ]);
+            }
+
+            return ['user' => $user, 'verification' => $verification];
+        });
+
+        if (! $registration) {
             return response()->json([
                 'message' => 'Phone number not verified. Please verify your phone first.',
             ], 403);
         }
 
-        $user = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'phone' => $phone,
-            'email' => $validated['email'] ?? null,
-            'type' => $userType,
-            'phone_verified_at' => now(),
-        ]);
+        $user = $registration['user'];
 
         if ($request->hasFile('profile_photo')) {
             $path = $request->file('profile_photo')
                 ->store("profile-photos/{$user->id}", config('filesystems.uploads'));
 
             if (! $path) {
+                $user->driver()->delete();
                 $user->delete();
+                $registration['verification']->update(['consumed_at' => null]);
 
                 return response()->json(['message' => 'File upload failed. Please try again.'], 503);
             }
 
             $user->update(['profile_photo_path' => $path]);
             $user->refresh();
-        }
-
-        if ($userType === UserType::Driver) {
-            Driver::create([
-                'user_id' => $user->id,
-                'city_id' => $validated['city_id'] ?? null,
-                'status' => DriverStatus::Onboarding,
-            ]);
         }
 
         AuditLog::record($user, 'registered');

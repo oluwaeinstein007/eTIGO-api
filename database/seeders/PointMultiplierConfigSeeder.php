@@ -29,7 +29,7 @@ class PointMultiplierConfigSeeder extends Seeder
         ];
 
         foreach ($multipliers as $multiplier) {
-            PointMultiplierConfig::updateOrCreate(
+            PointMultiplierConfig::firstOrCreate(
                 ['condition_type' => $multiplier['condition_type']],
                 $multiplier,
             );

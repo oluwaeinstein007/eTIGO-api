@@ -155,7 +155,7 @@ class RideController extends Controller
 
         $perPage = $this->perPage($request, 15, 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 

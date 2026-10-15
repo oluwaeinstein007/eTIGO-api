@@ -33,6 +33,9 @@ composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 echo "==> Running migrations..."
 php artisan migrate --force
 
+echo "==> Ensuring reference data (system accounts, commission, tiers, multipliers)..."
+php artisan db:seed --class=ReferenceDataSeeder --force
+
 echo "==> Caching configuration..."
 php artisan config:cache
 php artisan route:cache
