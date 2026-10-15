@@ -41,7 +41,7 @@ The pipeline is defined in `.github/workflows/staging.yml` and triggers on:
 
 ### Pipeline Steps
 
-1. **Test Job**: Spins up PostgreSQL 16 and Redis 7 service containers, installs PHP 8.4 with extensions, runs `composer install`, executes migrations, and runs the full test suite.
+1. **Test Job** (matrix: PHP 8.4 — the server version — and 8.5 — local development): spins up PostgreSQL 16 and Redis 7 service containers, installs PHP with extensions, runs `composer install`, executes migrations and runs the full test suite. Both must pass before deploying. `composer.json` pins `config.platform.php` to the server's 8.4.26, so `composer update` on a newer local PHP cannot lock packages the server cannot run.
 2. **Deploy Job** (push only): SSHs into the server and runs the deploy script, which clones the latest code, installs dependencies, runs migrations, caches config/routes/views, and swaps the symlink for zero-downtime.
 
 ### GitHub Secrets Required
@@ -106,9 +106,9 @@ Three long-running pieces must be up for the platform to work, besides Nginx and
 | Queue workers | Supervisor `etigo-worker` (2 processes, `queue:work database`) | Driver matching and offer timeouts, final fare, push/in-app notifications, payout transfers, webhook processing, SOS check-ins and alerts |
 | Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
 | Reverb | Supervisor `etigo-reverb` (`php artisan reverb:start`), proxied by Nginx | Live ride updates, driver offers over WebSocket and the admin SOS console (push notifications and polling endpoints still work) |
-| Telemetry gateway (optional) | `php artisan telemetry:serve start` under Supervisor, port `TELEMETRY_SERVER_PORT` (8081) behind Nginx | High-frequency driver GPS over WebSocket. Without it drivers report location through `POST /driver/location`. Restart it on deploy (`php artisan telemetry:serve restart`) — it is long-running and keeps old code |
+| Telemetry gateway (optional) | `php artisan telemetry:serve start` under Supervisor, port `TELEMETRY_SERVER_PORT` (8081) behind Nginx | High-frequency driver GPS over WebSocket. Without it drivers report location through `POST /driver/location`. `deploy.sh` restarts it (Supervisor `etigo-telemetry`) — it is long-running and would otherwise keep old code |
 
-`provision.sh` sets up the queue workers and the scheduler. Check an existing server with `cat /etc/cron.d/etigo-scheduler` (or `crontab -l -u deploy`) and `php artisan schedule:list`.
+`provision.sh` sets up the queue workers and the scheduler, and every deploy (`deploy.sh`) installs the scheduler entry if it is missing and restarts the telemetry gateway. Check an existing server with `cat /etc/cron.d/etigo-scheduler` (or `crontab -l -u deploy`) and `php artisan schedule:list`.
 
 ### Scheduled jobs
 
@@ -118,6 +118,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 |----------|-----|---------|
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |
+| Every 15 min | `ReconcilePayoutsJob` | Settle payouts whose transfer outcome is unknown (approved > 10 min, processing > 30 min) against Paystack |
 | Every 30 min | `StuckTransactionSweeperJob` | Re-verify pending top-ups with Paystack and credit or abandon them |
 | Hourly | `ExpireStaleHoldsJob` | Release expired wallet holds (after `hold_expiry_hours`) whose ride is no longer active — holds of rides still under way are kept |
 | Hourly | `SettleDriverEarningsJob` | Move pending driver earnings to available (per the settlement-delay setting) |

@@ -44,7 +44,7 @@ Run `php artisan db:seed` to populate the database with the test data below.
 |-------|-------|------|--------|---------|
 | `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla — Economy |
 | `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord — Comfort |
-| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class — Premium |
+| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (electric) — Premium |
 | `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander — SUV |
 | `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra — Economy |
 | `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |
@@ -1365,13 +1365,15 @@ POST /driver/vehicle
 
 Only available for drivers with `vehicle_ownership_type: "own_vehicle"`. Fleet vehicle drivers cannot register their own vehicle — a fleet vehicle is assigned by admin after approval.
 
-| Field        | Type    | Required | Description              |
-|--------------|---------|----------|--------------------------|
-| make         | string  | Yes      | Vehicle make (e.g. Toyota)|
-| model        | string  | Yes      | Vehicle model            |
-| colour       | string  | Yes      | Vehicle colour           |
-| plate_number | string  | Yes      | Plate number (unique)    |
-| year         | integer | No       | Year of manufacture      |
+| Field            | Type          | Required | Description              |
+|------------------|---------------|----------|--------------------------|
+| make             | string        | Yes      | Vehicle make (e.g. Toyota)|
+| model            | string        | Yes      | Vehicle model            |
+| colour           | string        | Yes      | Vehicle colour           |
+| plate_number     | string        | Yes      | Plate number (unique)    |
+| year             | integer       | Yes      | Year of manufacture (2000 – next year) |
+| vehicle_class_id | string (UUID) | Yes      | Preferred vehicle class (confirmed by E-tiGo at approval) |
+| fuel_type        | string        | No       | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`. Only `electric` and `plug_in_hybrid` vehicles can use EV charging stalls |
 
 **Response 201:**
 ```json
@@ -1379,14 +1381,27 @@ Only available for drivers with `vehicle_ownership_type: "own_vehicle"`. Fleet v
   "message": "Vehicle registered successfully. Plate verification initiated.",
   "vehicle": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "driver_id": "4c1d2e3f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
     "make": "Toyota",
     "model": "Corolla",
     "colour": "White",
     "plate_number": "ABC-1234",
     "year": 2022,
+    "fuel_type": "petrol",
+    "can_charge": false,
     "is_fleet": false,
-    "vehicle_class_id": null,
-    "vehicle_class": null,
+    "vehicle_class_id": "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
+    "vehicle_class": {
+      "id": "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
+      "name": "economy",
+      "display_name": "Economy",
+      "capacity": 4,
+      "icon": null,
+      "description": "Affordable rides for everyday trips.",
+      "is_active": true,
+      "created_at": "2026-10-01T10:00:00.000000Z",
+      "updated_at": "2026-10-01T10:00:00.000000Z"
+    },
     "created_at": "2026-10-06T14:00:00.000000Z"
   }
 }
@@ -1415,6 +1430,7 @@ PUT /driver/vehicle
 Same fields as register, all optional (partial update supported). If the plate number changes, plate verification is re-dispatched.
 
 - **Vehicle class:** drivers can change `vehicle_class_id` only while their status is `onboarding` or `rejected`. After the application is submitted, the class is set by E-tiGo (see **Update Driver Vehicle Class** in Admin — Driver Management); a different `vehicle_class_id` returns `422` with `errors.vehicle_class_id`.
+- **Fuel type:** same rule, except that a vehicle whose `fuel_type` was never set can declare it once at any time (existing drivers). Changing a declared fuel type after submission returns `422` with `errors.fuel_type` — E-tiGo corrects it with **Update Driver Vehicle Class**.
 - **Fleet vehicles** belong to E-tiGo and cannot be edited by the driver (`403`).
 
 **Response 200:**
@@ -1423,15 +1439,18 @@ Same fields as register, all optional (partial update supported). If the plate n
   "message": "Vehicle updated successfully.",
   "vehicle": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "driver_id": "4c1d2e3f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
     "make": "Toyota",
     "model": "Camry",
     "colour": "Black",
     "plate_number": "ABC-1234",
     "year": 2023,
+    "fuel_type": "electric",
+    "can_charge": true,
     "is_fleet": false,
-    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "vehicle_class_id": "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
     "vehicle_class": {
-      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "id": "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
       "name": "economy",
       "display_name": "Economy",
       "capacity": 4,
@@ -2567,13 +2586,14 @@ GET /admin/drivers/{driver_id}/trips
 ```
 PUT /admin/drivers/{driver_id}/vehicle-class
 ```
-Confirms or changes the vehicle class a driver operates in. Drivers choose a preferred class during onboarding; after submission only E-tiGo can change it (the class determines which ride requests — and fares — the driver receives). Audited as `vehicle_class_changed`.
+Confirms or changes the vehicle class and/or fuel type of a driver's vehicle. Drivers choose a preferred class (and fuel type) during onboarding; after submission only E-tiGo can change them — the class determines which ride requests (and fares) the driver receives, and the fuel type whether they may use EV charging stalls. Audited as `vehicle_class_changed` or `vehicle_fuel_type_changed`. A class change is refused (`409`) while the driver is on an active ride.
 
 **Roles:** `operations`, `safety_operator` (and `super_admin`).
 
 | Field            | Type          | Required | Description |
 |------------------|---------------|----------|-------------|
-| vehicle_class_id | string (UUID) | Yes      | An **active** vehicle class |
+| vehicle_class_id | string (UUID) | One of the two | An **active** vehicle class |
+| fuel_type        | string        | One of the two | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric` |
 
 **Response 200:**
 ```json
@@ -2717,6 +2737,7 @@ Creates a new fleet vehicle in inventory with no driver assigned. The vehicle is
 | plate_number     | string        | Yes      | Plate number (unique across all vehicles) |
 | year             | integer       | Yes      | Year of manufacture (2000 – next year) |
 | vehicle_class_id | string (UUID) | Yes      | Must exist in vehicle_classes          |
+| fuel_type        | string        | No       | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`           |
 
 **Response 201:**
 ```json
@@ -2796,6 +2817,7 @@ Updates a fleet vehicle's details. All fields are optional (partial update).
 | plate_number     | string        | No       | Plate number (unique, excluding current vehicle)   |
 | year             | integer       | No       | Year of manufacture                                |
 | vehicle_class_id | string (UUID) | No       | Must exist in vehicle_classes                      |
+| fuel_type        | string        | No       | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`             |
 
 **Response 200:**
 ```json
@@ -5802,6 +5824,11 @@ When a ride is created (`POST /rides`) or re-sent (`POST /rides/{ride}/rebroadca
 - Not on another active ride (`matched` → `in_progress`) and not holding an unanswered offer for another ride
 - Not a driver who already rejected or ignored this ride
 
+**Priority matching** (Gold, Platinum and Diamond passengers — locked in at booking as `pricing_snapshot.priority_matching`):
+- Distance always wins: a priority passenger is offered their nearest eligible driver first, never a farther one because of their tier.
+- When drivers are scarce, a free driver within the current search radius of a priority ride that is waiting for its next search (between radius tiers or retry waves) is kept for that ride instead of being offered to a standard ride.
+- Priority searches get one extra automatic retry wave (`MATCHING_PRIORITY_EXTRA_RETRIES`, default 1) before `no_driver_found`.
+
 Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), including to rides that ended in `no_driver_found`.
 
 **WebSocket event — `ride.request.dispatched`** on channel `driver.{userId}`:
@@ -5827,6 +5854,7 @@ Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), in
 |----------|---------|-------------|
 | `MATCHING_RADIUS_TIER_1_KM` / `_2_KM` / `_3_KM` | `3` / `7` / `15` | Search radius tiers |
 | `MATCHING_MAX_AUTO_RETRIES` | `1` | Extra waves after the last tier |
+| `MATCHING_PRIORITY_EXTRA_RETRIES` | `1` | Additional waves for priority (Gold+) passengers |
 | `MATCHING_AUTO_RETRY_DELAY` | `10` | Seconds between waves |
 | `MATCHING_DRIVER_RESPONSE_TIMEOUT` | `20` | Seconds a driver has to respond |
 | `MATCHING_TIMEOUT` | `300` | Overall matching deadline per search (seconds) |
@@ -7421,11 +7449,12 @@ Authorization: Bearer {passenger_token}
 |--------|---------|----------|------------------------------------------------------|
 | amount | numeric | Yes      | Between `min_amount` and `max_amount` from tip settings |
 
-Adds a tip to a completed **card or cash** ride. Only one tip per ride; concurrent requests cannot both succeed.
+Adds a tip to a completed **card, wallet or cash** ride — the tip follows the trip's payment method. Only one tip per ride; concurrent requests cannot both succeed. Tips carry no commission: the driver receives the full amount.
 
-- **Card:** the tip is charged to the passenger's default saved card. If the charge fails, the tip is not recorded and the request returns 422. A successful charge is credited in full to the driver's earnings (no commission).
-- **Cash:** the tip is recorded only; the driver collects it in person.
-- Wallet and bank-transfer rides cannot be tipped yet.
+- **Card:** charged to the passenger's default saved card. If the charge fails, the tip is not recorded and the request returns 422.
+- **Wallet:** paid from the passenger's available wallet balance to the driver in one ledger journal. A frozen wallet, or a balance that cannot cover the tip, returns 422 and nothing is recorded.
+- **Cash:** recorded only; the driver collects it in person.
+- Bank-transfer rides cannot be tipped.
 
 The min/max limits are admin-configurable via the settings API (defaults: ₦50–₦50,000).
 
@@ -7450,7 +7479,8 @@ The min/max limits are admin-configurable via the settings API (defaults: ₦50�
 **Response 403:** Not the ride's passenger.
 **Response 422:** Ride not completed, amount out of range, or one of:
 - `"A tip has already been added to this ride."`
-- `"Tips can only be added to card or cash rides."`
+- `"Tips can only be added to card, wallet or cash rides."`
+- `"Your wallet balance is too low for this tip."` / `"Wallet is frozen or closed."` (wallet rides)
 - `"No default payment method on file to charge tip."`
 - `"Failed to charge tip amount."` (card declined or gateway unavailable — nothing is recorded)
 - `"No payment record found for this ride."`
@@ -9410,7 +9440,7 @@ Authorization: Bearer {driver_token}
 Content-Type: application/json
 ```
 
-Submit a general EV charging request. If no `station_id` is provided, the system auto-selects an active station in the driver's city. Creates a reservation in `pending_review` status.
+Submit a general EV charging request. If no `station_id` is provided, the system auto-selects an active station in the driver's city. Creates a reservation in `pending_review` status. Only drivers whose vehicle can charge (`fuel_type` `electric` or `plug_in_hybrid`) may submit one (422 otherwise).
 
 **Request Body:**
 ```json
@@ -9483,7 +9513,13 @@ Three possible outcomes:
 
 **Reservation expiry:** a `reserved` stall is held for `EV_RESERVATION_EXPIRY` minutes (default 30). If the driver has not activated it by then, `ExpireEvReservationsJob` (every 5 minutes) marks it `expired`, frees the stall and hands it to the first queued driver at that station, who receives a push notification that a stall is ready. The same hand-over happens when a session is completed or cancelled. Queues hold at most `EV_MAX_QUEUE_SIZE` drivers (default 10).
 
-**Note:** any driver can currently reserve a stall — vehicles are not yet checked for being electric (BE-EV-10 is pending an EV vehicle class).
+**Who can reserve:** only drivers whose vehicle has a charging port — `fuel_type` `electric` or `plug_in_hybrid` (set on the vehicle; see **Register/Update Vehicle**). Other drivers get 422 `"EV charging is only available for electric and plug-in hybrid vehicles. Set your vehicle's fuel type if it is one."`.
+
+**Reservation fee** (`EV_RESERVATION_FEE`, default ₦500):
+- Charged to the driver's **available earnings** when a stall is actually held for them — immediately for `reserved`, or when a `queued` driver is promoted. Nothing is charged while waiting in the queue. `fee_charged_at` records it.
+- Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`); a queued driver who can no longer pay is skipped and their reservation cancelled.
+- Waived for Platinum and Diamond drivers (`fee_waived: true`).
+- Refunded in full if the driver cancels within `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) of the stall being held (`fee_refunded_at`). Kept after that, and on a no-show (expiry) or a completed session.
 
 **Response 201 — Immediate Reservation:**
 ```json
@@ -9497,6 +9533,8 @@ Three possible outcomes:
     "status": { "value": "reserved", "label": "Reserved" },
     "fee_amount": "500.00",
     "fee_waived": false,
+    "fee_charged_at": "2026-10-11T10:00:00.000000Z",
+    "fee_refunded_at": null,
     "reserved_at": "2026-10-11T10:00:00.000000Z"
   }
 }
@@ -9610,19 +9648,21 @@ POST /driver/ev-reservations/{reservation}/cancel
 Authorization: Bearer {driver_token}
 ```
 
-Cancels any non-terminal reservation. Releases the stall and triggers queue transfer.
+Cancels any non-terminal reservation. Releases the stall and triggers queue transfer. If the reservation fee was charged less than `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) ago it is refunded to the driver's earnings and `fee_refunded_at` is set; otherwise the fee is kept.
 
 **Response 200:**
 ```json
 {
   "message": "Reservation cancelled.",
   "reservation": {
-    "status": { "value": "cancelled", "label": "Cancelled" }
+    "status": { "value": "cancelled", "label": "Cancelled" },
+    "fee_charged_at": "2026-10-11T10:00:00.000000Z",
+    "fee_refunded_at": "2026-10-11T10:01:10.000000Z"
   }
 }
 ```
 
-**Response 422:** Already completed/expired/cancelled.
+**Response 422:** `"Cannot cancel a terminal reservation."` (already completed, expired or cancelled).
 
 ---
 
@@ -10620,7 +10660,12 @@ Requests a withdrawal from available driver earnings to the driver's primary ban
 |----------|---------|----------|-------------------------------|
 | `amount` | integer | Yes      | In kobo. At least the admin `min_payout` wallet setting (default 100000 = ₦1,000) |
 
-**Payout lifecycle:** `requested` → `approved` (finance) → `processing` (transfer sent) → `paid`. The money leaves the driver's available balance when the transfer is sent; if the balance no longer covers it at that point, the payout becomes `failed` with a reason and nothing is debited. A transfer that fails or is reversed by the bank returns the money to the driver's available balance (`failed` / `reversed`). Finance can `reject` a request or `retry` a failed payout.
+**Payout lifecycle:** `requested` → `approved` (finance) → `processing` (transfer sent) → `paid`.
+
+- The money leaves the driver's available balance when the transfer is sent. If the balance no longer covers it at that point, the payout becomes `failed` with a reason and nothing is debited.
+- A transfer Paystack refuses or reports as failed, or one the bank sends back, returns the money to the driver's available balance (`failed` or `reversed`). Finance can `retry` either.
+- If Paystack cannot be reached, or its webhook never arrives, the money **stays reserved** and the payout stays `approved`/`processing` until E-tiGo confirms the outcome with Paystack (automatically every 15 minutes, or when finance uses **check status**). A transfer is never sent twice.
+- Finance can `reject` a request before it is approved.
 
 **Response 201:**
 ```json
@@ -10789,6 +10834,7 @@ GET /admin/payouts?status=requested&search=bayo&from=2026-10-01&to=2026-10-15
 POST /admin/payouts/{payout}/approve
 POST /admin/payouts/{payout}/reject
 POST /admin/payouts/{payout}/retry
+POST /admin/payouts/{payout}/verify
 GET /admin/payouts/export?from=2026-10-01&to=2026-10-15
 Authorization: Bearer {admin_token}
 ```
@@ -10801,9 +10847,40 @@ Each action locks the payout, so two admins acting at once cannot approve, rejec
 |--------|--------------|--------|
 | `approve` | `requested` | `approved`; transfer queued — `"Payout approved and transfer initiated."` |
 | `reject` | `requested` | `rejected` — body: `reason` (string, min 10 chars, required) |
-| `retry` | `failed` | `approved`; transfer queued again — `"Payout retry initiated."` The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again; otherwise a new transfer reference is used. |
+| `retry` | `failed`, `reversed` | `approved`; transfer queued again — `"Payout retry initiated."` The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again; otherwise a new transfer reference is used (`PAYOUT-{id}-2`, `-3`, …). |
+| `verify` | `approved`, `processing` | **Check status with Paystack** — see below. |
 
-**Response 422:** `"Payout is not in requested status."` (approve/reject) or `"Only failed payouts can be retried."` (retry).
+**Response 422:** `"Payout is not in requested status."` (approve/reject), `"Only failed or reversed payouts can be retried."` (retry), or `"Only approved or processing payouts can be checked with the payment provider."` with `current_status` (verify).
+
+Admin payout objects include **`needs_attention: true`** when a payout has been `approved` for more than 10 minutes without being sent, or `processing` for more than 30 minutes without a result — show the **check status** action for those.
+
+#### Check payout status with Paystack
+
+```
+POST /admin/payouts/{payout}/verify
+```
+
+Asks Paystack about the payout's transfer reference and settles the payout accordingly. The same check runs automatically every 15 minutes (`ReconcilePayoutsJob`) for payouts that need attention.
+
+| `outcome` | Meaning | Payout afterwards |
+|-----------|---------|-------------------|
+| `paid` | Paystack completed the transfer | `paid` |
+| `failed` | Paystack failed or reversed it; the money is returned to the driver | `reversed` — finance can retry |
+| `processing` | Still in flight at Paystack | `processing`, wait for the webhook |
+| `resent` | Paystack never created it; it was sent again under the same reference (cannot pay twice) | `processing` once Paystack accepts it |
+| `unknown` | A processing payout Paystack has no record of — investigate | unchanged |
+
+**Response 200:**
+```json
+{
+  "message": "The transfer went through; the payout is now paid.",
+  "outcome": "paid",
+  "provider_status": "success",
+  "payout": { "id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c", "status": "paid", "needs_attention": false, "...": "..." }
+}
+```
+
+**Response 502:** `"Could not reach the payment provider. Try again shortly."` — nothing is changed.
 
 `export` streams a CSV (`from` and `to` dates are required) with payout ID, driver, bank code, masked account number, amount (kobo), status, requested and paid times.
 
@@ -11467,6 +11544,18 @@ Super Admins always bypass role checks and have full access.
 | `own_vehicle`   | Driver owns and registers their own vehicle    |
 | `fleet_vehicle` | Driver will be assigned a fleet vehicle by admin |
 
+### Fuel Type (Vehicle)
+| Value | Description | Can use EV charging stalls |
+|-------|-------------|----------------------------|
+| `petrol` | Petrol | No |
+| `diesel` | Diesel | No |
+| `cng` | Compressed natural gas | No |
+| `hybrid` | Hybrid (self-charging) | No |
+| `plug_in_hybrid` | Plug-in hybrid | Yes |
+| `electric` | Battery electric | Yes |
+
+`null` means the fuel type has not been declared yet. Vehicle responses also include `can_charge`.
+
 ### Document Types
 | Value                    | Description            |
 |--------------------------|------------------------|
@@ -11585,6 +11674,17 @@ A transition that is no longer allowed — usually because another request chang
 | `collected`          | Cash payment collected by driver         |
 | `paid`               | Reserved (not set by current flows; wallet rides settle as `captured`, or `failed` with a shortfall) |
 
+### Payout Status
+| Value | Description |
+|-------|-------------|
+| `requested` | Driver requested it; waiting for finance |
+| `approved` | Approved; the transfer is being sent (money reserved) |
+| `processing` | Sent to Paystack; waiting for the result |
+| `paid` | Paystack completed the transfer (terminal) |
+| `failed` | Not sent or refused; money returned to the driver — finance can retry |
+| `reversed` | Paystack failed or the bank sent it back; money returned — finance can retry |
+| `rejected` | Finance rejected the request (terminal) |
+
 ### Discount Type
 | Value        | Description                                |
 |--------------|---------------------------------------------|
@@ -11645,6 +11745,8 @@ A transition that is no longer allowed — usually because another request chang
 | `3`   | Gold       | 2,000           | 5%               | Yes               | No            |
 | `4`   | Platinum   | 5,000           | 10%              | Yes               | Yes           |
 | `5`   | Diamond    | 15,000          | 15%              | Yes               | Yes           |
+
+Priority matching keeps distance first: priority passengers are always offered their nearest driver, and get precedence when drivers are scarce plus an extra retry wave (see **Matching Engine — How It Works**).
 
 ### Multiplier Condition Type
 | Value            | Description                   | Default Multiplier | Stackable |

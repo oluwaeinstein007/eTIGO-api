@@ -19,7 +19,7 @@ The API serves three clients: the **Passenger app** and **Driver app** (mobile) 
 | Component | Technology |
 |-----------|------------|
 | Framework | Laravel 13, API-only, routes under `/api/v1` |
-| PHP | `^8.3` in `composer.json`; servers and CI run 8.4, local development 8.5 |
+| PHP | Servers run 8.4 (8.4.26). `composer.json` pins `config.platform.php` to 8.4.26 so dependencies always resolve for the servers; CI runs the suite on 8.4 and 8.5 (local development) |
 | Database | PostgreSQL 16 — UUID primary keys everywhere, JSONB for snapshots and payloads |
 | Cache / sessions | Redis (`CACHE_STORE=redis`, tagged cache) |
 | Driver locations | Redis connection `geolocation` (DB `REDIS_GEO_DB`, default 3) — GEO index + per-driver keys |
@@ -85,10 +85,10 @@ Every provider sits behind a contract in `app/Contracts`. `AppServiceProvider` p
 |----------|----------------------|----------|
 | `SmsGateway` | `TermiiGateway` when `TERMII_API_KEY` is set — sends over **WhatsApp first and falls back to DND SMS**; otherwise `LogSmsGateway` | OTP codes, bank-account change codes, SOS alerts to `ETIGO_SAFETY_NUMBER` |
 | `MapsGateway` | Google (`GOOGLE_MAPS_API_KEY` / `GOOGLE_PLACES_API_KEY`) → Mapbox (`MAPBOX_ACCESS_TOKEN`) → `HaversineMapsGateway` (straight-line estimate) | Distance/duration, geocoding |
-| `PlaceSearchGateway` | Failover chain from `PLACES_DRIVERS` (default `google,mapbox,geoapify,locationiq,photon`; providers without credentials are skipped) | Address autocomplete |
+| `PlaceSearchGateway` | Failover chain from `PLACE_SEARCH_DRIVERS` (default `google,mapbox,geoapify,locationiq,photon`; providers without credentials are skipped) | Address autocomplete |
 | `PaymentGateway` | Paystack primary with Flutterwave failover when both keys are set (`FallbackPaymentGateway`); a single provider otherwise; `FakePaymentGateway` when `PAYSTACK_FAKE=true` | Ride card/bank-transfer payments, saved cards, tips, refunds |
 | `WalletGateway` | `PaystackWalletGateway` (requires `PAYSTACK_SECRET_KEY`) | Wallet top-ups, bank list/resolution, payout transfers |
-| `KycGateway` | QoreID (`QOREID_CLIENT_ID`/`QOREID_SECRET_KEY`); `FakeKycGateway` when `QOREID_SKIP_VERIFICATION=true` or in local/testing without credentials; **throws** elsewhere without credentials | NIN, driver's licence, plate, liveness |
+| `KycGateway` | QoreID (`QOREID_CLIENT_ID`/`QOREID_SECRET_KEY`); `FakeKycGateway` when `KYC_SKIP_VERIFICATION=true` (or `QOREID_SKIP_VERIFICATION`) or in local/testing without credentials; **throws** elsewhere without credentials | NIN, driver's licence, plate, liveness |
 | `PushNotificationGateway` | Firebase when credentials resolve (`FIREBASE_CREDENTIALS_PATH`: path or raw JSON); otherwise `LogPushGateway` | Push notifications (invalid device tokens are deactivated automatically) |
 
 Payment providers require a customer email, but passengers may sign up with only a phone number. `User::paymentEmail()` supplies a stable `{user_id}@rider.etigo.ng` address in that case, and saved cards remember the email they were created with.
@@ -246,7 +246,10 @@ The driver's live location is shared with the passenger only while the ride is a
 
 Per-ride matching state lives in the cache with the matching timeout as TTL: `ride:{id}:rejected_drivers`, `ride:{id}:dispatched_to`, `ride:{id}:radius_step`, `ride:{id}:auto_retry_count`, plus `driver:{userId}:offered_ride` (the double-offer guard).
 
-Not implemented yet: **priority matching** for Gold+ tiers. The tier flag exists (`TierGateService::hasPriorityMatching`) but the dispatcher doesn't use it. That needs a product decision on how priority should rank against distance.
+**Priority matching** (Gold, Platinum, Diamond passengers; locked in at booking as `pricing_snapshot.priority_matching`) never trades distance — industry practice for loyalty priority is to speed matching up, not to send a farther car:
+- Every ride, priority or not, is offered its **nearest** eligible driver first.
+- **Precedence under scarcity:** a free driver within the current search radius of a priority ride that is waiting for its next search (between radius tiers or retry waves, when no offer is outstanding) is kept for that ride instead of being offered to a standard ride.
+- **Persistence:** priority searches get `MATCHING_PRIORITY_EXTRA_RETRIES` (1) extra automatic retry waves before `no_driver_found`.
 
 ---
 
@@ -286,7 +289,7 @@ After a payment counts as received (cash at trip end; others once captured), `Ri
 
 **Commission** (`CommissionService::getRate`): 0% for fleet drivers with an active agreement (they remit instead, §11), then a per-driver override, then the global rate, then `WALLET_DEFAULT_COMMISSION_RATE` (20%). On cash rides the driver already holds the money, so the commission is **debited** from their earnings balance. That balance may go negative down to `max_negative_balance` (−₦5,000), with a weekly report of drivers in debt.
 
-**Tips** apply to card and cash rides only, once per ride. Card tips are charged to the saved card **before** being recorded (the tip slot is claimed atomically first and released if the charge fails) and credited to the driver in full. Cash tips are recorded only.
+**Tips** follow the trip's payment method — card, wallet or cash (not bank transfer) — once per ride. Wallet tips move from the passenger's available balance to the driver in one journal and are refused if the wallet cannot cover them. Card tips are charged to the saved card **before** being recorded (the tip slot is claimed atomically first and released if the charge fails) and credited to the driver in full. Cash tips are recorded only.
 
 **Webhooks** (`/webhooks/paystack`, `/webhooks/flutterwave`) are signature-verified (HMAC-SHA512 / `verif-hash`) and stored in `webhook_events`, keyed by provider + event ID + event type. A redelivery of a processed event returns "Already processed". An event whose processing failed part-way is processed again on retry, which is safe because every handler is idempotent.
 
@@ -303,7 +306,8 @@ All wallet and earnings money moves through `LedgerService::postJournal()` as ba
 | `passenger_wallet` | User | Passenger's spendable balance |
 | `driver_earnings_pending` | Driver | Earnings waiting for the settlement delay |
 | `driver_earnings_available` | Driver | Withdrawable earnings (may be negative from cash commission) |
-| `platform_commission` | System | E-tiGo revenue |
+| `platform_commission` | System | E-tiGo revenue from ride commission |
+| `platform_fees` | System | E-tiGo revenue from fees (EV stall reservations) |
 | `psp_clearing` | System | Money in transit with Paystack/Flutterwave |
 | `refunds` | System | Source of refunds and goodwill credits |
 
@@ -323,6 +327,8 @@ System accounts are created by `ReferenceDataSeeder`, which runs on every deploy
 | `card-commission-{ride}` | Card/bank-transfer ride: driver → commission |
 | `cash-commission-{ride}` | Cash ride: driver → commission |
 | `card-tip-{ride}` | Card tip: PSP clearing → driver |
+| `wallet-tip-{ride}` | Wallet tip: passenger → driver |
+| `ev-fee-{reservation}` / `REV-…` | EV reservation fee: driver → platform fees, and its refund |
 | `topup-{reference}` | Wallet top-up: PSP clearing → passenger |
 | `refund-{ride}-{random}` / `clawback-refund-…` | Refund to wallet / driver share recovered (§10.4) |
 | `adjustment-{id}` | Approved manual adjustment |
@@ -343,6 +349,7 @@ A wallet ride places a **hold** for the estimate at booking. `availableBalance =
 - Earnings are credited to `pending` or directly to `available` depending on `settlement_delay` (`instant`, `24h`, `weekly`). `SettleDriverEarningsJob` moves them hourly once the delay has passed.
 - **Payout lifecycle:** `requested` → `approved` (finance) → `processing` → `paid`, or `rejected` / `failed` / `reversed`. One open payout per driver. `PayoutLedgerService` debits the driver when the transfer is sent (re-checking the balance under lock) and reverses that debit if the transfer fails or is reversed. If Paystack later reports a written-off transfer as paid, the debit is re-applied. Approve, reject and retry all lock the payout.
 - **Transfer references.** The first attempt uses `PAYOUT-{id}`. Paystack treats a reused reference as the same transfer, so before any further attempt the job looks up the previous reference (`WalletGateway::verifyTransfer`). If it succeeded, the payout is marked paid and nothing is sent. If it is still in flight, the job waits for the webhook. If it failed or was reversed, the money goes out under a new reference (`PAYOUT-{id}-2`, `-3`, …). If Paystack doesn't know it, the same reference is reused. A payout is never paid twice, and a retry after a real failure does go out.
+- **Unknown outcomes.** If every attempt to reach Paystack fails, the money stays reserved and the payout stays `approved`; a missing webhook leaves it `processing`. `PayoutReconciliationService` settles such payouts against Paystack's record of the reference (success → paid; failed/reversed → money returned; in flight → wait; never created → sent again under the same reference). `ReconcilePayoutsJob` runs it every 15 minutes for payouts approved more than 10 minutes ago or processing for more than 30; finance can run it on demand (`POST /admin/payouts/{payout}/verify`), and admin payout responses carry `needs_attention`. Finance can retry `failed` and `reversed` payouts.
 - `ProcessWeeklyAutoPayoutJob` (Monday 06:00 Lagos) creates already-approved payouts for drivers who chose `weekly_auto` and have no open payout, and sends them straight away.
 
 ### 10.4 Refunds and adjustments
@@ -389,7 +396,7 @@ E-tiGo-owned vehicles are assigned to drivers under a **fleet agreement**: a dai
 | 4 Platinum | 5,000 | 10% | Yes | Yes |
 | 5 Diamond | 15,000 | 15% | Yes | Yes |
 
-Tier configs and multipliers are reference data (`ReferenceDataSeeder` creates missing rows and never overwrites admin edits). The booking-fee discount is applied to fares (§5) and the EV fee waiver to reservations (§15). Priority matching is not yet used by the dispatcher (§7).
+Tier configs and multipliers are reference data (`ReferenceDataSeeder` creates missing rows and never overwrites admin edits). The booking-fee discount is applied to fares (§5), the EV fee waiver to reservations (§15) and priority matching to dispatch (§7). A trip counts as an EV, zero-emission ride when the driver's vehicle `fuel_type` is `electric` (or the class has zero emissions).
 
 ---
 
@@ -434,9 +441,12 @@ Drivers can dispute a flag; operations upholds or overturns it (overturning reve
 - **Stations** (E-tiGo's own network) have **stalls**. `StallAvailabilityService` tracks each stall's state and estimated departure.
 - **Reserving** locks the station and the driver, then picks one of three outcomes: an available stall → `reserved`; all occupied but one leaving within 15 min → `queued` (max 10 per station); otherwise → `retry` after 15 min. One open reservation per driver.
 - A `reserved` stall is held for **30 minutes** (`EV_RESERVATION_EXPIRY`). `ExpireEvReservationsJob` (every 5 min) expires no-shows. Whenever a stall frees up (expiry, completion, cancellation), `TransferReservationJob` gives it to the first queued driver and notifies them (`ev_reservation_ready`).
-- A ₦500 reservation fee (`EV_RESERVATION_FEE`) is recorded per reservation, and waived for Platinum/Diamond drivers.
-
-Open points: the fee is **recorded but not collected** yet (how drivers pay it is a product decision), and reservations are not restricted to electric vehicles (BE-EV-10 needs an EV vehicle class in the data).
+- **EV only.** Vehicles record a `fuel_type` (`petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid`, `electric`); only plug-in vehicles (`electric`, `plug_in_hybrid`) may reserve a stall or submit a charge request. Drivers set it while onboarding or declare it once if it was never set; later changes go through operations (`PUT /admin/drivers/{driver}/vehicle-class`, audited).
+- **Reservation fee** (`EV_RESERVATION_FEE`, ₦500), collected by `EvReservationFeeService`:
+  - debited from the driver's **available earnings** into the `platform_fees` account when a stall is actually held (immediately, or when a queued driver is promoted) — never while queued;
+  - may take the balance down to `max_negative_balance` like cash commission; beyond that the reservation is refused, and a queued driver who can no longer pay is skipped;
+  - waived for Platinum and Diamond drivers;
+  - refunded for a cancellation within `EV_RESERVATION_FREE_CANCEL_MINUTES` (2) of the stall being held; kept on a later cancellation, a no-show or a completed session — the fee pays for holding the stall.
 
 ---
 
@@ -473,7 +483,7 @@ vendor/bin/pint --dirty --format agent         # format changed files
 - Tests that need Redis (GEO search) are skipped when the `phpredis` extension is missing.
 - When switching bearer tokens within one test, call `app('auth')->forgetGuards()` (Sanctum caches the resolved user).
 - Edge-case suites per area: `RideEdgeCaseTest`, `MatchingEdgeCaseTest`, `WalletPayoutEdgeCaseTest`, `AccountSafetyEdgeCaseTest`, `OperationsEdgeCaseTest`, `ApiErrorHandlingTest`.
-- CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.4 with PostgreSQL 16 and Redis 7 for every pull request to `staging`.
+- CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.4 and 8.5 with PostgreSQL 16 and Redis 7 for every pull request to `staging`; both must pass before a push to `staging` deploys.
 
 ---
 
@@ -485,15 +495,15 @@ The complete list is in `.env.example`. The ones that change behaviour:
 |------|-----------|
 | Sessions | `SANCTUM_TOKEN_EXPIRATION` (admin, min), `SANCTUM_APP_TOKEN_EXPIRATION` (apps, min) |
 | OTP / SMS / WhatsApp | `TERMII_API_KEY`, `TERMII_SENDER_ID`, `TERMII_WHATSAPP_FROM`, `ETIGO_SAFETY_NUMBER` |
-| Maps & places | `GOOGLE_MAPS_API_KEY`, `MAPBOX_ACCESS_TOKEN`, `GEOAPIFY_API_KEY`, `LOCATIONIQ_API_KEY`, `PLACES_DRIVERS` |
+| Maps & places | `GOOGLE_MAPS_API_KEY`, `MAPBOX_ACCESS_TOKEN`, `GEOAPIFY_API_KEY`, `LOCATIONIQ_API_KEY`, `PLACE_SEARCH_DRIVERS`, `PLACE_SEARCH_COUNTRY` |
 | Payments | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_FAKE`, `FLUTTERWAVE_SECRET_KEY`, `FLUTTERWAVE_WEBHOOK_SECRET` |
 | Wallet | `WALLET_MIN_TOPUP`, `WALLET_MAX_BALANCE`, `WALLET_DAILY_TOPUP_CAP`, `WALLET_MIN_PAYOUT`, `WALLET_SETTLEMENT_DELAY`, `WALLET_MAX_NEGATIVE_BALANCE`, `WALLET_DEFAULT_COMMISSION_RATE`, `WALLET_HOLD_EXPIRY_HOURS`, `WALLET_MAX_CASH_OVERPAYMENT` (kobo; finance can override most at runtime) |
-| Matching | `MATCHING_RADIUS_TIER_1_KM`/`_2_KM`/`_3_KM`, `MATCHING_DRIVER_RESPONSE_TIMEOUT`, `MATCHING_TIMEOUT`, `MATCHING_MAX_AUTO_RETRIES`, `MATCHING_AUTO_RETRY_DELAY`, `MATCHING_MAX_CANDIDATES` |
-| KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `QOREID_SKIP_VERIFICATION` |
+| Matching | `MATCHING_RADIUS_TIER_1_KM`/`_2_KM`/`_3_KM`, `MATCHING_DRIVER_RESPONSE_TIMEOUT`, `MATCHING_TIMEOUT`, `MATCHING_MAX_AUTO_RETRIES`, `MATCHING_PRIORITY_EXTRA_RETRIES`, `MATCHING_AUTO_RETRY_DELAY`, `MATCHING_MAX_CANDIDATES` |
+| KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `KYC_SKIP_VERIFICATION` |
 | Push | `FIREBASE_CREDENTIALS_PATH` (path or raw JSON), `FIREBASE_PROJECT_ID` |
 | Real-time | `BROADCAST_CONNECTION=reverb`, `REVERB_*`, `TELEMETRY_SERVER_PORT`, `TELEMETRY_RATE_LIMIT_MS`, `REDIS_GEO_DB` |
 | Safety | `SOS_CHECK_IN_DELAY`, `SOS_ESCALATION_TIMEOUT`, `OFFLINE_*` (detection thresholds), `OFFLINE_SUSPENSION_HOURS` |
-| Fleet / EV / promos / loyalty | `FLEET_*`, `EV_RESERVATION_FEE`, `EV_RESERVATION_EXPIRY`, `EV_MAX_QUEUE_SIZE`, `PROMO_PEAK_*`, `CARBON_BASELINE_EMISSION`, `GAMIFICATION_*` |
+| Fleet / EV / promos / loyalty | `FLEET_*`, `EV_RESERVATION_FEE`, `EV_RESERVATION_EXPIRY`, `EV_RESERVATION_FREE_CANCEL_MINUTES`, `EV_MAX_QUEUE_SIZE`, `PROMO_PEAK_*`, `CARBON_BASELINE_EMISSION`, `GAMIFICATION_*` |
 | Notifications | `NOTIFICATION_RETENTION_DAYS`, `NOTIFICATION_PUSH_ENABLED`, `NOTIFICATION_IN_APP_ENABLED` |
 | Storage / mail | `UPLOADS_DISK` (documents and photos; `public`, `s3` or `cloudinary`), `CLOUDINARY_*`, `AWS_*`, `MAIL_*` (Resend) |
 
@@ -505,8 +515,7 @@ These are deliberate gaps that need a product decision or data, not bugs:
 
 | Area | Status |
 |------|--------|
-| Priority matching for Gold+ tiers | Tier flag exists; the dispatcher does not rank by it (§7) |
 | Demand-based surge | Rule type exists; the demand/supply metric is a placeholder, so these rules never fire |
-| EV reservations | Not restricted to electric vehicles; the reservation fee is recorded but not collected (§15) |
-| Tips on wallet / bank-transfer rides | Not supported (card and cash only) |
+| Tips on bank-transfer rides | Not supported (card, wallet and cash only) |
+| Existing vehicles' fuel type | Vehicles created before fuel type existed have `fuel_type = null` and cannot reserve EV stalls until the driver (once) or operations sets it |
 | Booking latency | The maps call for the route runs inside the booking transaction (passenger row lock); fine at current volume, worth moving out if booking contention appears |
