@@ -3796,11 +3796,35 @@
                     "receipt"
                   ]
                 },
-                "description": "Returns a detailed receipt for a completed ride including fare breakdown, vehicle details, card info, tip, tier discount, promo discount, carbon emissions, and payment details. Accessible by the ride's passenger, driver, or any admin."
+                "description": "Returns a detailed receipt for a completed ride including fare breakdown, vehicle details, card info, tip, tier discount, promo discount, carbon emissions, and payment details. Accessible by the ride's passenger, driver, or any admin.\n\n**`payment` totals** \u2014 exactly one is present:\n- `total_charged` (number) \u2014 when `status` is `captured`, `collected` or `settled`; fare + tip actually charged.\n- `amount_due` (string) \u2014 any other status (e.g. `pending`, `pending_collection` for cash not yet collected, `failed`); the fare still owed, without the tip.\n\n`payment` is `null` when the ride has no payment record.\n\n**Errors:** 403 \u2014 not the ride's passenger or driver, and not an admin. 404 \u2014 the ride is not completed."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Receipt",
+                  "name": "200 \u2014 Receipt (settled card payment)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"date\": \"2026-10-15T15:41:02+00:00\",\n    \"pickup\": {\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\"\n    },\n    \"destination\": {\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\",\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\"\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"vehicle_class\": \"Economy\",\n    \"driver\": {\n      \"name\": \"Bayo Akinola\",\n      \"profile_photo_url\": null\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"LAG-001AB\",\n      \"year\": 2022\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600,\n      \"per_km_rate\": 250,\n      \"per_minute_rate\": 40,\n      \"distance_charge\": 2500,\n      \"time_charge\": 1000,\n      \"waiting_charge\": 0,\n      \"tip\": 500,\n      \"tier_discount\": {\n        \"tier\": \"Silver\",\n        \"percentage\": 2,\n        \"amount\": 12\n      },\n      \"promo_discount\": null,\n      \"minimum_fare\": 1500,\n      \"surge_multiplier\": 1\n    },\n    \"fare_estimate\": \"4088.00\",\n    \"final_fare\": \"4088.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"card\",\n      \"method_label\": \"Card\",\n      \"status\": \"captured\",\n      \"status_label\": \"Captured\",\n      \"tip_amount\": \"500.00\",\n      \"card_brand\": \"visa\",\n      \"card_last_four\": \"4242\",\n      \"total_charged\": 4588\n    },\n    \"carbon\": null,\n    \"city\": \"Lagos\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Receipt (unsettled \u2014 cash not yet collected)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"receipt\": {\n    \"ride_id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"date\": \"2026-10-15T15:41:02+00:00\",\n    \"pickup\": {\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\"\n    },\n    \"destination\": {\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\",\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\"\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"vehicle_class\": \"Economy\",\n    \"driver\": {\n      \"name\": \"Bayo Akinola\",\n      \"profile_photo_url\": null\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"LAG-001AB\",\n      \"year\": 2022\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600,\n      \"per_km_rate\": 250,\n      \"per_minute_rate\": 40,\n      \"distance_charge\": 2500,\n      \"time_charge\": 1000,\n      \"waiting_charge\": 0,\n      \"tip\": 0,\n      \"tier_discount\": {\n        \"tier\": \"Silver\",\n        \"percentage\": 2,\n        \"amount\": 12\n      },\n      \"promo_discount\": null,\n      \"minimum_fare\": 1500,\n      \"surge_multiplier\": 1\n    },\n    \"fare_estimate\": \"4088.00\",\n    \"final_fare\": \"4088.00\",\n    \"currency\": \"NGN\",\n    \"payment\": {\n      \"method\": \"cash\",\n      \"method_label\": \"Cash\",\n      \"status\": \"pending_collection\",\n      \"status_label\": \"Pending Collection\",\n      \"tip_amount\": \"0.00\",\n      \"amount_due\": \"4088.00\"\n    },\n    \"carbon\": null,\n    \"city\": \"Lagos\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Receipt (no payment record)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3810,6 +3834,30 @@
                     }
                   ],
                   "body": "{\n  \"receipt\": {\n    \"ride_id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"date\": \"2026-10-15T15:41:02+00:00\",\n    \"pickup\": {\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\"\n    },\n    \"destination\": {\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\",\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\"\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"vehicle_class\": \"Economy\",\n    \"driver\": {\n      \"name\": \"Bayo Akinola\",\n      \"profile_photo_url\": null\n    },\n    \"vehicle\": {\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"LAG-001AB\",\n      \"year\": 2022\n    },\n    \"fare_breakdown\": {\n      \"base_fare\": 600,\n      \"per_km_rate\": 250,\n      \"per_minute_rate\": 40,\n      \"distance_charge\": 2500,\n      \"time_charge\": 1000,\n      \"waiting_charge\": 0,\n      \"tip\": 0,\n      \"tier_discount\": {\n        \"tier\": \"Silver\",\n        \"percentage\": 2,\n        \"amount\": 12\n      },\n      \"promo_discount\": null,\n      \"minimum_fare\": 1500,\n      \"surge_multiplier\": 1\n    },\n    \"fare_estimate\": \"4088.00\",\n    \"final_fare\": \"4088.00\",\n    \"currency\": \"NGN\",\n    \"payment\": null,\n    \"carbon\": null,\n    \"city\": \"Lagos\"\n  }\n}"
+                },
+                {
+                  "name": "403 \u2014 Not a Participant",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You do not have access to this receipt.\",\n  \"error_code\": \"HTTP_ERROR\"\n}"
+                },
+                {
+                  "name": "404 \u2014 Ride Not Completed",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Receipt is only available for completed rides.\",\n  \"error_code\": \"NOT_FOUND\"\n}"
                 }
               ]
             },

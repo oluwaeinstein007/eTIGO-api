@@ -7508,6 +7508,7 @@ The min/max limits are admin-configurable via the settings API (defaults: ₦50�
 - `"No default payment method on file to charge tip."`
 - `"Failed to charge tip amount."` (card declined or gateway unavailable — nothing is recorded)
 - `"No payment record found for this ride."`
+- `"Cannot add a tip to a failed payment."`
 
 ---
 
@@ -7518,7 +7519,13 @@ Authorization: Bearer {token}
 ```
 Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin. Includes vehicle details, card info, fare breakdown with tip and tier discount, and carbon emissions data.
 
-**Response 200:**
+The `payment` object carries one of two totals, depending on whether the payment has settled:
+- `total_charged` (number) — when `status` is `captured`, `collected` or `settled`. Equals `amount + tip_amount`.
+- `amount_due` (string) — for any other status (e.g. `pending`, `pending_collection` for cash not yet collected, `failed`). The fare the passenger still owes, without the tip.
+
+`payment` is `null` if the ride has no payment record.
+
+**Response 200 (settled payment):**
 ```json
 {
   "receipt": {
@@ -7593,6 +7600,23 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
 }
 ```
 
+**Response 200 (unsettled payment — cash not yet collected):**
+```json
+{
+  "receipt": {
+    "...": "same fields as above",
+    "payment": {
+      "method": "cash",
+      "method_label": "Cash",
+      "status": "pending_collection",
+      "status_label": "Pending Collection",
+      "tip_amount": "0.00",
+      "amount_due": "3500.00"
+    }
+  }
+}
+```
+
 **Response fields:**
 
 | Field | Type | Description |
@@ -7605,10 +7629,13 @@ Returns a detailed receipt for a completed ride. Accessible by the ride's passen
 | `fare_breakdown.promo_discount` | object\|null | Promo code discount details — `null` when no promo was applied. Contains `code` (the promo code string), `discount_amount` (discount applied), and `raw_fare` (pre-discount fare amount). |
 | `payment.card_brand` | string\|null | Card brand (visa, mastercard, etc.) — only for card payments |
 | `payment.card_last_four` | string\|null | Last 4 digits of card — only for card payments |
+| `payment` | object\|null | Payment summary — `null` if the ride has no payment record |
+| `payment.total_charged` | number | Fare plus tip actually charged — only when the payment is settled (`captured`, `collected`, `settled`) |
+| `payment.amount_due` | string | Fare still owed — only when the payment is not settled |
 | `carbon` | object\|null | Carbon emissions and credits — null if not yet calculated |
 
-**Response 403:** Not a participant in the ride.
-**Response 404:** Ride not completed.
+**Response 403:** `{"message": "You do not have access to this receipt.", "error_code": "HTTP_ERROR"}` — not the ride's passenger or driver, and not an admin.
+**Response 404:** `{"message": "Receipt is only available for completed rides.", "error_code": "NOT_FOUND"}`
 
 ---
 
