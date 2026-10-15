@@ -28,6 +28,7 @@ class UpdateSurgeRuleRequest extends FormRequest
             'conditions.start_time' => ['required_if:type,time_based', 'date_format:H:i'],
             'conditions.end_time' => ['required_if:type,time_based', 'date_format:H:i'],
             'conditions.min_demand_supply_ratio' => ['required_if:type,demand_based', 'numeric', 'min:1.0'],
+            'conditions.min_requests' => ['nullable', 'integer', 'min:1'],
             'priority' => ['sometimes', 'integer', 'min:0', 'max:100'],
             'is_active' => ['sometimes', 'boolean'],
             'effective_from' => ['sometimes', 'date'],

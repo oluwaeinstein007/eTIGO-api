@@ -256,7 +256,8 @@ it('returns current surge multiplier for city', function () {
 
     $response->assertOk()
         ->assertJsonPath('surge.active', true)
-        ->assertJsonPath('surge.multiplier', 1.8);
+        ->assertJsonPath('surge.multiplier', 1.8)
+        ->assertJsonStructure(['demand' => ['requests', 'available_drivers', 'ratio', 'window_minutes']]);
 });
 
 it('returns no surge when no rules match', function () {

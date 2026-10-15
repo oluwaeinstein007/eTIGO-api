@@ -132,6 +132,11 @@ class AdminSurgeRuleController extends Controller
                 'rule_name' => $surge['rule']?->name,
                 'rule' => $surge['rule'] ? new SurgeRuleResource($surge['rule']) : null,
             ],
+            // What demand-based rules are measured against (cached for a minute).
+            'demand' => $surgePricingService->demandSnapshot(
+                $request->input('city_id'),
+                $request->input('vehicle_class_id'),
+            ),
         ]);
     }
 }
