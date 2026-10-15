@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,14 +27,34 @@ class AdminTipSettingsController extends Controller
             'max_amount' => ['sometimes', 'integer', 'min:100'],
         ]);
 
-        if (isset($validated['min_amount'], $validated['max_amount'])
-            && $validated['min_amount'] >= $validated['max_amount']) {
+        $current = AppSetting::getTipSettings();
+        $minAmount = $validated['min_amount'] ?? $current['min_amount'];
+        $maxAmount = $validated['max_amount'] ?? $current['max_amount'];
+
+        if ($minAmount >= $maxAmount) {
             return response()->json([
                 'message' => 'min_amount must be less than max_amount.',
             ], 422);
         }
 
-        DB::transaction(function () use ($validated) {
+        $presets = $validated['presets'] ?? $current['presets'];
+        $outOfRange = array_filter($presets, fn ($preset) => $preset < $minAmount || $preset > $maxAmount);
+
+        if ($outOfRange !== []) {
+            return response()->json([
+                'message' => "Every tip preset must be between {$minAmount} and {$maxAmount}.",
+            ], 422);
+        }
+
+        DB::transaction(function () use ($validated, $current, $request) {
+            AuditLog::record(
+                $request->user(),
+                'tip_settings.updated',
+                $request->user(),
+                array_intersect_key($current, $validated),
+                $validated,
+            );
+
             if (isset($validated['presets'])) {
                 $presets = array_map('intval', $validated['presets']);
                 sort($presets);

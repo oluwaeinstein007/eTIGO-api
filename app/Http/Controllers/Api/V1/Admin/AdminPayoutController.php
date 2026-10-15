@@ -65,11 +65,13 @@ class AdminPayoutController extends Controller
 
     public function approve(Request $request, Payout $payout): JsonResponse
     {
-        if (! $payout->isPending()) {
-            return response()->json(['message' => 'Payout is not in requested status.'], 422);
-        }
+        $approved = DB::transaction(function () use ($request, $payout) {
+            $payout = Payout::lockForUpdate()->find($payout->id);
 
-        DB::transaction(function () use ($request, $payout) {
+            if (! $payout->isPending()) {
+                return null;
+            }
+
             $payout->update([
                 'status' => PayoutStatus::Approved,
                 'approved_at' => now(),
@@ -77,18 +79,24 @@ class AdminPayoutController extends Controller
             ]);
 
             AuditLog::record($payout, 'payout.approved', $request->user());
+
+            return $payout;
         });
 
-        ProcessPayoutTransferJob::dispatch($payout->id);
+        if (! $approved) {
+            return response()->json(['message' => 'Payout is not in requested status.'], 422);
+        }
 
-        rescue(fn () => $payout->driver?->user?->notify(new PayoutStatusNotification(
-            $payout->amount,
+        ProcessPayoutTransferJob::dispatch($approved->id);
+
+        rescue(fn () => $approved->driver?->user?->notify(new PayoutStatusNotification(
+            $approved->amount,
             NotificationType::PayoutApproved,
         )));
 
         return response()->json([
             'message' => 'Payout approved and transfer initiated.',
-            'payout' => new PayoutResource($payout->fresh()->load(['bankAccount', 'driver.user'])),
+            'payout' => new PayoutResource($approved->fresh()->load(['bankAccount', 'driver.user'])),
         ]);
     }
 
@@ -96,38 +104,64 @@ class AdminPayoutController extends Controller
     {
         $request->validate(['reason' => ['required', 'string', 'min:10']]);
 
-        if (! $payout->isPending()) {
+        $rejected = DB::transaction(function () use ($request, $payout) {
+            $payout = Payout::lockForUpdate()->find($payout->id);
+
+            if (! $payout->isPending()) {
+                return null;
+            }
+
+            $payout->update([
+                'status' => PayoutStatus::Rejected,
+                'failure_reason' => $request->input('reason'),
+            ]);
+
+            AuditLog::record($payout, 'payout.rejected', $request->user(), null, [
+                'reason' => $request->input('reason'),
+            ]);
+
+            return $payout;
+        });
+
+        if (! $rejected) {
             return response()->json(['message' => 'Payout is not in requested status.'], 422);
         }
 
-        $payout->update([
-            'status' => PayoutStatus::Rejected,
-            'failure_reason' => $request->input('reason'),
-        ]);
-
-        AuditLog::record($payout, 'payout.rejected', $request->user(), null, [
-            'reason' => $request->input('reason'),
-        ]);
+        rescue(fn () => $rejected->driver?->user?->notify(new PayoutStatusNotification(
+            $rejected->amount,
+            NotificationType::PayoutRejected,
+            $request->input('reason'),
+        )));
 
         return response()->json(['message' => 'Payout rejected.']);
     }
 
     public function retry(Request $request, Payout $payout): JsonResponse
     {
-        if ($payout->status !== PayoutStatus::Failed) {
+        $retried = DB::transaction(function () use ($request, $payout) {
+            $payout = Payout::lockForUpdate()->find($payout->id);
+
+            if ($payout->status !== PayoutStatus::Failed) {
+                return null;
+            }
+
+            $payout->update([
+                'status' => PayoutStatus::Approved,
+                'failure_reason' => null,
+                'approved_at' => now(),
+                'approved_by_admin_id' => $request->user()->id,
+            ]);
+
+            AuditLog::record($payout, 'payout.retried', $request->user());
+
+            return $payout;
+        });
+
+        if (! $retried) {
             return response()->json(['message' => 'Only failed payouts can be retried.'], 422);
         }
 
-        $payout->update([
-            'status' => PayoutStatus::Approved,
-            'failure_reason' => null,
-            'approved_at' => now(),
-            'approved_by_admin_id' => $request->user()->id,
-        ]);
-
-        ProcessPayoutTransferJob::dispatch($payout->id);
-
-        AuditLog::record($payout, 'payout.retried', $request->user());
+        ProcessPayoutTransferJob::dispatch($retried->id);
 
         return response()->json(['message' => 'Payout retry initiated.']);
     }

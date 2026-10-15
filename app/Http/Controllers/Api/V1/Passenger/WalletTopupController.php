@@ -8,6 +8,7 @@ use App\Enums\WalletTransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreTopupRequest;
 use App\Jobs\ProcessTopupWebhookJob;
+use App\Models\AppSetting;
 use App\Models\WalletTransaction;
 use App\Services\LedgerService;
 use Illuminate\Http\JsonResponse;
@@ -37,14 +38,14 @@ class WalletTopupController extends Controller
             return response()->json(['message' => 'Wallet is frozen or closed.'], 422);
         }
 
-        $maxBalance = config('wallet.max_balance');
+        $maxBalance = AppSetting::wallet('max_balance');
         if (($account->balance + $amountKobo) > $maxBalance) {
             $maxNaira = $maxBalance / 100;
 
             return response()->json(['message' => "Top-up would exceed maximum wallet balance of ₦{$maxNaira}."], 422);
         }
 
-        $dailyCap = config('wallet.daily_topup_cap');
+        $dailyCap = AppSetting::wallet('daily_topup_cap');
         $todayTopups = Cache::get("topup_daily:{$user->id}:".now()->toDateString(), 0);
         if (($todayTopups + $amountKobo) > $dailyCap) {
             return response()->json(['message' => 'Daily top-up limit exceeded.'], 422);
@@ -104,12 +105,33 @@ class WalletTopupController extends Controller
         ]);
     }
 
-    public function verify(Request $request, string $transactionId): JsonResponse
+    /**
+     * Fallback for a missed webhook. {reference} is the tx_ref returned when the
+     * top-up was initialised (Paystack also appends it to the callback URL);
+     * only the caller's own top-ups can be confirmed.
+     */
+    public function verify(Request $request, string $reference): JsonResponse
     {
-        $user = $request->user();
+        $account = $this->ledgerService->findOrCreateAccount(
+            $request->user()->getMorphClass(),
+            $request->user()->id,
+            AccountType::PassengerWallet,
+        );
+
+        $transaction = WalletTransaction::where('reference', $reference)
+            ->where('account_id', $account->id)
+            ->first();
+
+        if (! $transaction) {
+            return response()->json(['message' => 'Top-up not found.'], 404);
+        }
+
+        if ($transaction->status === WalletTransactionStatus::Completed) {
+            return response()->json(['message' => 'Top-up has already been credited.']);
+        }
 
         try {
-            $result = $this->walletGateway->verifyTransaction($transactionId);
+            $result = $this->walletGateway->verifyTransaction($transaction->reference);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to verify transaction.'], 502);
         }
@@ -121,23 +143,16 @@ class WalletTopupController extends Controller
             ], 422);
         }
 
-        $txRef = $result['tx_ref'] ?? '';
-        if (! str_starts_with($txRef, 'TOPUP-')) {
+        if (($result['tx_ref'] ?? null) !== $transaction->reference) {
             return response()->json(['message' => 'Invalid transaction reference.'], 422);
         }
 
-        $account = $this->ledgerService->findOrCreateAccount(
-            $user->getMorphClass(),
-            $user->id,
-            AccountType::PassengerWallet,
-        );
-
-        $amountKobo = (int) ($result['amount'] * 100);
-
+        // The wallet gateway reports amounts in kobo; the passenger is credited
+        // with what the provider actually collected.
         ProcessTopupWebhookJob::dispatch(
-            $account->id,
-            $amountKobo,
-            $txRef,
+            $transaction->account_id,
+            (int) $result['amount'],
+            $transaction->reference,
         );
 
         return response()->json(['message' => 'Top-up is being processed.']);

@@ -16,6 +16,7 @@ class RefundToWalletRequest extends FormRequest
         return [
             'amount' => ['required', 'integer', 'min:1'],
             'reason' => ['required', 'string', 'min:10', 'max:2000'],
+            'clawback_driver_earnings' => ['sometimes', 'boolean'],
         ];
     }
 }

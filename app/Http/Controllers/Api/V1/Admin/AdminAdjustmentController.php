@@ -76,38 +76,54 @@ class AdminAdjustmentController extends Controller
             return response()->json(['message' => 'Approver must differ from creator.'], 403);
         }
 
-        DB::transaction(function () use ($request, $adjustment) {
-            $systemAccount = $this->ledgerService->systemAccount(
-                $adjustment->type === AdjustmentType::Credit
-                    ? AccountType::Refunds
-                    : AccountType::PlatformCommission
-            );
+        try {
+            $approved = DB::transaction(function () use ($request, $adjustment) {
+                $adjustment = Adjustment::lockForUpdate()->find($adjustment->id);
 
-            $lines = $adjustment->type === AdjustmentType::Credit
-                ? [
-                    ['account_id' => $systemAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $adjustment->amount],
-                    ['account_id' => $adjustment->account_id, 'type' => LedgerEntryType::Credit->value, 'amount' => $adjustment->amount],
-                ]
-                : [
-                    ['account_id' => $adjustment->account_id, 'type' => LedgerEntryType::Debit->value, 'amount' => $adjustment->amount],
-                    ['account_id' => $systemAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $adjustment->amount],
-                ];
+                if (! $adjustment->isPending()) {
+                    return false;
+                }
 
-            $journal = $this->ledgerService->postJournal($lines, [
-                'description' => "Manual adjustment: {$adjustment->reason}",
-                'idempotency_key' => "adjustment-{$adjustment->id}",
-                'metadata' => ['adjustment_id' => $adjustment->id],
-            ]);
+                $systemAccount = $this->ledgerService->systemAccount(
+                    $adjustment->type === AdjustmentType::Credit
+                        ? AccountType::Refunds
+                        : AccountType::PlatformCommission
+                );
 
-            $adjustment->update([
-                'status' => AdjustmentStatus::Approved,
-                'approved_by_admin_id' => $request->user()->id,
-                'journal_id' => $journal->id,
-                'approved_at' => now(),
-            ]);
+                $lines = $adjustment->type === AdjustmentType::Credit
+                    ? [
+                        ['account_id' => $systemAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $adjustment->amount],
+                        ['account_id' => $adjustment->account_id, 'type' => LedgerEntryType::Credit->value, 'amount' => $adjustment->amount],
+                    ]
+                    : [
+                        ['account_id' => $adjustment->account_id, 'type' => LedgerEntryType::Debit->value, 'amount' => $adjustment->amount],
+                        ['account_id' => $systemAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $adjustment->amount],
+                    ];
 
-            AuditLog::record($adjustment, 'adjustment.approved', $request->user());
-        });
+                $journal = $this->ledgerService->postJournal($lines, [
+                    'description' => "Manual adjustment: {$adjustment->reason}",
+                    'idempotency_key' => "adjustment-{$adjustment->id}",
+                    'metadata' => ['adjustment_id' => $adjustment->id],
+                ]);
+
+                $adjustment->update([
+                    'status' => AdjustmentStatus::Approved,
+                    'approved_by_admin_id' => $request->user()->id,
+                    'journal_id' => $journal->id,
+                    'approved_at' => now(),
+                ]);
+
+                AuditLog::record($adjustment, 'adjustment.approved', $request->user());
+
+                return true;
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        if (! $approved) {
+            return response()->json(['message' => 'Adjustment is not pending.'], 422);
+        }
 
         return response()->json([
             'message' => 'Adjustment approved and posted.',
@@ -117,11 +133,13 @@ class AdminAdjustmentController extends Controller
 
     public function reject(RejectAdjustmentRequest $request, Adjustment $adjustment): JsonResponse
     {
-        if (! $adjustment->isPending()) {
+        $updated = Adjustment::whereKey($adjustment->id)
+            ->where('status', AdjustmentStatus::Pending)
+            ->update(['status' => AdjustmentStatus::Rejected]);
+
+        if ($updated === 0) {
             return response()->json(['message' => 'Adjustment is not pending.'], 422);
         }
-
-        $adjustment->update(['status' => AdjustmentStatus::Rejected]);
 
         AuditLog::record($adjustment, 'adjustment.rejected', $request->user(), null, [
             'reason' => $request->validated('reason'),

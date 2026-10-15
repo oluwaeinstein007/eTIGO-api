@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\AppSetting;
 use App\Services\LedgerService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,7 +24,7 @@ class SettleDriverEarningsJob implements ShouldQueue
 
     public function handle(LedgerService $ledgerService): void
     {
-        $delay = config('wallet.settlement_delay', 'instant');
+        $delay = AppSetting::wallet('settlement_delay');
 
         if ($delay === 'instant') {
             return;
@@ -65,7 +66,9 @@ class SettleDriverEarningsJob implements ShouldQueue
                 continue;
             }
 
-            $entryIds = $entries->pluck('id')->sort()->implode('-');
+            // Hash the settled entry set: a raw id list overflows the 255-char
+            // idempotency key once a driver has more than a handful of credits.
+            $entrySetHash = hash('sha256', $entries->pluck('id')->sort()->implode('-'));
 
             $availableAccount = $ledgerService->findOrCreateAccount(
                 $pendingAccount->owner_type,
@@ -78,7 +81,7 @@ class SettleDriverEarningsJob implements ShouldQueue
                 ['account_id' => $availableAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $settleAmount],
             ], [
                 'description' => "Settlement: pending → available for driver {$pendingAccount->owner_id}",
-                'idempotency_key' => "settle-earnings-{$pendingAccount->owner_id}-{$entryIds}",
+                'idempotency_key' => "settle-earnings-{$pendingAccount->owner_id}-{$entrySetHash}",
                 'metadata' => [
                     'driver_id' => $pendingAccount->owner_id,
                     'amount_kobo' => $settleAmount,

@@ -6,6 +6,8 @@ use App\Enums\AccountType;
 use App\Enums\PayoutPreference;
 use App\Enums\PayoutStatus;
 use App\Models\Account;
+use App\Models\AppSetting;
+use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\Payout;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -27,7 +29,7 @@ class ProcessWeeklyAutoPayoutJob implements ShouldBeUnique, ShouldQueue
 
     public function handle(): void
     {
-        $minPayout = (int) config('wallet.min_payout', 100000);
+        $minPayout = (int) AppSetting::wallet('min_payout');
 
         $drivers = Driver::where('payout_preference', PayoutPreference::WeeklyAuto)
             ->whereHas('primaryBankAccount', fn ($q) => $q->where('is_verified', true))
@@ -68,10 +70,13 @@ class ProcessWeeklyAutoPayoutJob implements ShouldBeUnique, ShouldQueue
                         'status' => PayoutStatus::Approved,
                         'requested_at' => now(),
                         'approved_at' => now(),
-                        'notes' => 'Weekly auto-payout',
                     ]);
 
-                    ProcessPayoutTransferJob::dispatch($payout->id);
+                    AuditLog::record($payout, 'payout.auto_requested', null, null, [
+                        'preference' => PayoutPreference::WeeklyAuto->value,
+                    ]);
+
+                    ProcessPayoutTransferJob::dispatch($payout->id)->afterCommit();
 
                     $processed++;
                 });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Driver;
 
+use App\Models\AppSetting;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePayoutRequest extends FormRequest
@@ -14,13 +15,13 @@ class StorePayoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'integer', 'min:'.config('wallet.min_payout', 100000)],
+            'amount' => ['required', 'integer', 'min:'.AppSetting::wallet('min_payout')],
         ];
     }
 
     public function messages(): array
     {
-        $minNaira = config('wallet.min_payout', 100000) / 100;
+        $minNaira = AppSetting::wallet('min_payout') / 100;
 
         return [
             'amount.min' => "Minimum payout amount is ₦{$minNaira}.",

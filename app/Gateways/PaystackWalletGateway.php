@@ -16,7 +16,7 @@ class PaystackWalletGateway implements WalletGateway
 
     public function initializePayment(array $data): array
     {
-        $amount = isset($data['amount']) ? (int) ($data['amount'] * 100) : 0;
+        $amount = isset($data['amount']) ? (int) round($data['amount'] * 100) : 0;
 
         $payload = [
             'reference' => $data['tx_ref'],
@@ -67,7 +67,7 @@ class PaystackWalletGateway implements WalletGateway
         $response = $this->request('post', '/transfer', [
             'source' => 'balance',
             'reason' => $data['narration'] ?? '',
-            'amount' => (int) ($data['amount'] * 100),
+            'amount' => (int) round($data['amount'] * 100),
             'recipient' => $recipientCode,
             'reference' => $data['reference'],
         ]);

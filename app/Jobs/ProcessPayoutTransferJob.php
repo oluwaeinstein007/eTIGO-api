@@ -3,12 +3,11 @@
 namespace App\Jobs;
 
 use App\Contracts\WalletGateway;
-use App\Enums\AccountType;
-use App\Enums\LedgerEntryType;
+use App\Enums\NotificationType;
 use App\Enums\PayoutStatus;
-use App\Models\Journal;
 use App\Models\Payout;
-use App\Services\LedgerService;
+use App\Notifications\PayoutStatusNotification;
+use App\Services\PayoutLedgerService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,7 +15,6 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
@@ -36,9 +34,9 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         return $this->payoutId;
     }
 
-    public function handle(WalletGateway $walletGateway, LedgerService $ledgerService): void
+    public function handle(WalletGateway $walletGateway, PayoutLedgerService $payoutLedger): void
     {
-        $payout = Payout::with(['bankAccount', 'driver'])->findOrFail($this->payoutId);
+        $payout = Payout::with(['bankAccount', 'driver.user'])->findOrFail($this->payoutId);
 
         if (! $payout->isApproved()) {
             Log::warning("Payout {$this->payoutId} is not in approved status, skipping.");
@@ -46,21 +44,15 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $driverAccount = $ledgerService->findOrCreateAccount(
-            'App\\Models\\Driver',
-            $payout->driver_id,
-            AccountType::DriverEarningsAvailable,
-        );
-        $pspClearingAccount = $ledgerService->systemAccount(AccountType::PspClearing);
+        // The money is reserved in the ledger before it leaves; a retried
+        // payout whose earlier attempt was reversed is debited again.
+        try {
+            $payoutLedger->debit($payout);
+        } catch (\DomainException $e) {
+            $this->markFailed($payout, $e->getMessage());
 
-        $ledgerService->postJournal([
-            ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $payout->amount],
-            ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $payout->amount],
-        ], [
-            'description' => "Payout debit for payout {$payout->id}",
-            'idempotency_key' => "payout-debit-{$payout->id}",
-            'metadata' => ['payout_id' => $payout->id],
-        ]);
+            return;
+        }
 
         $reference = "PAYOUT-{$payout->id}";
 
@@ -86,25 +78,27 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
         } catch (ConnectionException $e) {
             Log::error("Payout transfer network error: {$payout->id}", ['error' => $e->getMessage()]);
+
             throw $e;
         } catch (\Throwable $e) {
-            $payout->update([
-                'status' => PayoutStatus::Failed,
-                'failure_reason' => $e->getMessage(),
-            ]);
-
-            $journal = DB::table('journals')
-                ->where('idempotency_key', "payout-debit-{$payout->id}")
-                ->first();
-
-            if ($journal) {
-                $ledgerService->reverse(
-                    Journal::find($journal->id),
-                    "Payout failed: reversal for payout {$payout->id}"
-                );
-            }
+            $payoutLedger->reverseActiveDebit($payout, "Payout failed: reversal for payout {$payout->id}");
+            $this->markFailed($payout, $e->getMessage());
 
             Log::error("Payout transfer failed: {$payout->id}", ['error' => $e->getMessage()]);
         }
+    }
+
+    private function markFailed(Payout $payout, string $reason): void
+    {
+        $payout->update([
+            'status' => PayoutStatus::Failed,
+            'failure_reason' => $reason,
+        ]);
+
+        rescue(fn () => $payout->driver?->user?->notify(new PayoutStatusNotification(
+            $payout->amount,
+            NotificationType::PayoutFailed,
+            $reason,
+        )));
     }
 }

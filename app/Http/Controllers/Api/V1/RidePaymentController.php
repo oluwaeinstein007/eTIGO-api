@@ -31,10 +31,17 @@ class RidePaymentController extends Controller
 
         $amountCollected = $request->validated('amount_collected');
 
-        $payment = $this->paymentService->confirmCashCollection(
-            $payment,
-            $amountCollected !== null ? (float) $amountCollected : null,
-        );
+        try {
+            $payment = $this->paymentService->confirmCashCollection(
+                $payment,
+                $amountCollected !== null ? (float) $amountCollected : null,
+            );
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => ['amount_collected' => [$e->getMessage()]],
+            ], 422);
+        }
 
         AuditLog::record($ride, 'cash_collected', $request->user());
 

@@ -2,14 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Enums\AccountStatus;
 use App\Enums\AccountType;
-use App\Models\Account;
+use App\Services\LedgerService;
 use Illuminate\Database\Seeder;
 
 class SystemAccountSeeder extends Seeder
 {
-    public function run(): void
+    public function run(LedgerService $ledgerService): void
     {
         $systemAccounts = [
             AccountType::PlatformCommission,
@@ -18,21 +17,9 @@ class SystemAccountSeeder extends Seeder
         ];
 
         foreach ($systemAccounts as $type) {
-            Account::firstOrCreate(
-                [
-                    'owner_type' => 'system',
-                    'owner_id' => '00000000-0000-0000-0000-000000000000',
-                    'type' => $type,
-                ],
-                [
-                    'currency' => 'NGN',
-                    'status' => AccountStatus::Active,
-                    'balance' => 0,
-                    'balance_version' => 0,
-                ],
-            );
+            $ledgerService->systemAccount($type);
 
-            $this->command->info("System account [{$type->value}] ensured.");
+            $this->command?->info("System account [{$type->value}] ensured.");
         }
     }
 }

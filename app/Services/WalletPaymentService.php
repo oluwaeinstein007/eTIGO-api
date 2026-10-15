@@ -7,6 +7,7 @@ use App\Enums\HoldStatus;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentStatus;
 use App\Models\Account;
+use App\Models\AppSetting;
 use App\Models\Driver;
 use App\Models\Hold;
 use App\Models\Ride;
@@ -50,7 +51,7 @@ class WalletPaymentService
                 'ride_id' => $ride->id,
                 'amount' => $estimateAmountKobo,
                 'status' => HoldStatus::Active,
-                'expires_at' => now()->addHours(config('wallet.hold_expiry_hours', 4)),
+                'expires_at' => now()->addHours(AppSetting::wallet('hold_expiry_hours')),
                 'created_at' => now(),
             ]);
         });
@@ -98,7 +99,7 @@ class WalletPaymentService
                 $commission = $this->commissionService->calculate($chargeAmount, $driver->id);
 
                 $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
-                $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
+                $earningsAccountType = AppSetting::wallet('settlement_delay') === 'instant'
                     ? AccountType::DriverEarningsAvailable
                     : AccountType::DriverEarningsPending;
                 $driverAccount = $this->ledgerService->findOrCreateAccount(

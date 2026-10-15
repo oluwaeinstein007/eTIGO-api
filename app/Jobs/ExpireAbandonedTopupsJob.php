@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enums\WalletTransactionStatus;
+use App\Models\AppSetting;
 use App\Models\WalletTransaction;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,7 +19,7 @@ class ExpireAbandonedTopupsJob implements ShouldQueue
 
     public function handle(): void
     {
-        $threshold = now()->subMinutes(config('wallet.abandoned_topup_minutes', 30));
+        $threshold = now()->subMinutes(AppSetting::wallet('abandoned_topup_minutes'));
 
         $pending = WalletTransaction::where('status', WalletTransactionStatus::Pending)
             ->where('created_at', '<', $threshold)

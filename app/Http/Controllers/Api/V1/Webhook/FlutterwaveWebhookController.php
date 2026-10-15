@@ -10,8 +10,9 @@ use App\Jobs\ProcessPayoutWebhookJob;
 use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\Payment;
 use App\Models\WebhookEvent;
-use App\Services\DriverEarningsService;
 use App\Services\FlutterwavePaymentGateway;
+use App\Services\RideSettlementService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -37,7 +38,7 @@ class FlutterwaveWebhookController extends Controller
         if ($secretHash) {
             $signature = $request->header('verif-hash');
 
-            if (! $signature || $signature !== $secretHash) {
+            if (! $signature || ! hash_equals($secretHash, (string) $signature)) {
                 Log::warning('Flutterwave webhook: invalid signature');
 
                 return response()->json(['message' => 'Invalid signature.'], 403);
@@ -51,20 +52,26 @@ class FlutterwaveWebhookController extends Controller
 
         $existing = WebhookEvent::where('provider', 'flutterwave')
             ->where('event_id', $eventId)
-            ->first();
+            ->where('event_type', $eventType)
+            ->exists();
 
         if ($existing) {
             return response()->json(['message' => 'Already processed.']);
         }
 
-        $webhookEvent = WebhookEvent::create([
-            'provider' => 'flutterwave',
-            'event_id' => $eventId,
-            'event_type' => $eventType,
-            'payload' => $payload,
-            'signature' => $request->header('verif-hash'),
-            'created_at' => now(),
-        ]);
+        try {
+            $webhookEvent = WebhookEvent::create([
+                'provider' => 'flutterwave',
+                'event_id' => $eventId,
+                'event_type' => $eventType,
+                'payload' => $payload,
+                'signature' => $request->header('verif-hash'),
+                'created_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent delivery of the same event won the race.
+            return response()->json(['message' => 'Already processed.']);
+        }
 
         match ($eventType) {
             'charge.completed' => $this->handleChargeCompleted($data, $webhookEvent),
@@ -149,7 +156,9 @@ class FlutterwaveWebhookController extends Controller
             $verifiedAmount = (float) $verification['amount'];
             $verifiedCurrency = $verification['currency'] ?? 'NGN';
 
-            if ((float) $payment->amount !== $verifiedAmount || strcasecmp($payment->currency ?? 'NGN', $verifiedCurrency) !== 0) {
+            $amountMatches = (int) round((float) $payment->amount * 100) === (int) round($verifiedAmount * 100);
+
+            if (! $amountMatches || strcasecmp($payment->currency ?? 'NGN', $verifiedCurrency) !== 0) {
                 Log::warning('Flutterwave webhook: amount/currency mismatch', [
                     'payment_id' => $payment->id,
                     'expected_amount' => $payment->amount,
@@ -184,10 +193,9 @@ class FlutterwaveWebhookController extends Controller
 
         if ($wasPending && $newStatus === PaymentStatus::Captured && $payment->ride) {
             try {
-                $fareAmountKobo = (int) round((float) $payment->amount * 100);
-                app(DriverEarningsService::class)->creditRideEarnings($payment->ride, $fareAmountKobo);
+                app(RideSettlementService::class)->applyPayment($payment->ride, $payment->fresh());
             } catch (\Throwable $e) {
-                Log::error('Webhook: failed to credit driver earnings', [
+                Log::error('Webhook: failed to settle driver earnings for captured payment', [
                     'payment_id' => $payment->id,
                     'ride_id' => $payment->ride_id,
                     'error' => $e->getMessage(),
@@ -222,7 +230,7 @@ class FlutterwaveWebhookController extends Controller
 
         $reason = $data['complete_message'] ?? ($data['narration'] ?? null);
 
-        ProcessPayoutWebhookJob::dispatch($transferId, $status, $reason);
+        ProcessPayoutWebhookJob::dispatch($transferId, $status, $reason, $data['reference'] ?? null);
 
         $webhookEvent->markProcessed();
     }

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AdminWalletSettingsController extends Controller
 {
@@ -42,10 +44,32 @@ class AdminWalletSettingsController extends Controller
             'abandoned_topup_minutes' => ['sometimes', 'integer', 'min:5', 'max:1440'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $current = AppSetting::getWalletSettings();
+        $merged = array_merge($current, $validated);
+
+        $errors = [];
+        if ($merged['min_topup'] > $merged['max_balance']) {
+            $errors['min_topup'][] = 'The minimum top-up cannot exceed the maximum wallet balance.';
+        }
+        if ($merged['min_topup'] > $merged['daily_topup_cap']) {
+            $errors['min_topup'][] = 'The minimum top-up cannot exceed the daily top-up cap.';
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        DB::transaction(function () use ($validated, $current, $request) {
             foreach ($validated as $key => $value) {
                 AppSetting::setValue("wallet.{$key}", $value, 'wallet');
             }
+
+            AuditLog::record(
+                $request->user(),
+                'wallet_settings.updated',
+                $request->user(),
+                array_intersect_key($current, $validated),
+                $validated,
+            );
         });
 
         $settings = AppSetting::getWalletSettings();

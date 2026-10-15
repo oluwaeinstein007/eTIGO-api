@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\AppSetting;
 use App\Models\Driver;
 use App\Models\Ride;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +39,7 @@ class DriverEarningsService
             );
 
             if ($commission['commission'] > 0) {
-                $maxNegative = config('wallet.max_negative_balance', -500000);
+                $maxNegative = AppSetting::wallet('max_negative_balance');
                 $projectedBalance = $driverAccount->balance - $commission['commission'];
 
                 if ($projectedBalance < $maxNegative) {
@@ -67,7 +68,7 @@ class DriverEarningsService
                 ]);
             }
         } else {
-            $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
+            $earningsAccountType = AppSetting::wallet('settlement_delay') === 'instant'
                 ? AccountType::DriverEarningsAvailable
                 : AccountType::DriverEarningsPending;
 
@@ -98,6 +99,40 @@ class DriverEarningsService
                 ],
             ]);
         }
+    }
+
+    /**
+     * Credit a card tip to the driver in full (tips carry no commission).
+     * Cash tips are handed over directly and never touch the ledger.
+     */
+    public function creditTip(Ride $ride, int $tipAmountKobo): void
+    {
+        if ($tipAmountKobo <= 0) {
+            return;
+        }
+
+        $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+
+        $driverAccount = $this->ledgerService->findOrCreateAccount(
+            'App\\Models\\Driver',
+            $driver->id,
+            AppSetting::wallet('settlement_delay') === 'instant'
+                ? AccountType::DriverEarningsAvailable
+                : AccountType::DriverEarningsPending,
+        );
+        $pspClearingAccount = $this->ledgerService->systemAccount(AccountType::PspClearing);
+
+        $this->ledgerService->postJournal([
+            ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $tipAmountKobo],
+            ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $tipAmountKobo],
+        ], [
+            'description' => "Card tip for ride {$ride->id}",
+            'idempotency_key' => "tip-{$ride->id}",
+            'metadata' => [
+                'ride_id' => $ride->id,
+                'tip_kobo' => $tipAmountKobo,
+            ],
+        ]);
     }
 
     /**
@@ -140,6 +175,6 @@ class DriverEarningsService
             return false;
         }
 
-        return $account->balance < config('wallet.max_negative_balance', -500000);
+        return $account->balance < AppSetting::wallet('max_negative_balance');
     }
 }

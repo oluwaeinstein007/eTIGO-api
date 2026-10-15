@@ -3,9 +3,8 @@
 namespace App\Jobs;
 
 use App\Enums\PayoutStatus;
-use App\Models\Journal;
 use App\Models\Payout;
-use App\Services\LedgerService;
+use App\Services\PayoutLedgerService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
@@ -23,24 +22,24 @@ class PayoutFailureReversalJob implements ShouldQueue
 
     public function __construct(public readonly string $payoutId) {}
 
-    public function handle(LedgerService $ledgerService): void
+    public function handle(PayoutLedgerService $payoutLedger): void
     {
-        $journal = Journal::where('idempotency_key', "payout-debit-{$this->payoutId}")->first();
+        $payout = Payout::find($this->payoutId);
 
-        if (! $journal) {
-            Log::warning("No debit journal found for payout {$this->payoutId}");
-
-            return;
-        }
-
-        $reversalExists = Journal::where('idempotency_key', "REV-{$journal->reference}")->exists();
-        if ($reversalExists) {
-            Log::info("Payout debit already reversed for payout {$this->payoutId}");
+        if (! $payout) {
+            Log::warning("Payout {$this->payoutId} not found for reversal");
 
             return;
         }
 
-        $ledgerService->reverse($journal, "Payout failure reversal for payout {$this->payoutId}");
+        $reversal = $payoutLedger->reverseActiveDebit(
+            $payout,
+            "Payout failure reversal for payout {$this->payoutId}",
+        );
+
+        if (! $reversal) {
+            Log::info("No active debit to reverse for payout {$this->payoutId}");
+        }
 
         Payout::where('id', $this->payoutId)
             ->where('status', PayoutStatus::Failed)

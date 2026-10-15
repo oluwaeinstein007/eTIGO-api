@@ -13,8 +13,8 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Notifications\CashChangeWalletCreditNotification;
-use App\Services\FakePaymentGateway;
 use App\Services\DriverEarningsService;
+use App\Services\FakePaymentGateway;
 use App\Services\FleetRemittanceService;
 use App\Services\LedgerService;
 use App\Services\PaymentService;
@@ -614,7 +614,7 @@ describe('Cash Change → Wallet Credit', function () {
                 'amount_collected' => 5000,
             ]);
 
-        $response->assertStatus(500);
+        $response->assertUnprocessable();
     });
 
     it('rejects overpayment that would exceed wallet max balance', function () {
@@ -651,6 +651,6 @@ describe('Cash Change → Wallet Credit', function () {
                 'amount_collected' => 1900,
             ]);
 
-        $response->assertStatus(500);
+        $response->assertUnprocessable();
     });
 });

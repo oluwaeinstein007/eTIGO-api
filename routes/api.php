@@ -294,7 +294,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
         Route::get('/', [WalletController::class, 'show']);
         Route::get('/transactions', [WalletController::class, 'transactions']);
         Route::post('/topup', [WalletTopupController::class, 'store'])->middleware('throttle:10,1');
-        Route::get('/topup/{transactionId}/verify', [WalletTopupController::class, 'verify']);
+        Route::get('/topup/{reference}/verify', [WalletTopupController::class, 'verify']);
     });
 
     Route::prefix('disputes')->group(function () {

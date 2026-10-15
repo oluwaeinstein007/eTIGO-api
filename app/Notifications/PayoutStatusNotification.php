@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Enums\NotificationType;
+use App\Notifications\Channels\AppNotificationChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -19,7 +20,7 @@ class PayoutStatusNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return [AppNotificationChannel::class];
     }
 
     public function toArray(object $notifiable): array
@@ -30,6 +31,7 @@ class PayoutStatusNotification extends Notification implements ShouldQueue
             NotificationType::PayoutApproved => "Your payout of ₦{$amountNaira} has been approved and is being processed.",
             NotificationType::PayoutPaid => "₦{$amountNaira} has been sent to your bank account.",
             NotificationType::PayoutFailed => "Your payout of ₦{$amountNaira} failed.".($this->failureReason ? " Reason: {$this->failureReason}" : ''),
+            NotificationType::PayoutRejected => "Your payout request of ₦{$amountNaira} was declined.".($this->failureReason ? " Reason: {$this->failureReason}" : ''),
             default => "Payout update: ₦{$amountNaira}.",
         };
 

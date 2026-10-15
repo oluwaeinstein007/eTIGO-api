@@ -10,7 +10,8 @@ use App\Jobs\ProcessPayoutWebhookJob;
 use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\Payment;
 use App\Models\WebhookEvent;
-use App\Services\DriverEarningsService;
+use App\Services\RideSettlementService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -51,20 +52,26 @@ class PaystackWebhookController extends Controller
 
         $existing = WebhookEvent::where('provider', 'paystack')
             ->where('event_id', $eventId)
-            ->first();
+            ->where('event_type', $eventType)
+            ->exists();
 
         if ($existing) {
             return response()->json(['message' => 'Already processed.']);
         }
 
-        $webhookEvent = WebhookEvent::create([
-            'provider' => 'paystack',
-            'event_id' => $eventId,
-            'event_type' => $eventType,
-            'payload' => $payload,
-            'signature' => $request->header('x-paystack-signature'),
-            'created_at' => now(),
-        ]);
+        try {
+            $webhookEvent = WebhookEvent::create([
+                'provider' => 'paystack',
+                'event_id' => $eventId,
+                'event_type' => $eventType,
+                'payload' => $payload,
+                'signature' => $request->header('x-paystack-signature'),
+                'created_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent delivery of the same event won the race.
+            return response()->json(['message' => 'Already processed.']);
+        }
 
         match ($eventType) {
             'charge.success' => $this->handleChargeSuccess($data, $webhookEvent),
@@ -97,14 +104,17 @@ class PaystackWebhookController extends Controller
     private function handleRidePaymentCharge(array $data, WebhookEvent $webhookEvent): void
     {
         $transactionId = (string) ($data['id'] ?? '');
+        $reference = (string) ($data['reference'] ?? '');
 
-        if (! $transactionId) {
+        if (! $transactionId || ! $reference) {
             $webhookEvent->markProcessed();
 
             return;
         }
 
-        $verification = $this->paymentGateway->verifyTransaction($transactionId);
+        // Paystack's verify endpoint is keyed by the transaction reference, not
+        // by its numeric id.
+        $verification = $this->paymentGateway->verifyTransaction($reference);
 
         $payment = Payment::where('gateway_transaction_id', $transactionId)->first();
 
@@ -149,7 +159,9 @@ class PaystackWebhookController extends Controller
             $verifiedAmount = (float) $verification['amount'];
             $verifiedCurrency = $verification['currency'] ?? 'NGN';
 
-            if ((float) $payment->amount !== $verifiedAmount || strcasecmp($payment->currency ?? 'NGN', $verifiedCurrency) !== 0) {
+            $amountMatches = (int) round((float) $payment->amount * 100) === (int) round($verifiedAmount * 100);
+
+            if (! $amountMatches || strcasecmp($payment->currency ?? 'NGN', $verifiedCurrency) !== 0) {
                 Log::warning('Paystack webhook: amount/currency mismatch', [
                     'payment_id' => $payment->id,
                     'expected_amount' => $payment->amount,
@@ -186,10 +198,9 @@ class PaystackWebhookController extends Controller
 
         if ($wasPending && $newStatus === PaymentStatus::Captured && $payment->ride) {
             try {
-                $fareAmountKobo = (int) round((float) $payment->amount * 100);
-                app(DriverEarningsService::class)->creditRideEarnings($payment->ride, $fareAmountKobo);
+                app(RideSettlementService::class)->applyPayment($payment->ride, $payment->fresh());
             } catch (\Throwable $e) {
-                Log::error('Webhook: failed to credit driver earnings', [
+                Log::error('Webhook: failed to settle driver earnings for captured payment', [
                     'payment_id' => $payment->id,
                     'ride_id' => $payment->ride_id,
                     'error' => $e->getMessage(),
@@ -224,7 +235,7 @@ class PaystackWebhookController extends Controller
 
         $reason = $data['reason'] ?? ($data['narration'] ?? null);
 
-        ProcessPayoutWebhookJob::dispatch($transferId, $status, $reason);
+        ProcessPayoutWebhookJob::dispatch($transferId, $status, $reason, $data['reference'] ?? null);
 
         $webhookEvent->markProcessed();
     }
