@@ -20,8 +20,6 @@ use Illuminate\Support\Facades\Cache;
  */
 class SimulateDemoDriversCommand extends Command
 {
-    public const EMAIL_DOMAIN = 'ops-demo.etigo.com';
-
     /**
      * Drivers stop short of their target so a ride never looks finished
      * without the driver app moving it on.
@@ -35,6 +33,11 @@ class SimulateDemoDriversCommand extends Command
         {--interval=15 : Seconds between reports when looping}';
 
     protected $description = 'Report locations for the demo drivers seeded by MonitoringDemoSeeder (non-production only)';
+
+    public static function emailDomain(): string
+    {
+        return (string) config('matching.demo_driver_email_domain');
+    }
 
     public static function homeCacheKey(string $driverId): string
     {
@@ -67,7 +70,7 @@ class SimulateDemoDriversCommand extends Command
     {
         $drivers = Driver::where('status', DriverStatus::Approved)
             ->where('is_online', true)
-            ->whereHas('user', fn ($q) => $q->where('type', UserType::Driver)->where('email', 'like', '%@'.self::EMAIL_DOMAIN))
+            ->whereHas('user', fn ($q) => $q->where('type', UserType::Driver)->where('email', 'like', '%@'.self::emailDomain()))
             ->get();
 
         if ($drivers->isEmpty()) {

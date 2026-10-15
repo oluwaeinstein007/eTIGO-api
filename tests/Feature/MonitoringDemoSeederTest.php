@@ -5,6 +5,7 @@ use App\Events\DriverLocationUpdated;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\GamificationProfile;
+use App\Models\Rating;
 use App\Models\Ride;
 use App\Models\SosIncident;
 use App\Models\User;
@@ -39,7 +40,9 @@ it('seeds pending rides, a ride at every active stage and passengers in each tie
         ->toBe([RideStatus::Cancelled])
         ->and(SosIncident::active()->count())->toBe(1)
         ->and(Driver::where('is_online', true)->count())->toBe(10)
-        ->and(GamificationProfile::pluck('current_tier')->unique()->sort()->values()->all())->toBe([1, 2, 3, 4, 5]);
+        ->and(GamificationProfile::pluck('current_tier')->unique()->sort()->values()->all())->toBe([1, 2, 3, 4, 5])
+        ->and(Rating::distinct()->count('rated_user_id'))->toBe(10)
+        ->and(Rating::count())->toBe(20);
 });
 
 it('moves a demo driver on its way towards the pickup', function () {
