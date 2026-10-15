@@ -104,10 +104,11 @@ class DriverMatchingService
     /**
      * Priority matching never sends a passenger a farther driver: every ride
      * is offered its nearest eligible driver. What priority decides is who
-     * gets a scarce driver: a free driver within the current search radius of
-     * a priority ride that is waiting for its next search (between radius
-     * tiers or retry waves) is kept for that ride instead of being offered to
-     * a standard ride.
+     * gets a scarce driver: a priority ride waiting for its next search
+     * (between radius tiers or retry waves) keeps the driver it would be
+     * offered next, the nearest free driver within its current radius,
+     * instead of that driver going to a standard ride. Every other driver
+     * stays available to everyone.
      *
      * @param  Collection<int, Driver>  $candidates
      * @return list<string> Ids of the drivers held for a priority ride
@@ -124,6 +125,7 @@ class DriverMatchingService
             ->where('city_id', $ride->city_id)
             ->where('vehicle_class_id', $ride->vehicle_class_id)
             ->whereRaw("(pricing_snapshot->>'priority_matching')::boolean")
+            ->oldest()
             ->get()
             ->filter(fn (Ride $priority) => $this->getDispatchedDriverId($priority) === null);
 
@@ -131,24 +133,29 @@ class DriverMatchingService
             return [];
         }
 
+        $positions = $candidates
+            ->mapWithKeys(fn (Driver $driver) => [$driver->id => $this->locationService->getDriverLocation((string) $driver->id)])
+            ->filter();
+        $userIds = $candidates->pluck('user_id', 'id');
+
         $held = [];
 
-        foreach ($candidates as $driver) {
-            $location = $this->locationService->getDriverLocation((string) $driver->id);
+        // Earliest booking first, so two waiting priority rides never hold the same driver.
+        foreach ($waiting as $priority) {
+            $radius = $this->calculateCurrentRadius($priority);
+            $rejected = $this->getRejectedDriverIds($priority);
 
-            if ($location === null) {
-                continue;
-            }
+            $next = $positions
+                ->reject(fn (array $position, string $driverId) => in_array($driverId, $held, true)
+                    || in_array($userIds[$driverId], $rejected, true))
+                ->map(fn (array $position) => $this->distanceKm($position['lat'], $position['lng'], (float) $priority->pickup_lat, (float) $priority->pickup_lng))
+                ->filter(fn (float $distance) => $distance <= $radius)
+                ->sort()
+                ->keys()
+                ->first();
 
-            foreach ($waiting as $priority) {
-                $withinReach = $this->distanceKm($location['lat'], $location['lng'], (float) $priority->pickup_lat, (float) $priority->pickup_lng)
-                    <= $this->calculateCurrentRadius($priority);
-
-                if ($withinReach && ! in_array($driver->user_id, $this->getRejectedDriverIds($priority), true)) {
-                    $held[] = $driver->id;
-
-                    break;
-                }
+            if ($next !== null) {
+                $held[] = $next;
             }
         }
 

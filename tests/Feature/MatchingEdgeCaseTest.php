@@ -222,6 +222,27 @@ it('keeps a driver near a waiting Gold passenger for that passenger rather than 
         ->and(array_column($matching->findEligibleDrivers($priority, 3.0), 'user_id'))->toBe([$driver['user']->id]);
 });
 
+it('holds only the driver a waiting Gold passenger would be offered next', function () {
+    $next = onlineDriver($this);
+    $other = onlineDriver($this);
+    rideInStatus($this, RideStatus::Searching, ['pickup_lat' => 6.5244, 'pickup_lng' => 3.3792, 'pricing_snapshot' => ['priority_matching' => true]]);
+    $standard = rideInStatus($this, RideStatus::Searching, ['pickup_lat' => 6.5300, 'pickup_lng' => 3.3800]);
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('findNearbyDrivers')->andReturn([
+        ['driver_id' => $next['driver']->id, 'distance_km' => 0.6],
+        ['driver_id' => $other['driver']->id, 'distance_km' => 1.1],
+    ]);
+    // Both are within the Gold ride's radius; the first is nearer to its pickup.
+    $locations->shouldReceive('getDriverLocation')->andReturnUsing(fn (string $driverId) => [
+        'lat' => $driverId === $next['driver']->id ? 6.5250 : 6.5400,
+        'lng' => 3.3795, 'heading' => 0.0, 'speed' => 0.0, 'timestamp' => now()->timestamp,
+    ]);
+
+    $candidates = (new DriverMatchingService($locations))->findEligibleDrivers($standard, 3.0);
+
+    expect(array_column($candidates, 'user_id'))->toBe([$other['user']->id]);
+});
+
 it('offers a Gold passenger the nearest driver, never a farther one', function () {
     $near = onlineDriver($this);
     $far = onlineDriver($this);
