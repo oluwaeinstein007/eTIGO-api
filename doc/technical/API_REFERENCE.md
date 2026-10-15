@@ -6087,27 +6087,45 @@ GET /rides/{ride}/share/{token}
 
 **Allowed Roles:** Operations (Super Admin always has access)
 
+**Common errors (every endpoint in this section and in Manual Assignment):**
+
+| Status | `error_code` | When |
+|--------|--------------|------|
+| `401` | `UNAUTHENTICATED` | Missing or expired token |
+| `403` | — | `"Forbidden. Insufficient admin privileges."` — the admin is not Operations or Super Admin |
+| `404` | `NOT_FOUND` | `"Resource not found."` — the `{ride}` id does not exist |
+| `422` | `INVALID_PARAMETER` | A filter such as `city_id` is not a valid UUID |
+
 ### WebSocket: Real-Time Events
 
-Subscribe to the private channel `admin.rides` via Laravel Reverb/Echo to receive live updates:
+Subscribe to the private channel `admin.rides` (Echo: `Echo.private('admin.rides')`, events are listened to with a leading dot, e.g. `.listen('.ride.status.updated', …)`). Authorise with `POST /broadcasting/auth` and the admin bearer token.
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `driver.location.updated` | `driver_id, lat, lng, heading, speed, timestamp, ride_id, eta` | Driver GPS position update (~1/sec per active driver) |
-| `ride.status.updated` | `ride_id, passenger_id, driver_id, previous_status, status, actor_type, actor_id, occurred_at` | Ride state transition (e.g. requested → searching → matched → driver_en_route → driver_arrived → in_progress → completed) |
+| `driver.location.updated` | `driver_id, lat, lng, heading, speed, timestamp, ride_id, eta` | A driver's position. Sent each time a driver app reports its location (about every few seconds while online). `ride_id` and `eta` (`distance_km`, `duration_minutes`) are set while the driver is on a ride. `driver_id` is the driver profile id (`drivers[].driver_id` in Online Drivers). |
+| `ride.status.updated` | `ride_id, passenger_id, driver_id, previous_status, status, actor_type, actor_id, occurred_at` | Every ride state change. |
+
+**Keeping the pending list and the dashboard current** — all three cases arrive as `ride.status.updated`; refetch the list (or patch the row by `ride_id`) when you see them:
+
+| What happened | How to recognise it |
+|---------------|---------------------|
+| New ride waiting for a driver | `status` = `searching` and `previous_status` = `requested` |
+| Ride found no driver (still needs attention) | `status` = `no_driver_found` |
+| Ride matched (by a driver accepting, or by an admin assigning) | `status` = `matched` (an admin assignment is followed straight away by `driver_en_route`, with `actor_type` = `admin`) |
+| Ride cancelled | `status` = `cancelled` |
 
 ### List Active Rides
 ```
 GET /admin/monitoring/active-rides
 ```
 
-Returns all rides in active (non-terminal) status with current driver GPS positions. Use this for initial map population on dashboard load.
+Returns all rides in an active status (`requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived`, `in_progress`) with the driver's live position. Use it to fill the map on load, then apply the WebSocket events above.
 
 | Param      | Type    | Description |
 |------------|---------|-------------|
 | city_id    | string (UUID) | Filter by city |
-| status     | string  | Filter by specific status |
-| per_page   | integer | Default 50 |
+| status     | string  | Filter by one status |
+| per_page   | integer | Default 50, max 100 |
 
 **Response 200:**
 ```json
@@ -6118,73 +6136,104 @@ Returns all rides in active (non-terminal) status with current driver GPS positi
       "reference_number": "TRP-NG-000142",
       "status": "in_progress",
       "status_label": "In Progress",
-      "pickup": {
-        "lat": "6.5244000",
-        "lng": "3.3792000",
-        "address": "123 Herbert Macaulay Way, Yaba, Lagos"
-      },
-      "destination": {
-        "lat": "6.4541000",
-        "lng": "3.3947000",
-        "address": "456 Broad Street, Lagos Island, Lagos"
-      },
-      "passenger": { "id": "...", "first_name": "Ade", "last_name": "Ogunleye", "phone": "+2348012345678" },
-      "driver": { "id": "...", "first_name": "Chidi", "last_name": "Okonkwo", "phone": "+2348098765432" },
+      "pickup": { "lat": "6.4474000", "lng": "3.4364000", "address": "Bourdillon Road, Ikoyi" },
+      "destination": { "lat": "6.5774000", "lng": "3.3210000", "address": "Murtala Muhammed Airport, Ikeja" },
+      "passenger": { "id": "...", "first_name": "Seyi", "last_name": "Adeniran", "phone": "+2348400000007" },
+      "driver": { "id": "...", "first_name": "Chuka", "last_name": "Eze", "phone": "+2348300000004" },
       "city": { "id": "...", "name": "Lagos" },
       "vehicle_class": { "id": "...", "name": "economy", "display_name": "Economy" },
-      "fare_estimate_amount": "3750.00",
+      "fare_estimate_amount": "4300.00",
       "fare_currency": "NGN",
       "driver_rating": 4.75,
       "driver_location": {
-        "lat": 6.5251,
-        "lng": 3.3801,
-        "heading": 45.0,
-        "speed": 32.5,
-        "timestamp": 1728742800
+        "lat": 6.5014,
+        "lng": 3.3892,
+        "heading": 315.2,
+        "speed": 28,
+        "timestamp": 1792065600,
+        "updated_at": "2026-10-15T14:00:00+00:00"
+      },
+      "eta": {
+        "target": "destination",
+        "distance_km": 12.4,
+        "duration_minutes": 24.8
       },
       "stage_timestamps": {
-        "requested_at": "2026-10-06T14:00:00.000000Z",
-        "matched_at": "2026-10-06T14:00:35.000000Z",
-        "driver_arrived_at": "2026-10-06T14:08:00.000000Z",
-        "started_at": "2026-10-06T14:10:00.000000Z"
+        "requested_at": "2026-10-15T13:33:00+00:00",
+        "matched_at": "2026-10-15T13:35:00+00:00",
+        "driver_en_route_at": "2026-10-15T13:35:00+00:00",
+        "driver_arrived_at": "2026-10-15T13:44:00+00:00",
+        "started_at": "2026-10-15T13:46:00+00:00"
       },
-      "has_active_sos": false,
-      "sos": null,
-      "created_at": "2026-10-06T14:00:00.000000Z",
-      "..."
+      "has_active_sos": true,
+      "sos": {
+        "id": "5b1c…",
+        "status": "triggered",
+        "trigger_type": "passenger",
+        "raised_by": {
+          "role": "passenger",
+          "user_id": "…",
+          "name": "Seyi Adeniran"
+        },
+        "created_at": "2026-10-15T13:57:00+00:00"
+      },
+      "created_at": "2026-10-15T13:33:00.000000Z",
+      "...": "..."
     }
   ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 50,
-    "total": 12
-  },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 50, "total": 12 },
   "summary": {
     "total_active": 12,
-    "by_status": {
-      "requested": 2,
-      "searching": 1,
-      "matched": 1,
-      "driver_en_route": 3,
-      "in_progress": 5
-    }
+    "by_status": { "requested": 2, "searching": 1, "matched": 1, "driver_en_route": 3, "driver_arrived": 1, "in_progress": 4 }
   }
 }
 ```
 
 **Per-ride fields:**
-- `driver_rating` (float, nullable) — The driver's average rating.
-- `stage_timestamps` (object) — ISO 8601 timestamps for each ride stage: `requested_at`, `matched_at`, `driver_arrived_at`, `started_at` (all nullable).
-- `has_active_sos` (boolean) — Whether the ride has an active SOS incident.
-- `sos` (object, nullable) — Present when `has_active_sos` is `true`. Contains: `id`, `status`, `trigger_type`, `created_at`.
+- `driver_rating` (float, nullable) — the driver's average rating. Only present when the ride has a driver.
+- `driver_location` (object, nullable) — the driver's last reported position: `lat`, `lng`, `heading`, `speed`, `timestamp` (Unix seconds) and `updated_at` (ISO 8601). `null` when the driver app has not reported for 5 minutes. Turning it into a street name is left to the client.
+- `eta` (object, nullable) — `target` is `pickup` while the ride is `matched` or `driver_en_route` (minutes for the driver to reach the passenger) and `destination` while it is `in_progress` (minutes to the drop-off). `null` in other statuses or without a driver position. It is the ETA last computed from the driver's location reports (routed, refreshed every 30 s) and otherwise a straight-line estimate at 30 km/h.
+- `stage_timestamps` (object) — ISO 8601, all nullable: `requested_at`, `matched_at` (driver accepted, or admin assigned), `driver_en_route_at` (driver set off to the pickup), `driver_arrived_at`, `started_at`.
+- `has_active_sos` (boolean) — whether the ride has an open SOS.
+- `sos` (object) — present only when `has_active_sos` is `true`: `id`, `status`, `trigger_type`, `raised_by`, `created_at`. `trigger_type` and `raised_by.role` both say who raised it (`passenger` or `driver`); `raised_by` adds their `user_id` and `name`.
+
+**"Needs attention" badge on the Rides tab:** use `summary.awaiting_driver` from [List Pending Rides](#list-pending-rides) — it counts unassigned `requested`, `searching` and `no_driver_found` rides. (`summary.by_status` here does not include `no_driver_found`, which is not an active status.)
+
+### Get Ride Detail (with route)
+```
+GET /admin/monitoring/rides/{ride}
+```
+
+One ride in the same shape as an Active Rides row, for the ride details panel, plus:
+
+- `driver_vehicle` (object, nullable) — `make`, `model`, `colour`, `plate_number`, `vehicle_class`.
+- `route` (object, nullable) — the planned driving route from pickup to destination: `encoded_polyline` (Google encoded polyline, precision 5 — decode with `google.maps.geometry.encoding.decodePath` or `@mapbox/polyline`), `distance_km`, `duration_minutes`. Cached per ride for 24 hours. `null` if the routing provider is unavailable; draw a straight pickup–destination line in that case.
+
+Works for any ride status.
+
+**Response 200:**
+```json
+{
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "driver_en_route",
+    "...": "same fields as an Active Rides row",
+    "driver_vehicle": { "make": "Honda", "model": "Civic", "colour": "Grey", "plate_number": "LND-202AB", "vehicle_class": "economy" },
+    "route": {
+      "encoded_polyline": "ezjf@y`kSz@hBf@~@…",
+      "distance_km": 9.8,
+      "duration_minutes": 24.5
+    }
+  }
+}
+```
 
 ### List Online Drivers
 ```
 GET /admin/monitoring/online-drivers
 ```
 
-Returns all online approved drivers with live GPS positions and whether they're currently on a trip.
+Returns all online, approved drivers with their live position and whether they're on a trip.
 
 | Param      | Type    | Description |
 |------------|---------|-------------|
@@ -6197,63 +6246,67 @@ Returns all online approved drivers with live GPS positions and whether they're 
     {
       "driver_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "user_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      "name": "Chidi Okonkwo",
-      "phone": "+2348098765432",
+      "name": "Chuka Eze",
+      "phone": "+2348300000004",
       "reference_number": "D-000001",
+      "rating": 4.75,
       "city": "Lagos",
-      "vehicle": {
-        "make": "Toyota",
-        "model": "Corolla",
-        "plate_number": "APP-123-XY",
-        "colour": "White",
-        "vehicle_class": "Economy"
-      },
+      "vehicle": { "make": "Hyundai", "model": "Elantra", "plate_number": "LND-204AD", "colour": "White", "vehicle_class": "economy" },
       "location": {
-        "lat": 6.5251,
-        "lng": 3.3801,
-        "heading": 45.0,
-        "speed": 0,
-        "timestamp": 1728742800
+        "lat": 6.5014,
+        "lng": 3.3892,
+        "heading": 315.2,
+        "speed": 28,
+        "timestamp": 1792065600,
+        "updated_at": "2026-10-15T14:00:00+00:00"
       },
       "active_ride": {
         "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
         "reference_number": "TRP-NG-000142",
         "status": "in_progress",
-        "pickup_address": "123 Herbert Macaulay Way, Yaba",
-        "destination_address": "456 Broad Street, Lagos Island"
+        "pickup_address": "Bourdillon Road, Ikoyi",
+        "destination_address": "Murtala Muhammed Airport, Ikeja"
       },
-      "rating": 4.75,
       "is_on_trip": true
     }
   ],
-  "summary": {
-    "total_online": 24,
-    "on_trip": 8,
-    "available": 16
-  }
+  "summary": { "total_online": 10, "on_trip": 5, "available": 5 }
 }
 ```
 
+`location` is `null` for a driver whose app has not reported a position in the last 5 minutes (the driver is marked online but is not sending GPS). Such drivers can't be placed on the map.
+
 ---
 
-## Admin — Ride Management
+## Admin — Manual Assignment
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
 
-**Allowed Roles:** Operations (Super Admin always has access)
+**Allowed Roles:** Operations (Super Admin always has access). Common `401`/`403`/`404`/`422 INVALID_PARAMETER` errors are listed under [Admin — Live Monitoring](#admin--live-monitoring).
 
-### List Pending Rides (Unassigned)
+**Flow:** list pending rides → pick one → list available drivers for it → assign.
+
+**Assignment is instant.** There is no request for the driver to accept or decline: the ride moves straight to `matched` → `driver_en_route`, the driver and passenger get a push notification and the ride's WebSocket channel, and admins get `ride.status.updated` on `admin.rides`. Because nothing waits on the driver, there is no answer timeout and nothing to cancel while waiting. To undo an assignment, the ride is cancelled in the usual way.
+
+**Real-time:** keep the list current with `ride.status.updated` on `admin.rides` (see the table under [WebSocket: Real-Time Events](#websocket-real-time-events)) — a new pending ride is `searching`, a matched ride is `matched`/`driver_en_route`, a cancelled ride is `cancelled`.
+
+### List Pending Rides
 ```
 GET /admin/rides/pending
 ```
 
-Returns rides awaiting driver assignment — `requested`, `searching`, or `no_driver_found` status with no driver assigned. Ordered **oldest first** for FIFO processing.
+By default returns rides waiting for a driver — `requested`, `searching` or `no_driver_found` with no driver. Pass `status` to include matched rides too. Ordered **oldest first**.
 
 | Param            | Type    | Description |
 |------------------|---------|-------------|
+| status           | string  | Comma-separated, any of `requested`, `searching`, `no_driver_found`, `matched`, `driver_en_route`. Example: `status=searching,no_driver_found,matched,driver_en_route` shows unmatched and matched rides together. Without it, only unassigned rides are returned. |
+| search           | string  | Case-insensitive partial match on the trip reference (`TRP-…`), passenger full name, city name or vehicle class name |
 | city_id          | string (UUID) | Filter by city |
 | vehicle_class_id | string (UUID) | Filter by vehicle class |
-| per_page         | integer | Default 25 |
+| per_page         | integer | Default 25, max 100 |
+| page             | integer | Page number |
+
+Rides matched by an admin go straight to `driver_en_route`, so include both `matched` and `driver_en_route` for a "Matched" tab.
 
 **Response 200:**
 ```json
@@ -6264,51 +6317,60 @@ Returns rides awaiting driver assignment — `requested`, `searching`, or `no_dr
       "reference_number": "TRP-NG-000142",
       "status": "searching",
       "status_label": "Searching for Driver",
-      "pickup": {
-        "lat": "6.5244000",
-        "lng": "3.3792000",
-        "address": "123 Herbert Macaulay Way, Yaba, Lagos"
-      },
-      "destination": {
-        "lat": "6.4541000",
-        "lng": "3.3947000",
-        "address": "456 Broad Street, Lagos Island, Lagos"
-      },
-      "passenger": { "id": "...", "first_name": "Ade", "last_name": "Ogunleye", "phone": "+2348012345678" },
+      "pickup": { "lat": "6.6143785", "lng": "3.3577680", "address": "Ikeja City Mall, Alausa, Ikeja" },
+      "destination": { "lat": "6.4231205", "lng": "3.4453480", "address": "Landmark Centre, Victoria Island" },
+      "passenger": { "id": "...", "first_name": "Amaka", "last_name": "Nwankwo", "phone": "+2348400000001" },
+      "driver": null,
       "city": { "id": "...", "name": "Lagos" },
       "vehicle_class": { "id": "...", "name": "economy", "display_name": "Economy" },
-      "fare_estimate_amount": "3750.00",
+      "fare_estimate_amount": "4300.00",
       "fare_currency": "NGN",
-      "created_at": "2026-10-06T14:00:00.000000Z"
+      "created_at": "2026-10-15T13:58:00.000000Z"
+    },
+    {
+      "id": "7d2e…",
+      "reference_number": "TRP-NG-000139",
+      "status": "driver_en_route",
+      "status_label": "Driver En Route",
+      "passenger": { "...": "..." },
+      "driver": { "id": "...", "first_name": "Sade", "last_name": "Ogunbiyi", "phone": "+2348300000002" },
+      "driver_rating": 4.6,
+      "matched_at": "2026-10-15T13:54:00+00:00",
+      "driver_vehicle": { "make": "Honda", "model": "Civic", "colour": "Grey", "plate_number": "LND-202AB" },
+      "...": "..."
     }
   ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 25,
-    "total": 3
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 25, "total": 2 },
+  "summary": {
+    "awaiting_driver": 3,
+    "by_status": { "requested": 0, "searching": 2, "no_driver_found": 1, "matched": 1, "driver_en_route": 1 }
   }
 }
 ```
+
+**Fields on a matched ride:** `driver` (name, phone), `driver_rating` (float, nullable), `driver_vehicle` (`make`, `model`, `colour`, `plate_number`) and `matched_at` (when the driver accepted, or the admin assigned).
+
+**`summary`** ignores `status`, `search`, `vehicle_class_id` and paging but follows `city_id`. `awaiting_driver` is the number of unassigned `requested`, `searching` and `no_driver_found` rides — use it for the "needs attention" badge. `by_status` counts every status the list can show.
 
 ### List Available Drivers for a Ride
 ```
 GET /admin/rides/{ride}/available-drivers
 ```
 
-Returns eligible drivers near the ride's pickup point for manual assignment. Sorted **nearest first**.
+Drivers who can take the ride, **nearest first**.
 
 | Param      | Type    | Description |
 |------------|---------|-------------|
-| radius_km  | float   | Search radius (default 5 km) |
-| limit      | integer | Max results (default 20) |
+| radius_km  | number  | Search radius from the pickup, default `5` |
+| limit      | integer | Max results, default 20, max 50 |
 
-**Eligibility criteria:**
-- Online and approved
-- Not currently on a trip
-- In the same city as the ride
-- Vehicle class matches the ride's requested class
-- Within the specified radius of the pickup point
+**How "available" is decided** — all of:
+- online and approved;
+- reported a GPS position in the last 2 minutes;
+- not on a trip (no ride in `matched`, `driver_en_route`, `driver_arrived` or `in_progress`);
+- in the ride's city;
+- vehicle in the ride's vehicle class;
+- within `radius_km` of the pickup (straight-line).
 
 **Response 200:**
 ```json
@@ -6317,61 +6379,47 @@ Returns eligible drivers near the ride's pickup point for manual assignment. Sor
     {
       "driver_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "user_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      "name": "Chidi Okonkwo",
-      "phone": "+2348098765432",
-      "reference_number": "D-000001",
-      "vehicle": {
-        "make": "Toyota",
-        "model": "Corolla",
-        "plate_number": "APP-123-XY",
-        "colour": "White",
-        "vehicle_class": "Economy"
-      },
-      "location": {
-        "lat": 6.5251,
-        "lng": 3.3801,
-        "heading": 45.0,
-        "speed": 0,
-        "timestamp": 1728742800
-      },
-      "rating": 4.75,
-      "distance_km": 0.85
+      "name": "Tobi Ajayi",
+      "phone": "+2348300000006",
+      "reference_number": "D-000014",
+      "rating": 4.8,
+      "vehicle": { "make": "Toyota", "model": "Yaris", "plate_number": "LND-206AF", "colour": "Blue", "vehicle_class": "economy" },
+      "location": { "lat": 6.6194, "lng": 3.3629, "heading": 0, "speed": 0, "timestamp": 1792065600, "updated_at": "2026-10-15T14:00:00+00:00" },
+      "distance_km": 0.8,
+      "eta_minutes": 1.6
     }
   ],
   "meta": {
-    "total": 5,
+    "total": 2,
     "radius_km": 5,
     "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "pickup": {
-      "lat": "6.5244000",
-      "lng": "3.3792000",
-      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
-    }
+    "pickup": { "lat": "6.6143785", "lng": "3.3577680", "address": "Ikeja City Mall, Alausa, Ikeja" }
   }
 }
 ```
+
+- `distance_km` — straight-line distance to the pickup.
+- `eta_minutes` — time to the pickup, estimated from `distance_km` at 30 km/h.
+- `rating` — average rating, `null` when the driver has none.
+
+**Errors:** `422` `{"message": "Invalid radius_km.", "errors": {"radius_km": [...]}}` when `radius_km` is not a positive number.
 
 ### Manually Assign Driver to Ride
 ```
 POST /admin/rides/{ride}/assign
 ```
 
-Manually assigns an online driver to a ride. The ride must be `requested`, `searching` or `no_driver_found` — assigning a ride that found no driver is the main use. The driver must meet all eligibility criteria. This bypasses the automated matching engine and moves the ride straight to `driver_en_route`.
+**Request body:**
 
-For a `no_driver_found` ride, the assignment is refused if the passenger has since booked another active ride, and a wallet ride's fare hold is placed again (refused if the wallet no longer covers the fare).
+| Field     | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| driver_id | string (UUID) | Yes | The driver's **user** id (`user_id` from Available Drivers, not `driver_id`) |
 
-| Field     | Type    | Required | Description                           |
-|-----------|---------|----------|---------------------------------------|
-| driver_id | string (UUID) | Yes      | User ID of the driver to assign       |
+```json
+{ "driver_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d" }
+```
 
-**Validation rules (checked server-side):**
-- Driver must exist and have a driver profile
-- Driver must be `approved` status
-- Driver must be online (`is_online = true`)
-- Driver's vehicle class must match the ride's vehicle class
-- Driver must not have another active ride (`errors.driver_id`: `"Driver already has an active ride."`)
-
-**Errors:** `422` — `"This ride cannot be assigned in its current state."` with `current_status` (ride not `requested`, `searching` or `no_driver_found`); the driver validation errors above (`errors.driver_id`); `errors.ride`: `"The passenger already has another active ride."` or a wallet hold error. `409` `INVALID_STATE_TRANSITION` if the ride changed state while it was being assigned.
+The ride must be `requested`, `searching` or `no_driver_found`. For a `no_driver_found` ride the assignment is refused if the passenger has since booked another ride, and a wallet ride's fare hold is placed again. The assignment is instant (see above).
 
 **Response 200:**
 ```json
@@ -6379,88 +6427,60 @@ For a `no_driver_found` ride, the assignment is refused if the passenger has sin
   "message": "Driver assigned successfully.",
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
-    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-    "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
-    "driver_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
-    "pickup": {
-      "lat": "6.5244000",
-      "lng": "3.3792000",
-      "address": "123 Herbert Macaulay Way, Yaba, Lagos"
-    },
-    "destination": {
-      "lat": "6.4541000",
-      "lng": "3.3947000",
-      "address": "456 Broad Street, Lagos Island, Lagos"
-    },
     "status": "driver_en_route",
     "status_label": "Driver En Route",
-    "share_token": "abc123xyz789def456ghi012jkl345mno",
-    "fare_estimate_amount": "3750.00",
-    "final_fare_amount": null,
-    "fare_currency": "NGN",
-    "payment_method": "cash",
-    "payment_status": "pending",
-    "cancellation_reason": null,
-    "city": {
-      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "name": "Lagos",
-      "slug": "lagos",
-      "...": "..."
-    },
-    "vehicle_class": {
-      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "name": "economy",
-      "display_name": "Economy",
-      "...": "..."
-    },
-    "passenger": {
-      "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "first_name": "Ade",
-      "last_name": "Ogunleye",
-      "...": "..."
-    },
-    "driver": {
-      "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      "first_name": "Chidi",
-      "last_name": "Okonkwo",
-      "...": "..."
-    },
-    "cancelled_by": null,
-    "matched_at": "2026-10-06T14:05:00.000000Z",
-    "started_at": null,
-    "completed_at": null,
-    "created_at": "2026-10-06T14:00:00.000000Z",
-    "updated_at": "2026-10-06T14:05:00.000000Z"
+    "driver_id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+    "driver": { "id": "...", "first_name": "Tobi", "last_name": "Ajayi", "...": "..." },
+    "matched_at": "2026-10-15T14:01:00.000000Z",
+    "...": "full RideResource"
   }
 }
 ```
 
-**Response 404 (driver not found):**
-```json
-{
-  "message": "Driver not found."
-}
-```
+**Errors:**
 
-**Response 422 (ride not assignable):**
+| Status | `error_code` | Message / field | Cause |
+|--------|--------------|-----------------|-------|
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `The driver id field is required.` / `The driver id field must be a valid UUID.` / `The selected driver id is invalid.` | Missing, malformed, or unknown user id |
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `No driver profile found for this user.` | The id is not a driver |
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `Driver must be approved.` | |
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `Driver must be online.` | |
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `Driver vehicle class does not match the ride request.` | |
+| `422` | `VALIDATION_ERROR` | `errors.driver_id`: `Driver already has an active ride.` | |
+| `422` | `RIDE_NOT_ASSIGNABLE` | `This ride cannot be assigned in its current state.` + `current_status` | Ride is already matched, in progress, finished or cancelled |
+| `422` | `VALIDATION_ERROR` | `errors.ride`: `The passenger already has another active ride.` | `no_driver_found` ride whose passenger has rebooked |
+| `422` | `VALIDATION_ERROR` | `errors.ride`: wallet message (e.g. insufficient balance) | `no_driver_found` wallet ride whose wallet no longer covers the fare |
+| `409` | `INVALID_STATE_TRANSITION` | `current_status` | The ride changed state (e.g. a driver accepted it) while it was being assigned — refresh and try again |
+| `404` | `NOT_FOUND` | `Resource not found.` | Unknown ride id |
+
 ```json
 {
   "message": "This ride cannot be assigned in its current state.",
-  "current_status": "in_progress"
+  "error_code": "RIDE_NOT_ASSIGNABLE",
+  "current_status": "driver_en_route"
 }
 ```
 
-**Response 422 (validation failures):**
 ```json
 {
-  "message": "The driver id field is invalid.",
+  "message": "Driver must be online. (and 1 more error)",
   "error_code": "VALIDATION_ERROR",
   "errors": {
     "driver_id": ["Driver must be online.", "Driver vehicle class does not match the ride request."]
   }
 }
 ```
+
+### Test Data (staging)
+
+`php artisan db:seed --class=MonitoringDemoSeeder` (non-production only) creates, in Lagos:
+
+- **Pending:** 3 rides — 2 `searching` (economy at Ikeja City Mall, comfort at Admiralty Way) and 1 `no_driver_found` (economy at UNILAG).
+- **Available drivers:** 2 economy drivers near Ikeja City Mall (0.8 km and 2.3 km), 1 near UNILAG (1.5 km), and 2 comfort drivers in Lekki (1.1 km, and one at 6.5 km — outside the default radius).
+- **Active:** one ride at each stage — `matched`, `driver_en_route`, `driver_arrived` and two `in_progress`; one in-progress ride has an open SOS raised by the passenger.
+- **Gamification:** 6 passengers across Lagos, Abuja, Port Harcourt and Ibadan covering all 5 tiers, with completed rides and carbon scores over the last 3 months.
+
+Demo accounts use `@ops-demo.etigo.com` emails (password `Qwer!234`). The scheduler runs `demo:simulate-drivers` every minute outside production, so demo drivers keep reporting their location and drivers on a ride move towards the pickup or destination. Re-run the seeder to reset the rides after testing assignments.
 
 ---
 
@@ -8379,7 +8399,9 @@ GET /admin/gamification/users?tier=2&search=ade&sort_by=total_ranking_points&sor
 Authorization: Bearer {admin_token}
 ```
 
-**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `city_id` (uuid — filters users who have rides in that city), `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc)
+Lists **passengers only** — only passengers earn points and tiers.
+
+**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `city_id` (uuid — passengers who have taken a ride in that city), `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc), `per_page` (default 15, max 100), `page`
 
 **Response `200`:**
 
@@ -8387,15 +8409,34 @@ Authorization: Bearer {admin_token}
 {
   "profiles": [
     {
-      "...GamificationResource...",
-      "first_name": "Ade",
-      "last_name": "Ogunleye",
-      "email": "ade@demo.etigo.com"
+      "id": "uuid",
+      "user_id": "uuid",
+      "first_name": "Tolu",
+      "last_name": "Bakare",
+      "email": "passenger.tolu@ops-demo.etigo.com",
+      "city_id": "uuid",
+      "city_name": "Lagos",
+      "current_tier": 5,
+      "tier_name": "Diamond",
+      "total_ranking_points": 16200,
+      "total_carbon_score": 182.4,
+      "total_co2_saved_kg": 1.72,
+      "co2_saved_this_month_kg": 0.42,
+      "points_this_month": 21,
+      "tier_upgraded_at": "2026-09-25T10:00:00.000000Z",
+      "progress_to_next_tier": null,
+      "points_to_next_tier": null,
+      "next_tier": null,
+      "benefits": { "booking_fee_discount_pct": 15, "priority_matching": true, "ev_reservation_fee_waived": true },
+      "created_at": "...",
+      "updated_at": "..."
     }
   ],
-  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 5 }
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 6 }
 }
 ```
+
+- `city_id` / `city_name` — the passenger's city, taken from their most recent ride. `null` for a passenger with no rides yet.
 
 ### Aggregate Stats
 
@@ -8408,9 +8449,16 @@ Authorization: Bearer {admin_token}
 
 | Param     | Type | Description                                           |
 |-----------|------|-------------------------------------------------------|
-| `from`    | date | Filter carbon score data from this date               |
-| `to`      | date | Filter carbon score data to this date                 |
-| `city_id` | uuid | Filter by city                                        |
+| `from`    | date (`Y-m-d`) | Start of the date range (inclusive)             |
+| `to`      | date (`Y-m-d`) | End of the date range (inclusive)               |
+| `city_id` | uuid | Passengers who have taken a ride in this city             |
+
+Covers passengers only. **The date range applies to the whole response:**
+
+- `total_co2_saved_kg`, `total_points_awarded`, `average_co2_per_trip` — only trips scored in the range.
+- `total_profiles`, `tier_distribution`, `top_users`, `average_carbon_score`, `average_ranking_points` — only passengers who earned points in the range (who completed a scored trip). Their tier and point totals are their current, lifetime values.
+
+Without `from`/`to` everything covers all time. An invalid date returns `422` `INVALID_PARAMETER`.
 
 **Response `200`:**
 
