@@ -1,6 +1,6 @@
 # E-tiGo Pricing Engine
 
-**How It Works & What You Can Control / September 2026**
+**How It Works & What You Can Control / Updated October 2026**
 
 This document walks through how pricing works in the E-tiGo platform, what each setting does, and the business decisions you can make through the admin dashboard without needing any code changes.
 
@@ -12,11 +12,15 @@ Every fare in E-tiGo is calculated using a straightforward formula. When a passe
 
 > **FARE FORMULA**
 >
-> **Fare = max( Minimum Fare, Base Fare + (Distance x Per-km Rate) + (Duration x Per-minute Rate) + Waiting Charge ) x Surge Multiplier**
+> **Fare = max( Minimum Fare, Base Fare + (Distance x Per-km Rate) + (Trip Time x Per-minute Rate) + Waiting Charge ) x Surge Multiplier − Tier Discount**
 
 The **max()** part is important — it means the fare can never drop below whatever you set as the minimum fare. If a ride is very short (say, 0.5 km down the street), the calculated amount might be lower than the minimum, so the system bumps it up. This protects driver earnings on short trips.
 
 The **Surge Multiplier** is applied after the base fare calculation. When no surge is active, the multiplier is 1.0 (no change). When surge is active (e.g. 1.5x during rush hour), the entire fare is multiplied.
+
+The **Tier Discount** is a loyalty reward: passengers in higher reward tiers get a percentage off the base fare (see Tier Discounts below). Any promo code is taken off after that.
+
+**Trip Time** is Google's estimated travel time for the route. The fare is **upfront**: the passenger pays the quote, unless they keep the driver waiting or the trip runs significantly longer than quoted (see Upfront Fares below).
 
 ---
 
@@ -26,7 +30,7 @@ The **Surge Multiplier** is applied after the base fare calculation. When no sur
 |------|-------------|----------------|
 | **Base Fare** | Fixed amount charged on every trip, regardless of distance or time. | Sets your floor revenue per ride. Higher base = more predictable earnings per trip. |
 | **Per-km Rate** | Charged per kilometre of the route. | Makes longer trips proportionally more expensive. The primary revenue lever for most rides. |
-| **Per-minute Rate** | Charged per minute of estimated travel time. | Compensates drivers for time in traffic. Higher rates in congested cities make sense. |
+| **Per-minute Rate** | Charged per minute of the quoted travel time (the actual time if the trip runs significantly longer). | Compensates drivers for time in traffic. Higher rates in congested cities make sense. |
 | **Minimum Fare** | Absolute floor — fare can never go below this. | Protects driver economics on very short trips. Should cover at least fuel + opportunity cost. |
 | **Waiting Time Rate** | Per-minute charge when the driver is waiting beyond the free period at pickup. | Compensates drivers for idle time. Applied after the free waiting window expires. |
 | **Free Waiting Minutes** | Grace period before waiting charges begin (default: 5 minutes). | Balances passenger convenience with driver time. Industry standard is 3-5 minutes. |
@@ -120,6 +124,48 @@ Every pricing config includes a **free_waiting_minutes** value (defaults to 5 mi
 
 ---
 
+## Upfront Fares: Quote vs. Final Fare
+
+E-tiGo uses **upfront fares**, the same approach as Uber and Bolt: the price the passenger sees before booking is the price they pay. Google's travel-time estimate already allows for normal traffic, so ordinary delays don't change the fare. Only two things can change it:
+
+1. **Waiting:** if the driver waits beyond the free minutes at pickup, the waiting charge is added.
+2. **A much longer trip:** if the trip runs **more than 25% longer than quoted, and at least 10 minutes longer**, the time charge is worked out again using the actual trip time (from the PIN start to the end of the trip).
+
+If the trip is quicker than expected, the passenger still pays the quote.
+
+| Locked in at booking | Can change during the trip |
+|----------------------|----------------------------|
+| Pricing rates (the version in effect when the ride was booked) | **Waiting time:** from the driver's arrival to trip start |
+| Distance (Google's route from pickup to destination) | **Trip time:** only when the trip runs significantly longer |
+| Surge multiplier | |
+| Tier discount | |
+| Promo code (if valid at booking) | |
+
+So a surge that ends mid-trip, or a price change made while the passenger is riding, never changes their fare.
+
+### Protection Against Trips Left Running
+
+If a driver forgets to end a trip, the clock would keep running. To protect passengers, the billed trip time is **capped at 3× the quoted time**. Any ride that hits the cap is flagged for the operations team to review.
+
+### Examples
+
+> **ABUJA — ECONOMY CLASS — 10 KM TRIP, QUOTED AT 25 MIN (₦4,100)**
+
+For a 25-minute quote, the tolerance is 10 minutes (25% of 25 minutes is only 6¼, so the 10-minute minimum applies), and the cap is 75 minutes.
+
+| Trip actually took | What happens | Time billed | Final fare |
+|--------------------|--------------|-------------|------------|
+| 18 min | Quicker than quoted: the quote stands | 25 min | **₦4,100** |
+| 32 min | Within the 10-minute tolerance: the quote stands | 25 min | **₦4,100** |
+| 40 min | 15 minutes over: actual time billed | 40 min | **₦4,700** |
+| 3 hours (trip not ended) | Over the cap: billed at the cap and flagged for review | 75 min | **₦6,100** |
+
+Fare = ₦600 base + 10 km × ₦250 + minutes billed × ₦40.
+
+These three settings (25%, 10 minutes, 3×) are server settings and can be changed without an app release.
+
+---
+
 ## Surge Pricing
 
 Surge pricing lets you increase fares during periods of high demand. The system applies a multiplier (e.g. 1.5x) to the calculated fare. You control when surge is active, how high it goes, and what triggers it.
@@ -128,7 +174,7 @@ Surge pricing lets you increase fares during periods of high demand. The system 
 
 The surge multiplier is applied **after** the base fare calculation (including the minimum fare check):
 
-> **Final Fare = Base Fare (after min check) x Surge Multiplier**
+> **Surged Fare = Fare (after minimum check) x Surge Multiplier**
 
 When passengers see a fare estimate during an active surge, they see:
 - The total fare (already multiplied)
@@ -141,7 +187,7 @@ When passengers see a fare estimate during an active surge, they see:
 |------|-------------|----------|
 | **Manual** | You toggle it on/off from the admin dashboard. Active immediately when enabled. | Rain, accidents, special events, emergencies — anything you can see happening and want to respond to quickly. |
 | **Time-Based** | Fires automatically based on a schedule: which days of the week, start time, and end time. | Rush hours (e.g. Mon-Fri 7-9am and 5-8pm), weekend night surges (Fri-Sat 10pm-2am). |
-| **Demand-Based** | Fires automatically when the demand-to-supply ratio exceeds a threshold you set. | Real-time demand spikes. *(Currently a placeholder — will activate once real-time driver availability tracking is live.)* |
+| **Demand-Based** | Fires automatically when passengers asking for rides outnumber free drivers by the ratio you set. | Real-time demand spikes, e.g. a concert ending or a sudden downpour. |
 
 ### What You Control
 
@@ -166,6 +212,15 @@ For time-based rules, you configure:
 
 Overnight spans work too — setting start `22:00` and end `06:00` covers the late-night period.
 
+### Demand-Based Settings
+
+For demand-based rules, the system counts the passengers who requested a ride in the last 10 minutes and the drivers who are online and free right now in that city (and vehicle class, if the rule has one). You configure:
+
+- **Demand-to-supply ratio:** how many passengers per free driver before surge starts. Example: `2.0` means surge when twice as many passengers are asking as there are free drivers.
+- **Minimum requests (optional):** the fewest passengers who must be asking before the rule can fire (default 5). This stops a quiet moment, say 2 requests and 1 free driver, from triggering surge.
+
+Demand is re-checked every minute, so surge switches off on its own once drivers catch up.
+
 ### Priority & Conflict Resolution
 
 If a city has multiple active surge rules that all match at the same time (say, a rush hour rule AND a manual rain rule), the system picks the one with the **highest priority number**. If two rules have the same priority, it picks the one with the **higher multiplier**.
@@ -186,6 +241,13 @@ This means you can layer rules: set a weekday rush hour at priority 5 (1.3x) and
 - Multiplier: 1.8x
 - Priority: 10
 - Toggle on when it starts raining, toggle off when it stops.
+
+**Lagos Demand Spike:**
+- Type: Demand-based
+- Ratio: 2.0 (twice as many passengers asking as free drivers)
+- Minimum requests: 8
+- Multiplier: 1.4x
+- Priority: 7
 
 **Weekend Night Premium:**
 - Type: Time-based
@@ -208,6 +270,24 @@ When surge is active, the fare estimate response includes:
 ```
 
 The mobile app should display a clear surge indicator so passengers can decide whether to wait or accept the higher fare. When no surge is active, the multiplier is 1.0 and the fare is unchanged.
+
+---
+
+## Tier Discounts
+
+Passengers earn reward points on every ride and move up through reward tiers. Each tier takes a percentage off the **base fare** of every ride:
+
+| Tier | Discount on base fare | On a ₦600 Economy base fare |
+|------|----------------------|-----------------------------|
+| Bronze | 0% | ₦0 |
+| Silver | 2% | ₦12 |
+| Gold | 5% | ₦30 |
+| Platinum | 10% | ₦60 |
+| Diamond | 15% | ₦90 |
+
+The discount is applied after surge, is locked in when the passenger books, and is never more than the fare itself. The quote the passenger sees already includes it. You can change the percentages in the rewards settings of the admin dashboard.
+
+> **Example:** A Gold passenger takes the 10 km, 25 min Abuja Economy trip with no surge: ₦4,100 − ₦30 (5% of ₦600) = **₦4,070**.
 
 ---
 
@@ -317,7 +397,7 @@ You control both the free waiting period and the per-minute rate. The default is
 
 ### Use Surge Pricing
 
-Activate surge during periods of high demand to balance supply and demand. A moderate surge (1.2-1.5x) encourages more drivers to come online while slightly reducing ride requests — bringing the market toward equilibrium. Use time-based rules for predictable peaks and manual rules for unexpected events.
+Activate surge during periods of high demand to balance supply and demand. A moderate surge (1.2-1.5x) encourages more drivers to come online while slightly reducing ride requests — bringing the market toward equilibrium. Use time-based rules for predictable peaks, manual rules for unexpected events, and demand-based rules to react automatically when requests outpace drivers.
 
 ### Launch a New City
 
@@ -325,18 +405,19 @@ When expanding to a new city: create the city in the admin panel, enable the veh
 
 ---
 
-## What's Coming Next
+## Feature Status
 
-The pricing engine is built to be extended. Here's what's planned for future phases:
+Here's where each part of the pricing engine stands:
 
-| Feature | What It Will Do | Status |
+| Feature | What It Does | Status |
 |---------|----------------|--------|
 | **Surge Pricing** | Dynamic multiplier during high demand. Three rule types: manual, time-based, demand-based. | **Done** |
 | **Google Maps Integration** | Fare estimates use actual road distances and real-time traffic data via Google Maps Distance Matrix API. | **Done** |
 | **Cross-City Ride Detection** | Automatic detection of cross-city rides with warnings and pickup city pricing. Handles destination outside service area and long-distance rides. | **Done** |
-| **Demand-Based Surge (Live)** | Demand-based surge rules will fire automatically once real-time driver availability tracking is wired in. | In Progress |
-| **Promo Integration** | Promotional discounts applied on top of the calculated fare. The promo engine is a separate module that hooks into fare calculation. | Next Sprint |
-| **Tier Discounts** | Automatic booking fee discounts for passengers in higher loyalty tiers. Configured through the gamification settings. | Planned |
+| **Demand-Based Surge** | Demand-based surge rules fire automatically from live demand against free drivers. | **Done** |
+| **Upfront Fares** | The passenger pays the quote. The time charge is recalculated only when a trip runs significantly longer, with a cap that protects against trips left running. | **Done** |
+| **Promo Integration** | Promo codes are checked at booking and taken off the final fare at the end of the trip. | **Done** |
+| **Tier Discounts** | Passengers in higher reward tiers get a percentage off the base fare. Configured through the rewards settings. | **Done** |
 
 ---
 

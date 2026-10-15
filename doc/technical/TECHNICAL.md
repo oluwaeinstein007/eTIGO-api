@@ -182,6 +182,7 @@ The manual bypass `POST /admin/drivers/{driver}/complete-onboarding` marks every
 
 ```
 metered        = max(minimum_fare, base_fare + km × per_km_rate + min × per_minute_rate + waiting_charge)
+km, min        = the quoted route (see Upfront fares below)
 waiting_charge = max(0, waiting_minutes − free_waiting_minutes) × waiting_time_rate     (final fare only)
 surged         = metered × surge_multiplier
 tier_discount  = min(base_fare × booking_fee_discount_pct / 100, surged)                (loyalty tier benefit)
@@ -193,7 +194,20 @@ final charged  = fare − promo_discount                                        
 
 ### What is locked in at booking
 
-The ride's `pricing_snapshot` (JSONB) freezes the pricing config, the **surge multiplier** and the passenger's **tier discount** at booking time. The final fare uses the actual route (maps distance/duration) with those locked values. A surge that ends mid-trip doesn't change the agreed multiplier, and a pricing change doesn't affect rides already booked. Completion adds `waiting_charge`, `tier_discount`, `promo` and (for fleet drivers) `fleet_remittance` to the snapshot.
+The ride's `pricing_snapshot` (JSONB) freezes the pricing config, the **surge multiplier** and the passenger's **tier discount** at booking time. It also records the quoted route (`distance_km`, `duration_minutes`). A surge that ends mid-trip doesn't change the agreed multiplier, and a pricing change doesn't affect rides already booked. Completion adds `quoted_distance_km`, `quoted_duration_minutes`, `actual_trip_minutes`, `time_adjusted`, `time_capped`, `waiting_charge`, `tier_discount`, `promo` and (for fleet drivers) `fleet_remittance` to the snapshot, and `duration_minutes` becomes the billed minutes.
+
+### Upfront fares
+
+Fares are upfront, as on Uber and Bolt: the passenger pays the quote (plus any waiting charge), and the quote already allows for expected traffic. `RideService::calculateFinalFare()` reuses the quoted distance and time from the snapshot instead of asking the maps provider again (rides booked before the quote was recorded fall back to a fresh route). Only the time charge can change, because there is no mid-trip destination change and no GPS trail:
+
+```
+actual    = started_at → completed_at (minutes)
+tolerance = max(quoted × trip_time_tolerance_pct / 100, trip_time_tolerance_min_minutes)     (25%, 10 min)
+billed    = quoted                                   if actual ≤ quoted + tolerance (also when quicker)
+          = min(actual, max(quoted × max_billed_time_multiplier, quoted + tolerance))   otherwise (3×)
+```
+
+A trip that runs past the tolerance is billed its whole actual time (`time_adjusted`). The cap stops a trip nobody ended from running up the fare: a capped ride sets `time_capped` and logs a warning for review. The settings live in `config/pricing.php`. The receipt's `trip_time` block shows quoted, actual and billed minutes.
 
 ### Estimate edge cases
 
@@ -500,6 +514,7 @@ The complete list is in `.env.example`. The ones that change behaviour:
 | Wallet | `WALLET_MIN_TOPUP`, `WALLET_MAX_BALANCE`, `WALLET_DAILY_TOPUP_CAP`, `WALLET_MIN_PAYOUT`, `WALLET_SETTLEMENT_DELAY`, `WALLET_MAX_NEGATIVE_BALANCE`, `WALLET_DEFAULT_COMMISSION_RATE`, `WALLET_HOLD_EXPIRY_HOURS`, `WALLET_MAX_CASH_OVERPAYMENT` (kobo; finance can override most at runtime) |
 | Matching | `MATCHING_RADIUS_TIER_1_KM`/`_2_KM`/`_3_KM`, `MATCHING_DRIVER_RESPONSE_TIMEOUT`, `MATCHING_TIMEOUT`, `MATCHING_MAX_AUTO_RETRIES`, `MATCHING_PRIORITY_EXTRA_RETRIES`, `MATCHING_AUTO_RETRY_DELAY`, `MATCHING_MAX_CANDIDATES` |
 | Surge | `SURGE_DEMAND_WINDOW_MINUTES` (10), `SURGE_DEMAND_MIN_REQUESTS` (5), `SURGE_DEMAND_CACHE_SECONDS` (60) |
+| Upfront fares | `PRICING_TRIP_TIME_TOLERANCE_PCT` (25), `PRICING_TRIP_TIME_TOLERANCE_MIN_MINUTES` (10), `PRICING_MAX_BILLED_TIME_MULTIPLIER` (3) |
 | KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `KYC_SKIP_VERIFICATION` |
 | Push | `FIREBASE_CREDENTIALS_PATH` (path or raw JSON), `FIREBASE_PROJECT_ID` |
 | Real-time | `BROADCAST_CONNECTION=reverb`, `REVERB_*`, `TELEMETRY_SERVER_PORT`, `TELEMETRY_RATE_LIMIT_MS`, `REDIS_GEO_DB` |
@@ -517,5 +532,7 @@ These are deliberate gaps that need a product decision or data, not bugs:
 | Area | Status |
 |------|--------|
 | Demand-based surge | Measured per city (and class), not per zone inside a city; supply uses the driver's registered city |
+| Final fare distance | The quoted route distance is charged; there is no GPS trail, so a detour the passenger asks for isn't billed |
+| Shared journey points | The 1.5× `shared_journey` multiplier can be configured but is never awarded until pooled rides exist (Phase 2); the admin multipliers endpoint returns `is_awarded: false` for it |
 | Existing vehicles' fuel type | Vehicles created before fuel type existed stay `null` until the driver or operations sets it (run `vehicles:request-fuel-types` once to ask them) |
 | Booking latency | The maps call for the route runs inside the booking transaction (passenger row lock); fine at current volume, worth moving out if booking contention appears |

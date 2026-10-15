@@ -4954,7 +4954,7 @@ POST /rides/estimate
 - `city_id` must reference an **active** city — inactive cities return 422
 - Pickup and destination coordinates cannot be identical — returns 422
 
-**How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged unless the route or waiting time changes.
+**How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged (an upfront fare). Only two things can change it: a waiting charge after the free minutes, and a trip that runs significantly longer than the quoted time (more than 25% and at least 10 minutes over), which bills the actual trip time, capped at 3× the quoted time. A quicker trip keeps the quote.
 
 **Response 200:**
 ```json
@@ -5076,7 +5076,7 @@ POST /rides
 
 Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
 
-**What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). The final fare is computed from the actual route with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
+**What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
 
 **PIN:** valid for 6 hours (the whole pickup phase). If the driver uses up the 3 attempts, the passenger can issue a new PIN with `POST /rides/{ride}/pin/regenerate`.
 
@@ -5410,7 +5410,12 @@ GET /rides/{ride}
 
 | Key | Added | Meaning |
 |-----|-------|---------|
-| `distance_km`, `duration_minutes` | Booking, replaced at completion | Estimated, then actual route |
+| `distance_km` | Booking | Quoted route distance, charged on the final fare |
+| `duration_minutes` | Booking, replaced at completion | Quoted travel time, then the minutes billed |
+| `quoted_distance_km`, `quoted_duration_minutes` | Completion | The route quoted at booking, kept for reference |
+| `actual_trip_minutes` | Completion | Trip start (PIN) to completion; `null` if either time is missing |
+| `time_adjusted` | Completion | `true` when the trip ran past the tolerance and the actual time was billed |
+| `time_capped` | Completion | `true` when the billed time hit the cap (3× the quoted time); worth reviewing, the trip may not have been ended on time |
 | `surge_multiplier`, `surge_rule_name` | Booking | Surge locked in at booking and used for the final fare |
 | `booking_fee_discount_pct`, `tier_name` | Booking | Passenger's loyalty-tier discount locked in at booking |
 | `waiting_minutes`, `waiting_charge` | Completion | Chargeable waiting after the free minutes |
@@ -5610,7 +5615,7 @@ POST /rides/{ride}/complete
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver completes the ride. Only valid when ride status is `in_progress`. Dispatches a background job to calculate the final fare based on actual distance/duration.
+Driver completes the ride. Only valid when ride status is `in_progress`. Calculates the final fare: the upfront quote, plus any waiting charge, with the time charge recalculated only if the trip ran significantly longer than quoted (see the `pricing_snapshot` keys under Get Ride).
 
 **Response 200:**
 ```json
@@ -7544,6 +7549,8 @@ Authorization: Bearer {token}
 ```
 Returns a detailed receipt for a completed ride. Accessible by the ride's passenger, driver, or any admin. Includes vehicle details, card info, fare breakdown with tip and tier discount, and carbon emissions data.
 
+`duration_minutes` is the time billed. `trip_time` explains it: `quoted_minutes` (the booking quote), `actual_minutes` (trip start to completion, may be `null`), `billed_minutes` and `adjusted` (`true` when the trip ran significantly longer and the actual time, up to 3× the quote, was billed). Show the passenger a note when `adjusted` is `true`. `trip_time` is `null` for rides completed before upfront fares.
+
 The `payment` object carries one of two totals, depending on whether the payment has settled:
 - `total_charged` (number) — when `status` is `captured`, `collected` or `settled`. Equals `amount + tip_amount`.
 - `amount_due` (string) — for any other status (e.g. `pending`, `pending_collection` for cash not yet collected, `failed`). The fare the passenger still owes, without the tip.
@@ -7569,6 +7576,12 @@ The `payment` object carries one of two totals, depending on whether the payment
     },
     "distance_km": 12.6,
     "duration_minutes": 28,
+    "trip_time": {
+      "quoted_minutes": 28,
+      "actual_minutes": 33.4,
+      "billed_minutes": 28,
+      "adjusted": false
+    },
     "vehicle_class": "tiGO Lite",
     "driver": {
       "name": "Tunde Adeyemi",
@@ -7586,7 +7599,7 @@ The `payment` object carries one of two totals, depending on whether the payment
       "per_km_rate": 250.0,
       "per_minute_rate": 40.0,
       "distance_charge": 3150.0,
-      "time_charge": 1100.0,
+      "time_charge": 1120.0,
       "waiting_charge": 0,
       "tip": 600.0,
       "tier_discount": {
@@ -8630,6 +8643,27 @@ Content-Type: application/json
 GET /admin/gamification/multipliers
 Authorization: Bearer {admin_token}
 ```
+
+**Response `200`:**
+
+```json
+{
+  "multipliers": [
+    {
+      "id": "uuid",
+      "condition_type": "shared_journey",
+      "condition_label": "Shared Journey",
+      "multiplier_value": 1.5,
+      "is_stackable": true,
+      "is_awarded": false,
+      "created_at": "2026-09-29T10:00:00.000000Z",
+      "updated_at": "2026-09-29T10:00:00.000000Z"
+    }
+  ]
+}
+```
+
+`is_awarded` is `false` for a condition rides aren't checked for yet. `shared_journey` needs pooled rides (Phase 2), so it can be configured but is never awarded today; show it as "coming soon" rather than as an active bonus.
 
 ### Update Multiplier Configuration
 
@@ -11862,7 +11896,7 @@ Priority matching keeps distance first: priority passengers are always offered t
 | Value            | Description                   | Default Multiplier | Stackable |
 |------------------|-------------------------------|--------------------|-----------|
 | `ev_ride`        | Ride in an electric vehicle   | 2.00x              | Yes       |
-| `shared_journey` | Shared/pooled ride            | 1.50x              | Yes       |
+| `shared_journey` | Shared/pooled ride (not awarded until pooled rides launch, Phase 2) | 1.50x | Yes |
 | `off_peak`       | Ride during off-peak hours    | 1.25x              | Yes       |
 
 ### Sanction Tier (Offline Trip Detection)
