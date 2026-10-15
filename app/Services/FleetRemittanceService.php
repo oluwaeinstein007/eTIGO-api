@@ -2,11 +2,16 @@
 
 namespace App\Services;
 
+use App\Enums\AccountType;
 use App\Enums\FleetAgreementStatus;
+use App\Enums\LedgerEntryType;
+use App\Enums\PaymentMethod;
+use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
+use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Carbon;
@@ -14,6 +19,10 @@ use Illuminate\Support\Facades\DB;
 
 class FleetRemittanceService
 {
+    public function __construct(
+        private LedgerService $ledgerService,
+    ) {}
+
     public function createAgreement(
         Driver $driver,
         Vehicle $vehicle,
@@ -199,15 +208,35 @@ class FleetRemittanceService
             : $now->toDateString();
     }
 
+    /**
+     * Allocate a ride fare between E-tiGo (remittance) and the driver.
+     *
+     * When the ride is given, the allocation is recorded at most once per ride
+     * and the remittance share is moved out of the driver's earnings in the
+     * ledger, so a fleet driver can only withdraw what they earned after the
+     * daily target was met.
+     */
     public function recordRideRemittance(
         FleetAgreement $agreement,
         float $fareAmount,
+        ?Ride $ride = null,
     ): DailyRemittance {
         if (! $agreement->isActive()) {
             throw new \DomainException('Cannot record remittance on a non-active agreement.');
         }
 
-        return DB::transaction(function () use ($agreement, $fareAmount) {
+        return DB::transaction(function () use ($agreement, $fareAmount, $ride) {
+            if ($ride) {
+                $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+                $recorded = $ride->pricing_snapshot['fleet_remittance'] ?? null;
+
+                if ($recorded !== null) {
+                    return DailyRemittance::where('agreement_id', $recorded['agreement_id'])
+                        ->where('date', $recorded['date'])
+                        ->firstOrFail();
+                }
+            }
+
             $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
             if (! $agreement->isActive()) {
                 throw new \DomainException('Cannot record remittance on a non-active agreement.');
@@ -222,6 +251,22 @@ class FleetRemittanceService
             $remainingTarget = max(0, $remittance->target_amount - $remittance->remitted_amount);
             $remittanceShare = min($fareAmount, $remainingTarget, $agreement->remainingAmount());
             $driverShare = $fareAmount - $remittanceShare;
+
+            if ($ride) {
+                $this->moveRemittanceShareInLedger($ride, $agreement, $remittanceShare);
+
+                $ride->update([
+                    'pricing_snapshot' => [
+                        ...($ride->pricing_snapshot ?? []),
+                        'fleet_remittance' => [
+                            'agreement_id' => $agreement->id,
+                            'date' => $remittance->date->toDateString(),
+                            'remittance_share' => round($remittanceShare, 2),
+                            'driver_share' => round($driverShare, 2),
+                        ],
+                    ],
+                ]);
+            }
 
             $remittance->increment('ride_count');
             $remittance->increment('total_fares', $fareAmount);
@@ -245,6 +290,46 @@ class FleetRemittanceService
 
             return $remittance->fresh();
         });
+    }
+
+    /**
+     * Fleet drivers pay no commission, so their fares are credited to them in
+     * full; the remittance share is then moved to E-tiGo. Cash fares are
+     * already in the driver's hands, so for them the share becomes a balance
+     * owed on the available account (like cash commission).
+     */
+    private function moveRemittanceShareInLedger(Ride $ride, FleetAgreement $agreement, float $remittanceShare): void
+    {
+        $shareKobo = (int) round($remittanceShare * 100);
+
+        if ($shareKobo <= 0) {
+            return;
+        }
+
+        $accountType = $ride->payment_method === PaymentMethod::Cash
+            || AppSetting::wallet('settlement_delay') === 'instant'
+                ? AccountType::DriverEarningsAvailable
+                : AccountType::DriverEarningsPending;
+
+        $driverAccount = $this->ledgerService->findOrCreateAccount(
+            Driver::class,
+            $agreement->driver_id,
+            $accountType,
+        );
+        $platformAccount = $this->ledgerService->systemAccount(AccountType::PlatformCommission);
+
+        $this->ledgerService->postJournal([
+            ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $shareKobo],
+            ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $shareKobo],
+        ], [
+            'description' => "Fleet remittance for ride {$ride->id}",
+            'idempotency_key' => "fleet-remittance-{$ride->id}",
+            'metadata' => [
+                'ride_id' => $ride->id,
+                'agreement_id' => $agreement->id,
+                'remittance_kobo' => $shareKobo,
+            ],
+        ]);
     }
 
     public function settleDay(DailyRemittance $remittance): DailyRemittance

@@ -9,6 +9,7 @@ use App\Http\Requests\Driver\StoreBankAccountRequest;
 use App\Http\Resources\BankAccountResource;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
+use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,45 @@ use Illuminate\Support\Facades\DB;
 
 class BankAccountController extends Controller
 {
-    public function __construct(private WalletGateway $walletGateway) {}
+    private const CHANGE_OTP_PURPOSE = 'bank_account_change';
+
+    public function __construct(
+        private WalletGateway $walletGateway,
+        private OtpService $otpService,
+    ) {}
+
+    /**
+     * Send a one-time code to the driver's phone. It is required to replace an
+     * existing payout account, so a stolen session cannot redirect payouts.
+     */
+    public function requestChangeCode(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $driver = $user->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if (! $driver->primaryBankAccount()->exists()) {
+            return response()->json(['message' => 'No bank account on file. Add one without a code.'], 422);
+        }
+
+        if (! $user->phone) {
+            return response()->json(['message' => 'Add a phone number to your account before changing bank details.'], 422);
+        }
+
+        $result = $this->otpService->sendAuthOtp($user->phone, self::CHANGE_OTP_PURPOSE);
+
+        if (! $result['sent']) {
+            return response()->json(['message' => $result['error']], 429);
+        }
+
+        return response()->json([
+            'message' => 'Verification code sent to your phone.',
+            'expires_at' => $result['expires_at'],
+        ]);
+    }
 
     public function banks(): JsonResponse
     {
@@ -61,6 +100,30 @@ class BankAccountController extends Controller
 
         if (! $driver) {
             return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        if ($driver->primaryBankAccount()->exists()) {
+            $otpCode = $request->validated('otp_code');
+
+            if (! $otpCode) {
+                return response()->json([
+                    'message' => 'Changing your payout account requires a verification code.',
+                    'errors' => ['otp_code' => ['Request a code with POST /driver/bank-account/otp and include it here.']],
+                ], 422);
+            }
+
+            $verification = $this->otpService->verifyAuthOtp(
+                (string) $request->user()->phone,
+                $otpCode,
+                purpose: self::CHANGE_OTP_PURPOSE,
+            );
+
+            if (! $verification['valid']) {
+                return response()->json([
+                    'message' => $verification['error'],
+                    'errors' => ['otp_code' => [$verification['error']]],
+                ], 422);
+            }
         }
 
         try {

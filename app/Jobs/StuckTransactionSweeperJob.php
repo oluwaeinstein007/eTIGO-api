@@ -3,9 +3,8 @@
 namespace App\Jobs;
 
 use App\Contracts\WalletGateway;
-use App\Enums\AccountType;
-use App\Enums\LedgerEntryType;
 use App\Enums\WalletTransactionStatus;
+use App\Models\AppSetting;
 use App\Models\WalletTransaction;
 use App\Services\LedgerService;
 use Illuminate\Bus\Queueable;
@@ -15,19 +14,34 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Recovers top-ups whose webhook never arrived. Pending top-ups past the
+ * abandonment threshold — and ones already marked abandoned within the last
+ * two days, since the passenger may still have paid — are verified with the
+ * provider by their reference and credited when the payment succeeded.
+ */
 class StuckTransactionSweeperJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
 
+    private const RECHECK_WINDOW_HOURS = 48;
+
+    private const BATCH_SIZE = 50;
+
     public function handle(WalletGateway $gateway, LedgerService $ledgerService): void
     {
-        $threshold = now()->subMinutes(config('wallet.abandoned_topup_minutes', 30));
+        $threshold = now()->subMinutes(AppSetting::wallet('abandoned_topup_minutes'));
 
-        $stuckTransactions = WalletTransaction::where('status', WalletTransactionStatus::Pending)
+        $stuckTransactions = WalletTransaction::whereIn('status', [
+            WalletTransactionStatus::Pending,
+            WalletTransactionStatus::Abandoned,
+        ])
             ->where('created_at', '<', $threshold)
-            ->limit(50)
+            ->where('created_at', '>', now()->subHours(self::RECHECK_WINDOW_HOURS))
+            ->orderBy('updated_at')
+            ->limit(self::BATCH_SIZE)
             ->get();
 
         if ($stuckTransactions->isEmpty()) {
@@ -37,17 +51,14 @@ class StuckTransactionSweeperJob implements ShouldQueue
         Log::info("StuckTransactionSweeper: found {$stuckTransactions->count()} stuck transactions to verify.");
 
         foreach ($stuckTransactions as $transaction) {
-            if (! $transaction->gateway_transaction_id) {
-                continue;
-            }
-
             try {
-                $result = $gateway->verifyTransaction($transaction->gateway_transaction_id);
+                $result = $gateway->verifyTransaction($transaction->gateway_transaction_id ?? $transaction->reference);
             } catch (\Throwable $e) {
                 $transaction->update([
                     'status' => WalletTransactionStatus::Abandoned,
-                    'abandoned_at' => now(),
+                    'abandoned_at' => $transaction->abandoned_at ?? now(),
                 ]);
+                $transaction->touch();
                 Log::warning("StuckTransactionSweeper: could not verify transaction {$transaction->id}, marked abandoned.", [
                     'error' => $e->getMessage(),
                 ]);
@@ -57,10 +68,18 @@ class StuckTransactionSweeperJob implements ShouldQueue
 
             if ($result['status'] === 'successful') {
                 try {
-                    $this->creditWallet($transaction, $ledgerService);
+                    // Same path as a webhook: idempotent credit, notification,
+                    // daily-cap accounting and transaction status update.
+                    (new ProcessTopupWebhookJob(
+                        $transaction->account_id,
+                        (int) ($result['amount'] ?? $transaction->amount),
+                        $transaction->reference,
+                    ))->handle($ledgerService);
+
                     Log::info("StuckTransactionSweeper: late-verified transaction {$transaction->id} — wallet credited.");
                 } catch (\Throwable $e) {
-                    Log::error("StuckTransactionSweeper: verified transaction {$transaction->id} but credit failed — left pending for retry.", [
+                    $transaction->touch();
+                    Log::error("StuckTransactionSweeper: verified transaction {$transaction->id} but credit failed — left for retry.", [
                         'error' => $e->getMessage(),
                     ]);
                 }
@@ -71,28 +90,5 @@ class StuckTransactionSweeperJob implements ShouldQueue
                 Log::info("StuckTransactionSweeper: transaction {$transaction->id} verified as {$result['status']} — marked failed.");
             }
         }
-    }
-
-    private function creditWallet(WalletTransaction $transaction, LedgerService $ledgerService): void
-    {
-        $idempotencyKey = "topup-{$transaction->reference}";
-
-        $passengerAccount = $transaction->account;
-        $pspAccount = $ledgerService->systemAccount(AccountType::PspClearing);
-
-        $journal = $ledgerService->postJournal([
-            ['account_id' => $pspAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $transaction->amount],
-            ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $transaction->amount],
-        ], [
-            'description' => "Wallet top-up (swept): {$transaction->reference}",
-            'idempotency_key' => $idempotencyKey,
-        ]);
-
-        $transaction->update([
-            'status' => WalletTransactionStatus::Completed,
-            'journal_id' => $journal->id,
-            'completed_at' => now(),
-            'abandoned_at' => null,
-        ]);
     }
 }

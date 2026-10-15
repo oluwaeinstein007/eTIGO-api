@@ -13,6 +13,13 @@ interface WalletGateway
     /** @return array{id: int|string, reference: string, status: string} */
     public function initiateTransfer(array $data): array;
 
+    /**
+     * Look up a transfer by our reference; null when the provider has none.
+     *
+     * @return array{id: int|string, reference: string, status: string}|null
+     */
+    public function verifyTransfer(string $reference): ?array;
+
     /** @return array{account_number: string, account_name: string} */
     public function resolveAccountNumber(string $accountNumber, string $bankCode): array;
 

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Wallet\RefundToWalletRequest;
 use App\Models\AuditLog;
-use App\Models\Journal;
 use App\Models\Ride;
 use App\Services\WalletRefundService;
 use Illuminate\Http\JsonResponse;
@@ -16,35 +16,47 @@ class AdminRefundController extends Controller
 
     public function refundToWallet(RefundToWalletRequest $request, Ride $ride): JsonResponse
     {
-        $amountKobo = $request->validated('amount');
+        $amountKobo = (int) $request->validated('amount');
         $reason = $request->validated('reason');
 
-        if (! $ride->isTerminal()) {
-            return response()->json(['message' => 'Ride must be completed or cancelled to issue a refund.'], 422);
+        if ($ride->status !== RideStatus::Completed) {
+            return response()->json(['message' => 'Only completed rides can be refunded.'], 422);
         }
 
-        $previousRefunds = Journal::where('idempotency_key', 'like', "refund-{$ride->id}-%")
-            ->join('ledger_entries', 'journals.id', '=', 'ledger_entries.journal_id')
-            ->where('ledger_entries.type', 'credit')
-            ->sum('ledger_entries.amount');
+        $ride->loadMissing('payment');
 
-        $maxRefundable = ($ride->final_fare ?? $ride->estimated_fare ?? 0) - $previousRefunds;
+        $maxRefundable = $this->refundService->remainingRefundableKobo($ride);
 
         if ($amountKobo > $maxRefundable) {
-            return response()->json(['message' => 'Refund exceeds remaining refundable amount of ₦'.number_format($maxRefundable / 100, 2).'.'], 422);
+            return response()->json([
+                'message' => 'Refund exceeds remaining refundable amount of ₦'.number_format($maxRefundable / 100, 2).'.',
+                'max_refundable_kobo' => $maxRefundable,
+            ], 422);
         }
 
         try {
-            $this->refundService->refundToWallet($ride, $amountKobo, $reason);
+            $result = $this->refundService->refundRide(
+                $ride,
+                $amountKobo,
+                $reason,
+                $request->user(),
+                $request->boolean('clawback_driver_earnings', true),
+            );
         } catch (\DomainException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
         AuditLog::record($ride, 'ride.refunded', $request->user(), null, [
             'amount_kobo' => $amountKobo,
+            'clawback_kobo' => $result['clawback_kobo'],
             'reason' => $reason,
         ]);
 
-        return response()->json(['message' => 'Refund credited to passenger wallet.']);
+        return response()->json([
+            'message' => 'Refund credited to passenger wallet.',
+            'refund_kobo' => $result['refund_kobo'],
+            'driver_clawback_kobo' => $result['clawback_kobo'],
+            'remaining_refundable_kobo' => $maxRefundable - $amountKobo,
+        ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Enums\RideStatus;
 use App\Events\NearbyMapChanged;
 use App\Events\RideNoDriverFound;
 use App\Events\RideStatusUpdated;
+use App\Exceptions\InvalidStateTransitionException;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
@@ -31,7 +32,7 @@ class RideStateMachine
         'in_progress' => [RideStatus::Completed],
         'completed' => [],
         'cancelled' => [],
-        'no_driver_found' => [RideStatus::Searching],
+        'no_driver_found' => [RideStatus::Searching, RideStatus::Cancelled],
     ];
 
     public function canTransitionTo(Ride $ride, RideStatus $newStatus): bool
@@ -60,7 +61,7 @@ class RideStateMachine
     /**
      * @param  array<string, mixed>|null  $metadata
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidStateTransitionException
      */
     public function transitionTo(
         Ride $ride,
@@ -82,8 +83,10 @@ class RideStateMachine
                     ? $ride->status->value
                     : $ride->status;
 
-                throw new \InvalidArgumentException(
-                    "Invalid ride state transition from '{$current}' to '{$newStatus->value}'."
+                throw new InvalidStateTransitionException(
+                    "Invalid ride state transition from '{$current}' to '{$newStatus->value}'.",
+                    $current,
+                    $newStatus->value,
                 );
             }
 
@@ -119,6 +122,29 @@ class RideStateMachine
 
         $from = $fromState instanceof RideStatus ? $fromState : RideStatus::from($fromState);
 
+        // Side effects run only once the outermost transaction commits, so a
+        // rolled-back transition never notifies anyone and push/broadcast
+        // latency is not spent while the ride row is locked.
+        DB::afterCommit(fn () => $this->publishTransition(
+            $ride,
+            $from,
+            $newStatus,
+            $triggeredByType,
+            $actor,
+            $occurredAt,
+        ));
+
+        return $ride;
+    }
+
+    private function publishTransition(
+        Ride $ride,
+        RideStatus $from,
+        RideStatus $newStatus,
+        string $triggeredByType,
+        ?User $actor,
+        Carbon $occurredAt,
+    ): void {
         try {
             $this->notificationService->notifyTransition($ride, $from, $newStatus);
         } catch (\Throwable) {
@@ -161,7 +187,5 @@ class RideStateMachine
                 // Reverb failures must not roll back a committed ride transition.
             }
         }
-
-        return $ride;
     }
 }

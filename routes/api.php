@@ -244,6 +244,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
         ->middleware(['user.type:passenger', 'throttle:3,1']);
     Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
+    Route::post('/{ride}/pin/regenerate', [RideController::class, 'regeneratePin'])
+        ->middleware(['user.type:passenger', 'throttle:5,1']);
     Route::get('/{ride}/location', [RideLocationController::class, 'show']);
     Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
     Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');
@@ -292,7 +294,7 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
         Route::get('/', [WalletController::class, 'show']);
         Route::get('/transactions', [WalletController::class, 'transactions']);
         Route::post('/topup', [WalletTopupController::class, 'store'])->middleware('throttle:10,1');
-        Route::get('/topup/{transactionId}/verify', [WalletTopupController::class, 'verify']);
+        Route::get('/topup/{reference}/verify', [WalletTopupController::class, 'verify']);
     });
 
     Route::prefix('disputes')->group(function () {
@@ -349,6 +351,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::post('/', [BankAccountController::class, 'store']);
         Route::get('/banks', [BankAccountController::class, 'banks']);
         Route::post('/resolve', [BankAccountController::class, 'resolve'])->middleware('throttle:30,1');
+        Route::post('/otp', [BankAccountController::class, 'requestChangeCode'])->middleware('throttle:3,1');
     });
 
     Route::prefix('payouts')->group(function () {
@@ -402,6 +405,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
         Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
+        Route::put('/{driver}/vehicle-class', [DriverManagementController::class, 'updateVehicleClass']);
         // Testing/QA only: remove before production go-live
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });
@@ -582,6 +586,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{payout}/approve', [AdminPayoutController::class, 'approve']);
         Route::post('/{payout}/reject', [AdminPayoutController::class, 'reject']);
         Route::post('/{payout}/retry', [AdminPayoutController::class, 'retry']);
+        Route::post('/{payout}/verify', [AdminPayoutController::class, 'verify']);
         Route::get('/export', [AdminPayoutController::class, 'export']);
     });
 

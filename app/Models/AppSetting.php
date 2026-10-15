@@ -41,6 +41,18 @@ class AppSetting extends Model
         ];
     }
 
+    /**
+     * Read one wallet setting, honouring the admin's runtime override
+     * (PUT /admin/settings/wallet) before the config/wallet.php default.
+     */
+    public static function wallet(string $key): mixed
+    {
+        return static::getWalletSettings()[$key] ?? config("wallet.{$key}");
+    }
+
+    /**
+     * @return array{min_topup: int, max_balance: int, daily_topup_cap: int, min_payout: int, settlement_delay: string, max_negative_balance: int, hold_expiry_hours: int, abandoned_topup_minutes: int}
+     */
     public static function getWalletSettings(): array
     {
         $settings = static::where('group', 'wallet')->pluck('value', 'key');

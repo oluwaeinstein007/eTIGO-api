@@ -35,7 +35,9 @@ class SosEscalationTimeoutJob implements ShouldQueue
             return;
         }
 
-        $sosService->escalate($incident);
+        if (! $sosService->escalate($incident)) {
+            return;
+        }
 
         $incident->refresh();
 

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\EvReservation;
+use App\Services\EvReservationFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -35,6 +36,12 @@ class EvReservationResource extends JsonResource
             'estimated_available_at' => $this->estimated_available_at?->toISOString(),
             'fee_amount' => $this->fee_amount,
             'fee_waived' => $this->fee_waived,
+            'fee_charged_at' => $this->fee_charged_at?->toISOString(),
+            'fee_refunded_at' => $this->fee_refunded_at?->toISOString(),
+            // Cancelling before this time refunds the fee (null: nothing to refund).
+            'free_cancellation_until' => $this->status->isTerminal()
+                ? null
+                : EvReservationFeeService::freeCancellationUntil($this->resource)?->toISOString(),
             'reserved_at' => $this->reserved_at?->toISOString(),
             'activated_at' => $this->activated_at?->toISOString(),
             'completed_at' => $this->completed_at?->toISOString(),

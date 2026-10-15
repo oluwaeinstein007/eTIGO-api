@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\FuelType;
 use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
@@ -26,6 +27,7 @@ class VehicleFactory extends Factory
             'colour' => fake()->safeColorName(),
             'plate_number' => strtoupper(fake()->unique()->bothify('???-####')),
             'year' => fake()->numberBetween(2018, (int) date('Y')),
+            'fuel_type' => FuelType::Petrol,
             'vehicle_class_id' => VehicleClass::factory(),
         ];
     }
@@ -34,6 +36,13 @@ class VehicleFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_fleet' => true,
+        ]);
+    }
+
+    public function electric(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'fuel_type' => FuelType::Electric,
         ]);
     }
 }

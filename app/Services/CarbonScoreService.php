@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\FuelType;
 use App\Models\Ride;
 use App\Models\TripCarbonScore;
 use App\Models\VehicleClass;
@@ -15,9 +16,11 @@ class CarbonScoreService
     {
         $distanceKm = $this->resolveDistanceKm($ride);
         $baselineEmissionPerKm = config('gamification.baseline_emission_per_km', 120.0);
-        $vehicleEmissionPerKm = $ride->vehicleClass
-            ? $this->resolveVehicleEmission($ride->vehicleClass)
-            : config('gamification.default_vehicle_emission', 75.0);
+        $vehicleEmissionPerKm = match (true) {
+            self::isElectricRide($ride) => 0.0,
+            $ride->vehicleClass !== null => $this->resolveVehicleEmission($ride->vehicleClass),
+            default => config('gamification.default_vehicle_emission', 75.0),
+        };
 
         $baselineEmission = $distanceKm * ($baselineEmissionPerKm / 1000);
         $vehicleEmission = $distanceKm * ($vehicleEmissionPerKm / 1000);
@@ -45,6 +48,19 @@ class CarbonScoreService
             'co2_saved_kg' => round($co2Saved, 4),
             'base_points' => $basePoints,
         ];
+    }
+
+    /**
+     * A ride is electric when the driver's vehicle is, or when it was booked in
+     * a zero-emission vehicle class.
+     */
+    public static function isElectricRide(Ride $ride): bool
+    {
+        if ($ride->driver?->driver?->vehicle?->fuel_type === FuelType::Electric) {
+            return true;
+        }
+
+        return $ride->vehicleClass !== null && self::resolveVehicleEmission($ride->vehicleClass) <= 0;
     }
 
     private function resolveDistanceKm(Ride $ride): float

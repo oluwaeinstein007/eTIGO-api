@@ -436,11 +436,13 @@ it('rejects invalid PIN', function () {
         'driver_id' => $this->driverUser->id,
     ]);
 
-    app(RidePinService::class)->generatePin($ride);
+    $pin = app(RidePinService::class)->generatePin($ride)['pin_code'];
+    // Derive a PIN that is guaranteed to differ (a fixed value collides 1 time in 10,000).
+    $wrongPin = str_pad((string) (((int) $pin + 1) % 10000), 4, '0', STR_PAD_LEFT);
 
     $response = $this->withToken($this->driverToken)
         ->postJson("/api/v1/rides/{$ride->id}/verify-pin", [
-            'pin_code' => '0000',
+            'pin_code' => $wrongPin,
         ]);
 
     $response->assertUnprocessable()

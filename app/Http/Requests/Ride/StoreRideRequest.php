@@ -4,6 +4,7 @@ namespace App\Http\Requests\Ride;
 
 use App\Enums\PaymentMethod;
 use App\Models\City;
+use App\Models\PricingConfig;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -61,13 +62,21 @@ class StoreRideRequest extends FormRequest
                 }
 
                 $cityVehicleClass = DB::table('city_vehicle_classes')
-                    ->where('city_id', $this->input('city_id'))
-                    ->where('vehicle_class_id', $this->input('vehicle_class_id'))
-                    ->where('is_active', true)
+                    ->join('vehicle_classes', 'vehicle_classes.id', '=', 'city_vehicle_classes.vehicle_class_id')
+                    ->where('city_vehicle_classes.city_id', $this->input('city_id'))
+                    ->where('city_vehicle_classes.vehicle_class_id', $this->input('vehicle_class_id'))
+                    ->where('city_vehicle_classes.is_active', true)
+                    ->where('vehicle_classes.is_active', true)
                     ->exists();
 
                 if (! $cityVehicleClass) {
                     $validator->errors()->add('vehicle_class_id', 'This vehicle class is not available in the selected city.');
+
+                    return;
+                }
+
+                if (! PricingConfig::currentFor($this->input('city_id'), $this->input('vehicle_class_id'))) {
+                    $validator->errors()->add('vehicle_class_id', 'Pricing is not yet configured for this vehicle class in the selected city.');
                 }
             },
         ];

@@ -6,6 +6,7 @@ use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Models\Driver;
 use App\Models\Ride;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -18,6 +19,8 @@ class DriverMatchingService
     private const RADIUS_STEP_KEY = 'ride:%s:radius_step';
 
     private const AUTO_RETRY_KEY = 'ride:%s:auto_retry_count';
+
+    private const DRIVER_OFFER_KEY = 'driver:%s:offered_ride';
 
     public function __construct(
         private DriverLocationService $locationService,
@@ -57,7 +60,7 @@ class DriverMatchingService
             $distanceMap[$entry['driver_id']] = $entry['distance_km'];
         }
 
-        $eligible = Driver::with('vehicle')
+        $eligible = Driver::query()
             ->whereIn('id', $nearbyDriverModelIds)
             ->where('status', DriverStatus::Approved)
             ->where('is_online', true)
@@ -72,7 +75,13 @@ class DriverMatchingService
                     RideStatus::InProgress,
                 ]));
             })
-            ->get();
+            ->get()
+            ->reject(fn (Driver $driver) => $this->hasPendingOfferForAnotherRide($driver->user_id, $ride));
+
+        if (! $this->isPriorityRide($ride)) {
+            $held = $this->driversHeldForWaitingPriorityRides($ride, $eligible);
+            $eligible = $eligible->reject(fn (Driver $driver) => in_array($driver->id, $held, true));
+        }
 
         $results = $eligible->map(fn (Driver $driver) => [
             'driver_id' => $driver->id,
@@ -81,6 +90,85 @@ class DriverMatchingService
         ])->sortBy('distance_km')->values()->all();
 
         return $results;
+    }
+
+    /**
+     * Gold, Platinum and Diamond passengers get priority matching, locked in
+     * at booking.
+     */
+    public function isPriorityRide(Ride $ride): bool
+    {
+        return (bool) data_get($ride->pricing_snapshot, 'priority_matching', false);
+    }
+
+    /**
+     * Priority matching never sends a passenger a farther driver: every ride
+     * is offered its nearest eligible driver. What priority decides is who
+     * gets a scarce driver: a priority ride waiting for its next search
+     * (between radius tiers or retry waves) keeps the driver it would be
+     * offered next, the nearest free driver within its current radius,
+     * instead of that driver going to a standard ride. Every other driver
+     * stays available to everyone.
+     *
+     * @param  Collection<int, Driver>  $candidates
+     * @return list<string> Ids of the drivers held for a priority ride
+     */
+    private function driversHeldForWaitingPriorityRides(Ride $ride, Collection $candidates): array
+    {
+        if ($candidates->isEmpty()) {
+            return [];
+        }
+
+        $waiting = Ride::query()
+            ->where('status', RideStatus::Searching)
+            ->whereKeyNot($ride->id)
+            ->where('city_id', $ride->city_id)
+            ->where('vehicle_class_id', $ride->vehicle_class_id)
+            ->whereRaw("(pricing_snapshot->>'priority_matching')::boolean")
+            ->oldest()
+            ->get()
+            ->filter(fn (Ride $priority) => $this->getDispatchedDriverId($priority) === null);
+
+        if ($waiting->isEmpty()) {
+            return [];
+        }
+
+        $positions = $candidates
+            ->mapWithKeys(fn (Driver $driver) => [$driver->id => $this->locationService->getDriverLocation((string) $driver->id)])
+            ->filter();
+        $userIds = $candidates->pluck('user_id', 'id');
+
+        $held = [];
+
+        // Earliest booking first, so two waiting priority rides never hold the same driver.
+        foreach ($waiting as $priority) {
+            $radius = $this->calculateCurrentRadius($priority);
+            $rejected = $this->getRejectedDriverIds($priority);
+
+            $next = $positions
+                ->reject(fn (array $position, string $driverId) => in_array($driverId, $held, true)
+                    || in_array($userIds[$driverId], $rejected, true))
+                ->map(fn (array $position) => $this->distanceKm($position['lat'], $position['lng'], (float) $priority->pickup_lat, (float) $priority->pickup_lng))
+                ->filter(fn (float $distance) => $distance <= $radius)
+                ->sort()
+                ->keys()
+                ->first();
+
+            if ($next !== null) {
+                $held[] = $next;
+            }
+        }
+
+        return $held;
+    }
+
+    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     public function markDriverRejected(Ride $ride, string $driverUserId): void
@@ -93,13 +181,44 @@ class DriverMatchingService
 
     public function setDispatchedDriver(Ride $ride, string $driverUserId): void
     {
-        $key = sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id);
-        Cache::put($key, $driverUserId, config('matching.driver_response_timeout', 30) + 5);
+        // The response-timeout job clears these keys explicitly; the TTL is only
+        // a safety net and must outlive queue lag so the job still sees them.
+        $ttl = (int) config('matching.driver_response_timeout', 20) + 60;
+
+        Cache::put(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id), $driverUserId, $ttl);
+        Cache::put(sprintf(self::DRIVER_OFFER_KEY, $driverUserId), (string) $ride->id, $ttl);
     }
 
     public function clearDispatchedDriver(Ride $ride): void
     {
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        $key = sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id);
+        $driverUserId = Cache::get($key);
+
+        Cache::forget($key);
+
+        if ($driverUserId) {
+            $this->releaseDriverOffer($driverUserId, $ride);
+        }
+    }
+
+    /**
+     * Whether the driver is currently holding an unanswered offer for a
+     * different ride, so they are never offered two rides at once.
+     */
+    public function hasPendingOfferForAnotherRide(string $driverUserId, Ride $ride): bool
+    {
+        $offeredRideId = Cache::get(sprintf(self::DRIVER_OFFER_KEY, $driverUserId));
+
+        return $offeredRideId !== null && $offeredRideId !== (string) $ride->id;
+    }
+
+    private function releaseDriverOffer(string $driverUserId, Ride $ride): void
+    {
+        $offerKey = sprintf(self::DRIVER_OFFER_KEY, $driverUserId);
+
+        if (Cache::get($offerKey) === (string) $ride->id) {
+            Cache::forget($offerKey);
+        }
     }
 
     public function getDispatchedDriverId(Ride $ride): ?string
@@ -124,8 +243,8 @@ class DriverMatchingService
 
     public function cleanupRideCache(Ride $ride): void
     {
+        $this->clearDispatchedDriver($ride);
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
         Cache::forget(sprintf(self::AUTO_RETRY_KEY, $ride->id));
     }
@@ -153,7 +272,9 @@ class DriverMatchingService
 
     public function canAutoRetry(Ride $ride): bool
     {
-        $maxRetries = (int) config('matching.max_auto_retries', 1);
+        // Priority matching: Gold+ searches get extra automatic retry waves.
+        $maxRetries = (int) config('matching.max_auto_retries', 1)
+            + ($this->isPriorityRide($ride) ? (int) config('matching.priority_extra_auto_retries', 1) : 0);
 
         return $this->getAutoRetryCount($ride) < $maxRetries;
     }
@@ -165,7 +286,7 @@ class DriverMatchingService
 
         Cache::put(sprintf(self::AUTO_RETRY_KEY, $ride->id), $currentRetries + 1, $timeout);
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        $this->clearDispatchedDriver($ride);
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
     }
 }

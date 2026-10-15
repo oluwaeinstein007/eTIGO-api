@@ -33,6 +33,9 @@ composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 echo "==> Running migrations..."
 php artisan migrate --force
 
+echo "==> Ensuring reference data (system accounts, commission, tiers, multipliers)..."
+php artisan db:seed --class=ReferenceDataSeeder --force
+
 echo "==> Caching configuration..."
 php artisan config:cache
 php artisan route:cache
@@ -52,6 +55,17 @@ echo "==> Restarting services..."
 sudo systemctl reload php8.4-fpm
 sudo supervisorctl restart etigo-worker:*
 php artisan reverb:restart 2>/dev/null || sudo supervisorctl restart etigo-reverb 2>/dev/null || true
+# The telemetry gateway is long-running and keeps the old code until restarted.
+sudo supervisorctl restart etigo-telemetry 2>/dev/null || true
+
+echo "==> Ensuring the scheduler cron entry..."
+# Every scheduled job (earnings settlement, hold expiry, reconciliation,
+# payouts, EV expiry, ...) depends on this entry.
+if [ ! -f /etc/cron.d/etigo-scheduler ]; then
+    echo "* * * * * deploy cd ${APP_DIR}/current && php artisan schedule:run >> /dev/null 2>&1" | sudo tee /etc/cron.d/etigo-scheduler > /dev/null
+    sudo chmod 644 /etc/cron.d/etigo-scheduler
+    echo "    installed /etc/cron.d/etigo-scheduler"
+fi
 
 echo "==> Cleaning old releases (keeping ${KEEP_RELEASES})..."
 cd "${RELEASES_DIR}"

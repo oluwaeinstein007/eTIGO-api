@@ -26,7 +26,10 @@ class VehicleResource extends JsonResource
             'colour' => $this->colour,
             'plate_number' => $this->plate_number,
             'year' => $this->year,
-            'is_fleet' => $this->is_fleet,
+            'fuel_type' => $this->fuel_type?->value,
+            'can_charge' => (bool) $this->fuel_type?->canCharge(),
+            // A just-created vehicle has no is_fleet attribute until reloaded.
+            'is_fleet' => (bool) $this->is_fleet,
             'is_assigned' => $this->when($this->is_fleet, $this->driver_id !== null),
             'vehicle_class_id' => $this->vehicle_class_id,
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),

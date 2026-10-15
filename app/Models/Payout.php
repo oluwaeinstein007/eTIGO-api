@@ -71,6 +71,25 @@ class Payout extends Model
         return $this->status === PayoutStatus::Requested;
     }
 
+    /** An approved payout is normally sent within seconds; after this it is stuck. */
+    public const APPROVED_STALE_MINUTES = 10;
+
+    /** Transfers usually settle within minutes; after this the webhook is presumed missing. */
+    public const PROCESSING_STALE_MINUTES = 30;
+
+    /**
+     * Approved but not sent, or sent with no result from the provider, for
+     * longer than a transfer normally takes.
+     */
+    public function isAwaitingConfirmation(): bool
+    {
+        return match ($this->status) {
+            PayoutStatus::Approved => $this->approved_at?->lte(now()->subMinutes(self::APPROVED_STALE_MINUTES)) ?? false,
+            PayoutStatus::Processing => $this->updated_at?->lte(now()->subMinutes(self::PROCESSING_STALE_MINUTES)) ?? false,
+            default => false,
+        };
+    }
+
     public function isApproved(): bool
     {
         return $this->status === PayoutStatus::Approved;

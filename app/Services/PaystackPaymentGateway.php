@@ -35,7 +35,7 @@ class PaystackPaymentGateway implements PaymentGateway
     {
         $response = $this->request('post', '/transaction/initialize', [
             'reference' => $data['tx_ref'],
-            'amount' => (int) ($data['amount'] * 100),
+            'amount' => (int) round($data['amount'] * 100),
             'currency' => $data['currency'] ?? 'NGN',
             'callback_url' => $data['redirect_url'],
             'email' => $data['customer_email'],
@@ -74,7 +74,7 @@ class PaystackPaymentGateway implements PaymentGateway
         $response = $this->request('post', '/transaction/charge_authorization', [
             'authorization_code' => $data['token'],
             'email' => $data['email'],
-            'amount' => (int) ($data['amount'] * 100),
+            'amount' => (int) round($data['amount'] * 100),
             'currency' => $data['currency'] ?? 'NGN',
             'reference' => $data['tx_ref'],
         ]);
@@ -90,7 +90,7 @@ class PaystackPaymentGateway implements PaymentGateway
     {
         $response = $this->request('post', '/refund', [
             'transaction' => $transactionId,
-            'amount' => (int) ($amount * 100),
+            'amount' => (int) round($amount * 100),
         ]);
 
         return [

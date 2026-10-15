@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Driver;
 
+use App\Enums\FuelType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,6 +27,7 @@ class UpdateVehicleRequest extends FormRequest
             'plate_number' => ['sometimes', 'required', 'string', 'max:20', Rule::unique('vehicles', 'plate_number')->ignore($vehicle)],
             'year' => ['sometimes', 'required', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
             'vehicle_class_id' => ['sometimes', 'required', 'uuid', 'exists:vehicle_classes,id'],
+            'fuel_type' => ['sometimes', 'nullable', Rule::enum(FuelType::class)],
         ];
     }
 }

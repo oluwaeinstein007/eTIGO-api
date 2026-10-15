@@ -51,8 +51,11 @@ class LedgerService
                     'created_at' => now(),
                 ]);
 
+                // Lock in a deterministic order so concurrent journals touching the
+                // same accounts cannot deadlock each other.
                 $accountIds = array_unique(array_column($lines, 'account_id'));
                 $accounts = Account::whereIn('id', $accountIds)
+                    ->orderBy('id')
                     ->lockForUpdate()
                     ->get()
                     ->keyBy('id');
@@ -185,13 +188,29 @@ class LedgerService
     }
 
     /**
-     * Get a system account by type. System accounts have no owner.
+     * The fixed owner id shared by platform-level (system) accounts.
+     */
+    public const SYSTEM_OWNER_ID = '00000000-0000-0000-0000-000000000000';
+
+    /**
+     * Get a system account by type, creating it on first use so a fresh
+     * environment never fails a top-up or settlement for want of seeding.
      */
     public function systemAccount(AccountType $type): Account
     {
-        return Account::where('type', $type)
-            ->where('owner_type', 'system')
-            ->firstOrFail();
+        return Account::firstOrCreate(
+            [
+                'owner_type' => 'system',
+                'owner_id' => self::SYSTEM_OWNER_ID,
+                'type' => $type,
+            ],
+            [
+                'currency' => config('wallet.currency', 'NGN'),
+                'status' => AccountStatus::Active,
+                'balance' => 0,
+                'balance_version' => 0,
+            ],
+        );
     }
 
     private function validateBalance(array $lines): void

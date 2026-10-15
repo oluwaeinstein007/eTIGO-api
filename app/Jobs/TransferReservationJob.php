@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TransferReservationJob implements ShouldQueue
@@ -35,7 +36,7 @@ class TransferReservationJob implements ShouldQueue
             return;
         }
 
-        $reservation = $reservationService->transferToNextQueued($station);
+        $reservation = DB::transaction(fn () => $reservationService->transferToNextQueued($station));
 
         if ($reservation) {
             $pushGateway->sendToUser(

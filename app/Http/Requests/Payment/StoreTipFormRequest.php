@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Payment;
 
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
@@ -33,6 +34,12 @@ class StoreTipFormRequest extends FormRequest
 
                 if ($ride && $ride->status !== RideStatus::Completed) {
                     $validator->errors()->add('ride', 'Tips can only be added to completed rides.');
+                }
+
+                if ($ride && ! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
+                    $validator->errors()->add('ride', 'Tips can only be added to card, wallet or cash rides.');
+
+                    return;
                 }
 
                 $payment = $ride?->payment;

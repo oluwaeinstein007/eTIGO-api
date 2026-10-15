@@ -34,7 +34,7 @@ class AdminSosController extends Controller
                 ELSE 6
             END")
             ->orderBy('created_at', 'asc')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($this->perPage($request));
 
         return response()->json([
             'message' => 'Active SOS incidents retrieved.',
@@ -86,7 +86,7 @@ class AdminSosController extends Controller
                 $query->where('created_at', '<=', $date);
             })
             ->orderBy('created_at', 'desc')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($this->perPage($request));
 
         return response()->json([
             'message' => 'SOS incident history retrieved.',

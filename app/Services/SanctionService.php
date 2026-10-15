@@ -15,6 +15,14 @@ use Illuminate\Support\Facades\Log;
 
 class SanctionService
 {
+    /**
+     * Tags a suspension imposed automatically by the L2 sanction so it can be
+     * lifted when it expires without touching suspensions made by admins.
+     */
+    public const AUTOMATIC_SUSPENSION_REASON = 'Compliance: automatic suspension for suspected off-app trips (L2).';
+
+    public const DEACTIVATION_REVIEW_REASON = 'Compliance: suspended pending deactivation review (L3).';
+
     public function __construct(
         private readonly PushNotificationGateway $pushGateway,
     ) {}
@@ -110,6 +118,7 @@ class SanctionService
             'is_online' => false,
             'status' => DriverStatus::Suspended,
             'suspended_at' => now(),
+            'suspension_reason' => self::AUTOMATIC_SUSPENSION_REASON,
         ]);
 
         $this->pushGateway->sendToUser($driver->user_id, [
@@ -126,6 +135,7 @@ class SanctionService
             'is_online' => false,
             'status' => DriverStatus::Suspended,
             'suspended_at' => now(),
+            'suspension_reason' => self::DEACTIVATION_REVIEW_REASON,
         ]);
 
         $this->pushGateway->sendToUser($driver->user_id, [
@@ -133,6 +143,48 @@ class SanctionService
             'body' => 'Your account has been suspended pending admin review due to repeated compliance violations. You may dispute this decision.',
             'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true],
         ]);
+    }
+
+    /**
+     * Reinstate drivers whose automatic L2 suspension has run its course.
+     *
+     * @return int Number of drivers reinstated
+     */
+    public function liftExpiredSuspensions(): int
+    {
+        $hours = (int) config('offline_detection.suspension_hours', 48);
+
+        $drivers = Driver::where('status', DriverStatus::Suspended)
+            ->where('suspension_reason', self::AUTOMATIC_SUSPENSION_REASON)
+            ->where('suspended_at', '<=', now()->subHours($hours))
+            ->get();
+
+        foreach ($drivers as $driver) {
+            $driver->update([
+                'status' => DriverStatus::Approved,
+                'suspended_at' => null,
+                'suspension_reason' => null,
+            ]);
+
+            AuditLog::record($driver, 'compliance_suspension_lifted', null, null, [
+                'suspension_hours' => $hours,
+            ]);
+
+            try {
+                $this->pushGateway->sendToUser($driver->user_id, [
+                    'title' => 'Suspension Lifted',
+                    'body' => 'Your compliance suspension has ended. You can go online again.',
+                    'data' => ['type' => 'compliance_warning', 'reinstated' => true],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to notify driver of lifted suspension', [
+                    'driver_id' => $driver->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $drivers->count();
     }
 
     public function reverseSanction(OfflineTripFlag $flag): void
@@ -156,6 +208,7 @@ class SanctionService
                 $driver->update([
                     'status' => DriverStatus::Approved,
                     'suspended_at' => null,
+                    'suspension_reason' => null,
                 ]);
 
                 $this->pushGateway->sendToUser($driver->user_id, [

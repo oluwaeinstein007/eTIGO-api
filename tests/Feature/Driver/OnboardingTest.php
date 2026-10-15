@@ -115,16 +115,21 @@ it('allows driver to register a vehicle', function () {
             'colour' => 'White',
             'plate_number' => 'ABC-1234',
             'year' => 2022,
+            'fuel_type' => 'electric',
             'vehicle_class_id' => $vehicleClass->id,
         ]);
 
     $response->assertCreated()
-        ->assertJson(['message' => 'Vehicle registered successfully. Plate verification initiated.']);
+        ->assertJson(['message' => 'Vehicle registered successfully. Plate verification initiated.'])
+        ->assertJsonPath('vehicle.fuel_type', 'electric')
+        ->assertJsonPath('vehicle.can_charge', true)
+        ->assertJsonPath('vehicle.is_fleet', false);
 
     $this->assertDatabaseHas('vehicles', [
         'driver_id' => $driver->id,
         'make' => 'Toyota',
         'plate_number' => 'ABC-1234',
+        'fuel_type' => 'electric',
         'vehicle_class_id' => $vehicleClass->id,
     ]);
 });

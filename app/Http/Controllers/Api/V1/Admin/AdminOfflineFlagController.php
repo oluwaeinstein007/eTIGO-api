@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Contracts\PushNotificationGateway;
 use App\Enums\DisputeOutcome;
 use App\Enums\DriverStatus;
 use App\Enums\SanctionTier;
@@ -12,9 +13,11 @@ use App\Http\Resources\OfflineFlagResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\OfflineTripFlag;
+use App\Services\DriverLocationService;
 use App\Services\SanctionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AdminOfflineFlagController extends Controller
 {
@@ -51,7 +54,7 @@ class AdminOfflineFlagController extends Controller
                 $query->disputed();
             })
             ->orderBy('flagged_at', 'desc')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($this->perPage($request));
 
         return response()->json([
             'message' => 'Offline trip flags retrieved.',
@@ -144,6 +147,18 @@ class AdminOfflineFlagController extends Controller
             ], 422);
         }
 
+        if ($flag->dispute_outcome === DisputeOutcome::Overturned) {
+            return response()->json([
+                'message' => 'This flag was overturned and cannot lead to deactivation.',
+            ], 422);
+        }
+
+        if ($flag->is_disputed && $flag->dispute_outcome === DisputeOutcome::Pending) {
+            return response()->json([
+                'message' => "Review the driver's dispute before confirming deactivation.",
+            ], 422);
+        }
+
         $driver = Driver::where('user_id', $flag->driver_id)->first();
 
         if (! $driver) {
@@ -152,10 +167,30 @@ class AdminOfflineFlagController extends Controller
 
         $admin = $request->user();
 
+        if ($driver->isDeactivated()) {
+            return response()->json(['message' => 'Driver is already deactivated.'], 422);
+        }
+
         $driver->update([
             'status' => DriverStatus::Deactivated,
             'is_online' => false,
+            'suspension_reason' => 'Permanently deactivated after compliance review.',
         ]);
+
+        try {
+            app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to remove deactivated driver from the live location index', [
+                'driver_id' => $driver->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        rescue(fn () => app(PushNotificationGateway::class)->sendToUser($driver->user_id, [
+            'title' => 'Account Deactivated',
+            'body' => 'Your driver account has been permanently deactivated following a compliance review.',
+            'data' => ['type' => 'compliance_warning', 'deactivated' => true],
+        ]));
 
         AuditLog::record($flag, 'offline_flag_deactivation_confirmed', $admin, [
             'status' => 'suspended',

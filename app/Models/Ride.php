@@ -178,6 +178,17 @@ class Ride extends Model
         return $this->status->isCancellable();
     }
 
+    /**
+     * Number of times this ride has entered the searching state (1 for the
+     * initial request, +1 for every passenger retry after no_driver_found).
+     */
+    public function searchAttemptCount(): int
+    {
+        return RideStateTransition::where('ride_id', $this->id)
+            ->where('to_state', RideStatus::Searching->value)
+            ->count();
+    }
+
     public function belongsToPassenger(User $user): bool
     {
         return $this->passenger_id === $user->id;

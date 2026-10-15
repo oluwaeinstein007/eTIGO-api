@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\FuelType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,6 +21,7 @@ class Vehicle extends Model
         'colour',
         'plate_number',
         'year',
+        'fuel_type',
         'is_fleet',
         'vehicle_class_id',
     ];
@@ -28,6 +30,7 @@ class Vehicle extends Model
     {
         return [
             'year' => 'integer',
+            'fuel_type' => FuelType::class,
             'is_fleet' => 'boolean',
         ];
     }

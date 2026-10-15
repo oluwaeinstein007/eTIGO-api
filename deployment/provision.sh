@@ -151,6 +151,15 @@ SUPERVISOR
 supervisorctl reread
 supervisorctl update
 
+echo "==> Configuring Laravel scheduler (cron)..."
+# Runs every scheduled job in routes/console.php: earnings settlement, hold
+# and top-up expiry, reconciliation, weekly payouts, fleet settlement, EV
+# reservation expiry, compliance suspension lifting, notification pruning.
+cat > /etc/cron.d/etigo-scheduler << 'CRON'
+* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run >> /dev/null 2>&1
+CRON
+chmod 644 /etc/cron.d/etigo-scheduler
+
 echo "==> Configuring UFW firewall..."
 ufw default deny incoming
 ufw default allow outgoing

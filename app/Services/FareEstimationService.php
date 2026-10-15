@@ -16,7 +16,8 @@ class FareEstimationService
     ) {}
 
     /**
-     * @return array{fare_estimate: string, distance_km: float, duration_minutes: float, currency: string, pricing_snapshot: array, waiting_time_policy: array, surge: array}
+     * @param  float  $bookingFeeDiscountPct  The passenger's tier booking-fee discount (0-100)
+     * @return array{fare_estimate: string, distance_km: float, duration_minutes: float, currency: string, pricing_snapshot: array, waiting_time_policy: array, surge: array, booking_fee_discount: float}
      */
     public function estimate(
         PricingConfig $pricing,
@@ -25,6 +26,7 @@ class FareEstimationService
         float $destinationLat,
         float $destinationLng,
         string $currency,
+        float $bookingFeeDiscountPct = 0.0,
     ): array {
         $route = $this->mapsGateway->getDistanceAndDuration(
             $pickupLat, $pickupLng, $destinationLat, $destinationLng,
@@ -32,10 +34,10 @@ class FareEstimationService
 
         $baseFare = $this->calculateFare($pricing, $route['distance_km'], $route['duration_minutes']);
         $surge = $this->surgePricingService->getCurrentMultiplier($pricing->city_id, $pricing->vehicle_class_id);
-        $finalFare = $this->surgePricingService->applySurge($baseFare, $surge['multiplier']);
+        $adjusted = $this->applyAdjustments($pricing, $baseFare, $surge['multiplier'], $bookingFeeDiscountPct);
 
         return [
-            'fare_estimate' => number_format($finalFare, 2, '.', ''),
+            'fare_estimate' => number_format($adjusted['fare'], 2, '.', ''),
             'distance_km' => $route['distance_km'],
             'duration_minutes' => $route['duration_minutes'],
             'currency' => $currency,
@@ -45,7 +47,46 @@ class FareEstimationService
                 'per_minute_rate' => $pricing->waiting_time_rate,
             ],
             'surge' => $this->buildSurgeResponse($surge),
+            'booking_fee_discount' => $adjusted['booking_fee_discount'],
         ];
+    }
+
+    /**
+     * Apply the booking-time surge multiplier and the passenger's tier
+     * booking-fee discount to a metered fare. The same calculation is used
+     * for estimates and for the final fare so both stay consistent.
+     *
+     * @return array{fare: float, surged_fare: float, booking_fee_discount: float}
+     */
+    public function applyAdjustments(
+        PricingConfig $pricing,
+        float $meteredFare,
+        float $surgeMultiplier,
+        float $bookingFeeDiscountPct = 0.0,
+    ): array {
+        $surgedFare = $this->surgePricingService->applySurge($meteredFare, max(1.0, $surgeMultiplier));
+        $discount = $this->bookingFeeDiscount($pricing, $surgedFare, $bookingFeeDiscountPct);
+
+        return [
+            'fare' => round($surgedFare - $discount, 2),
+            'surged_fare' => $surgedFare,
+            'booking_fee_discount' => $discount,
+        ];
+    }
+
+    /**
+     * The tier benefit discounts the fixed per-trip booking charge (the base
+     * fare), never more than the fare itself.
+     */
+    public function bookingFeeDiscount(PricingConfig $pricing, float $fare, float $discountPct): float
+    {
+        if ($discountPct <= 0) {
+            return 0.0;
+        }
+
+        $discount = round((float) $pricing->base_fare * min($discountPct, 100) / 100, 2);
+
+        return min($discount, $fare);
     }
 
     public function calculateFare(PricingConfig $pricing, float $distanceKm, float $durationMinutes, float $waitingMinutes = 0): float
@@ -78,6 +119,7 @@ class FareEstimationService
         float $pickupLng,
         float $destinationLat,
         float $destinationLng,
+        float $bookingFeeDiscountPct = 0.0,
     ): array {
         $city = City::findOrFail($cityId);
         $currency = $city->currency_code;
@@ -134,7 +176,8 @@ class FareEstimationService
 
             $baseFare = $this->calculateFare($pricing, $route['distance_km'], $route['duration_minutes']);
             $surge = $surgeMap[$vehicleClass->id] ?? ['multiplier' => 1.0, 'rule' => null];
-            $finalFare = $this->surgePricingService->applySurge($baseFare, $surge['multiplier']);
+            $adjusted = $this->applyAdjustments($pricing, $baseFare, $surge['multiplier'], $bookingFeeDiscountPct);
+            $finalFare = $adjusted['fare'];
 
             $estimates[] = [
                 'vehicle_class' => [
@@ -156,6 +199,7 @@ class FareEstimationService
                     'per_minute_rate' => $pricing->waiting_time_rate,
                 ],
                 'surge' => $this->buildSurgeResponse($surge),
+                'booking_fee_discount' => $adjusted['booking_fee_discount'],
             ];
         }
 

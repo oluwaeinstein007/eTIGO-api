@@ -24,6 +24,12 @@ class EvReservationController extends Controller
         $user = $request->user();
         $validated = $request->validated();
 
+        try {
+            $this->reservationService->assertCanCharge($user);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
         $stationId = $validated['station_id'] ?? null;
         if (! $stationId) {
             $station = EvChargingStation::query()

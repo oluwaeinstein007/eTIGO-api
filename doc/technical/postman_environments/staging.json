@@ -1,0 +1,271 @@
+{
+  "environment": {
+    "name": "E-tiGo — Staging",
+    "values": [
+      {
+        "key": "account_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "adjustment_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "admin_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "admin_token",
+        "value": "",
+        "type": "secret",
+        "enabled": true
+      },
+      {
+        "key": "base_url",
+        "value": "https://staging.etigo.ng/api/v1",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "base_url_root",
+        "value": "https://staging.etigo.ng",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "city_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "comfort_class_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "dispute_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "document_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "driver_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "driver_token",
+        "value": "",
+        "type": "secret",
+        "enabled": true
+      },
+      {
+        "key": "driver_user_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "economy_class_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "ev_reservation_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "ev_station_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "flag_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "fleet_agreement_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "invitation_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "invite_token",
+        "value": "",
+        "type": "secret",
+        "enabled": true
+      },
+      {
+        "key": "ledger_entry_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "note_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "notification_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "passenger_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "passenger_token",
+        "value": "",
+        "type": "secret",
+        "enabled": true
+      },
+      {
+        "key": "payment_method_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "payment_reference",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "payout_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "premium_class_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "pricing_config_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "promo_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "remittance_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "repair_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_app_key",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_host",
+        "value": "staging.etigo.ng",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "reverb_port",
+        "value": "443",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "ride_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "saved_place_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "share_token",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "sos_incident_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "surge_rule_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "topup_reference",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "vehicle_class_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "vehicle_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      }
+    ]
+  }
+}

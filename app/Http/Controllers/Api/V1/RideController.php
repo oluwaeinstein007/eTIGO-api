@@ -11,11 +11,13 @@ use App\Http\Requests\Ride\VerifyPinRequest;
 use App\Http\Resources\RideDetailResource;
 use App\Http\Resources\RideResource;
 use App\Jobs\FinalFareCalculationJob;
+use App\Models\AuditLog;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
+use App\Services\RidePinService;
 use App\Services\RideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,7 @@ class RideController extends Controller
         private DriverMatchingService $matchingService,
         private DriverLocationService $locationService,
         private DriverEarningsService $earningsService,
+        private RidePinService $pinService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -113,6 +116,14 @@ class RideController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'status' => ['sometimes', 'nullable', 'string'],
+            'city_id' => ['sometimes', 'nullable', 'uuid'],
+            'from_date' => ['sometimes', 'nullable', 'date'],
+            'to_date' => ['sometimes', 'nullable', 'date'],
+            'per_page' => ['sometimes', 'integer'],
+        ]);
+
         $user = $request->user();
 
         $query = Ride::query();
@@ -120,31 +131,31 @@ class RideController extends Controller
         if ($user->isPassenger()) {
             $query->where('passenger_id', $user->id);
         } elseif ($user->isDriver()) {
-            $query->where('driver_id', $user->driver?->user_id ?? $user->id);
+            $query->where('driver_id', $user->id);
         }
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $status = RideStatus::tryFrom($request->input('status'));
             if ($status) {
                 $query->where('status', $status);
             }
         }
 
-        if ($request->has('city_id')) {
+        if ($request->filled('city_id')) {
             $query->where('city_id', $request->input('city_id'));
         }
 
-        if ($request->has('from_date')) {
+        if ($request->filled('from_date')) {
             $query->whereDate('created_at', '>=', $request->input('from_date'));
         }
 
-        if ($request->has('to_date')) {
+        if ($request->filled('to_date')) {
             $query->whereDate('created_at', '<=', $request->input('to_date'));
         }
 
-        $perPage = min($request->integer('per_page', 15), 50);
+        $perPage = $this->perPage($request, 15, 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -210,6 +221,43 @@ class RideController extends Controller
         return response()->json([
             'message' => 'Ride request sent again.',
             'ride' => new RideResource($ride),
+        ]);
+    }
+
+    /**
+     * Issue a fresh ride PIN (e.g. after the driver exhausted the verification
+     * attempts). Only the passenger, who must read it to the driver in person,
+     * can request one, and only before the trip starts.
+     */
+    public function regeneratePin(Request $request, Ride $ride): JsonResponse
+    {
+        $passenger = $request->user();
+
+        if (! $ride->belongsToPassenger($passenger)) {
+            return response()->json(['message' => 'You are not authorized to manage this ride.'], 403);
+        }
+
+        if (in_array($ride->status, [RideStatus::Requested, RideStatus::Searching, RideStatus::NoDriverFound], true)) {
+            return response()->json([
+                'message' => 'A new PIN can be issued once a driver has been assigned.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        if (! in_array($ride->status, [RideStatus::Matched, RideStatus::DriverEnRoute, RideStatus::DriverArrived], true)) {
+            return response()->json([
+                'message' => 'A new PIN can only be issued before the trip starts.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
+        $pin = $this->pinService->generatePin($ride);
+
+        AuditLog::record($ride, 'ride_pin_regenerated', $passenger);
+
+        return response()->json([
+            'message' => 'A new PIN has been issued. Share it with your driver at pickup.',
+            'pin_code' => $pin['pin_code'],
         ]);
     }
 
@@ -345,7 +393,13 @@ class RideController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 403);
         }
 
-        if ($this->earningsService->hasExcessiveNegativeBalance($user->id)) {
+        if (! $driver->isApproved() || ! $driver->is_online) {
+            return response()->json([
+                'message' => 'Only approved drivers who are online can accept rides.',
+            ], 403);
+        }
+
+        if ($this->earningsService->hasExcessiveNegativeBalance($driver->id)) {
             return response()->json([
                 'message' => 'You cannot accept rides while your earnings balance is below the allowed threshold. Please clear your outstanding balance.',
             ], 403);

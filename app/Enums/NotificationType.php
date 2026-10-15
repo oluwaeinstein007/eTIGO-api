@@ -29,6 +29,7 @@ enum NotificationType: string
 
     // EV events
     case EvReservationReady = 'ev_reservation_ready';
+    case EvReservationCancelled = 'ev_reservation_cancelled';
 
     // Dispute events
     case DisputeUpdate = 'dispute_update';
@@ -50,6 +51,7 @@ enum NotificationType: string
     case PayoutApproved = 'payout_approved';
     case PayoutPaid = 'payout_paid';
     case PayoutFailed = 'payout_failed';
+    case PayoutRejected = 'payout_rejected';
     case CashChangeCredit = 'cash_change_credit';
 
     public function label(): string
@@ -69,6 +71,7 @@ enum NotificationType: string
             self::PromoExpiring => 'Promo Expiring',
             self::TierUpgrade => 'Tier Upgrade',
             self::EvReservationReady => 'EV Reservation Ready',
+            self::EvReservationCancelled => 'EV Reservation Cancelled',
             self::DisputeUpdate => 'Dispute Update',
             self::KycStatusChanged => 'KYC Status Changed',
             self::ScheduledRideReminder => 'Scheduled Ride Reminder',
@@ -80,6 +83,7 @@ enum NotificationType: string
             self::PayoutApproved => 'Payout Approved',
             self::PayoutPaid => 'Payout Paid',
             self::PayoutFailed => 'Payout Failed',
+            self::PayoutRejected => 'Payout Rejected',
             self::CashChangeCredit => 'Cash Change Credited',
         };
     }
@@ -107,6 +111,7 @@ enum NotificationType: string
             self::PayoutApproved,
             self::PayoutPaid,
             self::PayoutFailed,
+            self::PayoutRejected,
             self::CashChangeCredit => NotificationCategory::Payments,
 
             self::PromoExpiring => NotificationCategory::Promotions,
@@ -115,7 +120,7 @@ enum NotificationType: string
 
             self::TierUpgrade => NotificationCategory::Gamification,
 
-            self::EvReservationReady => NotificationCategory::EvCharging,
+            self::EvReservationReady, self::EvReservationCancelled => NotificationCategory::EvCharging,
 
             self::DisputeUpdate,
             self::KycStatusChanged,

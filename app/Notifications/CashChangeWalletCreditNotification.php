@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Enums\NotificationType;
+use App\Notifications\Channels\AppNotificationChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -18,7 +19,7 @@ class CashChangeWalletCreditNotification extends Notification implements ShouldQ
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return [AppNotificationChannel::class];
     }
 
     public function toArray(object $notifiable): array

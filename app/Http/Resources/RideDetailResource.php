@@ -15,6 +15,7 @@ class RideDetailResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'reference_number' => $this->reference_number,
             'city_id' => $this->city_id,
             'vehicle_class_id' => $this->vehicle_class_id,
             'passenger_id' => $this->passenger_id,

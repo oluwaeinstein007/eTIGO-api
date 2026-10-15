@@ -238,27 +238,27 @@ class DemoSeeder extends Seeder
             'bayo' => [
                 'user' => ['first_name' => 'Bayo', 'last_name' => 'Akinola', 'phone' => '+2348200000001', 'email' => 'bayo@demo.etigo.com'],
                 'driver' => ['licence_number' => 'LA123ABC', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(30), 'is_online' => true],
-                'vehicle' => ['make' => 'Toyota', 'model' => 'Corolla', 'colour' => 'White', 'plate_number' => 'LAG-001AB', 'year' => 2022, 'vehicle_class_id' => $economyClass?->id],
+                'vehicle' => ['make' => 'Toyota', 'model' => 'Corolla', 'colour' => 'White', 'plate_number' => 'LAG-001AB', 'year' => 2022, 'fuel_type' => 'petrol', 'vehicle_class_id' => $economyClass?->id],
             ],
             'kemi' => [
                 'user' => ['first_name' => 'Kemi', 'last_name' => 'Bakare', 'phone' => '+2348200000002', 'email' => 'kemi@demo.etigo.com'],
                 'driver' => ['licence_number' => 'LA456DEF', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(15), 'is_online' => false],
-                'vehicle' => ['make' => 'Honda', 'model' => 'Accord', 'colour' => 'Black', 'plate_number' => 'LAG-002CD', 'year' => 2023, 'vehicle_class_id' => $comfortClass?->id],
+                'vehicle' => ['make' => 'Honda', 'model' => 'Accord', 'colour' => 'Black', 'plate_number' => 'LAG-002CD', 'year' => 2023, 'fuel_type' => 'hybrid', 'vehicle_class_id' => $comfortClass?->id],
             ],
             'segun' => [
                 'user' => ['first_name' => 'Segun', 'last_name' => 'Obaseki', 'phone' => '+2348200000003', 'email' => 'segun@demo.etigo.com'],
                 'driver' => ['licence_number' => 'AB789GHI', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(45), 'is_online' => true],
-                'vehicle' => ['make' => 'Mercedes-Benz', 'model' => 'E-Class', 'colour' => 'Silver', 'plate_number' => 'ABJ-003EF', 'year' => 2024, 'vehicle_class_id' => $premiumClass?->id],
+                'vehicle' => ['make' => 'Mercedes-Benz', 'model' => 'EQE', 'colour' => 'Silver', 'plate_number' => 'ABJ-003EF', 'year' => 2024, 'fuel_type' => 'electric', 'vehicle_class_id' => $premiumClass?->id],
             ],
             'amara' => [
                 'user' => ['first_name' => 'Amara', 'last_name' => 'Nnamdi', 'phone' => '+2348200000004', 'email' => 'amara@demo.etigo.com'],
                 'driver' => ['licence_number' => 'AB012JKL', 'status' => DriverStatus::PendingReview, 'is_online' => false],
-                'vehicle' => ['make' => 'Toyota', 'model' => 'Highlander', 'colour' => 'Blue', 'plate_number' => 'ABJ-004GH', 'year' => 2021, 'vehicle_class_id' => $suvClass?->id],
+                'vehicle' => ['make' => 'Toyota', 'model' => 'Highlander', 'colour' => 'Blue', 'plate_number' => 'ABJ-004GH', 'year' => 2021, 'fuel_type' => 'petrol', 'vehicle_class_id' => $suvClass?->id],
             ],
             'tunde' => [
                 'user' => ['first_name' => 'Tunde', 'last_name' => 'Fashola', 'phone' => '+2348200000005', 'email' => 'tunde@demo.etigo.com'],
                 'driver' => ['licence_number' => 'LA345MNO', 'status' => DriverStatus::Suspended, 'approved_at' => now()->subDays(60), 'suspended_at' => now()->subDays(5), 'is_online' => false],
-                'vehicle' => ['make' => 'Nissan', 'model' => 'Sentra', 'colour' => 'Red', 'plate_number' => 'LAG-005IJ', 'year' => 2019, 'vehicle_class_id' => $economyClass?->id],
+                'vehicle' => ['make' => 'Nissan', 'model' => 'Sentra', 'colour' => 'Red', 'plate_number' => 'LAG-005IJ', 'year' => 2019, 'fuel_type' => 'cng', 'vehicle_class_id' => $economyClass?->id],
             ],
             'ify' => [
                 'user' => ['first_name' => 'Ify', 'last_name' => 'Okoro', 'phone' => '+2348200000006', 'email' => 'ify@demo.etigo.com'],

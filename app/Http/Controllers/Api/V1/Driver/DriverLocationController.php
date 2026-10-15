@@ -12,6 +12,7 @@ use App\Services\DriverLocationService;
 use App\Services\EtaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 
 class DriverLocationController extends Controller
@@ -71,7 +72,17 @@ class DriverLocationController extends Controller
             $eta = $this->etaService->getThrottledEta($activeRide, $lat, $lng);
         }
 
-        DriverLocationUpdated::dispatch($driver->id, $location, $rideId, $eta);
+        try {
+            DriverLocationUpdated::dispatch($driver->id, $location, $rideId, $eta);
+        } catch (\Throwable $e) {
+            // The location is already stored; a WebSocket outage must not turn
+            // every location report into an error (clients poll as fallback).
+            Log::warning('Driver location broadcast failed', [
+                'driver_id' => $driver->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         try {
             if (Cache::add('nearby_map:passengers', true, 5)) {
                 NearbyMapChanged::dispatch('passengers');

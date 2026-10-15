@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use App\Enums\RideStatus;
+use App\Models\City;
 use App\Models\PromoCode;
 use App\Models\Ride;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 class PromoValidationService
@@ -17,6 +18,12 @@ class PromoValidationService
     /**
      * @return array{valid: bool, promo: PromoCode|null, reason: string|null}
      */
+    /**
+     * @param  string|null  $excludeRideId  A ride already completed by this user that must not
+     *                                      count towards order-count rules (the ride being settled)
+     * @param  CarbonInterface|null  $evaluatedAt  Evaluate the time window and peak rules at this
+     *                                             instant (the booking time when settling a ride)
+     */
     public function validate(
         string $code,
         string $userId,
@@ -25,8 +32,11 @@ class PromoValidationService
         ?float $pickupLat = null,
         ?float $pickupLng = null,
         ?float $fareAmount = null,
+        ?string $excludeRideId = null,
+        ?CarbonInterface $evaluatedAt = null,
     ): array {
         $promo = PromoCode::byCode($code)->first();
+        $evaluatedAt ??= now();
 
         if (! $promo) {
             return $this->reject('Invalid promo code.');
@@ -36,8 +46,8 @@ class PromoValidationService
             return $this->reject('This promo code is no longer active.');
         }
 
-        if (! $promo->isWithinTimeWindow()) {
-            if (now()->lt($promo->starts_at)) {
+        if (! $promo->isWithinTimeWindow($evaluatedAt)) {
+            if ($evaluatedAt->lt($promo->starts_at)) {
                 return $this->reject('This promo code is not yet active.');
             }
 
@@ -64,7 +74,7 @@ class PromoValidationService
             return $this->reject('This promo code is not valid in your area.');
         }
 
-        if (! $this->checkPeakConstraint($promo)) {
+        if (! $this->checkPeakConstraint($promo, $evaluatedAt, $cityId)) {
             if ($promo->peak_only) {
                 return $this->reject('This promo code is only valid during peak hours.');
             }
@@ -79,7 +89,7 @@ class PromoValidationService
             }
         }
 
-        $userCompletedRides = $this->getUserCompletedRideCount($userId);
+        $userCompletedRides = $this->getUserCompletedRideCount($userId, $excludeRideId);
 
         if ($promo->min_order_count !== null && $userCompletedRides < $promo->min_order_count) {
             return $this->reject("You need at least {$promo->min_order_count} completed rides to use this code.");
@@ -277,13 +287,16 @@ class PromoValidationService
         return $inside;
     }
 
-    private function checkPeakConstraint(PromoCode $promo): bool
+    private function checkPeakConstraint(PromoCode $promo, ?CarbonInterface $at = null, ?string $cityId = null): bool
     {
         if (! $promo->peak_only && ! $promo->off_peak_only) {
             return true;
         }
 
-        $isPeak = $this->isPeakHour();
+        $timezone = ($cityId ? City::whereKey($cityId)->value('timezone') : null)
+            ?? config('promo.timezone', 'Africa/Lagos');
+
+        $isPeak = $this->isPeakHour(($at ?? now())->copy()->setTimezone($timezone));
 
         if ($promo->peak_only) {
             return $isPeak;
@@ -292,10 +305,9 @@ class PromoValidationService
         return ! $isPeak;
     }
 
-    private function isPeakHour(): bool
+    private function isPeakHour(CarbonInterface $localTime): bool
     {
-        $now = Carbon::now();
-        $hour = $now->format('H:i');
+        $hour = $localTime->format('H:i');
 
         $peakMorningStart = config('promo.peak_hours.morning_start', '07:00');
         $peakMorningEnd = config('promo.peak_hours.morning_end', '09:00');
@@ -306,10 +318,11 @@ class PromoValidationService
             || ($hour >= $peakEveningStart && $hour < $peakEveningEnd);
     }
 
-    private function getUserCompletedRideCount(string $userId): int
+    private function getUserCompletedRideCount(string $userId, ?string $excludeRideId = null): int
     {
         return Ride::where('passenger_id', $userId)
             ->where('status', RideStatus::Completed)
+            ->when($excludeRideId, fn ($query) => $query->where('id', '!=', $excludeRideId))
             ->count();
     }
 

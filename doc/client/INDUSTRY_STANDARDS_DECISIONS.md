@@ -255,7 +255,7 @@ These items are documented as industry-standard practices that should be address
 
 ### 10.3 Cancellation Fee Policy
 
-**Status:** OQ-05 remains unresolved. Three models have been proposed (see `doc/CANCELLATION_FEE_PROPOSAL.md`). No cancellation fees are charged currently.
+**Status:** OQ-05 remains unresolved. Three models have been proposed (see `doc/client/CANCELLATION_FEE_PROPOSAL.md`). No cancellation fees are charged currently.
 
 **Risk:** Without cancellation fees, drivers absorb the cost of passenger cancellations. Industry standard is a time-based grace period (2-5 minutes free, then a flat fee).
 

@@ -58,6 +58,8 @@ class AdminVehicleClassController extends Controller
             return $vehicleClass;
         });
 
+        app(AppCacheService::class)->invalidateVehicleClasses();
+
         return response()->json([
             'message' => 'Vehicle class created successfully.',
             'vehicle_class' => new VehicleClassResource($vehicleClass),
@@ -94,9 +96,8 @@ class AdminVehicleClassController extends Controller
             AuditLog::record($vehicleClass, 'vehicle_class_updated', $admin, $oldValues, $vehicleClass->only(array_keys($oldValues)));
         });
 
-        if ($cityIds !== null) {
-            app(AppCacheService::class)->invalidateVehicleClasses();
-        }
+        // Name, capacity, icon and status all appear in the public listings.
+        app(AppCacheService::class)->invalidateVehicleClasses();
 
         $vehicleClass = $vehicleClass->fresh();
         $vehicleClass->loadCount(['drivers', 'activeRides'])

@@ -100,3 +100,31 @@ it('authenticates a connection object and transmits authenticated frame', functi
     expect($decoded['type'])->toBe('authenticated')
         ->and($decoded['driver_id'])->toBe((string) $this->driver->id);
 });
+
+it('refuses to stream location for a driver token past the app session lifetime', function () {
+    $connection = new class
+    {
+        public bool $authenticated = false;
+
+        public array $sent = [];
+
+        public bool $closed = false;
+
+        public function send(string $data): void
+        {
+            $this->sent[] = json_decode($data, true);
+        }
+
+        public function close(): void
+        {
+            $this->closed = true;
+        }
+    };
+    $this->travel(config('sanctum.app_token_expiration') + 1)->minutes();
+
+    (new TelemetryServerCommand)->authenticateConnection($connection, $this->plainToken);
+
+    expect($connection->authenticated)->toBeFalse()
+        ->and($connection->closed)->toBeTrue()
+        ->and($connection->sent[0]['code'])->toBe(401);
+});

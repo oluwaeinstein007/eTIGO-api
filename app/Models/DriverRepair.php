@@ -67,7 +67,14 @@ class DriverRepair extends Model
 
     public static function generateReferenceNumber(): string
     {
-        $base = 1040 + static::count() + 1;
+        $connection = (new static)->getConnection();
+
+        // A sequence gives each request its own number, so two repair
+        // requests submitted together cannot collide on the reference.
+        $base = $connection->getDriverName() === 'pgsql'
+            ? (int) $connection->selectOne("SELECT nextval('driver_repairs_reference_number_seq') AS value")->value
+            : 1040 + static::count() + 1;
+
         while (static::where('reference_number', "REP-{$base}")->exists()) {
             $base++;
         }

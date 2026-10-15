@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\AccountType;
 use App\Models\Account;
+use App\Models\AppSetting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,7 +20,7 @@ class NegativeDriverBalanceReportJob implements ShouldQueue
 
     public function handle(): void
     {
-        $threshold = config('wallet.max_negative_balance', -500000);
+        $threshold = AppSetting::wallet('max_negative_balance');
         $report = collect();
         $criticalCount = 0;
         $totalBalance = 0;

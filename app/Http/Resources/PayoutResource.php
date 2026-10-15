@@ -24,6 +24,9 @@ class PayoutResource extends JsonResource
             'driver' => $this->when($isAdmin, fn () => new DriverResource($this->whenLoaded('driver'))),
             'approved_by' => $this->when($isAdmin && $this->approved_by_admin_id, fn () => new UserResource($this->whenLoaded('approvedBy'))),
             'gateway_transfer_id' => $this->when($isAdmin, $this->gateway_transfer_id),
+            // Transfer outcome not confirmed for longer than usual: show the
+            // "check status" action (POST /admin/payouts/{id}/verify).
+            'needs_attention' => $this->when($isAdmin, fn () => $this->resource->isAwaitingConfirmation()),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

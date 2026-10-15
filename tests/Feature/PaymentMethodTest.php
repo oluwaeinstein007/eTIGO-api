@@ -62,6 +62,22 @@ it('initializes a payment and returns a payment link', function () {
         ->assertJsonStructure(['payment_link', 'tx_ref']);
 });
 
+it('gives the payment provider an email when saving a card for a phone-only passenger', function () {
+    $passenger = User::factory()->create(['email' => null]);
+    $fakeGateway = new FakePaymentGateway;
+    $this->app->instance(PaymentGateway::class, $fakeGateway);
+
+    $this->withToken($passenger->createToken('auth')->plainTextToken)
+        ->postJson('/api/v1/payments/initialize', [
+            'amount' => 100,
+            'currency' => 'NGN',
+            'redirect_url' => 'https://etigo.app/payment/callback',
+        ])
+        ->assertOk();
+
+    expect($fakeGateway->lastInitializedPayment['customer_email'])->toBe("{$passenger->id}@rider.etigo.ng");
+});
+
 it('defaults payment initialization channels to card only', function () {
     $fakeGateway = new FakePaymentGateway;
     $this->app->instance(PaymentGateway::class, $fakeGateway);

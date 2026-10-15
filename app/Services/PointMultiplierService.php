@@ -95,13 +95,7 @@ class PointMultiplierService
 
     private function isEvRide(Ride $ride): bool
     {
-        $vehicleClass = $ride->vehicleClass;
-
-        if (! $vehicleClass) {
-            return false;
-        }
-
-        return CarbonScoreService::resolveVehicleEmission($vehicleClass) <= 0;
+        return CarbonScoreService::isElectricRide($ride);
     }
 
     private function isOffPeak(Ride $ride): bool
@@ -115,7 +109,9 @@ class PointMultiplierService
         $offPeakStart = config('gamification.off_peak_start', '22:00');
         $offPeakEnd = config('gamification.off_peak_end', '06:00');
 
-        $hour = $rideTime->format('H:i');
+        // Off-peak windows are local clock times in the ride's city.
+        $timezone = $ride->city?->timezone ?? config('gamification.timezone', 'Africa/Lagos');
+        $hour = $rideTime->copy()->setTimezone($timezone)->format('H:i');
 
         if ($offPeakStart > $offPeakEnd) {
             return $hour >= $offPeakStart || $hour < $offPeakEnd;

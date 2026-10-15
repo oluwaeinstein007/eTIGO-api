@@ -13,6 +13,17 @@
 > - 🔒 = Security-sensitive — requires review before deployment
 > - ⏱ = Performance-critical — requires benchmarking
 
+> **Implementation notes (Phase 1 audit, 15 Oct 2026).** Task rows keep their original planned wording. Where the build differs, the current behaviour is below. The [API reference](../API_REFERENCE.md) is the source of truth for endpoints and the [technical documentation](../TECHNICAL.md) for design.
+>
+> - **Auth:** passengers and drivers sign in with **phone OTP** (Termii → WhatsApp, SMS fallback) or social login: `/auth/otp/send`, `/auth/otp/verify`, `/auth/register/complete`. Email/password is for admins only. The planned email/password register/login tasks (BE-AUTH-02–04) were superseded.
+> - **Payments:** **Paystack** is the primary provider for everything. Flutterwave is a failover for ride card/bank-transfer payments only. Wallet top-ups, bank resolution and payout transfers use Paystack (`PaystackWalletGateway`). Rows that say Flutterwave describe the original plan.
+> - **Paths:** wallet `/passenger/wallet/*` (top-up verify takes the `tx_ref`: `/passenger/wallet/topup/{reference}/verify`); webhooks `/webhooks/paystack`, `/webhooks/flutterwave`, `/webhooks/qoreid`; EV reservations `/driver/ev-reservations/*`; driver ledger `/driver/ledger/summary` and `/driver/ledger/transactions`.
+> - **Ride PIN:** 4 digits, valid 6 hours (a pickup can happen long after booking), 3 attempts, and the passenger can regenerate it until the trip starts.
+> - **Matching:** radius tiers 3 → 7 → 15 km, 20 s offers, one automatic retry wave after 10 s, overall timeout 300 s per search. Stale drivers (no location for 2 min) and drivers holding another offer are skipped.
+> - **Payouts:** on-demand with finance approval, plus an opt-in weekly auto-payout (`weekly_auto`, Monday 06:00 Lagos).
+> - **Product decisions taken (15 Oct 2026):** EV reservations are limited to plug-in vehicles via a new vehicle `fuel_type` (BE-EV-09/10); the EV reservation fee is collected from driver earnings when a stall is held (refund within 2 minutes, kept on no-show); priority matching (G-05) keeps distance first and gives Gold+ passengers precedence for scarce drivers plus an extra retry wave; wallet rides can be tipped from the wallet. Payouts whose outcome is unknown are reconciled against Paystack (scheduled + finance "check status"). Still open: demand-based surge uses a placeholder metric.
+> - **Audit fixes** (branch `fix/phase1-audit-hardening`): bugs and edge cases fixed across rides, matching, pricing, payments, wallet/ledger, payouts, refunds, webhooks, reconciliation, auth, KYC, SOS, sanctions, EV and fleet — see the commit history and the edge-case test suites listed in TECHNICAL.md §17.
+
 ---
 
 ## Table of Contents
@@ -75,7 +86,7 @@
 | SETUP-02 | `[x]` Configure code quality tooling: Laravel Pint for code style | — | SETUP-01 | Pint runs on CI; Pest 5.x for testing |
 | SETUP-03 | `[x]` Set up CI pipeline: lint → static analysis → unit tests → feature tests → build | — | SETUP-01 | Branch protection on `main`; require passing CI before merge |
 | SETUP-04 | `[x]` Configure staging and production deployment pipelines with environment-specific `.env` config | — | SETUP-03 | Include `php artisan migrate --force` step in deploy pipeline |
-| SETUP-05 | `[x]` Define and document API contract: request/response shapes, enums, error formats — see `doc/API_REFERENCE.md`, `doc/postman_collection.json`, `doc/TECHNICAL.md` | — | SETUP-01 | PHP enums for UserType, AdminRole, DriverStatus, DocumentType, DocumentStatus |
+| SETUP-05 | `[x]` Define and document API contract: request/response shapes, enums, error formats — see `doc/technical/API_REFERENCE.md`, `doc/technical/postman_collection.json`, `doc/technical/TECHNICAL.md` | — | SETUP-01 | PHP enums for UserType, AdminRole, DriverStatus, DocumentType, DocumentStatus |
 
 ### 1.2 Database Schema & Migrations
 
@@ -119,7 +130,7 @@
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | SETUP-38 | `[x]` Provision Redis instance (staging + production) and configure in `config/database.php` Redis connections | B-03 | SETUP-04 | — |
-| SETUP-39 | `[x]` OTP/PIN codes stored in PostgreSQL `otp_codes` table (not Redis): SHA-256 hashed code, 30-min expiry, 3 max attempts, atomic increment; used for ride-start PIN verification | B-03 | SETUP-07 | Migration creates otp_codes table; OtpService handles generation/verification |
+| SETUP-39 | `[x]` OTP/PIN codes stored in PostgreSQL `otp_codes` table (not Redis): SHA-256 hashed code, 3 max attempts, atomic increment; used for login OTPs (5-min expiry) and the ride-start PIN (6-hour expiry) | B-03 | SETUP-07 | Migration creates otp_codes table; OtpService handles generation/verification |
 | SETUP-40 | `[x]` Configure Redis for session/token state (refresh token storage) | B-03 | SETUP-38 | Key pattern: `refresh_token:{token_hash}` |
 | SETUP-41 | `[x]` Configure Redis for live driver-location cache using geo-indexing (GEOADD/GEORADIUS) | B-03 | SETUP-38 | Key: `driver_locations` (geo set); secondary key per driver: `driver:{id}:location` (hash with heading, speed, timestamp) |
 | SETUP-42 | `[x]` Configure Redis for application caching (city configs, pricing, vehicle classes) with tagged cache and invalidation on Admin writes | B-03 | SETUP-38 | Use Laravel cache tags; short TTL with explicit invalidation |
@@ -166,7 +177,7 @@
 
 **PRD refs:** P-01, P-02, P-03, D-01, B-01
 
-> **Note:** Auth uses email/password for all user types (not OTP). The OTP/PIN system is repurposed for ride-start verification (§9.1).
+> **Note:** Passengers and drivers authenticate with phone OTP (plus social login); admins use email/password. `OtpService` also issues the 4-digit ride-start PIN (§9.1). BE-AUTH-02–04 below describe the original email/password plan, which was superseded.
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
@@ -186,7 +197,7 @@
 | BE-AUTH-10 | `[x]` Create `UpdateProfileRequest` FormRequest — validate first_name, last_name, email (unique except self) | P-02 | BE-AUTH-09 | — |
 | BE-AUTH-11 | `[x]` Create `User` Eloquent model with relationships: driver(); casts: type→UserType, admin_role→AdminRole, password→hashed; helpers: isPassenger(), isDriver(), isAdmin(), isSafetyOperator(), hasAdminRole() | — | SETUP-07 | — |
 | BE-AUTH-12 | `[x]` Create `UserResource` API resource for consistent user serialization | — | BE-AUTH-11 | — |
-| BE-AUTH-13 | `[x]` Create `OtpService` for ride-start PIN verification: 4-digit SHA-256 hashed codes, 30-min expiry, 3 max attempts with atomic DB increment, constant-time comparison via `hash_equals()` | §9.1 | SETUP-55 | Optional but enabled by default; SMS delivery via SmsGateway contract |
+| BE-AUTH-13 | `[x]` Create `OtpService` for ride-start PIN verification: 4-digit SHA-256 hashed codes, 6-hour expiry, 3 max attempts with atomic DB increment, constant-time comparison via `hash_equals()` | §9.1 | SETUP-55 | Optional but enabled by default; SMS delivery via SmsGateway contract |
 | BE-AUTH-14 | `[x]` Implement social login (Google & Apple) via Laravel Socialite: `SocialProvider` enum, `SocialAccount` model, `SocialAuthService` (token-based mobile flow using `stateless()->userFromToken()`), `SocialAuthController@login`, `SocialLoginRequest` validation, `social_accounts` migration. Apple uses community provider `socialiteproviders/apple` with event listener. Users table `phone` made nullable for social-only signups. | P-01 | SETUP-07 | 8 Pest tests covering new user, existing user link, wrong type, deactivated, invalid provider |
 
 ---
@@ -310,8 +321,8 @@
 | BE-MATCH-04 | `[x]` Create `RideController@accept` — `POST /api/v1/rides/{ride}/accept`: driver accepts; transition to Matched → Driver_En_Route; reject concurrent acceptances atomically (row lock) | D-07 | BE-MATCH-02, BE-RIDE-02 | First-accept wins via `lockForUpdate()` |
 | BE-MATCH-05 | `[x]` Create `RideController@reject` — `POST /api/v1/rides/{ride}/reject`: driver rejects; mark as rejected for this ride; dispatch to next candidate | D-07 | BE-MATCH-02 | — |
 | BE-MATCH-06 | `[x]` Create `DriverResponseTimeoutJob` — delayed job (20s default, configurable via `MATCHING_DRIVER_RESPONSE_TIMEOUT`); if driver hasn't responded within the window, treat as rejection and re-dispatch | D-07 | BE-MATCH-02 | Response window: 20s (industry standard; configurable) |
-| BE-MATCH-07 | `[x]` Implement radius expansion logic in `DriverMatchingService::calculateCurrentRadius()`: after exhausting candidates in current radius, expand by `radius_step_km` and re-dispatch; all values configurable via `config/matching.php` | §8.6 | BE-MATCH-01 | Step: 2km; max: 15km |
-| BE-MATCH-08 | `[x]` Create `MatchingTimeoutJob` — dispatched with delay on ride creation (180s default, configurable); if no match after timeout, transition to No_Driver_Found, notify passenger | P-09 | BE-MATCH-07, BE-RIDE-02 | Log no-match events for Admin reporting |
+| BE-MATCH-07 | `[x]` Implement radius expansion logic in `DriverMatchingService::calculateCurrentRadius()`: after exhausting candidates in the current radius tier, move to the next tier (3 → 7 → 15 km) and re-dispatch; all values configurable via `config/matching.php` | §8.6 | BE-MATCH-01 | Step: 2km; max: 15km |
+| BE-MATCH-08 | `[x]` Create `MatchingTimeoutJob` — dispatched with delay on ride creation (300s default, configurable; restarted for each new search); if no match after timeout, transition to No_Driver_Found, notify passenger | P-09 | BE-MATCH-07, BE-RIDE-02 | Log no-match events for Admin reporting |
 | BE-MATCH-09 | `[x]` Create `AdminRideController@assign` — `POST /api/v1/admin/rides/{ride}/assign`: Admin manually assigns an online driver; uses same state machine transitions | A-15 | BE-MATCH-04, SETUP-52 | Not a parallel path — plugs into shared state machine |
 | BE-MATCH-10 | `[x]` Create `AssignRideRequest` — validate driver_id is online, approved, correct vehicle class, not on another active ride | A-15 | BE-MATCH-09 | — |
 
@@ -373,7 +384,7 @@
 | BE-GAME-05 | `[x]` Create `CalculateCarbonScoreJob` — dispatched on ride completion via `RideService::completeRide()`; calls CarbonScoreService → PointMultiplierService → TierEvaluationService pipeline; idempotent, 3 retries, 30s backoff | B-10, B-11 | BE-GAME-02, BE-GAME-03, BE-GAME-04 | — |
 | BE-GAME-06 | `[x]` Create `TierUpgraded` broadcastable event (`ShouldBroadcastNow`) — on tier promotion, broadcast to `user.{userId}` channel for celebration animation | G-04, B-11 | BE-GAME-04, SETUP-57 | Push notification can be wired via listener |
 | BE-GAME-07 | `[x]` Create `GamificationController` — `GET /api/v1/gamification`: current tier, points, carbon score, progress to next tier, unlocked benefits; `GET /carbon-history`: paginated trip scores; `GET /tiers`: all tiers; `GET /leaderboard`: top users by points | G-04, B-12 | BE-GAME-01 | Auto-creates profile on first access |
-| BE-GAME-08 | `[x]` Create `TierGateService` — utility checking user's tier for: (a) priority matching eligibility (G-05), (b) booking fee discount amount (G-06), (c) exclusive promo access (G-07), (d) EV fee waiver eligibility (G-08) | B-12 | BE-GAME-04 | Ready for integration; surge pricing hook available for Phase 2 |
+| BE-GAME-08 | `[x]` Create `TierGateService` — utility checking user's tier for: (a) priority matching eligibility (G-05), (b) booking fee discount amount (G-06), (c) exclusive promo access (G-07), (d) EV fee waiver eligibility (G-08) | B-12 | BE-GAME-04 | All wired in: booking-fee discount (fares), EV fee waiver (reservations), priority matching (dispatch: nearest driver first, precedence for scarce drivers, extra retry wave) |
 | BE-GAME-09 | `[x]` Create `AdminGamificationController@indexUsers` — `GET /api/v1/admin/gamification/users`: list users with tier/score data, filters (tier, search, min_points), pagination, sorting | A-19 | BE-GAME-01, SETUP-52 | — |
 | BE-GAME-10 | `[x]` Create `AdminGamificationController@aggregate` — `GET /api/v1/admin/gamification/aggregate`: tier distribution, average carbon scores, total CO₂ saved, top 10 users | A-19 | BE-GAME-09 | — |
 | BE-GAME-11 | `[x]` Create `AdminGamificationController@updateTiers` — `PUT /api/v1/admin/gamification/tiers`: update all 5 tier configs (names, thresholds, benefits); audit log | A-17 | BE-GAME-01, SETUP-52 | Tier names: Bronze → Silver → Gold → Platinum → Diamond (OQ-09 resolved) |
@@ -463,7 +474,7 @@
 | BE-EV-07 | `[x]` Create `StallAvailabilityService` — maintain real-time stall status based on reservations and occupancy events | B-23 | BE-EV-01 | — |
 | BE-EV-08 | `[x]` Create `ReservationService` — handle three outcomes: (a) stall available → immediate lock, (b) occupied but departure imminent → queue hold, (c) wait > 15 min → return retry delay | B-24, B-25 | BE-EV-07 | Atomic stall locking (row lock) to prevent double-reservation |
 | BE-EV-09 | `[x]` Create `EvReservationController@store` — `POST /api/v1/ev-stations/{station}/reserve`: driver requests reservation; validate EV-class driver; call ReservationService | EV-01, EV-02, EV-03 | BE-EV-08 | — |
-| BE-EV-10 | `[x]` Create `StoreReservationFormRequest` — validate station exists, driver has EV vehicle class | EV-01 | BE-EV-09 | — |
+| BE-EV-10 | `[x]` Create `StoreReservationFormRequest` — validate station exists, driver has EV vehicle class | EV-01 | BE-EV-09 | Implemented as a vehicle `fuel_type` (`electric` / `plug_in_hybrid` can charge) rather than a vehicle class |
 | BE-EV-11 | `[x]` Create `TransferReservationJob` — when occupying vehicle departs, automatically transfer reservation to next queued driver and notify | B-24, EV-02 | BE-EV-08, SETUP-57 | — |
 | BE-EV-12 | `[x]` Implement tier-based fee waiver in `ReservationService`: check user tier via TierGateService; waive fee for eligible top-tier users | B-26, EV-04, G-08 | BE-EV-08, BE-GAME-08 | ⚠ OQ-16: Waiver applies to driver, passenger, or both? |
 | BE-EV-13 | `[x]` Create `EvReservationController@index` — `GET /api/v1/drivers/ev-reservations`: driver views active/past reservations | — | BE-EV-01 | — |
@@ -1046,8 +1057,8 @@
 | OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | BE-EARN-04 | `[x]` Resolved — all three options supported via `config('wallet.settlement_delay')`; default is `instant`; configurable at runtime via Admin Wallet Settings endpoint; `SettleDriverEarningsJob` runs hourly to move pending→available when delay is 24h or weekly |
 | OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | BE-EARN-05 | `[x]` Resolved — cash rides debit commission from `DriverEarningsAvailable` (driver already has the cash); negative balance allowed up to configurable threshold (`max_negative_balance`, default −₦5,000 / −500000 kobo); warning logged when threshold exceeded; `hasExcessiveNegativeBalance()` helper available for ride-blocking logic |
 | OQ-30 | Minimum payout amount for driver withdrawals? | BE-EARN-12 | `[x]` **Resolved:** ₦1,000 (100,000 kobo) — configured in `config/wallet.php` as `min_payout`; admin-adjustable via wallet settings endpoint |
-| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` **Resolved:** On-demand with Admin approval — driver requests payout via `PayoutController@store`, Admin approves via `AdminPayoutController@approve`, transfer processed via Paystack Transfer API. No automated schedule enforced |
-| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[x]` **Resolved:** No wallet-debit tips in V1. Tips via card payments only (`PaymentService@addTip()` charges via Paystack). Cash tips handled directly between rider and driver (logged as tip_amount on Payment record). Wallet-debit tips deferred — creates accounting complexity and regulatory grey area for closed-loop wallets |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | BE-EARN-12, BE-WADM-20 | `[x]` **Resolved:** On-demand with Admin approval — driver requests payout via `PayoutController@store`, Admin approves via `AdminPayoutController@approve`, transfer processed via Paystack Transfer API. No automated schedule enforced. **Update:** drivers can opt in to a weekly auto-payout (`weekly_auto`, Monday 06:00 Lagos) — the payout is created already approved |
+| OQ-32 | Tips: included in V1 wallet flow or deferred? | BE-EARN-03 | `[x]` **Resolved:** No wallet-debit tips in V1. Tips via card payments only (`PaymentService@addTip()` charges via Paystack). Cash tips handled directly between rider and driver (logged as tip_amount on Payment record). Wallet-debit tips deferred — creates accounting complexity and regulatory grey area for closed-loop wallets. **Update (15 Oct 2026):** wallet tips are now supported — tips follow the trip's payment method, and a wallet tip moves from the passenger's balance to the driver in one ledger journal (no commission) |
 | OQ-33 | Regulatory: custody of funds / safeguarding requirements for closed-loop wallet in Nigeria? | BE-WAL-01 | `[x]` **Resolved:** Paystack Wallet infrastructure (`PaystackWalletGateway`) handles fund custody under Paystack's CBN-licensed PSP status. E-tiGo operates as a sub-wallet under Paystack's license — funds held in Paystack's regulated trust accounts, not E-tiGo's operating account. Wallet caps (₦500k max balance) and double-entry bookkeeping provide additional safeguards. Formal Paystack partnership agreement recommended to document this arrangement |
 
 ### Phase 2 Decisions
@@ -1062,4 +1073,4 @@
 
 ---
 
-*Document generated from PRD v3.0 and Product Brief. Backend scope only — see `E-Tigo_Frontend_Task_Breakdown.md` for Passenger App, Driver App, and Admin Dashboard UI tasks. Update statuses: `[ ]` → `[~]` (in progress) → `[x]` (done).*
+*Document generated from PRD v3.0 and Product Brief. Backend scope only — see [Passenger App](Passenger_App_Task_Breakdown.md), [Driver App](Driver_App_Task_Breakdown.md) and [Web](Web_Task_Breakdown.md) for client-app tasks. Update statuses: `[ ]` → `[~]` (in progress) → `[x]` (done).*

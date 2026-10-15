@@ -8,6 +8,7 @@ use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentUpdated;
+use App\Models\AppSetting;
 use App\Models\Driver;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -23,6 +24,7 @@ class PaymentService
         private PaymentGateway $paymentGateway,
         private WalletPaymentService $walletPaymentService,
         private LedgerService $ledgerService,
+        private DriverEarningsService $driverEarningsService,
     ) {}
 
     public function processRidePayment(Ride $ride): Payment
@@ -92,7 +94,7 @@ class PaymentService
             $result = $this->paymentGateway->chargeWithToken([
                 'token' => $defaultMethod->gateway_token,
                 'provider' => $defaultMethod->provider,
-                'email' => $defaultMethod->gateway_email ?? $passenger->email,
+                'email' => $defaultMethod->gateway_email ?? $passenger->paymentEmail(),
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'tx_ref' => $txRef,
@@ -152,7 +154,7 @@ class PaymentService
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'redirect_url' => config('app.url').'/payments/callback',
-                'customer_email' => $passenger->email ?? "{$passenger->id}@rider.etigo.ng",
+                'customer_email' => $passenger->paymentEmail(),
                 'channels' => ['card'],
             ]);
 
@@ -194,7 +196,7 @@ class PaymentService
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'redirect_url' => config('app.url').'/payments/callback',
-                'customer_email' => $passenger->email ?? "{$passenger->id}@rider.etigo.ng",
+                'customer_email' => $passenger->paymentEmail(),
             ]);
 
             $payment->update(['gateway_payment_link' => $result['payment_link']]);
@@ -233,7 +235,7 @@ class PaymentService
                 AccountType::PassengerWallet,
             );
 
-            $maxBalance = config('wallet.max_balance', 50000000);
+            $maxBalance = AppSetting::wallet('max_balance');
             if (($passengerAccount->balance + $changeKobo) > $maxBalance) {
                 throw new \DomainException(
                     'Cash change would exceed rider wallet maximum balance (₦'.number_format($maxBalance / 100, 2).').'
@@ -304,78 +306,94 @@ class PaymentService
             throw new \RuntimeException('No payment record found for this ride.');
         }
 
-        // Charge card OUTSIDE the DB transaction — external calls can't be
-        // rolled back, so we charge first, then record the result.
-        if ($ride->payment_method === PaymentMethod::Card && $tipAmount > 0) {
-            $txRef = 'ETIGO-TIP-'.Str::upper(Str::random(12));
-            $passenger = $ride->passenger;
-            $defaultMethod = UserPaymentMethod::where('user_id', $passenger->id)
-                ->where('is_default', true)
-                ->first();
+        if (! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
+            throw new \RuntimeException('Tips can only be added to card, wallet or cash rides.');
+        }
 
-            if (! $defaultMethod) {
-                throw new \RuntimeException('No default payment method on file to charge tip.');
+        // Claim the tip slot before any charge so concurrent requests cannot
+        // both charge the passenger's card.
+        $claimed = Payment::whereKey($payment->id)
+            ->where(fn ($query) => $query->whereNull('tip_amount')->orWhere('tip_amount', 0))
+            ->update(['tip_amount' => $tipAmount]);
+
+        if ($claimed === 0) {
+            throw new \RuntimeException('A tip has already been added to this ride.');
+        }
+
+        if ($ride->payment_method === PaymentMethod::Card && $tipAmount > 0) {
+            try {
+                $this->chargeCardTip($ride, $tipAmount);
+            } catch (\Throwable $e) {
+                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+
+                throw $e;
             }
 
             try {
-                $result = $this->paymentGateway->chargeWithToken([
-                    'token' => $defaultMethod->gateway_token,
-                    'provider' => $defaultMethod->provider,
-                    'email' => $defaultMethod->gateway_email ?? $passenger->email,
-                    'amount' => $tipAmount,
-                    'currency' => $ride->fare_currency,
-                    'tx_ref' => $txRef,
-                ]);
-
-                if ($result['status'] !== 'successful') {
-                    throw new \RuntimeException("Tip charge returned non-successful status: {$result['status']}");
-                }
-            } catch (\RuntimeException $e) {
-                throw $e;
+                $this->driverEarningsService->creditTip($ride, (int) round($tipAmount * 100));
             } catch (\Throwable $e) {
-                Log::warning('Tip charge failed', [
+                // The passenger has been charged; surface the missing credit for
+                // reconciliation rather than failing the request.
+                Log::critical('Card tip charged but not credited to driver', [
                     'ride_id' => $ride->id,
+                    'tip_amount' => $tipAmount,
                     'error' => $e->getMessage(),
                 ]);
-                throw new \RuntimeException('Failed to charge tip amount.');
             }
 
-            $tipKobo = (int) round($tipAmount * 100);
-            if ($tipKobo > 0 && $ride->driver_id) {
-                $driver = Driver::where('user_id', $ride->driver_id)->first();
-                if ($driver) {
-                    $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
-                        ? AccountType::DriverEarningsAvailable
-                        : AccountType::DriverEarningsPending;
-
-                    $driverAccount = $this->ledgerService->findOrCreateAccount(
-                        'App\\Models\\Driver',
-                        $driver->id,
-                        $earningsAccountType,
-                    );
-                    $pspClearingAccount = $this->ledgerService->systemAccount(AccountType::PspClearing);
-
-                    $this->ledgerService->postJournal([
-                        ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $tipKobo],
-                        ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $tipKobo],
-                    ], [
-                        'description' => "Tip for ride {$ride->id}",
-                        'idempotency_key' => "card-tip-{$ride->id}",
-                        'metadata' => [
-                            'ride_id' => $ride->id,
-                            'tip_amount_kobo' => $tipKobo,
-                            'category' => 'tip',
-                        ],
-                    ]);
-                }
-            }
         }
 
-        $payment->update(['tip_amount' => $tipAmount]);
+        if ($ride->payment_method === PaymentMethod::Wallet && $tipAmount > 0) {
+            try {
+                $this->walletPaymentService->payTip($ride, (int) round($tipAmount * 100));
+            } catch (\Throwable $e) {
+                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+
+                throw new \RuntimeException($e instanceof \DomainException ? $e->getMessage() : 'Failed to pay the tip from your wallet.');
+            }
+        }
 
         $this->broadcastPaymentUpdate($payment->fresh());
 
         return $payment->fresh();
+    }
+
+    /**
+     * External charges cannot be rolled back, so this runs outside any
+     * database transaction and before the tip is considered final.
+     */
+    private function chargeCardTip(Ride $ride, float $tipAmount): void
+    {
+        $passenger = $ride->passenger;
+        $defaultMethod = UserPaymentMethod::where('user_id', $passenger->id)
+            ->where('is_default', true)
+            ->first();
+
+        if (! $defaultMethod) {
+            throw new \RuntimeException('No default payment method on file to charge tip.');
+        }
+
+        try {
+            $result = $this->paymentGateway->chargeWithToken([
+                'token' => $defaultMethod->gateway_token,
+                'provider' => $defaultMethod->provider,
+                'email' => $defaultMethod->gateway_email ?? $passenger->paymentEmail(),
+                'amount' => $tipAmount,
+                'currency' => $ride->fare_currency,
+                'tx_ref' => 'ETIGO-TIP-'.Str::upper(Str::random(12)),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Tip charge failed', [
+                'ride_id' => $ride->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new \RuntimeException('Failed to charge tip amount.');
+        }
+
+        if ($result['status'] !== 'successful') {
+            throw new \RuntimeException("Tip charge returned non-successful status: {$result['status']}");
+        }
     }
 
     public function refundPayment(Payment $payment, ?float $amount = null): Payment

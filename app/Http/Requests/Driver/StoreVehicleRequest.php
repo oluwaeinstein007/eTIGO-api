@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Driver;
 
+use App\Enums\FuelType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreVehicleRequest extends FormRequest
 {
@@ -23,6 +25,7 @@ class StoreVehicleRequest extends FormRequest
             'plate_number' => ['required', 'string', 'max:20', 'unique:vehicles,plate_number'],
             'year' => ['required', 'integer', 'min:2000', 'max:'.(date('Y') + 1)],
             'vehicle_class_id' => ['required', 'uuid', 'exists:vehicle_classes,id'],
+            'fuel_type' => ['nullable', Rule::enum(FuelType::class)],
         ];
     }
 }

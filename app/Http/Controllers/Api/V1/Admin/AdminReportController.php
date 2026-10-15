@@ -27,7 +27,7 @@ class AdminReportController extends Controller
         $request->validate([
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
-            'city_id' => ['sometimes', 'exists:cities,id'],
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
             'group_by' => ['sometimes', 'in:day,week,month'],
         ]);
 
@@ -94,7 +94,7 @@ class AdminReportController extends Controller
         $request->validate([
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
-            'city_id' => ['sometimes', 'exists:cities,id'],
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
         ]);
 
         $query = Ride::query();
@@ -190,7 +190,7 @@ class AdminReportController extends Controller
         $request->validate([
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
-            'city_id' => ['sometimes', 'exists:cities,id'],
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
             'group_by' => ['sometimes', 'in:day,week,month'],
         ]);
 
@@ -283,7 +283,7 @@ class AdminReportController extends Controller
         $request->validate([
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
-            'city_id' => ['sometimes', 'exists:cities,id'],
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
             'limit' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -401,7 +401,7 @@ class AdminReportController extends Controller
             'type' => ['required', 'in:ride_volume,completion_rate,revenue,driver_utilisation,all'],
             'from' => ['required', 'date'],
             'to' => ['required', 'date'],
-            'city_id' => ['sometimes', 'exists:cities,id'],
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
         ]);
 
         $type = $request->input('type');

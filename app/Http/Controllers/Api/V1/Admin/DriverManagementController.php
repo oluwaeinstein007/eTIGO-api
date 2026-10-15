@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DriverStatus;
+use App\Enums\FuelType;
 use App\Enums\KycStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
+use App\Enums\RideStatus;
 use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CompleteDriverOnboardingRequest;
@@ -21,22 +23,32 @@ use App\Models\Driver;
 use App\Models\DriverDocument;
 use App\Models\Ride;
 use App\Models\VehicleClass;
+use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class DriverManagementController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'status' => ['sometimes', 'nullable', Rule::enum(DriverStatus::class)],
+            'kyc_status' => ['sometimes', 'nullable', Rule::enum(KycStatus::class)],
+            'city_id' => ['sometimes', 'nullable', 'uuid'],
+            'vehicle_class_id' => ['sometimes', 'nullable', 'uuid'],
+        ]);
+
         $query = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city', 'primaryBankAccount']);
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->has('kyc_status')) {
+        if ($request->filled('kyc_status')) {
             $query->where('kyc_status', $request->input('kyc_status'));
         }
 
@@ -257,6 +269,15 @@ class DriverManagementController extends Controller
             ]);
         });
 
+        try {
+            app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to remove suspended driver from the live location index', [
+                'driver_id' => $driver->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return response()->json([
             'message' => 'Driver suspended successfully.',
             'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city'])),
@@ -318,6 +339,58 @@ class DriverManagementController extends Controller
         ]);
     }
 
+    /**
+     * Confirm or change the vehicle class a driver operates in. Drivers choose
+     * a preferred class during onboarding; after that only E-tiGo may change it.
+     */
+    public function updateVehicleClass(Request $request, Driver $driver): JsonResponse
+    {
+        $validated = $request->validate([
+            'vehicle_class_id' => ['required_without:fuel_type', 'uuid', Rule::exists('vehicle_classes', 'id')->where('is_active', true)],
+            'fuel_type' => ['required_without:vehicle_class_id', Rule::enum(FuelType::class)],
+        ]);
+
+        $vehicle = $driver->vehicle;
+
+        if (! $vehicle) {
+            return response()->json(['message' => 'Driver has no registered vehicle.'], 422);
+        }
+
+        // The class decides the fares of the ride in progress; fuel type does not.
+        $hasActiveRide = isset($validated['vehicle_class_id']) && Ride::where('driver_id', $driver->user_id)
+            ->whereIn('status', RideStatus::activeStatuses())
+            ->exists();
+
+        if ($hasActiveRide) {
+            return response()->json([
+                'message' => 'The vehicle class cannot be changed while the driver is on an active ride.',
+            ], 409);
+        }
+
+        $changes = array_filter([
+            'vehicle_class_id' => $validated['vehicle_class_id'] ?? null,
+            'fuel_type' => $validated['fuel_type'] ?? null,
+        ]);
+
+        DB::transaction(function () use ($vehicle, $changes, $request) {
+            $old = ['vehicle_class_id' => $vehicle->vehicle_class_id, 'fuel_type' => $vehicle->fuel_type?->value];
+            $vehicle->update($changes);
+
+            AuditLog::record(
+                $vehicle,
+                isset($changes['vehicle_class_id']) ? 'vehicle_class_changed' : 'vehicle_fuel_type_changed',
+                $request->user(),
+                array_intersect_key($old, $changes),
+                $changes,
+            );
+        });
+
+        return response()->json([
+            'message' => isset($changes['vehicle_class_id']) ? 'Vehicle class updated.' : 'Vehicle fuel type updated.',
+            'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
+        ]);
+    }
+
     public function pendingReview(): JsonResponse
     {
         $drivers = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city'])
@@ -342,6 +415,12 @@ class DriverManagementController extends Controller
      */
     public function completeOnboarding(CompleteDriverOnboardingRequest $request, Driver $driver): JsonResponse
     {
+        if (app()->isProduction()) {
+            return response()->json([
+                'message' => 'Manual onboarding and KYC bypass is disabled in production.',
+            ], 403);
+        }
+
         if ($driver->isSuspended()) {
             return response()->json([
                 'message' => 'Driver is currently suspended. Please reactivate the driver instead.',

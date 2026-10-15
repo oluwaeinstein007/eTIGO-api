@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Contracts\PushNotificationGateway;
 use App\Enums\EvReservationStatus;
+use App\Enums\NotificationType;
+use App\Jobs\TransferReservationJob;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
@@ -15,6 +18,8 @@ class ReservationService
     public function __construct(
         private readonly StallAvailabilityService $stallService,
         private readonly TierGateService $tierGate,
+        private readonly EvReservationFeeService $fees,
+        private readonly PushNotificationGateway $pushGateway,
     ) {}
 
     public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
@@ -84,7 +89,7 @@ class ReservationService
 
             if ($reservation->stall_id) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($reservation->station);
+                TransferReservationJob::dispatch($reservation->station_id)->afterCommit();
             }
 
             Log::info('EV reservation completed', ['reservation_id' => $reservation->id]);
@@ -110,9 +115,11 @@ class ReservationService
                 'status' => EvReservationStatus::Cancelled,
             ]);
 
+            $this->fees->refundIfWithinGracePeriod($reservation);
+
             if ($hadStall && $reservation->stall) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($station);
+                TransferReservationJob::dispatch($station->id)->afterCommit();
             }
 
             if ($wasQueued) {
@@ -123,6 +130,24 @@ class ReservationService
 
             return $reservation->fresh();
         });
+    }
+
+    /**
+     * Release reserved stalls whose driver never arrived within the expiry window.
+     *
+     * @return int Number of reservations expired
+     */
+    public function expireOverdueReservations(): int
+    {
+        $overdue = EvReservation::where('status', EvReservationStatus::Reserved)
+            ->where('reserved_at', '<=', now()->subMinutes((int) config('ev_charging.reservation_expiry_minutes', 30)))
+            ->get();
+
+        foreach ($overdue as $reservation) {
+            $this->expire($reservation);
+        }
+
+        return $overdue->count();
     }
 
     public function expire(EvReservation $reservation): EvReservation
@@ -140,7 +165,7 @@ class ReservationService
 
             if ($reservation->stall_id && $reservation->stall) {
                 $this->stallService->releaseStall($reservation->stall);
-                $this->transferToNextQueued($reservation->station);
+                TransferReservationJob::dispatch($reservation->station_id)->afterCommit();
             }
 
             Log::info('EV reservation expired', ['reservation_id' => $reservation->id]);
@@ -149,20 +174,42 @@ class ReservationService
         });
     }
 
+    /**
+     * Hand a freed stall to the next queued driver. Callers that release a
+     * stall dispatch TransferReservationJob, which also notifies that driver.
+     */
     public function transferToNextQueued(EvChargingStation $station): ?EvReservation
     {
-        $nextInQueue = EvReservation::forStation($station->id)
-            ->queued()
-            ->lockForUpdate()
-            ->first();
-
-        if (! $nextInQueue) {
-            return null;
-        }
-
         $availableStall = $this->stallService->findAvailableStall($station);
 
         if (! $availableStall) {
+            return null;
+        }
+
+        $nextInQueue = null;
+
+        foreach (EvReservation::forStation($station->id)->queued()->lockForUpdate()->get() as $queued) {
+            try {
+                // The fee is collected when the stall is actually held for the driver.
+                $this->fees->charge($queued);
+                $nextInQueue = $queued;
+
+                break;
+            } catch (\RuntimeException $e) {
+                $queued->update([
+                    'status' => EvReservationStatus::Cancelled,
+                    'notes' => 'Cancelled when the stall was ready: '.$e->getMessage(),
+                ]);
+
+                $this->notifySkipped($queued, $station, $e->getMessage());
+
+                Log::info('Queued EV reservation skipped: fee not paid', ['reservation_id' => $queued->id]);
+            }
+        }
+
+        if (! $nextInQueue) {
+            $this->reorderQueue($station->id);
+
             return null;
         }
 
@@ -206,6 +253,9 @@ class ReservationService
             'reserved_at' => now(),
         ]);
 
+        // Throws when the driver's earnings cannot cover the fee, rolling back the hold.
+        $this->fees->charge($reservation);
+
         Log::info('EV stall reserved immediately', [
             'reservation_id' => $reservation->id,
             'stall_id' => $stall->id,
@@ -232,6 +282,7 @@ class ReservationService
 
         $queuePosition = $currentQueueSize + 1;
         $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
+        $this->fees->assertCanPay($driver, $feeWaived ? 0 : (int) round((float) config('ev_charging.reservation_fee', 500.00) * 100));
 
         $reservation = EvReservation::create([
             'station_id' => $station->id,
@@ -277,6 +328,8 @@ class ReservationService
             throw new \RuntimeException('Only drivers can reserve EV charging stalls.');
         }
 
+        $this->assertCanCharge($driver);
+
         $maxActive = config('ev_charging.max_active_reservations_per_driver', 1);
 
         $activeCount = EvReservation::forDriver($driver->id)
@@ -285,6 +338,33 @@ class ReservationService
 
         if ($activeCount >= $maxActive) {
             throw new \RuntimeException('You already have an active reservation.');
+        }
+    }
+
+    /**
+     * Tell a queued driver who lost their turn because the fee could not be
+     * taken, once the cancellation is committed.
+     */
+    private function notifySkipped(EvReservation $reservation, EvChargingStation $station, string $reason): void
+    {
+        DB::afterCommit(fn () => rescue(fn () => $this->pushGateway->sendToUser($reservation->driver_id, [
+            'title' => 'EV Reservation Cancelled',
+            'body' => "A stall at {$station->name} was ready, but your reservation was cancelled. {$reason}",
+            'data' => [
+                'type' => NotificationType::EvReservationCancelled->value,
+                'reservation_id' => (string) $reservation->id,
+                'station_name' => $station->name,
+            ],
+        ])));
+    }
+
+    /**
+     * Charging stalls are for plug-in vehicles only (electric or plug-in hybrid).
+     */
+    public function assertCanCharge(User $driver): void
+    {
+        if (! $driver->driver?->vehicle?->fuel_type?->canCharge()) {
+            throw new \RuntimeException("EV charging is only available for electric and plug-in hybrid vehicles. Set your vehicle's fuel type if it is one.");
         }
     }
 

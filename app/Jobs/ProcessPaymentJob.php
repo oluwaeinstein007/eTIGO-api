@@ -2,20 +2,19 @@
 
 namespace App\Jobs;
 
-use App\Enums\PaymentMethod;
-use App\Enums\PaymentStatus;
-use App\Models\Driver;
+use App\Models\Payment;
 use App\Models\Ride;
 use App\Services\DriverEarningsService;
 use App\Services\FleetRemittanceService;
 use App\Services\PaymentService;
+use App\Services\RideService;
+use App\Services\RideSettlementService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
@@ -37,34 +36,30 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
         return $this->rideId;
     }
 
+    /**
+     * The fleet and earnings services are resolved through the settlement
+     * service; the parameters are kept for callers that invoke handle() directly.
+     */
     public function handle(
         PaymentService $paymentService,
         FleetRemittanceService $fleetService,
         DriverEarningsService $earningsService,
     ): void {
-        $ride = DB::transaction(function () {
-            $ride = Ride::with('passenger')->lockForUpdate()->find($this->rideId);
-
-            if (! $ride) {
-                Log::warning('ProcessPaymentJob: ride not found', ['ride_id' => $this->rideId]);
-
-                return null;
-            }
-
-            if ($ride->payment()->exists()) {
-                Log::info('ProcessPaymentJob: payment already exists', ['ride_id' => $this->rideId]);
-
-                return null;
-            }
-
-            return $ride;
-        });
+        $ride = Ride::with('passenger')->find($this->rideId);
 
         if (! $ride) {
+            Log::warning('ProcessPaymentJob: ride not found', ['ride_id' => $this->rideId]);
+
             return;
         }
 
-        try {
+        $this->ensureFinalFare($ride);
+
+        $payment = Payment::where('ride_id', $ride->id)->first();
+
+        if ($payment) {
+            Log::info('ProcessPaymentJob: payment already exists', ['ride_id' => $this->rideId]);
+        } else {
             $payment = $paymentService->processRidePayment($ride);
 
             Log::info('Payment processed', [
@@ -73,77 +68,42 @@ class ProcessPaymentJob implements ShouldBeUnique, ShouldQueue
                 'method' => $payment->method->value,
                 'status' => $payment->status->value,
             ]);
-
-            $this->creditDriverEarnings($ride, $payment, $earningsService);
-            $this->recordFleetRemittance($ride, $payment, $fleetService);
-        } catch (\Throwable $e) {
-            Log::error('Payment processing failed', [
-                'ride_id' => $ride->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw $e;
         }
+
+        // Idempotent per ride: a retry after a partial failure completes the
+        // earnings credit and fleet remittance without charging again.
+        app(RideSettlementService::class)->applyPayment($ride->fresh(), $payment->fresh());
     }
 
-    private function creditDriverEarnings(Ride $ride, $payment, DriverEarningsService $earningsService): void
+    /**
+     * The ride is charged its final fare. If the fare could not be computed at
+     * completion (e.g. the maps provider was down) it is retried here, and as a
+     * last resort the booking estimate the passenger agreed to is charged and
+     * recorded as the final fare so the ride and payment never disagree.
+     */
+    private function ensureFinalFare(Ride $ride): void
     {
-        $shouldCredit = match ($payment->method) {
-            PaymentMethod::Cash => true,
-            PaymentMethod::Card, PaymentMethod::BankTransfer => $payment->status === PaymentStatus::Captured,
-            default => false,
-        };
-
-        if (! $shouldCredit) {
+        if ($ride->final_fare_amount !== null) {
             return;
         }
-
-        $fareAmountKobo = (int) round((float) $payment->amount * 100);
 
         try {
-            $earningsService->creditRideEarnings($ride, $fareAmountKobo);
+            app(RideService::class)->calculateFinalFare($ride);
         } catch (\Throwable $e) {
-            Log::error('Failed to credit driver earnings', [
+            Log::error('Final fare unavailable at payment time; charging the booking estimate', [
                 'ride_id' => $ride->id,
-                'payment_id' => $payment->id,
                 'error' => $e->getMessage(),
             ]);
-        }
-    }
 
-    private function recordFleetRemittance(Ride $ride, $payment, FleetRemittanceService $fleetService): void
-    {
-        $isCash = $payment->method === PaymentMethod::Cash;
-        $isCardCaptured = ! $isCash && in_array($payment->status, [
-            PaymentStatus::Captured,
-            PaymentStatus::Settled,
-        ], true);
-
-        if (! $isCash && ! $isCardCaptured) {
-            return;
+            $ride->update([
+                'final_fare_amount' => $ride->fare_estimate_amount,
+                'pricing_snapshot' => [
+                    ...($ride->pricing_snapshot ?? []),
+                    'final_fare_fallback' => 'booking_estimate',
+                ],
+            ]);
         }
 
-        $driver = Driver::where('user_id', $ride->driver_id)->first();
-
-        if (! $driver || ! $driver->isFleetVehicle()) {
-            return;
-        }
-
-        $agreement = $driver->activeFleetAgreement;
-
-        if (! $agreement) {
-            return;
-        }
-
-        $fareAmount = (float) ($ride->final_fare_amount ?? $ride->fare_estimate_amount);
-
-        $fleetService->recordRideRemittance($agreement, $fareAmount);
-
-        Log::info('Fleet remittance recorded', [
-            'ride_id' => $ride->id,
-            'driver_id' => $driver->id,
-            'agreement_id' => $agreement->id,
-            'fare_amount' => $fareAmount,
-        ]);
+        $ride->refresh();
     }
 }

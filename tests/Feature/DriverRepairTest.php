@@ -80,6 +80,23 @@ describe('Driver Repair & Maintenance Request Submission', function () {
         ]);
     });
 
+    it('gives each request its own reference even when two are submitted at the same moment', function () {
+        $referenceDrawnByOtherRequest = DriverRepair::generateReferenceNumber();
+
+        $reference = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->postJson('/api/v1/driver/repairs', [
+                'type' => 'repair',
+                'title' => 'Front brake noise',
+                'details' => 'Squeaking sound coming from front left brake when coming to a halt.',
+                'preferred_date' => now()->addDays(2)->toDateString(),
+                'preferred_time' => '12:00 pm',
+            ])
+            ->assertCreated()
+            ->json('repair.reference_number');
+
+        expect($reference)->toStartWith('REP-')->not->toBe($referenceDrawnByOtherRequest);
+    });
+
     it('allows driver to submit a maintenance request', function () {
         $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
             ->postJson('/api/v1/driver/repairs', [

@@ -102,9 +102,18 @@ class KycController extends Controller
             return response()->json(['message' => 'Register a vehicle before verifying its plate.'], 422);
         }
 
-        try {
-            $plateNumber = $request->validated('plate_number');
+        $plateNumber = $request->validated('plate_number');
+        $normalisePlate = fn (string $plate): string => strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $plate));
 
+        // Verifying some other (valid) plate must not mark this driver's vehicle as verified.
+        if ($normalisePlate($plateNumber) !== $normalisePlate((string) $driver->vehicle->plate_number)) {
+            return response()->json([
+                'message' => 'The plate number must match your registered vehicle.',
+                'errors' => ['plate_number' => ['The plate number must match your registered vehicle.']],
+            ], 422);
+        }
+
+        try {
             $verification = $this->kycService->verifyVehiclePlate($driver, $plateNumber);
 
             AuditLog::record($verification, 'kyc_vehicle_plate_verification_submitted', $request->user());

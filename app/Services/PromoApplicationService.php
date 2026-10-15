@@ -74,6 +74,11 @@ class PromoApplicationService
                 pickupLat: $ride->pickup_lat ? (float) $ride->pickup_lat : null,
                 pickupLng: $ride->pickup_lng ? (float) $ride->pickup_lng : null,
                 fareAmount: $fareAmount,
+                // The ride being settled is already completed and must not count
+                // against "first N rides" rules, and the time-window/peak rules
+                // are honoured as they stood when the passenger booked.
+                excludeRideId: $ride->id,
+                evaluatedAt: $ride->created_at,
             );
 
             if (! $validation['valid']) {

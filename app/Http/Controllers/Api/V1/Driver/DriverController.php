@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
 use App\Models\AuditLog;
+use App\Models\Ride;
 use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use Illuminate\Http\JsonResponse;
@@ -29,35 +31,54 @@ class DriverController extends Controller
             ], 404);
         }
 
-        if (! $driver->canGoOnline() && ! $driver->is_online) {
-            $reasons = [];
+        if ($driver->is_online) {
+            $hasActiveRide = Ride::where('driver_id', $user->id)
+                ->whereIn('status', [
+                    RideStatus::Matched,
+                    RideStatus::DriverEnRoute,
+                    RideStatus::DriverArrived,
+                    RideStatus::InProgress,
+                ])
+                ->exists();
 
-            if (! $driver->isApproved()) {
-                $reasons[] = 'Driver account is not approved.';
+            if ($hasActiveRide) {
+                return response()->json([
+                    'message' => 'You cannot go offline during an active ride. Complete or cancel the ride first.',
+                ], 409);
             }
+        } else {
+            $hasExcessiveNegativeBalance = $this->earningsService->hasExcessiveNegativeBalance($driver->id);
 
-            if ($driver->isSuspended()) {
-                $reasons[] = 'Driver account is suspended.';
+            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance) {
+                $reasons = [];
+
+                if (! $driver->isApproved()) {
+                    $reasons[] = 'Driver account is not approved.';
+                }
+
+                if ($driver->isSuspended()) {
+                    $reasons[] = 'Driver account is suspended.';
+                }
+
+                if (! $driver->isKycVerified()) {
+                    $reasons[] = 'KYC verification is not complete.';
+                }
+
+                if (! $driver->vehicle) {
+                    $reasons[] = 'No vehicle registered.';
+                } elseif (! $driver->vehicle->vehicle_class_id) {
+                    $reasons[] = 'Vehicle class not assigned.';
+                }
+
+                if ($hasExcessiveNegativeBalance) {
+                    $reasons[] = 'Outstanding negative balance exceeds the allowed threshold.';
+                }
+
+                return response()->json([
+                    'message' => 'Cannot go online.',
+                    'reasons' => $reasons,
+                ], 422);
             }
-
-            if (! $driver->isKycVerified()) {
-                $reasons[] = 'KYC verification is not complete.';
-            }
-
-            if (! $driver->vehicle) {
-                $reasons[] = 'No vehicle registered.';
-            } elseif (! $driver->vehicle->vehicle_class_id) {
-                $reasons[] = 'Vehicle class not assigned.';
-            }
-
-            if ($this->earningsService->hasExcessiveNegativeBalance($user->id)) {
-                $reasons[] = 'Outstanding negative balance exceeds the allowed threshold.';
-            }
-
-            return response()->json([
-                'message' => 'Cannot go online.',
-                'reasons' => $reasons,
-            ], 422);
         }
 
         $driver->update(['is_online' => ! $driver->is_online]);
