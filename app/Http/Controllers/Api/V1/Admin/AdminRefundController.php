@@ -25,10 +25,7 @@ class AdminRefundController extends Controller
 
         $ride->loadMissing('payment');
 
-        $maxRefundable = max(
-            0,
-            $this->refundService->paidAmountKobo($ride) - $this->refundService->refundedAmountKobo($ride),
-        );
+        $maxRefundable = $this->refundService->remainingRefundableKobo($ride);
 
         if ($amountKobo > $maxRefundable) {
             return response()->json([

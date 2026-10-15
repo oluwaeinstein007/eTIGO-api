@@ -54,8 +54,9 @@ class WalletRefundService
             ],
         ]);
 
-        rescue(fn () => User::find($ride->passenger_id)
-            ?->notify(new WalletRefundNotification($ride->id, $amountKobo)));
+        // Only tell the passenger once the refund has actually been committed.
+        DB::afterCommit(fn () => rescue(fn () => User::find($ride->passenger_id)
+            ?->notify(new WalletRefundNotification($ride->id, $amountKobo))));
     }
 
     public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null): void
@@ -100,6 +101,15 @@ class WalletRefundService
         bool $clawbackDriverEarnings = true,
     ): array {
         return DB::transaction(function () use ($ride, $amountKobo, $reason, $admin, $clawbackDriverEarnings) {
+            // Serialise refunds of the same ride so two requests (a double
+            // click, or two finance admins) cannot both refund what is left.
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+            $remainingKobo = $this->remainingRefundableKobo($ride);
+
+            if ($amountKobo > $remainingKobo) {
+                throw new \DomainException('Refund exceeds remaining refundable amount of ₦'.number_format($remainingKobo / 100, 2).'.');
+            }
+
             $refundKey = 'refund-'.$ride->id.'-'.Str::random(8);
 
             $this->refundToWallet($ride, $amountKobo, $reason, $refundKey, [
@@ -120,6 +130,14 @@ class WalletRefundService
 
             return ['refund_kobo' => $amountKobo, 'clawback_kobo' => $clawbackKobo];
         });
+    }
+
+    /**
+     * What can still be refunded for the ride, in kobo.
+     */
+    public function remainingRefundableKobo(Ride $ride): int
+    {
+        return max(0, $this->paidAmountKobo($ride) - $this->refundedAmountKobo($ride));
     }
 
     /**

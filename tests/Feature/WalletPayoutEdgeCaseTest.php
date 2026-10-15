@@ -34,8 +34,10 @@ use App\Models\WalletTransaction;
 use App\Services\DriverEarningsService;
 use App\Services\LedgerService;
 use App\Services\RideSettlementService;
+use App\Services\WalletRefundService;
 use Database\Seeders\SystemAccountSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -349,6 +351,38 @@ it('rejects a refund larger than what the passenger paid', function () {
         ->assertJsonPath('max_refundable_kobo', 500000);
 
     expect(passengerWallet($this)->balance)->toBe(0);
+});
+
+it('never refunds more than the passenger paid when two refunds race', function () {
+    $ride = cardRide($this, 5000);
+    Payment::factory()->captured()->create(['ride_id' => $ride->id, 'amount' => 5000]);
+    $refunds = app(WalletRefundService::class);
+
+    // Both requests passed the controller's pre-check before either was saved.
+    $refunds->refundRide($ride, 500000, 'Trip never took place.', $this->finance, false);
+
+    expect(fn () => $refunds->refundRide($ride, 500000, 'Trip never took place.', $this->finance, false))
+        ->toThrow(DomainException::class, 'Refund exceeds remaining refundable amount of ₦0.00.');
+
+    expect(passengerWallet($this)->balance)->toBe(500000);
+});
+
+it('does not tell the passenger about a refund that could not be completed', function () {
+    Notification::fake();
+    $ride = cardRide($this, 5000);
+    Payment::factory()->captured()->create(['ride_id' => $ride->id, 'amount' => 5000]);
+    app(DriverEarningsService::class)->creditRideEarnings($ride, 500000);
+    Account::where('owner_type', 'App\\Models\\Driver')
+        ->where('owner_id', $this->driver->id)
+        ->where('type', AccountType::DriverEarningsAvailable)
+        ->update(['status' => AccountStatus::Frozen]);
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/rides/{$ride->id}/refund", ['amount' => 100000, 'reason' => 'Driver took a much longer route than necessary.'])
+        ->assertUnprocessable();
+
+    expect(passengerWallet($this)->balance)->toBe(0);
+    Notification::assertNothingSent();
 });
 
 it('refuses to refund a ride that was never completed', function () {
