@@ -28,13 +28,13 @@
       },
       {
         "key": "base_url",
-        "value": "https://staging.etigo.ng/api/v1",
+        "value": "https://etigo-api.apeinhood.xyz/api/v1",
         "type": "default",
         "enabled": true
       },
       {
         "key": "base_url_root",
-        "value": "https://staging.etigo.ng",
+        "value": "https://etigo-api.apeinhood.xyz",
         "type": "default",
         "enabled": true
       },
@@ -208,7 +208,7 @@
       },
       {
         "key": "reverb_host",
-        "value": "staging.etigo.ng",
+        "value": "etigo-api.apeinhood.xyz",
         "type": "default",
         "enabled": true
       },
