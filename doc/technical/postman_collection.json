@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -217,6 +217,11 @@
     },
     {
       "key": "driver_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ledger_entry_id",
       "value": "",
       "type": "string"
     }
@@ -8230,7 +8235,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"earnings\": {\n    \"currency\": \"NGN\",\n    \"pending\": 350000,\n    \"available\": 1200000,\n    \"total_paid\": 5600000\n  }\n}"
+                  "body": "{\n  \"earnings\": {\n    \"currency\": \"NGN\",\n    \"pending\": 0,\n    \"available\": 378000,\n    \"total_paid\": 0\n  }\n}"
                 }
               ]
             },
@@ -8249,7 +8254,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/driver/ledger/transactions?type=credit&from=2026-10-01&to=2026-10-13",
+                  "raw": "{{base_url}}/driver/ledger/transactions?type=credit&from=2026-10-01&to=2026-10-31&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -8261,19 +8266,31 @@
                   "query": [
                     {
                       "key": "type",
-                      "value": "credit"
+                      "value": "credit",
+                      "description": "debit or credit (optional)"
                     },
                     {
                       "key": "from",
-                      "value": "2026-10-01"
+                      "value": "2026-10-01",
+                      "description": "Y-m-d (optional)"
                     },
                     {
                       "key": "to",
-                      "value": "2026-10-13"
+                      "value": "2026-10-31",
+                      "description": "Y-m-d, inclusive (optional)"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "1\u2013100, default 20"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
                     }
                   ]
                 },
-                "description": "Returns paginated ledger entries. Optional: `type` (debit/credit), `from`/`to` (date range)."
+                "description": "Paginated entries on the driver's **available** earnings account, newest first. Optional `type` (debit/credit), `from`/`to` (dates), `per_page` (1\u2013100, default 20) and `page`.\n\nEach entry links to its source (`source_type` `ride` or `payout`, `source_id`) and its journal, whose `metadata.category` says what it was: `ride_fare` (fare credited), `commission` (platform commission debited separately), `tip`, and so on. **Sets `{{ledger_entry_id}}`** (latest entry) for **Get Ledger Transaction**."
               },
               "response": [
                 {
@@ -8286,9 +8303,94 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"transactions\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"credit\",\n      \"amount\": 272000,\n      \"running_balance\": 1200000,\n      \"description\": \"Ride earnings: Marina to Ikoyi\",\n      \"created_at\": \"2026-10-13T09:45:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 3,\n    \"per_page\": 20,\n    \"total\": 48\n  }\n}"
+                  "body": "{\n  \"transactions\": [\n    {\n      \"id\": \"01a14047-1bd0-70a1-a204-3a96aefed474\",\n      \"type\": \"credit\",\n      \"type_label\": \"Credit\",\n      \"amount\": 50000,\n      \"running_balance\": 378000,\n      \"created_at\": \"2026-10-15T15:56:04+00:00\",\n      \"source_type\": \"ride\",\n      \"source_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n      \"journal\": {\n        \"id\": \"01a14047-1bcc-7012-aba6-40079a4ccf1e\",\n        \"reference\": \"JRN-TBKW1LEJTWUM-261015\",\n        \"description\": \"Tip for ride 01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n        \"metadata\": {\n          \"ride_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n          \"category\": \"tip\",\n          \"tip_amount_kobo\": 50000\n        },\n        \"posted_at\": \"2026-10-15T15:56:04+00:00\"\n      }\n    },\n    {\n      \"id\": \"01a14047-1bc4-707e-9972-3a378e78c331\",\n      \"type\": \"debit\",\n      \"type_label\": \"Debit\",\n      \"amount\": 82000,\n      \"running_balance\": 328000,\n      \"created_at\": \"2026-10-15T15:56:04+00:00\",\n      \"source_type\": \"ride\",\n      \"source_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n      \"journal\": {\n        \"id\": \"01a14047-1bc2-7354-b0bd-32969645f4aa\",\n        \"reference\": \"JRN-U9QFE9ICXENY-261015\",\n        \"description\": \"Platform commission for ride 01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n        \"metadata\": {\n          \"ride_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n          \"category\": \"commission\",\n          \"fare_kobo\": 410000,\n          \"commission_kobo\": 82000,\n          \"commission_rate\": 0.2\n        },\n        \"posted_at\": \"2026-10-15T15:56:04+00:00\"\n      }\n    },\n    {\n      \"id\": \"01a14047-1bbf-73fc-b3ee-507469299022\",\n      \"type\": \"credit\",\n      \"type_label\": \"Credit\",\n      \"amount\": 410000,\n      \"running_balance\": 410000,\n      \"created_at\": \"2026-10-15T15:56:04+00:00\",\n      \"source_type\": \"ride\",\n      \"source_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n      \"journal\": {\n        \"id\": \"01a14047-1bb7-7014-881b-c25060206aa1\",\n        \"reference\": \"JRN-QVGGBL1DPLXH-261015\",\n        \"description\": \"Card ride settlement for ride 01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n        \"metadata\": {\n          \"ride_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n          \"category\": \"ride_fare\",\n          \"fare_kobo\": 410000,\n          \"commission_kobo\": 82000,\n          \"commission_rate\": 0.2,\n          \"net_earnings_kobo\": 328000\n        },\n        \"posted_at\": \"2026-10-15T15:56:04+00:00\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 3,\n    \"total\": 3\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Invalid Page Size",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The per page field must not be greater than 100.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"per_page\": [\n      \"The per page field must not be greater than 100.\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('ledger_entry_id', data.transactions[0].id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
+            },
+            {
+              "name": "Get Ledger Transaction",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ledger/transactions/{{ledger_entry_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ledger",
+                    "transactions",
+                    "{{ledger_entry_id}}"
+                  ]
+                },
+                "description": "One entry on the driver's available earnings account with its journal and source (`ride` or `payout`). Uses `{{ledger_entry_id}}` from **Ledger Transactions**. An entry that belongs to another account \u2192 404 \"Transaction not found.\"; a malformed or unknown id \u2192 404 `NOT_FOUND`."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Transaction",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"transaction\": {\n    \"id\": \"01a14047-1bc4-707e-9972-3a378e78c331\",\n    \"type\": \"debit\",\n    \"type_label\": \"Debit\",\n    \"amount\": 82000,\n    \"running_balance\": 328000,\n    \"created_at\": \"2026-10-15T15:56:04+00:00\",\n    \"source_type\": \"ride\",\n    \"source_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n    \"journal\": {\n      \"id\": \"01a14047-1bc2-7354-b0bd-32969645f4aa\",\n      \"reference\": \"JRN-U9QFE9ICXENY-261015\",\n      \"description\": \"Platform commission for ride 01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n      \"metadata\": {\n        \"ride_id\": \"01a14047-1b9d-73ef-bc2b-e61c243918a5\",\n        \"category\": \"commission\",\n        \"fare_kobo\": 410000,\n        \"commission_kobo\": 82000,\n        \"commission_rate\": 0.2\n      },\n      \"posted_at\": \"2026-10-15T15:56:04+00:00\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "404 \u2014 Not Your Transaction",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Transaction not found.\"\n}"
+                }
+              ],
+              "event": []
             }
           ]
         },

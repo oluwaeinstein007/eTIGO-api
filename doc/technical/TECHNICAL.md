@@ -282,7 +282,7 @@ Broadcast auth runs through Sanctum (`/broadcasting/auth` with the bearer token)
 | `wallet` | Hold for the estimate | Hold captured for the final fare | Immediately. A balance shortfall is charged as far as possible and flagged (`failed` with `shortfall_kobo`) |
 | `bank_transfer` | — | Paystack payment link | `charge.success` webhook |
 
-After a payment counts as received (cash at trip end; others once captured), `RideSettlementService::applyPayment()` credits the driver net of commission and allocates fleet remittance. It runs again on webhook capture and is idempotent per ride.
+After a payment counts as received (cash at trip end; others once captured), `RideSettlementService::applyPayment()` credits the driver and allocates fleet remittance. The driver's ledger shows the full fare as a credit and the platform commission as a separate debit (net: fare − commission), so drivers see both lines. It runs again on webhook capture and is idempotent per ride.
 
 **Commission** (`CommissionService::getRate`): 0% for fleet drivers with an active agreement (they remit instead, §11), then a per-driver override, then the global rate, then `WALLET_DEFAULT_COMMISSION_RATE` (20%). On cash rides the driver already holds the money, so the commission is **debited** from their earnings balance. That balance may go negative down to `max_negative_balance` (−₦5,000), with a weekly report of drivers in debt.
 
@@ -312,15 +312,17 @@ System accounts are created by `ReferenceDataSeeder`, which runs on every deploy
 ### Posting rules
 
 - Debits must equal credits. Every entry amount is a positive integer of kobo. A **credit increases** and a **debit decreases** an account's balance, for every account type.
-- Accounts are locked **in ID order** (no deadlocks), must be `active` (a frozen account rejects postings), and are updated with an optimistic `balance_version` check. Each entry stores the running balance.
+- Accounts are locked **in ID order** (no deadlocks), must be `active` (a frozen account rejects postings), and are updated with an optimistic `balance_version` check. Each entry stores the running balance, and `metadata.category` (`ride_fare`, `commission`, `tip`, …) labels the journal for the driver's transaction history.
 - An **idempotency key** makes a posting happen at most once:
 
 | Key | Posting |
 |-----|---------|
-| `ride-settlement-{ride}` | Wallet ride: passenger → commission + driver |
-| `card-settlement-{ride}` | Card/bank-transfer ride: PSP clearing → commission + driver |
+| `ride-settlement-{ride}` | Wallet ride: passenger → driver (full fare collected) |
+| `wallet-commission-{ride}` | Wallet ride: driver → commission |
+| `card-settlement-{ride}` | Card/bank-transfer ride: PSP clearing → driver (full fare) |
+| `card-commission-{ride}` | Card/bank-transfer ride: driver → commission |
 | `cash-commission-{ride}` | Cash ride: driver → commission |
-| `tip-{ride}` | Card tip: PSP clearing → driver |
+| `card-tip-{ride}` | Card tip: PSP clearing → driver |
 | `topup-{reference}` | Wallet top-up: PSP clearing → passenger |
 | `refund-{ride}-{random}` / `clawback-refund-…` | Refund to wallet / driver share recovered (§10.4) |
 | `adjustment-{id}` | Approved manual adjustment |

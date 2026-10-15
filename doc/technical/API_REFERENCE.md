@@ -10519,16 +10519,82 @@ GET /driver/ledger/summary
 Authorization: Bearer {driver_token}
 ```
 
-Returns the driver's earnings account balance and summary.
+Returns the driver's earnings balances in kobo: `pending` (waiting for the settlement delay), `available` (withdrawable) and `total_paid`.
+
+**Response 200:**
+```json
+{
+  "earnings": {
+    "currency": "NGN",
+    "pending": 0,
+    "available": 378000,
+    "total_paid": 0
+  }
+}
+```
 
 ### Ledger Transactions
 
 ```
-GET /driver/ledger/transactions?per_page=20
+GET /driver/ledger/transactions?type=credit&from=2026-10-01&to=2026-10-31&per_page=20&page=1
 Authorization: Bearer {driver_token}
 ```
 
-Returns paginated ledger entries for the driver's earnings account.
+Paginated entries on the driver's **available** earnings account, newest first.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `type` | string | `debit` or `credit` |
+| `from`, `to` | date | `Y-m-d`; `to` is inclusive |
+| `per_page` | integer | 1–100, default 20 |
+| `page` | integer | ≥ 1 |
+
+Each entry links to its source (`source_type`: `ride` or `payout`, `source_id`) and its journal. `journal.metadata.category` says what the entry was: a card or wallet ride posts the **full fare as a credit** (`ride_fare`) and the **platform commission as a separate debit** (`commission`); card tips are credits (`tip`); cash rides post only the commission debit.
+
+**Response 200:**
+```json
+{
+  "transactions": [
+    {
+      "id": "01a14047-1bc4-707e-9972-3a378e78c331",
+      "type": "debit",
+      "type_label": "Debit",
+      "amount": 82000,
+      "running_balance": 328000,
+      "created_at": "2026-10-15T15:56:04+00:00",
+      "source_type": "ride",
+      "source_id": "01a14047-1b9d-73ef-bc2b-e61c243918a5",
+      "journal": {
+        "id": "01a14047-1bc2-7354-b0bd-32969645f4aa",
+        "reference": "JRN-U9QFE9ICXENY-261015",
+        "description": "Platform commission for ride 01a14047-1b9d-73ef-bc2b-e61c243918a5",
+        "metadata": {
+          "ride_id": "01a14047-1b9d-73ef-bc2b-e61c243918a5",
+          "category": "commission",
+          "fare_kobo": 410000,
+          "commission_kobo": 82000,
+          "commission_rate": 0.2
+        },
+        "posted_at": "2026-10-15T15:56:04+00:00"
+      }
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 3 }
+}
+```
+
+**Response 422:** invalid `type`, dates or `per_page` (e.g. `"The per page field must not be greater than 100."`).
+
+### Get Ledger Transaction
+
+```
+GET /driver/ledger/transactions/{entry}
+Authorization: Bearer {driver_token}
+```
+
+One entry on the driver's available earnings account, with its journal and source — same shape as an item of **Ledger Transactions**, wrapped in `transaction`.
+
+**Response 404:** `"Transaction not found."` when the entry belongs to another account; `NOT_FOUND` (`"Resource not found."`) for an unknown id.
 
 ### List Payouts
 
