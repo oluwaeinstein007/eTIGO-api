@@ -116,6 +116,7 @@ it('rejects expired invitation token', function () {
 });
 
 it('allows accepting a valid invitation', function () {
+    $this->freezeSecond();
     $superAdmin = User::factory()->admin(AdminRole::SuperAdmin)->create();
     $invitation = AdminInvitation::create([
         'email' => 'accept@etigo.com',
