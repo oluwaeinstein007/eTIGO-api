@@ -6698,7 +6698,8 @@ Surge pricing applies a multiplier to fares during high-demand periods (rush hou
 **How demand is measured** (per city, and per class when the rule names one; cached for 60 s):
 - **Requests:** distinct passengers who booked a ride in the last `SURGE_DEMAND_WINDOW_MINUTES` (10).
 - **Available drivers:** approved, online drivers in the city with a vehicle of that class, not on a trip, whose app reported a location in the last 2 minutes. Demo drivers are excluded.
-- **Ratio:** requests ÷ available drivers (with no driver available, the ratio equals the number of requests).
+- **Ratio:** requests ÷ available drivers (with no driver available, the ratio equals the number of requests). The exact ratio is compared with the rule; the response shows it rounded to 2 decimals.
+- If driver locations cannot be read, supply is unknown: `available_drivers` and `ratio` are `null`, demand rules do not fire, and nothing is cached.
 - A demand rule fires when the ratio reaches `conditions.min_demand_supply_ratio` **and** at least `conditions.min_requests` passengers are asking (default `SURGE_DEMAND_MIN_REQUESTS`, 5), so a single late-night request never surges.
 
 ### List Surge Rules
@@ -7497,7 +7498,7 @@ Authorization: Bearer {passenger_token}
 
 Adds a tip to a completed ride. Only one tip per ride; concurrent requests cannot both succeed. Tips carry no commission: the driver receives the full amount. The tip's source is independent of how the ride was paid, and is returned as `tip_method`.
 
-- **Card:** charged to the passenger's default saved card. If the charge fails, the tip is not recorded and the request returns 422.
+- **Card:** charged to the passenger's default saved card. If the card is declined, the tip is not recorded and the request returns 422; the passenger can try again. If the bank does not answer (timeout or provider error), the tip stays reserved and is checked with the provider by its reference before anything is charged again: 422 `"We could not confirm your tip payment with the bank yet. Please try again in a few minutes; you will not be charged twice."`. A later attempt settles the earlier one first; if that charge went through, it returns 422 `"Your earlier tip went through, so you were not charged again."`.
 - **Wallet:** paid from the passenger's available wallet balance to the driver in one ledger journal. A frozen wallet, or a balance that cannot cover the tip, returns 422 and nothing is recorded.
 - **Cash:** recorded only; the driver collects it in person. Only allowed on cash rides.
 - **Bank-transfer rides** were a one-off checkout, so `source` (`wallet` or `card`) is required.

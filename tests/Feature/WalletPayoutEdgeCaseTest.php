@@ -35,13 +35,19 @@ use App\Models\Vehicle;
 use App\Models\WalletTransaction;
 use App\Services\DriverEarningsService;
 use App\Services\LedgerService;
+use App\Services\PaymentService;
 use App\Services\PayoutLedgerService;
 use App\Services\RideSettlementService;
 use App\Services\WalletRefundService;
 use Database\Seeders\SystemAccountSeeder;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response as ClientResponse;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
@@ -226,6 +232,74 @@ it('credits a card tip to the driver in full and charges the passenger once', fu
 
     $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])->assertOk();
     $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])->assertUnprocessable();
+
+    expect(driverAvailableKobo($this))->toBe(50000);
+});
+
+function tippableCardRide(object $test): Ride
+{
+    $ride = cardRide($test, 5000);
+    Payment::factory()->captured()->create(['ride_id' => $ride->id, 'amount' => 5000]);
+    UserPaymentMethod::create([
+        'user_id' => $test->passenger->id, 'provider' => 'paystack', 'gateway_token' => 'AUTH_test',
+        'card_brand' => 'visa', 'card_last_four' => '4242', 'is_default' => true,
+    ]);
+
+    return $ride;
+}
+
+function serverError(): RequestException
+{
+    return new RequestException(new ClientResponse(new Psr7Response(502)));
+}
+
+it('checks a timed-out card tip with Paystack instead of charging again', function () {
+    $ride = tippableCardRide($this);
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('chargeWithToken')->once()->andThrow(new ConnectionException('Operation timed out'));
+    $gateway->shouldReceive('verifyTransaction')->once()
+        ->andReturn(['status' => 'successful', 'tx_ref' => 'ETIGO-TIP-X', 'transaction_id' => '1', 'amount' => 500.0]);
+    $this->app->instance(PaymentGateway::class, $gateway);
+
+    $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])->assertOk();
+
+    expect(driverAvailableKobo($this))->toBe(50000);
+});
+
+it('never charges a card tip twice when the first outcome could not be confirmed', function () {
+    $ride = tippableCardRide($this);
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('chargeWithToken')->once()->andThrow(serverError());
+    $gateway->shouldReceive('verifyTransaction')->once()->andThrow(new ConnectionException('Operation timed out'));
+    $this->app->instance(PaymentGateway::class, $gateway);
+
+    $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', PaymentService::TIP_UNCONFIRMED_MESSAGE);
+    expect(driverAvailableKobo($this))->toBe(0);
+
+    // Later the bank confirms the first charge: the retry settles it and charges nothing.
+    $gateway->shouldReceive('verifyTransaction')->once()
+        ->andReturn(['status' => 'successful', 'tx_ref' => 'ETIGO-TIP-X', 'transaction_id' => '1', 'amount' => 500.0]);
+
+    $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 800])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'Your earlier tip went through, so you were not charged again.');
+    expect(driverAvailableKobo($this))->toBe(50000)
+        ->and((float) $ride->payment->fresh()->tip_amount)->toBe(500.0);
+});
+
+it('lets the passenger try again after a card tip is declined', function () {
+    $ride = tippableCardRide($this);
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('chargeWithToken')->twice()->andReturn(
+        ['status' => 'failed', 'transaction_id' => '1', 'amount' => 500.0],
+        ['status' => 'successful', 'transaction_id' => '2', 'amount' => 500.0],
+    );
+    $this->app->instance(PaymentGateway::class, $gateway);
+
+    $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])->assertUnprocessable();
+    $this->actingAs($this->passenger)->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])->assertOk();
 
     expect(driverAvailableKobo($this))->toBe(50000);
 });
@@ -536,6 +610,24 @@ it('flags a transfer Paystack holds for an OTP straight away', function () {
         ->assertJsonPath('payouts.0.needs_attention', true)
         ->assertJsonPath('payouts.0.attention_reason', 'awaiting_otp')
         ->assertJsonPath('payouts.0.provider_status', 'otp');
+});
+
+it('raises the OTP alert when reconciliation finds a transfer held for an OTP', function () {
+    $critical = [];
+    Log::listen(function (MessageLogged $log) use (&$critical) {
+        if ($log->level === 'critical') {
+            $critical[] = $log->message;
+        }
+    });
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+    paystackKnowsTransfer($this, $payout, 'otp');
+
+    $this->actingAs($this->finance)->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertOk()
+        ->assertJsonPath('payout.attention_reason', 'awaiting_otp');
+
+    expect(collect($critical)->filter(fn (string $message) => str_contains($message, 'OTP')))->toHaveCount(1);
 });
 
 it('flags a payout whose transfer outcome is overdue for finance', function () {

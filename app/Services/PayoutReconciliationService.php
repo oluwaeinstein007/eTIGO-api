@@ -48,6 +48,19 @@ class PayoutReconciliationService
     }
 
     /**
+     * With transfer OTP switched on in the Paystack dashboard, a transfer
+     * waits for an OTP that nobody enters and is eventually abandoned.
+     */
+    public static function alertIfAwaitingOtp(Payout $payout): void
+    {
+        if ($payout->provider_status === Payout::PROVIDER_AWAITING_OTP) {
+            Log::critical('Paystack is holding a payout transfer for an OTP; turn off transfer OTP in the Paystack dashboard', [
+                'payout_id' => $payout->id,
+            ]);
+        }
+    }
+
+    /**
      * @return array{outcome: string, provider_status: string|null}
      *
      * @throws \Throwable when Paystack cannot be reached (nothing is changed; see isProviderUnavailable())
@@ -114,6 +127,8 @@ class PayoutReconciliationService
             $payout->provider_status = $status;
             $payout->touch();
         }
+
+        self::alertIfAwaitingOtp($payout);
 
         return ['outcome' => self::OUTCOME_PROCESSING, 'provider_status' => $status];
     }

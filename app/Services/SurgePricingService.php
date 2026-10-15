@@ -104,6 +104,10 @@ class SurgePricingService
         return $currentTime >= $startTime && $currentTime < $endTime;
     }
 
+    /**
+     * Compares the exact demand/supply ratio, not the rounded one shown to
+     * admins. When supply could not be measured the rule does not fire.
+     */
     private function matchesDemandThreshold(SurgeRule $rule): bool
     {
         $minRatio = $rule->conditions['min_demand_supply_ratio'] ?? null;
@@ -115,40 +119,59 @@ class SurgePricingService
         $demand = $this->demandSnapshot($rule->city_id, $rule->vehicle_class_id);
         $minRequests = (int) ($rule->conditions['min_requests'] ?? config('surge.demand_min_requests', 5));
 
-        return $demand['requests'] >= $minRequests && $demand['ratio'] >= (float) $minRatio;
+        if ($demand['available_drivers'] === null || $demand['requests'] < $minRequests) {
+            return false;
+        }
+
+        return self::exactRatio($demand['requests'], $demand['available_drivers']) >= (float) $minRatio;
     }
 
     /**
      * Current demand against supply for a city (and optionally one class):
      * passengers who asked for a ride within the demand window, and drivers
-     * free to take one right now.
+     * free to take one right now. With no free driver, every request is
+     * unmet, so the ratio equals the number of requests. If driver locations
+     * cannot be read, supply is unknown (`available_drivers` and `ratio` are
+     * null) and the result is not cached.
      *
-     * @return array{requests: int, available_drivers: int, ratio: float, window_minutes: int}
+     * @return array{requests: int, available_drivers: int|null, ratio: float|null, window_minutes: int}
      */
     public function demandSnapshot(string $cityId, ?string $vehicleClassId = null): array
     {
         $key = sprintf('surge:demand:%s:%s', $cityId, $vehicleClassId ?? 'all');
 
-        return Cache::remember($key, (int) config('surge.demand_cache_seconds', 60), function () use ($cityId, $vehicleClassId) {
-            $window = (int) config('surge.demand_window_minutes', 10);
+        if (is_array($cached = Cache::get($key))) {
+            return $cached;
+        }
 
-            $requests = Ride::query()
-                ->where('city_id', $cityId)
-                ->when($vehicleClassId, fn ($q) => $q->where('vehicle_class_id', $vehicleClassId))
-                ->where('created_at', '>=', now()->subMinutes($window))
-                ->distinct()
-                ->count('passenger_id');
+        $window = (int) config('surge.demand_window_minutes', 10);
 
-            $available = $this->countFreshlyLocated($this->idleDriverIds($cityId, $vehicleClassId));
+        $requests = Ride::query()
+            ->where('city_id', $cityId)
+            ->when($vehicleClassId, fn ($q) => $q->where('vehicle_class_id', $vehicleClassId))
+            ->where('created_at', '>=', now()->subMinutes($window))
+            ->distinct()
+            ->count('passenger_id');
 
-            return [
-                'requests' => $requests,
-                'available_drivers' => $available,
-                // No free driver at all: every request counts as unmet.
-                'ratio' => round($available > 0 ? $requests / $available : (float) $requests, 2),
-                'window_minutes' => $window,
-            ];
-        });
+        $available = $this->countFreshlyLocated($this->idleDriverIds($cityId, $vehicleClassId));
+
+        $snapshot = [
+            'requests' => $requests,
+            'available_drivers' => $available,
+            'ratio' => $available === null ? null : round(self::exactRatio($requests, $available), 2),
+            'window_minutes' => $window,
+        ];
+
+        if ($available !== null) {
+            Cache::put($key, $snapshot, (int) config('surge.demand_cache_seconds', 60));
+        }
+
+        return $snapshot;
+    }
+
+    private static function exactRatio(int $requests, int $available): float
+    {
+        return $available > 0 ? $requests / $available : (float) $requests;
     }
 
     /**
@@ -171,10 +194,12 @@ class SurgePricingService
 
     /**
      * Drivers whose app stopped reporting a location are not really available.
+     * Returns null when the location store cannot be read: the online flag
+     * alone is no proof that a driver is there.
      *
      * @param  Collection<int, string>  $driverIds
      */
-    private function countFreshlyLocated(Collection $driverIds): int
+    private function countFreshlyLocated(Collection $driverIds): ?int
     {
         $freshAfter = now()->subSeconds(DriverLocationService::STALE_LOCATION_SECONDS)->timestamp;
 
@@ -185,10 +210,9 @@ class SurgePricingService
                 ->filter(fn (string $id) => ($locations->getDriverLocation($id)['timestamp'] ?? 0) >= $freshAfter)
                 ->count();
         } catch (\Throwable $e) {
-            // The location store is unreachable: fall back to the online flag.
-            Log::warning('Surge supply counted without location freshness', ['error' => $e->getMessage()]);
+            Log::warning('Surge supply unknown: driver locations could not be read', ['error' => $e->getMessage()]);
 
-            return $driverIds->count();
+            return null;
         }
     }
 

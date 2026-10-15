@@ -10,6 +10,7 @@ use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\SurgePricingService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     $this->service = new SurgePricingService;
@@ -379,7 +380,7 @@ it('applies a demand-based surge when requests outnumber available drivers', fun
 
 it('does not count drivers who stopped reporting their location or are on a trip', function () {
     $service = demandService([($fresh = idleDriverIn($this->city))->id, ($busy = idleDriverIn($this->city))->id]);
-    idleDriverIn($this->city); // stale location
+    idleDriverIn($this->city);
     Ride::factory()->inProgress()->create(['city_id' => $this->city->id, 'vehicle_class_id' => sharedVehicleClassId(), 'driver_id' => $busy->user_id, 'created_at' => now()->subHour()]);
     requestsIn($this->city, 4);
 
@@ -400,4 +401,27 @@ it('only counts requests within the demand window', function () {
     requestsIn($this->city, 5, now()->subMinutes(config('surge.demand_window_minutes') + 1));
 
     expect(demandService([$driver->id])->demandSnapshot($this->city->id)['requests'])->toBe(3);
+});
+
+it('compares the exact demand ratio with the rule, not the rounded figure', function () {
+    SurgeRule::factory()->demandBased(1.67)->create(['city_id' => $this->city->id, 'multiplier' => 1.5, 'created_by_admin_id' => $this->admin->id]);
+    $drivers = [idleDriverIn($this->city), idleDriverIn($this->city), idleDriverIn($this->city)];
+    requestsIn($this->city, 5);
+    $service = demandService(array_map(fn ($d) => $d->id, $drivers));
+
+    expect($service->demandSnapshot($this->city->id)['ratio'])->toBe(1.67)
+        ->and($service->getCurrentMultiplier($this->city->id)['multiplier'])->toBe(1.0);
+});
+
+it('does not surge on demand when driver locations cannot be read', function () {
+    SurgeRule::factory()->demandBased(1.5)->create(['city_id' => $this->city->id, 'multiplier' => 1.8, 'created_by_admin_id' => $this->admin->id]);
+    idleDriverIn($this->city);
+    requestsIn($this->city, 6);
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('getDriverLocation')->andThrow(new RuntimeException('Redis unavailable'));
+    $service = new SurgePricingService($locations);
+
+    expect($service->demandSnapshot($this->city->id))->toMatchArray(['requests' => 6, 'available_drivers' => null, 'ratio' => null])
+        ->and($service->getCurrentMultiplier($this->city->id)['multiplier'])->toBe(1.0)
+        ->and(Cache::has("surge:demand:{$this->city->id}:all"))->toBeFalse();
 });

@@ -27,7 +27,7 @@ class RequestVehicleFuelTypesCommand extends Command
 
         $own = $missing->filter(fn (Vehicle $vehicle) => ! $vehicle->is_fleet
             && $vehicle->driver?->user !== null
-            && ! in_array($vehicle->driver->status, [DriverStatus::Rejected, DriverStatus::Deactivated], true));
+            && $vehicle->driver->status !== DriverStatus::Deactivated);
         $fleet = $missing->filter(fn (Vehicle $vehicle) => $vehicle->is_fleet);
 
         if (! $this->option('dry-run')) {

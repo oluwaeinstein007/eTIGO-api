@@ -28,6 +28,7 @@ class Payment extends Model
         'gateway_payment_link',
         'tip_amount',
         'tip_method',
+        'tip_reference',
         'status',
         'failure_reason',
     ];

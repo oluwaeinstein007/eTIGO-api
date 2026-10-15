@@ -60,8 +60,9 @@ class DriverManagementController extends Controller
             $query->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $request->input('vehicle_class_id')));
         }
 
+        $request->validate(['fuel_type' => ['nullable', Rule::in([...array_column(FuelType::cases(), 'value'), 'none'])]]);
+
         if ($request->filled('fuel_type')) {
-            // "none" finds vehicles whose fuel type was never recorded.
             $fuelType = $request->input('fuel_type');
             $query->whereHas('vehicle', fn ($q) => $fuelType === 'none' ? $q->whereNull('fuel_type') : $q->where('fuel_type', $fuelType));
         }
