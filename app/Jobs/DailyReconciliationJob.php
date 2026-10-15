@@ -6,6 +6,7 @@ use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Models\ReconciliationReport;
 use App\Models\WebhookEvent;
+use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -36,11 +37,10 @@ class DailyReconciliationJob implements ShouldQueue
             return;
         }
 
-        $gatewayChargesTotal = (int) WebhookEvent::where('provider', 'paystack')
-            ->where('event_type', 'charge.completed')
-            ->whereNotNull('processed_at')
-            ->whereBetween('created_at', [$startOfDay, $endOfDay])
-            ->sum(DB::raw("CAST(payload->>'amount' AS BIGINT)"));
+        $gatewayChargesTotal = $this->gatewayTotalKobo($startOfDay, $endOfDay, [
+            'paystack' => ['charge.success'],
+            'flutterwave' => ['charge.completed'],
+        ], topUpsOnly: true);
 
         $ledgerCreditsTotal = (int) DB::table('ledger_entries')
             ->join('accounts', 'ledger_entries.account_id', '=', 'accounts.id')
@@ -55,11 +55,10 @@ class DailyReconciliationJob implements ShouldQueue
             })
             ->sum('ledger_entries.amount');
 
-        $gatewayTransfersTotal = (int) WebhookEvent::where('provider', 'paystack')
-            ->whereIn('event_type', ['transfer.completed', 'transfer.success'])
-            ->whereNotNull('processed_at')
-            ->whereBetween('created_at', [$startOfDay, $endOfDay])
-            ->sum(DB::raw("CAST(payload->>'amount' AS BIGINT)"));
+        $gatewayTransfersTotal = $this->gatewayTotalKobo($startOfDay, $endOfDay, [
+            'paystack' => ['transfer.success'],
+            'flutterwave' => ['transfer.completed'],
+        ]);
 
         $ledgerPayoutsTotal = (int) DB::table('payouts')
             ->where('status', 'paid')
@@ -110,5 +109,43 @@ class DailyReconciliationJob implements ShouldQueue
         }
 
         Log::info("Daily reconciliation report generated for {$dateString}: {$status}");
+    }
+
+    /**
+     * Total, in kobo, of the successful gateway events of the day that were
+     * processed. Amounts are read from the event's `data`: Paystack reports
+     * kobo, Flutterwave naira.
+     *
+     * @param  array<string, list<string>>  $eventTypes  Event types per provider
+     */
+    private function gatewayTotalKobo(CarbonInterface $from, CarbonInterface $to, array $eventTypes, bool $topUpsOnly = false): int
+    {
+        $total = 0;
+
+        WebhookEvent::whereNotNull('processed_at')
+            ->whereBetween('created_at', [$from, $to])
+            ->where(function ($query) use ($eventTypes) {
+                foreach ($eventTypes as $provider => $types) {
+                    $query->orWhere(fn ($query) => $query->where('provider', $provider)->whereIn('event_type', $types));
+                }
+            })
+            ->lazyById()
+            ->each(function (WebhookEvent $event) use (&$total, $topUpsOnly) {
+                $data = $event->payload['data'] ?? [];
+                $reference = (string) ($data['tx_ref'] ?? $data['reference'] ?? '');
+
+                if (! in_array(strtolower((string) ($data['status'] ?? '')), ['success', 'successful'], true)) {
+                    return;
+                }
+
+                if ($topUpsOnly && ! str_starts_with($reference, 'TOPUP-')) {
+                    return;
+                }
+
+                $amount = (float) ($data['amount'] ?? 0);
+                $total += $event->provider === 'flutterwave' ? (int) round($amount * 100) : (int) $amount;
+            });
+
+        return $total;
     }
 }

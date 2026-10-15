@@ -446,3 +446,42 @@ it('processes a transfer reversal that follows a success for the same transfer',
 
     Queue::assertPushed(ProcessPayoutWebhookJob::class, 2);
 });
+
+it('processes a charge webhook again when the first delivery failed part-way', function () {
+    Queue::fake();
+    config(['services.paystack.secret_key' => 'test_secret_key']);
+    $ride = cardRide($this, 5000);
+    $payment = Payment::factory()->create(['ride_id' => $ride->id, 'amount' => 5000, 'gateway_tx_ref' => 'ETIGO-RIDE-RETRY']);
+    $verifyAttempts = 0;
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('verifyTransaction')->with('ETIGO-RIDE-RETRY')->andReturnUsing(function () use (&$verifyAttempts) {
+        if (++$verifyAttempts === 1) {
+            throw new RuntimeException('Paystack verify timed out.');
+        }
+
+        return ['status' => 'successful', 'tx_ref' => 'ETIGO-RIDE-RETRY', 'transaction_id' => '778', 'amount' => 5000.0, 'currency' => 'NGN'];
+    });
+    $this->app->instance(PaymentGateway::class, $gateway);
+    $payload = ['event' => 'charge.success', 'data' => ['id' => 778, 'reference' => 'ETIGO-RIDE-RETRY', 'status' => 'success', 'amount' => 500000]];
+    $headers = ['x-paystack-signature' => hash_hmac('sha512', json_encode($payload), 'test_secret_key')];
+
+    $this->postJson('/api/v1/webhooks/paystack', $payload, $headers)->assertServerError();
+    $this->postJson('/api/v1/webhooks/paystack', $payload, $headers)
+        ->assertOk()
+        ->assertJsonPath('message', 'Webhook received.');
+
+    expect($payment->fresh()->status)->toBe(PaymentStatus::Captured);
+});
+
+it('treats a Flutterwave transfer.completed event with a failed status as a failed payout', function () {
+    Queue::fake();
+    config(['services.flutterwave.webhook_secret' => 'flw-secret-hash']);
+
+    $this->postJson('/api/v1/webhooks/flutterwave', [
+        'event' => 'transfer.completed',
+        'data' => ['id' => 6061, 'reference' => 'PAYOUT-FLW', 'status' => 'FAILED', 'complete_message' => 'Account resolution failed'],
+    ], ['verif-hash' => 'flw-secret-hash'])->assertOk();
+
+    Queue::assertPushed(ProcessPayoutWebhookJob::class, fn (ProcessPayoutWebhookJob $job) => $job->status === 'failed'
+        && $job->reason === 'Account resolution failed');
+});

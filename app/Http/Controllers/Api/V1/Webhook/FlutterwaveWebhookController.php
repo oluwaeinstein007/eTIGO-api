@@ -50,32 +50,42 @@ class FlutterwaveWebhookController extends Controller
         $data = $payload['data'] ?? [];
         $eventId = (string) ($data['id'] ?? $data['tx_ref'] ?? '');
 
-        $existing = WebhookEvent::where('provider', 'flutterwave')
+        $webhookEvent = WebhookEvent::where('provider', 'flutterwave')
             ->where('event_id', $eventId)
             ->where('event_type', $eventType)
-            ->exists();
+            ->first();
 
-        if ($existing) {
+        // Only completed events are skipped: if processing failed part-way
+        // (e.g. the provider's verify API timed out), the provider's retry is
+        // processed again. Every handler below is idempotent.
+        if ($webhookEvent?->isProcessed()) {
             return response()->json(['message' => 'Already processed.']);
         }
 
-        try {
-            $webhookEvent = WebhookEvent::create([
-                'provider' => 'flutterwave',
-                'event_id' => $eventId,
-                'event_type' => $eventType,
-                'payload' => $payload,
-                'signature' => $request->header('verif-hash'),
-                'created_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            // A concurrent delivery of the same event won the race.
-            return response()->json(['message' => 'Already processed.']);
+        if (! $webhookEvent) {
+            try {
+                $webhookEvent = WebhookEvent::create([
+                    'provider' => 'flutterwave',
+                    'event_id' => $eventId,
+                    'event_type' => $eventType,
+                    'payload' => $payload,
+                    'signature' => $request->header('verif-hash'),
+                    'created_at' => now(),
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                // A concurrent delivery of the same event won the race.
+                return response()->json(['message' => 'Already processed.']);
+            }
         }
 
         match ($eventType) {
             'charge.completed' => $this->handleChargeCompleted($data, $webhookEvent),
-            'transfer.completed' => $this->handleTransferEvent($payload, $webhookEvent, 'paid'),
+            // Flutterwave sends transfer.completed for failed transfers too.
+            'transfer.completed' => $this->handleTransferEvent(
+                $payload,
+                $webhookEvent,
+                strtoupper((string) ($data['status'] ?? '')) === 'SUCCESSFUL' ? 'paid' : 'failed',
+            ),
             'transfer.failed' => $this->handleTransferEvent($payload, $webhookEvent, 'failed'),
             default => Log::info("Flutterwave webhook: unhandled event type {$eventType}"),
         };

@@ -50,27 +50,32 @@ class PaystackWebhookController extends Controller
         $data = $payload['data'] ?? [];
         $eventId = (string) ($data['id'] ?? $data['reference'] ?? '');
 
-        $existing = WebhookEvent::where('provider', 'paystack')
+        $webhookEvent = WebhookEvent::where('provider', 'paystack')
             ->where('event_id', $eventId)
             ->where('event_type', $eventType)
-            ->exists();
+            ->first();
 
-        if ($existing) {
+        // Only completed events are skipped: if processing failed part-way
+        // (e.g. the provider's verify API timed out), the provider's retry is
+        // processed again. Every handler below is idempotent.
+        if ($webhookEvent?->isProcessed()) {
             return response()->json(['message' => 'Already processed.']);
         }
 
-        try {
-            $webhookEvent = WebhookEvent::create([
-                'provider' => 'paystack',
-                'event_id' => $eventId,
-                'event_type' => $eventType,
-                'payload' => $payload,
-                'signature' => $request->header('x-paystack-signature'),
-                'created_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            // A concurrent delivery of the same event won the race.
-            return response()->json(['message' => 'Already processed.']);
+        if (! $webhookEvent) {
+            try {
+                $webhookEvent = WebhookEvent::create([
+                    'provider' => 'paystack',
+                    'event_id' => $eventId,
+                    'event_type' => $eventType,
+                    'payload' => $payload,
+                    'signature' => $request->header('x-paystack-signature'),
+                    'created_at' => now(),
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                // A concurrent delivery of the same event won the race.
+                return response()->json(['message' => 'Already processed.']);
+            }
         }
 
         match ($eventType) {

@@ -5,6 +5,7 @@ use App\Enums\AccountType;
 use App\Enums\AdminRole;
 use App\Enums\LedgerEntryType;
 use App\Enums\NotificationType;
+use App\Enums\PayoutStatus;
 use App\Enums\UserType;
 use App\Enums\WalletTransactionStatus;
 use App\Jobs\DailyReconciliationJob;
@@ -12,6 +13,7 @@ use App\Jobs\NegativeDriverBalanceReportJob;
 use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\CommissionConfig;
 use App\Models\Driver;
+use App\Models\Payout;
 use App\Models\ReconciliationReport;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -55,8 +57,8 @@ test('DailyReconciliationJob detects charge mismatches', function () {
     WebhookEvent::create([
         'provider' => 'paystack',
         'event_id' => 'evt-1',
-        'event_type' => 'charge.completed',
-        'payload' => ['amount' => 50000],
+        'event_type' => 'charge.success',
+        'payload' => ['event' => 'charge.success', 'data' => ['reference' => 'TOPUP-NOCREDIT', 'amount' => 50000, 'status' => 'success']],
         'signature' => 'test',
         'processed_at' => $yesterday,
         'created_at' => $yesterday,
@@ -67,6 +69,34 @@ test('DailyReconciliationJob detects charge mismatches', function () {
     $report = ReconciliationReport::first();
     expect($report->status)->toBe('mismatched');
     expect($report->mismatches_count)->toBeGreaterThan(0);
+});
+
+test('DailyReconciliationJob reports a clean day when every top-up and payout went through', function () {
+    config(['services.paystack.secret_key' => 'test_secret_key']);
+    $passenger = User::factory()->create(['type' => UserType::Passenger]);
+    $wallet = app(LedgerService::class)->findOrCreateAccount($passenger->getMorphClass(), $passenger->id, AccountType::PassengerWallet);
+    $payout = Payout::factory()->create(['status' => PayoutStatus::Processing, 'gateway_transfer_id' => '5551', 'amount' => 250000]);
+    $webhooks = [
+        ['event' => 'charge.success', 'data' => ['id' => 9101, 'reference' => 'TOPUP-REC1', 'amount' => 500000, 'status' => 'success', 'metadata' => ['account_id' => $wallet->id]]],
+        ['event' => 'transfer.success', 'data' => ['id' => 5551, 'reference' => "PAYOUT-{$payout->id}", 'amount' => 250000, 'status' => 'success']],
+    ];
+
+    $this->travelTo(now()->subDay());
+    foreach ($webhooks as $payload) {
+        $this->postJson('/api/v1/webhooks/paystack', $payload, [
+            'x-paystack-signature' => hash_hmac('sha512', json_encode($payload), 'test_secret_key'),
+        ])->assertOk();
+    }
+    $this->travelBack();
+
+    (new DailyReconciliationJob(now()->subDay()->toDateString()))->handle();
+
+    $report = ReconciliationReport::first();
+    expect($report->status)->toBe('clean')
+        ->and($report->gateway_charges_total)->toBe(500000)
+        ->and($report->ledger_credits_total)->toBe(500000)
+        ->and($report->gateway_transfers_total)->toBe(250000)
+        ->and($report->ledger_payouts_total)->toBe(250000);
 });
 
 // --- BE-WADM-22: StuckTransactionSweeperJob ---
