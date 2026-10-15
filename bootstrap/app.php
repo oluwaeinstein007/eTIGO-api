@@ -63,13 +63,17 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // Laravel converts ModelNotFoundException into NotFoundHttpException before
-        // render callbacks run, so the original exception is inspected here.
+        // render callbacks run, so the original exception is inspected here. A
+        // request that matched no route has no route; an abort(404, '...') from a
+        // controller keeps its message.
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
-                    'message' => $e->getPrevious() instanceof ModelNotFoundException
-                        ? 'Resource not found.'
-                        : 'The requested endpoint does not exist.',
+                    'message' => match (true) {
+                        $e->getPrevious() instanceof ModelNotFoundException => 'Resource not found.',
+                        $request->route() === null => 'The requested endpoint does not exist.',
+                        default => $e->getMessage() ?: 'Resource not found.',
+                    },
                     'error_code' => 'NOT_FOUND',
                 ], 404);
             }

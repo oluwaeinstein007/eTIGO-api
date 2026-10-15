@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\RideStatus;
 use App\Exceptions\InvalidStateTransitionException;
+use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
@@ -19,6 +21,16 @@ it('still reports an unknown route as a missing endpoint', function () {
     $this->getJson('/api/v1/does-not-exist')
         ->assertNotFound()
         ->assertJsonPath('message', 'The requested endpoint does not exist.');
+});
+
+it('keeps the reason a controller gives when it returns 404', function () {
+    $passenger = User::factory()->passenger()->create();
+    $ride = Ride::factory()->create(['passenger_id' => $passenger->id, 'status' => RideStatus::InProgress]);
+
+    $this->actingAs($passenger)
+        ->getJson("/api/v1/rides/{$ride->id}/receipt")
+        ->assertNotFound()
+        ->assertExactJson(['message' => 'Receipt is only available for completed rides.', 'error_code' => 'NOT_FOUND']);
 });
 
 it('includes the Retry-After header when a request is throttled', function () {
