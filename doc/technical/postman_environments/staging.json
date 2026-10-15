@@ -75,6 +75,12 @@
         "enabled": true
       },
       {
+        "key": "driver_user_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
         "key": "economy_class_id",
         "value": "",
         "type": "default",

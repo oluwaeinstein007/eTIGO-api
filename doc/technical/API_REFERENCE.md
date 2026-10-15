@@ -1429,7 +1429,7 @@ Same fields as register, all optional (partial update supported). If the plate n
     "plate_number": "ABC-1234",
     "year": 2023,
     "is_fleet": false,
-    "vehicle_class_id": 1,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "vehicle_class": {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "name": "economy",
@@ -1487,7 +1487,7 @@ GET /driver/vehicle
     "plate_number": "ABC-1234",
     "year": 2022,
     "is_fleet": false,
-    "vehicle_class_id": 1,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "vehicle_class": {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "name": "economy",
@@ -1599,7 +1599,7 @@ Drivers whose app stops sending locations for 2 minutes are no longer offered ri
       "plate_number": "ABC-1234",
       "year": 2022,
       "is_fleet": false,
-      "vehicle_class_id": 1,
+      "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "vehicle_class": {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
         "name": "economy",
@@ -1710,7 +1710,7 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
 **Broadcast payload:**
 ```json
 {
-  "driver_id": 1,
+  "driver_id": "3b2a1f0e-9d8c-4b7a-8f6e-5d4c3b2a1f0e",
   "lat": 9.0579,
   "lng": 7.4951,
   "heading": 45.0,
@@ -2424,7 +2424,7 @@ No request body required.
     "plate_number": "FLEET-001",
     "year": 2022,
     "is_fleet": true,
-    "vehicle_class_id": 1,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "vehicle_class": null,
     "created_at": "2026-10-02T10:00:00.000000Z"
   }
@@ -2443,7 +2443,7 @@ No request body required.
     "plate_number": "FLEET-001",
     "year": 2022,
     "is_fleet": false,
-    "vehicle_class_id": 1,
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "vehicle_class": null,
     "created_at": "2026-10-02T10:00:00.000000Z"
   }
@@ -5077,9 +5077,9 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
   "message": "Ride created successfully.",
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "passenger_id": 1,
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
     "driver_id": null,
     "pickup": {
       "lat": "6.5244000",
@@ -5191,10 +5191,10 @@ GET /rides
   "rides": [
     {
       "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-      "city_id": 1,
-      "vehicle_class_id": 1,
-      "passenger_id": 1,
-      "driver_id": 7,
+      "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+      "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+      "driver_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
       "pickup": {
         "lat": "6.5244000",
         "lng": "3.3792000",
@@ -5470,7 +5470,7 @@ POST /rides/{ride}/driver-arrived
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver marks arrival at pickup location. Only valid when ride status is `driver_en_route` and the driver is the one assigned to the ride.
+Driver marks arrival at pickup location. Only valid when ride status is `driver_en_route` and the driver is the one assigned to the ride. The driver's last reported location must be **within 150 m of the pickup** and less than **2 minutes** old.
 
 **Response 200:**
 ```json
@@ -5499,6 +5499,7 @@ Driver marks arrival at pickup location. Only valid when ride status is `driver_
   "current_status": "matched"
 }
 ```
+Other 422 messages: `"Move closer to the pickup location before marking arrival."` (more than 150 m away) and `"We could not confirm your recent location. Wait for your location to update, then try again."` (no location in the last 2 minutes).
 
 ---
 
@@ -5574,6 +5575,7 @@ Issues a fresh 4-digit PIN with a new set of 3 attempts — for example after th
   "current_status": "in_progress"
 }
 ```
+Before a driver is assigned (`requested`, `searching`, `no_driver_found`) the message is `"A new PIN can be issued once a driver has been assigned."`.
 
 ---
 
@@ -5638,10 +5640,10 @@ On acceptance, the ride transitions through `matched` → `driver_en_route` atom
   "message": "Ride accepted.",
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "passenger_id": 1,
-    "driver_id": 2,
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    "driver_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
     "pickup": {
       "lat": "6.5244000",
       "lng": "3.3792000",
@@ -6341,7 +6343,7 @@ For a `no_driver_found` ride, the assignment is refused if the passenger has sin
 - Driver's vehicle class must match the ride's vehicle class
 - Driver must not have another active ride (`errors.driver_id`: `"Driver already has an active ride."`)
 
-**Errors:** `409` `INVALID_STATE_TRANSITION` — `"This ride cannot be assigned in its current state."` with `current_status`; `422` — validation errors above, `errors.ride`: `"The passenger already has another active ride."` or a wallet hold error.
+**Errors:** `422` — `"This ride cannot be assigned in its current state."` with `current_status` (ride not `requested`, `searching` or `no_driver_found`); the driver validation errors above (`errors.driver_id`); `errors.ride`: `"The passenger already has another active ride."` or a wallet hold error. `409` `INVALID_STATE_TRANSITION` if the ride changed state while it was being assigned.
 
 **Response 200:**
 ```json
@@ -6349,10 +6351,10 @@ For a `no_driver_found` ride, the assignment is refused if the passenger has sin
   "message": "Driver assigned successfully.",
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "passenger_id": 1,
-    "driver_id": 2,
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    "driver_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
     "pickup": {
       "lat": "6.5244000",
       "lng": "3.3792000",
@@ -6656,7 +6658,7 @@ GET /admin/surge-rules
   "surge_rules": [
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "city_id": 1,
+      "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
       "vehicle_class_id": null,
       "name": "Morning Rush Hour",
       "type": "time_based",
@@ -6714,7 +6716,7 @@ POST /admin/surge-rules
   "message": "Surge rule created successfully.",
   "surge_rule": {
     "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
-    "city_id": 2,
+    "city_id": "8d7c6b5a-4938-4276-8a1f-e2d3c4b5a6f7",
     "vehicle_class_id": null,
     "name": "Evening Rush Hour",
     "type": "time_based",
@@ -6749,7 +6751,7 @@ Returns a specific surge rule with city, vehicle class, and creator details.
 {
   "surge_rule": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-    "city_id": 1,
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
     "vehicle_class_id": null,
     "name": "Morning Rush Hour",
     "type": "time_based",
@@ -6786,7 +6788,7 @@ Same fields as create, all optional (partial update). City and vehicle class can
   "message": "Surge rule updated successfully.",
   "surge_rule": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-    "city_id": 1,
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
     "vehicle_class_id": null,
     "name": "Morning Rush Hour",
     "type": "time_based",
@@ -6855,7 +6857,7 @@ Returns the currently active surge multiplier for the given city (and optionally
     "rule_name": "Morning Rush Hour",
     "rule": {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
-      "city_id": 1,
+      "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
       "vehicle_class_id": null,
       "name": "Morning Rush Hour",
       "type": "time_based",
@@ -7207,13 +7209,14 @@ Returns available payment methods for the authenticated user. Cash is always inc
 POST /payments/initialize
 ```
 
-Initializes a Paystack payment for a ride. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can pay via the bank transfer option (transfer to the generated temporary account number from their OPay app).
+Starts a Paystack checkout, used to save a card for later rides (channels default to `card`; `bank_transfer` and `ussd` can be requested — OPay users pay by bank transfer to the generated account). Users without an email on their account are supported: a stable placeholder (`{user_id}@rider.etigo.ng`) is sent to Paystack and remembered with the saved card. Pass the returned `tx_ref` to **Verify Payment**.
 
 | Field        | Type   | Required | Description                       |
 |--------------|--------|----------|-----------------------------------|
 | amount       | number | Yes      | Amount (≥1)                       |
 | currency     | string | Yes      | 3-letter currency code (e.g. `NGN`) |
 | redirect_url | string | Yes      | URL to redirect after payment     |
+| channels     | array  | No       | Payment channels, default `["card"]` |
 
 **Response 200:**
 ```json
@@ -7229,7 +7232,7 @@ Initializes a Paystack payment for a ride. Supported payment channels: **card**,
 ```
 GET /payments/{transactionId}/verify
 ```
-Verifies a payment transaction with the gateway. If successful and card details are present, automatically saves the card as a payment method. First saved card becomes the default.
+Verifies a checkout started with **Initialize Payment**; `{transactionId}` is its `tx_ref`. If successful and card details are present, the card is saved as a payment method (the first saved card becomes the default). Only the user who started the checkout can verify it — anyone else gets **403** `"Transaction does not belong to this user."`.
 
 **Response 200:**
 ```json
@@ -9958,7 +9961,7 @@ Authorization: Bearer {passenger_token}
 Content-Type: application/json
 ```
 
-Initializes a Paystack payment for wallet top-up. Amounts are in kobo. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can fund their wallet via the bank transfer option (transfer to the generated temporary account number from their OPay app).
+Initializes a Paystack payment for wallet top-up. Amounts are in kobo. The passenger does not need an email on their account — Paystack requires one, so a stable placeholder (`{user_id}@rider.etigo.ng`) is sent instead. Supported payment channels: **card**, **bank transfer**, and **USSD**. OPay users can fund their wallet via the bank transfer option (transfer to the generated temporary account number from their OPay app).
 
 **Request Body:**
 
@@ -11712,9 +11715,14 @@ Private channels require authentication. The client must send an authorization r
 
 | Channel | Auth | Subscribers | Events |
 |---------|------|-------------|--------|
-| `private-ride.{rideId}` | Passenger or assigned driver | Ride participant | `driver.location.updated` |
-| `private-admin.rides` | Admin users only | Admin dashboard | `driver.location.updated` |
-| `private-user.{userId}` | Authenticated user (self) | User apps | `tier.upgraded` |
+| `private-ride.{rideId}` | Passenger or assigned driver | Ride participants | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
+| `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers) |
+| `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded` |
+| `private-admin.rides` | Admin users | Admin dashboard | `ride.status.updated`, `driver.location.updated` |
+| `private-admin.sos` | Safety operators, super admins | SOS console | `sos.incident.triggered`, `sos.incident.escalated` |
+| `private-passengers.nearby` / `private-drivers.nearby` | Passengers / drivers | Home-screen maps | `nearby.map.changed` |
+
+Every event also has a non-WebSocket path (push notification, polling endpoint or the WhatsApp SOS alert), so a Reverb outage degrades the experience without breaking rides or safety.
 
 ### Events
 
@@ -11724,7 +11732,7 @@ Dispatched on every driver location update (max 1/second). Includes live GPS coo
 
 ```json
 {
-  "driver_id": 1,
+  "driver_id": "3b2a1f0e-9d8c-4b7a-8f6e-5d4c3b2a1f0e",
   "lat": 9.0579,
   "lng": 7.4951,
   "heading": 45.0,
@@ -11752,3 +11760,21 @@ Dispatched when a user's gamification tier is promoted. Broadcast to `private-us
   "tier_name": "Silver"
 }
 ```
+
+### Driver Location Stream (Telemetry Gateway)
+
+High-frequency GPS from the driver app can go over a dedicated WebSocket instead of `POST /driver/location` (both write to the same location index and trigger the same `driver.location.updated` broadcasts).
+
+```
+wss://{host}:{TELEMETRY_SERVER_PORT}/?token={driver_token}     (default port 8081)
+```
+
+The token can also be sent as an `Authorization: Bearer {driver_token}` header during the handshake, or in an `auth` frame after connecting. Only **online, approved drivers** may stream, and the same session lifetime as the HTTP API applies (an expired app token is refused).
+
+| Client frame | Server reply |
+|--------------|--------------|
+| `{"type": "auth", "token": "..."}` | `{"type": "authenticated", "driver_id": "...", "message": "Authenticated successfully."}` |
+| `{"type": "location", "lat": 6.5244, "lng": 3.3792, "heading": 90, "speed": 32.5, "ride_id": "optional"}` | `{"type": "location_ack", "timestamp": 1760540400, "eta": { "distance_km": 3.2, "duration_minutes": 8.0 }}` (`eta` is null without an active ride) |
+| `{"type": "ping"}` | `{"type": "pong", "timestamp": 1760540400}` |
+
+Errors arrive as `{"type": "error", "code": <status>, "message": "..."}`: `401` invalid/expired token or a `location` frame before authenticating (the connection is closed for a bad token), `403` driver not online/approved, `422` invalid coordinates, `400` malformed JSON or unknown frame type. Location frames sent less than `TELEMETRY_RATE_LIMIT_MS` (500 ms) apart are dropped silently. `ride_id` is optional — the gateway finds the driver's active ride itself.

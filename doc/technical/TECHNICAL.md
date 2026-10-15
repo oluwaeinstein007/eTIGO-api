@@ -221,8 +221,9 @@ Each transition locks the ride, validates the edge, writes an append-only `ride_
 | Step | Rules |
 |------|-------|
 | Book (`POST /rides`) | One active ride per passenger; the passenger row is locked, and searches older than the matching timeout are expired first. The pricing snapshot is captured, the promo validated (§12), and for wallet rides a hold for the estimate placed (§10). A share token and the ride PIN are generated. |
-| Ride PIN | 4 digits, hashed, valid **6 hours**, **3 attempts**. Only the passenger sees it. The passenger can regenerate it (`/pin/regenerate`) until the trip starts, e.g. after the driver exhausts the attempts. |
+| Ride PIN | 4 digits, hashed, valid **6 hours**, **3 attempts**. Only the passenger sees it. Once a driver is assigned and until the trip starts, the passenger can regenerate it (`/pin/regenerate`), e.g. after the driver exhausts the attempts. |
 | Accept | The driver must hold the offer, be approved, online and free; the ride and the driver are locked, so a driver can never accept two rides. |
+| Arrive | `driver_en_route` → `driver_arrived` only when the driver's last location is within **150 m** of the pickup and less than **2 minutes** old. |
 | Start | `driver_arrived` → `in_progress` only with the correct PIN (`hash_equals`). |
 | Complete | `FinalFareCalculationJob` computes the final fare (§5), redeems the promo, processes payment (§9) and settles the driver (§10). |
 | Cancel | Allowed until the trip starts (and from `no_driver_found`). The wallet hold is released, the other party is notified with who cancelled (passenger, driver or E-tiGo support) and the reason, and a driver cancellation near the pickup starts off-app trip monitoring (§14). |
@@ -253,7 +254,7 @@ Not implemented yet: **priority matching** for Gold+ tiers. The tier flag exists
 
 ### Location pipeline
 
-- Drivers report positions through `POST /driver/location` or the **telemetry gateway** (`php artisan telemetry:serve`, Workerman WebSocket on port 8081, Sanctum-authenticated, rate-limited to one update per `TELEMETRY_RATE_LIMIT_MS` = 500 ms). Only online, approved drivers may stream.
+- Drivers report positions through `POST /driver/location` (one per second) or the **telemetry gateway** (`php artisan telemetry:serve`, Workerman WebSocket on port 8081, Sanctum-authenticated, one update per `TELEMETRY_RATE_LIMIT_MS` = 500 ms; frame protocol in the API reference under *Driver Location Stream*). Only online, approved drivers may stream.
 - `DriverLocationService` writes the GEO index `driver_locations` and a per-driver key `driver:{id}:location` (TTL 300 s) on the `geolocation` Redis connection. Positions are rebroadcast to the ride channel and to admins.
 - ETAs (`EtaService`) are throttled to one maps call per ride every **30 s**.
 
