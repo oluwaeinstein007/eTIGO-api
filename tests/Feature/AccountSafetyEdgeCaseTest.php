@@ -1,15 +1,21 @@
 <?php
 
+use App\Contracts\SmsGateway;
 use App\Contracts\WalletGateway;
 use App\Enums\AdminRole;
 use App\Enums\DriverStatus;
+use App\Enums\NotificationCategory;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\NotificationPreference;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Notifications\Channels\SmsChannel;
+use App\Notifications\PayoutAccountChangedNotification;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 
 function verifyPhoneAs(object $test, string $phone, string $type): void
@@ -147,7 +153,46 @@ it('disables the manual KYC bypass in production', function () {
     expect($driver->fresh()->status)->toBe(DriverStatus::PendingReview);
 });
 
-// === Payout bank account changes need a fresh OTP ===
+// === Adding or changing the payout bank account needs a fresh OTP ===
+
+it('requires a verification code to add the first payout bank account', function () {
+    $driver = Driver::factory()->approved()->create();
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldNotReceive('resolveAccountNumber');
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['otp_code']);
+
+    expect($driver->bankAccounts()->exists())->toBeFalse();
+});
+
+it('sends a bank account code to a driver with no account on file', function () {
+    $driver = Driver::factory()->approved()->create();
+
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account/otp')
+        ->assertOk()
+        ->assertJsonPath('message', 'Verification code sent to your phone.');
+});
+
+it('refuses a wrong code when adding the first payout bank account', function () {
+    $driver = Driver::factory()->approved()->create();
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('resolveAccountNumber')->once()
+        ->andReturn(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321', 'otp_code' => '000000'])
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.otp_code.0', 'Invalid verification code.');
+
+    expect($driver->bankAccounts()->exists())->toBeFalse();
+});
 
 it('requires a verification code to replace an existing payout bank account', function () {
     $driver = Driver::factory()->approved()->create();
@@ -165,6 +210,7 @@ it('requires a verification code to replace an existing payout bank account', fu
 });
 
 it('replaces the payout bank account once the driver confirms the code', function () {
+    Notification::fake();
     $driver = Driver::factory()->approved()->create();
     BankAccount::factory()->create(['driver_id' => $driver->id]);
     $gateway = Mockery::mock(WalletGateway::class);
@@ -178,4 +224,106 @@ it('replaces the payout bank account once the driver confirms the code', functio
         ->assertCreated();
 
     expect($driver->primaryBankAccount()->value('account_number'))->toBe('0987654321');
+});
+
+it('keeps the code usable when Paystack cannot verify the account', function () {
+    Notification::fake();
+    $driver = Driver::factory()->approved()->create();
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('resolveAccountNumber')->with('0000000000', '044')->once()
+        ->andThrow(new RuntimeException('Account not found'));
+    $gateway->shouldReceive('resolveAccountNumber')->with('0987654321', '044')->once()
+        ->andReturn(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0000000000', 'otp_code' => '123456'])
+        ->assertUnprocessable();
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321', 'otp_code' => '123456'])
+        ->assertCreated();
+});
+
+it('alerts the driver when the payout bank account is added or replaced', function (bool $hadAccount) {
+    Notification::fake();
+    $driver = Driver::factory()->approved()->create();
+    if ($hadAccount) {
+        BankAccount::factory()->create(['driver_id' => $driver->id]);
+    }
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('resolveAccountNumber')->once()
+        ->andReturn(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321', 'otp_code' => '123456'])
+        ->assertCreated();
+
+    Notification::assertSentTo(
+        $driver->user,
+        PayoutAccountChangedNotification::class,
+        fn (PayoutAccountChangedNotification $n, array $channels) => $n->replacedAnother === $hadAccount
+            && in_array(SmsChannel::class, $channels, true),
+    );
+})->with(['first account' => false, 'replacement' => true]);
+
+it('does not alert the driver when the bank account is not saved', function () {
+    Notification::fake();
+    $driver = Driver::factory()->approved()->create();
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('resolveAccountNumber')->once()
+        ->andReturn(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321', 'otp_code' => '000000'])
+        ->assertUnprocessable();
+
+    Notification::assertNothingSent();
+});
+
+it('words the payout account alert without the full account number', function () {
+    $account = BankAccount::factory()->make(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $user = User::factory()->make();
+
+    $changed = new PayoutAccountChangedNotification($account, replacedAnother: true);
+    $added = new PayoutAccountChangedNotification($account, replacedAnother: false);
+
+    expect($changed->toSms($user))
+        ->toBe('E-tiGo: Your payout bank account was changed to ADA OBI, account ending 4321. If you did not do this, contact E-tiGo support immediately.')
+        ->not->toContain('0987654321')
+        ->and($added->toArray($user)['body'])->toStartWith('Your payout bank account was set to ADA OBI')
+        ->and($added->toArray($user)['type'])->toBe('payout_account_changed');
+});
+
+it('sends the payout account alert by SMS even when payment notifications are switched off', function () {
+    $driver = Driver::factory()->approved()->create();
+    NotificationPreference::create([
+        'user_id' => $driver->user_id,
+        'category' => NotificationCategory::Payments,
+        'push_enabled' => false,
+        'in_app_enabled' => false,
+    ]);
+    $sms = Mockery::mock(SmsGateway::class);
+    $sms->shouldReceive('send')->once()
+        ->with($driver->user->phone, Mockery::on(fn (string $text) => str_contains($text, 'account ending 4321')))
+        ->andReturnTrue();
+    $this->app->instance(SmsGateway::class, $sms);
+
+    $account = BankAccount::factory()->create(['driver_id' => $driver->id, 'account_number' => '0987654321']);
+    $driver->user->notify(new PayoutAccountChangedNotification($account, replacedAnother: true));
+
+    expect($driver->user->notifications()->count())->toBe(0);
+});
+
+it('retries the payout account alert when the SMS is not delivered', function () {
+    $sms = Mockery::mock(SmsGateway::class);
+    $sms->shouldReceive('send')->once()->andReturnFalse();
+    $user = User::factory()->make(['phone' => '+2348012345678']);
+    $notification = new PayoutAccountChangedNotification(BankAccount::factory()->make(), replacedAnother: false);
+
+    expect(fn () => (new SmsChannel($sms))->send($user, $notification))->toThrow(RuntimeException::class);
 });

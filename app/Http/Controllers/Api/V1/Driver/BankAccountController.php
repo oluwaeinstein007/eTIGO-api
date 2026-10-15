@@ -9,6 +9,7 @@ use App\Http\Requests\Driver\StoreBankAccountRequest;
 use App\Http\Resources\BankAccountResource;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
+use App\Notifications\PayoutAccountChangedNotification;
 use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class BankAccountController extends Controller
 {
-    private const CHANGE_OTP_PURPOSE = 'bank_account_change';
+    private const OTP_PURPOSE = 'bank_account_change';
 
     public function __construct(
         private WalletGateway $walletGateway,
@@ -25,8 +26,8 @@ class BankAccountController extends Controller
     ) {}
 
     /**
-     * Send a one-time code to the driver's phone. It is required to replace an
-     * existing payout account, so a stolen session cannot redirect payouts.
+     * Send a one-time code to the driver's phone. It is required to add or replace
+     * the payout account, so a stolen session cannot direct payouts elsewhere.
      */
     public function requestChangeCode(Request $request): JsonResponse
     {
@@ -37,15 +38,11 @@ class BankAccountController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
-        if (! $driver->primaryBankAccount()->exists()) {
-            return response()->json(['message' => 'No bank account on file. Add one without a code.'], 422);
-        }
-
         if (! $user->phone) {
-            return response()->json(['message' => 'Add a phone number to your account before changing bank details.'], 422);
+            return response()->json(['message' => 'Add a phone number to your account before adding bank details.'], 422);
         }
 
-        $result = $this->otpService->sendAuthOtp($user->phone, self::CHANGE_OTP_PURPOSE);
+        $result = $this->otpService->sendAuthOtp($user->phone, self::OTP_PURPOSE);
 
         if (! $result['sent']) {
             return response()->json(['message' => $result['error']], 429);
@@ -102,30 +99,7 @@ class BankAccountController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
-        if ($driver->primaryBankAccount()->exists()) {
-            $otpCode = $request->validated('otp_code');
-
-            if (! $otpCode) {
-                return response()->json([
-                    'message' => 'Changing your payout account requires a verification code.',
-                    'errors' => ['otp_code' => ['Request a code with POST /driver/bank-account/otp and include it here.']],
-                ], 422);
-            }
-
-            $verification = $this->otpService->verifyAuthOtp(
-                (string) $request->user()->phone,
-                $otpCode,
-                purpose: self::CHANGE_OTP_PURPOSE,
-            );
-
-            if (! $verification['valid']) {
-                return response()->json([
-                    'message' => $verification['error'],
-                    'errors' => ['otp_code' => [$verification['error']]],
-                ], 422);
-            }
-        }
-
+        // Resolve first: a Paystack failure must not use up the driver's code.
         try {
             $resolved = $this->walletGateway->resolveAccountNumber(
                 $request->validated('account_number'),
@@ -134,6 +108,21 @@ class BankAccountController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to verify bank account. Please check the details and try again.'], 422);
         }
+
+        $verification = $this->otpService->verifyAuthOtp(
+            (string) $request->user()->phone,
+            $request->validated('otp_code'),
+            purpose: self::OTP_PURPOSE,
+        );
+
+        if (! $verification['valid']) {
+            return response()->json([
+                'message' => $verification['error'],
+                'errors' => ['otp_code' => [$verification['error']]],
+            ], 422);
+        }
+
+        $replacedAnother = $driver->bankAccounts()->exists();
 
         $bankAccount = DB::transaction(function () use ($driver, $request, $resolved) {
             // Set existing accounts as non-primary
@@ -152,6 +141,8 @@ class BankAccountController extends Controller
 
             return $bankAccount;
         });
+
+        $request->user()->notify(new PayoutAccountChangedNotification($bankAccount, $replacedAnother));
 
         return response()->json([
             'message' => 'Bank account added and verified.',
