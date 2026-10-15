@@ -5826,7 +5826,7 @@ When a ride is created (`POST /rides`) or re-sent (`POST /rides/{ride}/rebroadca
 
 **Priority matching** (Gold, Platinum and Diamond passengers — locked in at booking as `pricing_snapshot.priority_matching`):
 - Distance always wins: a priority passenger is offered their nearest eligible driver first, never a farther one because of their tier.
-- When drivers are scarce, a free driver within the current search radius of a priority ride that is waiting for its next search (between radius tiers or retry waves) is kept for that ride instead of being offered to a standard ride.
+- When drivers are scarce, a priority ride waiting for its next search (between radius tiers or retry waves) keeps the driver it would be offered next, its nearest free driver within its current radius, instead of that driver being offered to a standard ride. Only that one driver is held per waiting priority ride; every other driver stays available to everyone.
 - Priority searches get one extra automatic retry wave (`MATCHING_PRIORITY_EXTRA_RETRIES`, default 1) before `no_driver_found`.
 
 Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), including to rides that ended in `no_driver_found`.
@@ -9517,7 +9517,7 @@ Three possible outcomes:
 
 **Reservation fee** (`EV_RESERVATION_FEE`, default ₦500):
 - Charged to the driver's **available earnings** when a stall is actually held for them — immediately for `reserved`, or when a `queued` driver is promoted. Nothing is charged while waiting in the queue. `fee_charged_at` records it.
-- Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`); a queued driver who can no longer pay is skipped and their reservation cancelled.
+- Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`). A driver whose earnings account is frozen gets 422 `"Your earnings account is on hold, so the reservation fee cannot be paid. Contact support."`. A queued driver who can no longer pay when a stall frees up is skipped: their reservation is cancelled (the reason is in `notes`) and they get an `ev_reservation_cancelled` push.
 - Waived for Platinum and Diamond drivers (`fee_waived: true`).
 - Refunded in full if the driver cancels within `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) of the stall being held (`fee_refunded_at`). Kept after that, and on a no-show (expiry) or a completed session.
 
@@ -10664,7 +10664,7 @@ Requests a withdrawal from available driver earnings to the driver's primary ban
 
 - The money leaves the driver's available balance when the transfer is sent. If the balance no longer covers it at that point, the payout becomes `failed` with a reason and nothing is debited.
 - A transfer Paystack refuses or reports as failed, or one the bank sends back, returns the money to the driver's available balance (`failed` or `reversed`). Finance can `retry` either.
-- If Paystack cannot be reached, or its webhook never arrives, the money **stays reserved** and the payout stays `approved`/`processing` until E-tiGo confirms the outcome with Paystack (automatically every 15 minutes, or when finance uses **check status**). A transfer is never sent twice.
+- If Paystack cannot be reached or answers with a server error, or its webhook never arrives, the money **stays reserved** and the payout stays `approved`/`processing` until E-tiGo confirms the outcome with Paystack (automatically every 15 minutes, or when finance uses **check status**). A transfer is never sent twice.
 - Finance can `reject` a request before it is approved.
 
 **Response 201:**
@@ -11813,6 +11813,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Ride cancelled     | Other party| `ride_cancelled`     | Cancellation by passenger/driver/admin         |
 | No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
+| EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 
 **Wallet and payout notifications** (stored in-app — see `GET /notifications` — and pushed):
 
