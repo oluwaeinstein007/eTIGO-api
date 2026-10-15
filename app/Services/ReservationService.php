@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Contracts\PushNotificationGateway;
 use App\Enums\EvReservationStatus;
+use App\Enums\NotificationType;
 use App\Jobs\TransferReservationJob;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
@@ -17,6 +19,7 @@ class ReservationService
         private readonly StallAvailabilityService $stallService,
         private readonly TierGateService $tierGate,
         private readonly EvReservationFeeService $fees,
+        private readonly PushNotificationGateway $pushGateway,
     ) {}
 
     public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
@@ -195,10 +198,12 @@ class ReservationService
             } catch (\RuntimeException $e) {
                 $queued->update([
                     'status' => EvReservationStatus::Cancelled,
-                    'notes' => 'Cancelled: the earnings balance could not cover the reservation fee.',
+                    'notes' => 'Cancelled when the stall was ready: '.$e->getMessage(),
                 ]);
 
-                Log::info('Queued EV reservation skipped: fee not covered', ['reservation_id' => $queued->id]);
+                $this->notifySkipped($queued, $station, $e->getMessage());
+
+                Log::info('Queued EV reservation skipped: fee not paid', ['reservation_id' => $queued->id]);
             }
         }
 
@@ -334,6 +339,23 @@ class ReservationService
         if ($activeCount >= $maxActive) {
             throw new \RuntimeException('You already have an active reservation.');
         }
+    }
+
+    /**
+     * Tell a queued driver who lost their turn because the fee could not be
+     * taken, once the cancellation is committed.
+     */
+    private function notifySkipped(EvReservation $reservation, EvChargingStation $station, string $reason): void
+    {
+        DB::afterCommit(fn () => rescue(fn () => $this->pushGateway->sendToUser($reservation->driver_id, [
+            'title' => 'EV Reservation Cancelled',
+            'body' => "A stall at {$station->name} was ready, but your reservation was cancelled. {$reason}",
+            'data' => [
+                'type' => NotificationType::EvReservationCancelled->value,
+                'reservation_id' => (string) $reservation->id,
+                'station_name' => $station->name,
+            ],
+        ])));
     }
 
     /**

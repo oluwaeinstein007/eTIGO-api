@@ -33,8 +33,8 @@ class EvReservationFeeService
      */
     public function assertCanPay(User $driverUser, int $feeKobo): void
     {
-        if ($feeKobo > 0 && ! $this->canCover($this->earningsAccount($driverUser), $feeKobo)) {
-            throw new \RuntimeException($this->cannotCoverMessage($feeKobo));
+        if ($feeKobo > 0) {
+            $this->ensureCanPay($this->earningsAccount($driverUser), $feeKobo);
         }
     }
 
@@ -51,10 +51,7 @@ class EvReservationFeeService
 
         $account = $this->earningsAccount(User::findOrFail($reservation->driver_id));
         $account = Account::whereKey($account->id)->lockForUpdate()->firstOrFail();
-
-        if (! $this->canCover($account, $feeKobo)) {
-            throw new \RuntimeException($this->cannotCoverMessage($feeKobo));
-        }
+        $this->ensureCanPay($account, $feeKobo);
 
         $this->ledgerService->postJournal([
             ['account_id' => $account->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $feeKobo],
@@ -103,14 +100,19 @@ class EvReservationFeeService
         return true;
     }
 
-    private function canCover(Account $account, int $feeKobo): bool
+    /**
+     * @throws \RuntimeException when the fee cannot be taken from this account
+     */
+    private function ensureCanPay(Account $account, int $feeKobo): void
     {
-        return $account->availableBalance() - $feeKobo >= (int) AppSetting::wallet('max_negative_balance');
-    }
+        if (! $account->isActive()) {
+            // The ledger refuses postings to a frozen or closed account.
+            throw new \RuntimeException('Your earnings account is on hold, so the reservation fee cannot be paid. Contact support.');
+        }
 
-    private function cannotCoverMessage(int $feeKobo): string
-    {
-        return 'Your earnings balance cannot cover the ₦'.number_format($feeKobo / 100, 2).' reservation fee.';
+        if ($account->availableBalance() - $feeKobo < (int) AppSetting::wallet('max_negative_balance')) {
+            throw new \RuntimeException('Your earnings balance cannot cover the ₦'.number_format($feeKobo / 100, 2).' reservation fee.');
+        }
     }
 
     private function earningsAccount(User $driverUser): Account

@@ -1,5 +1,7 @@
 <?php
 
+use App\Contracts\PushNotificationGateway;
+use App\Enums\AccountStatus;
 use App\Enums\AccountType;
 use App\Enums\AdminRole;
 use App\Enums\DriverStatus;
@@ -11,6 +13,7 @@ use App\Events\SosIncidentTriggered;
 use App\Jobs\ExpireEvReservationsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\SendSosWhatsAppAlertJob;
+use App\Jobs\TransferReservationJob;
 use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
@@ -279,6 +282,29 @@ it('releases a reserved stall when the driver never arrives and hands it to the 
         ->and($next->fresh()->stall_id)->toBe($stall->id)
         ->and($stall->fresh()->status)->toBe(EvStallStatus::Reserved)
         ->and($next->fresh()->fee_charged_at)->not->toBeNull();
+});
+
+it('skips and notifies a queued driver whose fee cannot be taken and serves the next driver', function () {
+    $push = Mockery::spy(PushNotificationGateway::class);
+    $this->app->instance(PushNotificationGateway::class, $push);
+    $station = EvChargingStation::factory()->create();
+    $stall = EvChargingStall::factory()->create(['station_id' => $station->id]);
+    $onHold = Driver::factory()->approved()->create();
+    app(LedgerService::class)
+        ->findOrCreateAccount('App\\Models\\Driver', $onHold->id, AccountType::DriverEarningsAvailable)
+        ->update(['status' => AccountStatus::Frozen]);
+    $skipped = EvReservation::factory()->queued()->create(['station_id' => $station->id, 'queue_position' => 1, 'driver_id' => $onHold->user_id]);
+    $nextDriver = Driver::factory()->approved()->create();
+    $next = EvReservation::factory()->queued()->create(['station_id' => $station->id, 'queue_position' => 2, 'driver_id' => $nextDriver->user_id]);
+
+    app()->call([new TransferReservationJob($station->id), 'handle']);
+
+    expect($skipped->fresh()->status)->toBe(EvReservationStatus::Cancelled)
+        ->and($next->fresh()->status)->toBe(EvReservationStatus::Reserved)
+        ->and($next->fresh()->stall_id)->toBe($stall->id);
+    $push->shouldHaveReceived('sendToUser')
+        ->with($onHold->user_id, Mockery::on(fn (array $notification) => $notification['data']['type'] === 'ev_reservation_cancelled'))
+        ->once();
 });
 
 // === Notifications, caching, reference data ===

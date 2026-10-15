@@ -29,6 +29,7 @@ enum NotificationType: string
 
     // EV events
     case EvReservationReady = 'ev_reservation_ready';
+    case EvReservationCancelled = 'ev_reservation_cancelled';
 
     // Dispute events
     case DisputeUpdate = 'dispute_update';
@@ -70,6 +71,7 @@ enum NotificationType: string
             self::PromoExpiring => 'Promo Expiring',
             self::TierUpgrade => 'Tier Upgrade',
             self::EvReservationReady => 'EV Reservation Ready',
+            self::EvReservationCancelled => 'EV Reservation Cancelled',
             self::DisputeUpdate => 'Dispute Update',
             self::KycStatusChanged => 'KYC Status Changed',
             self::ScheduledRideReminder => 'Scheduled Ride Reminder',
@@ -118,7 +120,7 @@ enum NotificationType: string
 
             self::TierUpgrade => NotificationCategory::Gamification,
 
-            self::EvReservationReady => NotificationCategory::EvCharging,
+            self::EvReservationReady, self::EvReservationCancelled => NotificationCategory::EvCharging,
 
             self::DisputeUpdate,
             self::KycStatusChanged,
