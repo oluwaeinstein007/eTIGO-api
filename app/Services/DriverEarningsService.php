@@ -139,11 +139,12 @@ class DriverEarningsService
             ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $tipAmountKobo],
             ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $tipAmountKobo],
         ], [
-            'description' => "Card tip for ride {$ride->id}",
-            'idempotency_key' => "tip-{$ride->id}",
+            'description' => "Tip for ride {$ride->id}",
+            'idempotency_key' => "card-tip-{$ride->id}",
             'metadata' => [
                 'ride_id' => $ride->id,
-                'tip_kobo' => $tipAmountKobo,
+                'tip_amount_kobo' => $tipAmountKobo,
+                'category' => 'tip',
             ],
         ]);
     }

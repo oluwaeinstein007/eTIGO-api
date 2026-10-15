@@ -341,35 +341,6 @@ class PaymentService
                 ]);
             }
 
-            $tipKobo = (int) round($tipAmount * 100);
-            if ($tipKobo > 0 && $ride->driver_id) {
-                $driver = Driver::where('user_id', $ride->driver_id)->first();
-                if ($driver) {
-                    $earningsAccountType = config('wallet.settlement_delay', 'instant') === 'instant'
-                        ? AccountType::DriverEarningsAvailable
-                        : AccountType::DriverEarningsPending;
-
-                    $driverAccount = $this->ledgerService->findOrCreateAccount(
-                        'App\\Models\\Driver',
-                        $driver->id,
-                        $earningsAccountType,
-                    );
-                    $pspClearingAccount = $this->ledgerService->systemAccount(AccountType::PspClearing);
-
-                    $this->ledgerService->postJournal([
-                        ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $tipKobo],
-                        ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $tipKobo],
-                    ], [
-                        'description' => "Tip for ride {$ride->id}",
-                        'idempotency_key' => "card-tip-{$ride->id}",
-                        'metadata' => [
-                            'ride_id' => $ride->id,
-                            'tip_amount_kobo' => $tipKobo,
-                            'category' => 'tip',
-                        ],
-                    ]);
-                }
-            }
         }
 
         $this->broadcastPaymentUpdate($payment->fresh());
