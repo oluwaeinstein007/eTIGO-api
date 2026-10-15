@@ -6,6 +6,7 @@ use App\Enums\TierLevel;
 use App\Enums\UserType;
 use App\Events\TierUpgraded;
 use App\Jobs\CalculateCarbonScoreJob;
+use App\Models\City;
 use App\Models\GamificationProfile;
 use App\Models\PointMultiplierConfig;
 use App\Models\Ride;
@@ -288,6 +289,37 @@ describe('Admin Gamification', function () {
 
         $response->assertOk()
             ->assertJsonStructure(['profiles', 'meta']);
+    });
+
+    it('lists only passengers, each with the city of their latest ride', function () {
+        $ibadan = City::factory()->create(['name' => 'Ibadan']);
+        $lagos = City::factory()->create(['name' => 'Lagos']);
+        $passenger = User::factory()->passenger()->create();
+        GamificationProfile::factory()->create(['user_id' => $passenger->id]);
+        Ride::factory()->create(['passenger_id' => $passenger->id, 'city_id' => $lagos->id, 'created_at' => now()->subWeek()]);
+        Ride::factory()->create(['passenger_id' => $passenger->id, 'city_id' => $ibadan->id, 'created_at' => now()->subDay()]);
+        GamificationProfile::factory()->create(['user_id' => User::factory()->driver()->create()->id]);
+
+        $response = $this->getJson('/api/v1/admin/gamification/users', [
+            'Authorization' => "Bearer {$this->adminToken}",
+        ]);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'profiles')
+            ->assertJsonPath('profiles.0.user_id', $passenger->id)
+            ->assertJsonPath('profiles.0.city_id', $ibadan->id)
+            ->assertJsonPath('profiles.0.city_name', 'Ibadan');
+    });
+
+    it('leaves drivers out of the aggregate', function () {
+        GamificationProfile::factory()->create(['user_id' => User::factory()->passenger()->create()->id]);
+        GamificationProfile::factory()->create(['user_id' => User::factory()->driver()->create()->id]);
+
+        $response = $this->getJson('/api/v1/admin/gamification/aggregate', [
+            'Authorization' => "Bearer {$this->adminToken}",
+        ]);
+
+        $response->assertOk()->assertJsonPath('aggregate.total_profiles', 1);
     });
 
     it('returns aggregate stats', function () {

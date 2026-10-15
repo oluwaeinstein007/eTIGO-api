@@ -32,6 +32,10 @@ Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
 Schedule::job(new LiftExpiredComplianceSuspensionsJob)->hourly()->withoutOverlapping();
 Schedule::command('model:prune', ['--model' => [Notification::class]])->daily();
+Schedule::command('demo:simulate-drivers')
+    ->everyMinute()
+    ->environments(['local', 'staging'])
+    ->withoutOverlapping();
 Schedule::job(new NegativeDriverBalanceReportJob)->weeklyOn(1, '08:00');
 Schedule::job(new ProcessWeeklyAutoPayoutJob)
     ->weeklyOn(1, '06:00')

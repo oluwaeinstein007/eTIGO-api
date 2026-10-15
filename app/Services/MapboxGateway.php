@@ -47,6 +47,41 @@ class MapboxGateway implements MapsGateway
     }
 
     /**
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     */
+    public function getRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+    ): array {
+        $coordinates = "{$originLng},{$originLat};{$destinationLng},{$destinationLat}";
+
+        $response = Http::get("https://api.mapbox.com/directions/v5/mapbox/driving/{$coordinates}", [
+            'access_token' => $this->accessToken,
+            'geometries' => 'polyline',
+            'overview' => 'full',
+            'exclude' => 'ferry',
+        ]);
+
+        $response->throw();
+
+        $data = $response->json();
+
+        if (empty($data['routes'])) {
+            throw new RuntimeException('Mapbox Directions API returned no routes.');
+        }
+
+        $route = $data['routes'][0];
+
+        return [
+            'encoded_polyline' => (string) ($route['geometry'] ?? ''),
+            'distance_km' => round($route['distance'] / 1000, 2),
+            'duration_minutes' => round($route['duration'] / 60, 1),
+        ];
+    }
+
+    /**
      * @return array{lat: float, lng: float, formatted_address: string}
      */
     public function geocode(string $address): array

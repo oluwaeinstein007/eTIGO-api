@@ -11,14 +11,19 @@ use App\Models\Rating;
 use App\Models\Ride;
 use App\Models\SosIncident;
 use App\Services\DriverLocationService;
+use App\Services\EtaService;
+use App\Services\RideRouteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AdminMonitoringController extends Controller
 {
     public function __construct(
         private DriverLocationService $locationService,
+        private EtaService $etaService,
+        private RideRouteService $routeService,
     ) {}
 
     private function bulkAverageRatings(array $userIds): array
@@ -33,6 +38,88 @@ class AdminMonitoringController extends Controller
             ->pluck('avg_rating', 'rated_user_id')
             ->map(fn ($v) => (float) $v)
             ->all();
+    }
+
+    /**
+     * @param  array{lat: float, lng: float, heading: float, speed: float, timestamp: int}|null  $location
+     * @return array{lat: float, lng: float, heading: float, speed: float, timestamp: int, updated_at: string|null}|null
+     */
+    private function formatLocation(?array $location): ?array
+    {
+        if ($location === null) {
+            return null;
+        }
+
+        return $location + [
+            'updated_at' => $location['timestamp'] > 0
+                ? Carbon::createFromTimestamp($location['timestamp'])->toIso8601String()
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{lat: float, lng: float, heading: float, speed: float, timestamp: int}|null
+     */
+    private function driverLocation(Ride $ride): ?array
+    {
+        if (! $ride->driver_id) {
+            return null;
+        }
+
+        $driverModelId = $ride->driver?->driver?->id;
+
+        return ($driverModelId ? $this->locationService->getDriverLocation((string) $driverModelId) : null)
+            ?? $this->locationService->getDriverLocation($ride->driver_id);
+    }
+
+    /**
+     * @param  array<string, float>  $ratings
+     * @return array<string, mixed>
+     */
+    private function monitoringPayload(Ride $ride, array $ratings, ?SosIncident $activeSos): array
+    {
+        $resource = (new RideResource($ride))->resolve();
+
+        if ($ride->driver_id) {
+            $location = $this->driverLocation($ride);
+            $resource['driver_location'] = $this->formatLocation($location);
+            $resource['driver_rating'] = $ratings[$ride->driver_id] ?? null;
+            $resource['eta'] = $this->etaService->getMonitoringEta($ride, $location);
+        }
+
+        $transitions = $ride->stateTransitions->sortBy('created_at');
+        $resource['stage_timestamps'] = [
+            'requested_at' => $ride->created_at?->toIso8601String(),
+            'matched_at' => $ride->matched_at?->toIso8601String(),
+            'driver_en_route_at' => $transitions->firstWhere('to_state', RideStatus::DriverEnRoute)?->created_at?->toIso8601String(),
+            'driver_arrived_at' => $transitions->firstWhere('to_state', RideStatus::DriverArrived)?->created_at?->toIso8601String(),
+            'started_at' => $ride->started_at?->toIso8601String(),
+        ];
+
+        $resource['has_active_sos'] = $activeSos !== null;
+        if ($activeSos) {
+            $raisedById = $activeSos->triggered_by_user_id;
+
+            $resource['sos'] = [
+                'id' => $activeSos->id,
+                'status' => $activeSos->status->value,
+                'trigger_type' => $activeSos->trigger_type->value,
+                'raised_by' => [
+                    'role' => match (true) {
+                        $raisedById !== null && $raisedById === $ride->passenger_id => 'passenger',
+                        $raisedById !== null && $raisedById === $ride->driver_id => 'driver',
+                        default => $activeSos->trigger_type->value,
+                    },
+                    'user_id' => $raisedById,
+                    'name' => $activeSos->triggeredBy
+                        ? trim($activeSos->triggeredBy->first_name.' '.$activeSos->triggeredBy->last_name)
+                        : null,
+                ],
+                'created_at' => $activeSos->created_at?->toIso8601String(),
+            ];
+        }
+
+        return $resource;
     }
 
     public function activeRides(Request $request): JsonResponse
@@ -52,42 +139,14 @@ class AdminMonitoringController extends Controller
 
         $activeSos = SosIncident::whereIn('ride_id', $rideIds)
             ->active()
+            ->with('triggeredBy')
+            ->orderBy('created_at')
             ->get()
             ->groupBy('ride_id');
 
-        $ridesData = $rides->through(function (Ride $ride) use ($activeSos, $ratings) {
-            $resource = (new RideResource($ride))->resolve();
-
-            if ($ride->driver_id) {
-                $driverModelId = $ride->driver?->driver?->id;
-                $location = ($driverModelId ? $this->locationService->getDriverLocation((string) $driverModelId) : null)
-                    ?? $this->locationService->getDriverLocation($ride->driver_id);
-                $resource['driver_location'] = $location;
-                $resource['driver_rating'] = $ratings[$ride->driver_id] ?? null;
-            }
-
-            $transitions = $ride->stateTransitions->sortBy('created_at');
-            $resource['stage_timestamps'] = [
-                'requested_at' => $ride->created_at?->toIso8601String(),
-                'matched_at' => $ride->matched_at?->toIso8601String(),
-                'driver_arrived_at' => $transitions->firstWhere('to_state', RideStatus::DriverArrived)?->created_at?->toIso8601String(),
-                'started_at' => $ride->started_at?->toIso8601String(),
-            ];
-
-            $rideSos = $activeSos->get($ride->id);
-            $resource['has_active_sos'] = $rideSos !== null && $rideSos->isNotEmpty();
-            if ($resource['has_active_sos']) {
-                $incident = $rideSos->first();
-                $resource['sos'] = [
-                    'id' => $incident->id,
-                    'status' => $incident->status->value,
-                    'trigger_type' => $incident->trigger_type->value,
-                    'created_at' => $incident->created_at?->toIso8601String(),
-                ];
-            }
-
-            return $resource;
-        });
+        $ridesData = $rides->through(
+            fn (Ride $ride) => $this->monitoringPayload($ride, $ratings, $activeSos->get($ride->id)?->first()),
+        );
 
         $summaryQuery = Ride::whereIn('status', RideStatus::activeStatuses())
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
@@ -109,6 +168,33 @@ class AdminMonitoringController extends Controller
                     ->pluck('count', 'status'),
             ],
         ]);
+    }
+
+    public function rideDetail(Ride $ride): JsonResponse
+    {
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle.vehicleClass', 'stateTransitions']);
+
+        $ratings = $this->bulkAverageRatings(array_filter([$ride->driver_id]));
+
+        $activeSos = SosIncident::where('ride_id', $ride->id)
+            ->active()
+            ->with('triggeredBy')
+            ->orderBy('created_at')
+            ->first();
+
+        $payload = $this->monitoringPayload($ride, $ratings, $activeSos);
+
+        $vehicle = $ride->driver?->driver?->vehicle;
+        $payload['driver_vehicle'] = $vehicle ? [
+            'make' => $vehicle->make,
+            'model' => $vehicle->model,
+            'colour' => $vehicle->colour,
+            'plate_number' => $vehicle->plate_number,
+            'vehicle_class' => $vehicle->vehicleClass?->name,
+        ] : null;
+        $payload['route'] = $this->routeService->getPlannedRoute($ride);
+
+        return response()->json(['ride' => $payload]);
     }
 
     public function onlineDrivers(Request $request): JsonResponse
@@ -153,7 +239,7 @@ class AdminMonitoringController extends Controller
                     'colour' => $driver->vehicle->colour,
                     'vehicle_class' => $driver->vehicle->vehicleClass?->name,
                 ] : null,
-                'location' => $location,
+                'location' => $this->formatLocation($location),
                 'active_ride' => $activeRide ? [
                     'id' => $activeRide->id,
                     'reference_number' => $activeRide->reference_number,
@@ -199,10 +285,16 @@ class AdminMonitoringController extends Controller
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('vehicle_class_id', $v))
             ->when($request->input('search'), function ($q, $search) {
-                $q->where(function ($q) use ($search) {
-                    $q->where('reference_number', 'ilike', "%{$search}%")
-                        ->orWhereHas('passenger', function ($q) use ($search) {
-                            $q->where(DB::raw("concat(first_name, ' ', last_name)"), 'ilike', "%{$search}%");
+                $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+
+                $q->where(function ($q) use ($term) {
+                    $q->where('reference_number', 'ilike', $term)
+                        ->orWhereHas('passenger', function ($q) use ($term) {
+                            $q->where(DB::raw("concat(first_name, ' ', last_name)"), 'ilike', $term);
+                        })
+                        ->orWhereHas('city', fn ($q) => $q->where('name', 'ilike', $term))
+                        ->orWhereHas('vehicleClass', function ($q) use ($term) {
+                            $q->where('name', 'ilike', $term)->orWhere('display_name', 'ilike', $term);
                         });
                 });
             })
@@ -233,6 +325,12 @@ class AdminMonitoringController extends Controller
             return $resource;
         });
 
+        $countsByStatus = Ride::whereIn('status', $allowedStatuses)
+            ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
+            ->selectRaw('status, (driver_id IS NULL) as unassigned, COUNT(*) as count')
+            ->groupBy('status', 'unassigned')
+            ->get();
+
         return response()->json([
             'rides' => $ridesData->items(),
             'meta' => [
@@ -240,6 +338,13 @@ class AdminMonitoringController extends Controller
                 'last_page' => $rides->lastPage(),
                 'per_page' => $rides->perPage(),
                 'total' => $rides->total(),
+            ],
+            'summary' => [
+                'awaiting_driver' => (int) $countsByStatus->where('unassigned', true)->sum('count'),
+                'by_status' => collect($allowedStatuses)
+                    ->mapWithKeys(fn (RideStatus $status) => [
+                        $status->value => (int) $countsByStatus->where('status', $status)->sum('count'),
+                    ]),
             ],
         ]);
     }
@@ -315,7 +420,7 @@ class AdminMonitoringController extends Controller
                     'colour' => $driver->vehicle->colour,
                     'vehicle_class' => $driver->vehicle->vehicleClass?->name,
                 ],
-                'location' => $location,
+                'location' => $this->formatLocation($location),
                 'distance_km' => $distanceKm,
                 'eta_minutes' => $etaMinutes,
             ];

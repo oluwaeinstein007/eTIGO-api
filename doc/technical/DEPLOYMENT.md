@@ -116,6 +116,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 
 | Schedule | Job | Purpose |
 |----------|-----|---------|
+| Every minute (local and staging only) | `demo:simulate-drivers` | Keep the demo drivers from `MonitoringDemoSeeder` reporting their location (does nothing when none are seeded) |
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |
 | Every 15 min | `ReconcilePayoutsJob` | Settle payouts whose transfer outcome is unknown (approved > 10 min, processing > 30 min) against Paystack |
