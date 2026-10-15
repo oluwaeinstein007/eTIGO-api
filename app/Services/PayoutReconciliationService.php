@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Contracts\WalletGateway;
 use App\Enums\PayoutStatus;
+use App\Exceptions\PaymentProviderException;
 use App\Jobs\ProcessPayoutTransferJob;
 use App\Jobs\ProcessPayoutWebhookJob;
 use App\Models\Payout;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -35,9 +37,20 @@ class PayoutReconciliationService
     public function __construct(private WalletGateway $walletGateway) {}
 
     /**
+     * Paystack timed out, failed (5xx) or throttled the request: what happened
+     * is unknown or it should simply be tried again later, never treated as a
+     * refusal.
+     */
+    public static function isProviderUnavailable(\Throwable $e): bool
+    {
+        return $e instanceof ConnectionException
+            || ($e instanceof PaymentProviderException && $e->isTransient());
+    }
+
+    /**
      * @return array{outcome: string, provider_status: string|null}
      *
-     * @throws \Throwable when Paystack cannot be reached (nothing is changed)
+     * @throws \Throwable when Paystack cannot be reached (nothing is changed; see isProviderUnavailable())
      */
     public function reconcile(Payout $payout): array
     {

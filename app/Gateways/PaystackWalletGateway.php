@@ -3,6 +3,7 @@
 namespace App\Gateways;
 
 use App\Contracts\WalletGateway;
+use App\Exceptions\PaymentProviderException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -161,8 +162,9 @@ class PaystackWalletGateway implements WalletGateway
     private function ensureSuccessful(Response $response): array
     {
         if (! $response->successful()) {
-            throw new \RuntimeException(
-                "Paystack API error: {$response->status()} - ".($response->json('message') ?? $response->body())
+            throw new PaymentProviderException(
+                "Paystack API error: {$response->status()} - ".($response->json('message') ?? $response->body()),
+                $response->status(),
             );
         }
 

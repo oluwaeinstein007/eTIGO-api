@@ -11,6 +11,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\PayoutStatus;
 use App\Enums\VehicleOwnershipType;
 use App\Enums\WalletTransactionStatus;
+use App\Exceptions\PaymentProviderException;
 use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\ProcessPayoutTransferJob;
 use App\Jobs\ProcessPayoutWebhookJob;
@@ -40,6 +41,7 @@ use App\Services\WalletRefundService;
 use Database\Seeders\SystemAccountSeeder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
@@ -427,6 +429,42 @@ it('keeps the money reserved when every attempt to reach Paystack fails', functi
         ->and(driverAvailableKobo($this))->toBe(300000);
 });
 
+it('treats a Paystack server error on a transfer as an unknown outcome, not a failure', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('initiateTransfer')->once()
+        ->andThrow(new PaymentProviderException('Paystack API error: 504 - Gateway Timeout', 504));
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    expect(fn () => app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']))
+        ->toThrow(PaymentProviderException::class);
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Approved)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+
+    // Paystack had created the transfer after all: the retry finds it and does not send again.
+    $gateway->shouldReceive('verifyTransfer')->once()->with("PAYOUT-{$payout->id}")
+        ->andReturn(['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'pending']);
+    app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Processing)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('fails a payout and returns the money when Paystack refuses the transfer', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('initiateTransfer')->once()
+        ->andThrow(new PaymentProviderException('Paystack API error: 400 - Account number is invalid', 400));
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Failed)
+        ->and(driverAvailableKobo($this))->toBe(500000);
+});
+
 it('flags a payout whose transfer outcome is overdue for finance', function () {
     fundDriverEarnings($this, 500000);
     $payout = stuckPayout($this);
@@ -499,11 +537,11 @@ it('sends a stuck payout again under the same reference when Paystack never rece
         ->and(driverAvailableKobo($this))->toBe(300000);
 });
 
-it('tells finance when Paystack cannot be reached and changes nothing', function () {
+it('tells finance when Paystack cannot be reached and changes nothing', function (Throwable $unavailable) {
     fundDriverEarnings($this, 500000);
     $payout = stuckPayout($this);
     $gateway = Mockery::mock(WalletGateway::class);
-    $gateway->shouldReceive('verifyTransfer')->andThrow(new ConnectionException('Connection timed out'));
+    $gateway->shouldReceive('verifyTransfer')->andThrow($unavailable);
     $this->app->instance(WalletGateway::class, $gateway);
 
     $this->actingAs($this->finance)
@@ -512,6 +550,24 @@ it('tells finance when Paystack cannot be reached and changes nothing', function
 
     expect($payout->fresh()->status)->toBe(PayoutStatus::Approved)
         ->and(driverAvailableKobo($this))->toBe(300000);
+})->with([
+    'timeout' => fn () => new ConnectionException('Connection timed out'),
+    'server error' => fn () => new PaymentProviderException('Paystack API error: 503 - Service Unavailable', 503),
+]);
+
+it('does not pass off a Paystack configuration error as an outage', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')
+        ->andThrow(new PaymentProviderException('Paystack API error: 401 - Invalid key', 401));
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertInternalServerError();
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Approved);
 });
 
 it('only checks approved or processing payouts with Paystack', function () {
@@ -535,6 +591,25 @@ it('settles payouts stuck for longer than usual on its own', function () {
     expect($stuck->fresh()->status)->toBe(PayoutStatus::Paid)
         ->and($fresh->fresh()->status)->toBe(PayoutStatus::Approved);
     $gateway->shouldHaveReceived('verifyTransfer')->once();
+});
+
+it('reports an unexpected error while settling a stuck payout and settles the rest', function () {
+    Exceptions::fake();
+    fundDriverEarnings($this, 900000);
+    $broken = stuckPayout($this);
+    $stuck = stuckPayout($this);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->with("PAYOUT-{$broken->id}")
+        ->andThrow(new PaymentProviderException('Paystack API error: 401 - Invalid key', 401));
+    $gateway->shouldReceive('verifyTransfer')->with("PAYOUT-{$stuck->id}")
+        ->andReturn(['id' => '82738471', 'reference' => "PAYOUT-{$stuck->id}", 'status' => 'success']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    app()->call([new ReconcilePayoutsJob, 'handle']);
+
+    expect($stuck->fresh()->status)->toBe(PayoutStatus::Paid)
+        ->and($broken->fresh()->status)->toBe(PayoutStatus::Approved);
+    Exceptions::assertReported(PaymentProviderException::class);
 });
 
 it('fails a payout without sending money when the balance no longer covers it', function () {

@@ -185,6 +185,10 @@ class AdminPayoutController extends Controller
         try {
             $result = $reconciler->reconcile($payout);
         } catch (\Throwable $e) {
+            if (! PayoutReconciliationService::isProviderUnavailable($e)) {
+                throw $e;
+            }
+
             return response()->json(['message' => 'Could not reach the payment provider. Try again shortly.'], 502);
         }
 

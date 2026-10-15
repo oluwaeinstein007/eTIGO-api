@@ -13,7 +13,6 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
@@ -109,11 +108,15 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             ]);
 
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
-        } catch (ConnectionException $e) {
-            Log::error("Payout transfer network error: {$payout->id}", ['error' => $e->getMessage()]);
-
-            throw $e;
         } catch (\Throwable $e) {
+            if (PayoutReconciliationService::isProviderUnavailable($e)) {
+                // A timeout or 5xx may still have created the transfer: keep the
+                // money reserved and let the retry verify this reference first.
+                Log::error("Payout transfer outcome unknown: {$payout->id}", ['error' => $e->getMessage()]);
+
+                throw $e;
+            }
+
             $payoutLedger->reverseActiveDebit($payout, "Payout failed: reversal for payout {$payout->id}");
             $this->markFailed($payout, $e->getMessage());
 

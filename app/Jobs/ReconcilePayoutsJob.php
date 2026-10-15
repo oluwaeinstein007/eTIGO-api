@@ -42,6 +42,13 @@ class ReconcilePayoutsJob implements ShouldQueue
 
                 Log::info('Payout reconciled with Paystack', ['payout_id' => $payout->id] + $result);
             } catch (\Throwable $e) {
+                if (! PayoutReconciliationService::isProviderUnavailable($e)) {
+                    // Our own failure: report it and carry on with the others.
+                    report($e);
+
+                    continue;
+                }
+
                 // Paystack is still unreachable: nothing changed, try on the next run.
                 Log::warning('Payout reconciliation deferred', [
                     'payout_id' => $payout->id,
