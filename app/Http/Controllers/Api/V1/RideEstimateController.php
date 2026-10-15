@@ -5,17 +5,20 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ride\EstimateRideRequest;
 use App\Services\FareEstimationService;
+use App\Services\TierGateService;
 use Illuminate\Http\JsonResponse;
 
 class RideEstimateController extends Controller
 {
     public function __construct(
         private FareEstimationService $fareEstimationService,
+        private TierGateService $tierGateService,
     ) {}
 
     public function __invoke(EstimateRideRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        $user = $request->user();
 
         $result = $this->fareEstimationService->estimateAllClasses(
             $validated['city_id'],
@@ -23,6 +26,7 @@ class RideEstimateController extends Controller
             $validated['pickup_lng'],
             $validated['destination_lat'],
             $validated['destination_lng'],
+            $user->isPassenger() ? $this->tierGateService->getBookingFeeDiscount($user->id) : 0.0,
         );
 
         if (empty($result['estimates'])) {

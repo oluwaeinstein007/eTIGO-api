@@ -21,7 +21,7 @@ class AdminRideController extends Controller
     {
         $admin = $request->user();
 
-        if (! in_array($ride->status, [RideStatus::Searching, RideStatus::Requested])) {
+        if (! in_array($ride->status, [RideStatus::Searching, RideStatus::Requested, RideStatus::NoDriverFound], true)) {
             return response()->json([
                 'message' => 'This ride cannot be assigned in its current state.',
                 'current_status' => $ride->status->value,

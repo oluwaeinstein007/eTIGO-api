@@ -13,6 +13,12 @@ class DriverLocationService
 
     private const LOCATION_TTL = 300;
 
+    /**
+     * Drivers whose last location report is older than this are not offered
+     * rides or shown on maps (the app may have been killed or lost network).
+     */
+    public const STALE_LOCATION_SECONDS = 120;
+
     private function redis(): Connection
     {
         return Redis::connection('geolocation');
@@ -58,11 +64,13 @@ class DriverLocationService
     }
 
     /**
-     * @return array<int, array{driver_id: int, distance_km: float}>
+     * @return array<int, array{driver_id: string, distance_km: float}>
      */
     public function findNearbyDrivers(float $lat, float $lng, float $radiusKm, int $limit = 20): array
     {
-        $results = $this->redis()->client()->rawCommand(
+        $conn = $this->redis();
+
+        $results = $conn->client()->rawCommand(
             'GEOSEARCH', self::GEO_KEY,
             'FROMLONLAT', (string) $lng, (string) $lat,
             'BYRADIUS', (string) $radiusKm, 'km',
@@ -73,10 +81,31 @@ class DriverLocationService
             return [];
         }
 
-        return array_map(fn ($result) => [
-            'driver_id' => $result[0],
-            'distance_km' => (float) $result[1],
-        ], $results);
+        $freshAfter = now()->subSeconds(self::STALE_LOCATION_SECONDS)->timestamp;
+        $drivers = [];
+
+        foreach ($results as [$member, $distance]) {
+            $reportedAt = (int) $conn->hget(sprintf(self::DRIVER_KEY_PREFIX, $member), 'timestamp');
+
+            if ($reportedAt === 0) {
+                // The location hash expired: the app stopped reporting without
+                // going offline. Drop the ghost member from the geo index.
+                $conn->zrem(self::GEO_KEY, $member);
+
+                continue;
+            }
+
+            if ($reportedAt < $freshAfter) {
+                continue;
+            }
+
+            $drivers[] = [
+                'driver_id' => (string) $member,
+                'distance_km' => (float) $distance,
+            ];
+        }
+
+        return $drivers;
     }
 
     /**

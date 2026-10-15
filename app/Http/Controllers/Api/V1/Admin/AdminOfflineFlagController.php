@@ -51,7 +51,7 @@ class AdminOfflineFlagController extends Controller
                 $query->disputed();
             })
             ->orderBy('flagged_at', 'desc')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($this->perPage($request));
 
         return response()->json([
             'message' => 'Offline trip flags retrieved.',

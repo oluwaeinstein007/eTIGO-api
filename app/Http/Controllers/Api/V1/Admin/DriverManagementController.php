@@ -25,18 +25,26 @@ use App\Services\KycVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class DriverManagementController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'status' => ['sometimes', 'nullable', Rule::enum(DriverStatus::class)],
+            'kyc_status' => ['sometimes', 'nullable', Rule::enum(KycStatus::class)],
+            'city_id' => ['sometimes', 'nullable', 'uuid'],
+            'vehicle_class_id' => ['sometimes', 'nullable', 'uuid'],
+        ]);
+
         $query = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city', 'primaryBankAccount']);
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->has('kyc_status')) {
+        if ($request->filled('kyc_status')) {
             $query->where('kyc_status', $request->input('kyc_status'));
         }
 

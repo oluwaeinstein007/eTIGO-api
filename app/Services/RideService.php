@@ -6,12 +6,14 @@ use App\Contracts\MapsGateway;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
+use App\Exceptions\InvalidStateTransitionException;
 use App\Jobs\CalculateCarbonScoreJob;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Jobs\MonitorCancellationJob;
 use App\Jobs\ProcessPaymentJob;
 use App\Models\AuditLog;
+use App\Models\Driver;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
@@ -36,6 +38,7 @@ class RideService
         private OfflineTripDetectionService $offlineTripDetectionService,
         private PromoValidationService $promoValidationService,
         private PromoApplicationService $promoApplicationService,
+        private TierGateService $tierGateService,
     ) {}
 
     /**
@@ -60,16 +63,31 @@ class RideService
             throw new \RuntimeException('No active pricing configuration for this city and vehicle class.');
         }
 
+        $tierBenefits = $this->tierGateService->getUserBenefits($passenger->id);
+        $bookingFeeDiscountPct = (float) $tierBenefits['booking_fee_discount_pct'];
+
         $estimate = $this->fareEstimationService->estimate(
             $pricing,
             $pickupLat, $pickupLng,
             $destinationLat, $destinationLng,
             $pricing->city->currency_code ?? 'NGN',
+            $bookingFeeDiscountPct,
         );
 
         $validatedPromoId = null;
         if ($promoCode) {
-            $validation = $this->promoValidationService->validateForUser($promoCode, $passenger->id);
+            // The ride being booked supplies trusted context, so every promo
+            // rule is checked now rather than silently dropping the discount
+            // at completion.
+            $validation = $this->promoValidationService->validate(
+                code: $promoCode,
+                userId: $passenger->id,
+                cityId: $cityId,
+                vehicleClassId: $vehicleClassId,
+                pickupLat: $pickupLat,
+                pickupLng: $pickupLng,
+                fareAmount: (float) $estimate['fare_estimate'],
+            );
             if (! $validation['valid']) {
                 throw ValidationException::withMessages([
                     'promo_code' => [$validation['reason']],
@@ -83,6 +101,7 @@ class RideService
             $pickupLat, $pickupLng, $pickupAddress,
             $destinationLat, $destinationLng, $destinationAddress,
             $paymentMethod, $estimate, $validatedPromoId,
+            $bookingFeeDiscountPct, $tierBenefits,
         ) {
             $ride = Ride::create([
                 'city_id' => $cityId,
@@ -102,6 +121,10 @@ class RideService
                     ...$estimate['pricing_snapshot'],
                     'distance_km' => $estimate['distance_km'],
                     'duration_minutes' => $estimate['duration_minutes'],
+                    'surge_multiplier' => (float) $estimate['surge']['multiplier'],
+                    'surge_rule_name' => $estimate['surge']['rule_name'],
+                    'booking_fee_discount_pct' => $bookingFeeDiscountPct,
+                    'tier_name' => $tierBenefits['tier_name'],
                 ],
                 'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,
@@ -130,7 +153,7 @@ class RideService
         DispatchRideRequestJob::dispatch($result['ride']->id)->afterCommit();
 
         $timeout = config('matching.matching_timeout', 300);
-        MatchingTimeoutJob::dispatch($result['ride']->id)
+        MatchingTimeoutJob::dispatch($result['ride']->id, $result['ride']->searchAttemptCount())
             ->delay(now()->addSeconds($timeout))
             ->afterCommit();
 
@@ -186,8 +209,17 @@ class RideService
             return $ride->fresh();
         });
 
-        if ($driverUserId && $this->offlineTripDetectionService->shouldMonitor($ride)) {
-            MonitorCancellationJob::dispatch($ride->id, $driverUserId);
+        // The cancellation has committed; anti-offline monitoring is best-effort
+        // and must not turn a successful cancel into an error if Redis is down.
+        try {
+            if ($driverUserId && $this->offlineTripDetectionService->shouldMonitor($ride)) {
+                MonitorCancellationJob::dispatch($ride->id, $driverUserId);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Could not start offline-trip monitoring after cancellation', [
+                'ride_id' => $ride->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return $result;
@@ -269,7 +301,7 @@ class RideService
         });
 
         DispatchRideRequestJob::dispatch($ride->id)->afterCommit();
-        MatchingTimeoutJob::dispatch($ride->id)
+        MatchingTimeoutJob::dispatch($ride->id, $ride->searchAttemptCount())
             ->delay(now()->addSeconds(config('matching.matching_timeout', 300)))
             ->afterCommit();
 
@@ -281,11 +313,15 @@ class RideService
      */
     public function acceptRide(Ride $ride, User $driver): array
     {
-        $ride = DB::transaction(function () use ($ride, $driver) {
+        $result = DB::transaction(function () use ($ride, $driver) {
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
 
             if ($ride->status !== RideStatus::Searching) {
-                return null;
+                return 'Ride is no longer available.';
+            }
+
+            if ($this->driverHasOtherActiveRide($driver, $ride)) {
+                return 'You already have an active ride. Complete it before accepting another.';
             }
 
             $ride->driver_id = $driver->id;
@@ -310,13 +346,32 @@ class RideService
             return $ride->fresh();
         });
 
-        if (! $ride) {
-            return ['success' => false, 'ride' => new Ride, 'error' => 'Ride is no longer available.'];
+        if (! $result instanceof Ride) {
+            return ['success' => false, 'ride' => new Ride, 'error' => $result];
         }
 
-        $this->matchingService->cleanupRideCache($ride);
+        $this->matchingService->cleanupRideCache($result);
 
-        return ['success' => true, 'ride' => $ride, 'error' => null];
+        return ['success' => true, 'ride' => $result, 'error' => null];
+    }
+
+    /**
+     * Locks the driver's profile row so concurrent accepts/assignments for the
+     * same driver are serialised, then checks for another in-flight ride.
+     */
+    private function driverHasOtherActiveRide(User $driver, Ride $ride): bool
+    {
+        Driver::where('user_id', $driver->id)->lockForUpdate()->first();
+
+        return Ride::where('driver_id', $driver->id)
+            ->where('id', '!=', $ride->id)
+            ->whereIn('status', [
+                RideStatus::Matched,
+                RideStatus::DriverEnRoute,
+                RideStatus::DriverArrived,
+                RideStatus::InProgress,
+            ])
+            ->exists();
     }
 
     public function rejectRide(Ride $ride, User $driver): void
@@ -329,15 +384,63 @@ class RideService
         DispatchRideRequestJob::dispatch($ride->id);
     }
 
+    /**
+     * Manually assign a driver. Supports rides still searching and rides that
+     * already ended in no_driver_found (the main reason to assign manually).
+     *
+     * @throws ValidationException when the driver is busy, the passenger has
+     *                             moved on to another ride, or a wallet hold cannot be re-placed
+     */
     public function adminAssignDriver(Ride $ride, User $driver, User $admin): Ride
     {
-        return DB::transaction(function () use ($ride, $driver, $admin) {
+        $ride = DB::transaction(function () use ($ride, $driver, $admin) {
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+
+            if (! in_array($ride->status, [RideStatus::Requested, RideStatus::Searching, RideStatus::NoDriverFound], true)) {
+                throw new InvalidStateTransitionException(
+                    'This ride cannot be assigned in its current state.',
+                    $ride->status->value,
+                    RideStatus::Matched->value,
+                );
+            }
+
+            if ($this->driverHasOtherActiveRide($driver, $ride)) {
+                throw ValidationException::withMessages([
+                    'driver_id' => ['Driver already has an active ride.'],
+                ]);
+            }
+
+            $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
+
+            if ($ride->status === RideStatus::NoDriverFound) {
+                $passengerHasNewerRide = Ride::where('passenger_id', $ride->passenger_id)
+                    ->where('id', '!=', $ride->id)
+                    ->whereIn('status', RideStatus::activeStatuses())
+                    ->exists();
+
+                if ($passengerHasNewerRide) {
+                    throw ValidationException::withMessages([
+                        'ride' => ['The passenger already has another active ride.'],
+                    ]);
+                }
+
+                if ($ride->payment_method === PaymentMethod::Wallet) {
+                    try {
+                        $this->walletPaymentService->placeHold(
+                            $ride->passenger,
+                            $ride,
+                            (int) round($ride->fare_estimate_amount * 100),
+                        );
+                    } catch (\DomainException $e) {
+                        throw ValidationException::withMessages(['ride' => [$e->getMessage()]]);
+                    }
+                }
+
+                $ride = $this->stateMachine->transitionTo($ride, RideStatus::Searching, $admin, 'admin', $meta);
+            }
 
             $ride->driver_id = $driver->id;
             $ride->save();
-
-            $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
 
             if ($ride->status === RideStatus::Requested) {
                 $this->stateMachine->transitionTo($ride, RideStatus::Searching, $admin, 'admin', $meta);
@@ -361,6 +464,8 @@ class RideService
 
             return $ride->fresh();
         });
+
+        return $ride;
     }
 
     public function driverArrived(Ride $ride, User $driver): Ride
@@ -475,13 +580,25 @@ class RideService
             }
         }
 
-        $rawFare = $this->fareEstimationService->calculateFare(
+        $meteredFare = $this->fareEstimationService->calculateFare(
             $pricing,
             $route['distance_km'],
             $route['duration_minutes'],
             $waitingMinutes,
         );
 
+        // The surge multiplier and tier discount are locked in at booking time
+        // (the passenger agreed to that quote); rides booked before these were
+        // recorded default to no surge and no discount.
+        $surgeMultiplier = (float) ($snapshot['surge_multiplier'] ?? 1.0);
+        $adjusted = $this->fareEstimationService->applyAdjustments(
+            $pricing,
+            $meteredFare,
+            $surgeMultiplier,
+            (float) ($snapshot['booking_fee_discount_pct'] ?? 0),
+        );
+
+        $rawFare = $adjusted['fare'];
         $finalFare = $rawFare;
         $discountAmount = null;
         $promoSnapshot = null;
@@ -512,6 +629,15 @@ class RideService
             }
         }
 
+        $waitingCharge = $this->fareEstimationService->calculateWaitingCharge($pricing, $waitingMinutes);
+        $tierDiscountSnapshot = $adjusted['booking_fee_discount'] > 0
+            ? [
+                'tier' => $snapshot['tier_name'] ?? null,
+                'percentage' => (float) ($snapshot['booking_fee_discount_pct'] ?? 0),
+                'amount' => $adjusted['booking_fee_discount'],
+            ]
+            : null;
+
         $ride->update([
             'final_fare_amount' => $finalFare,
             'discount_amount' => $discountAmount,
@@ -519,6 +645,10 @@ class RideService
                 ...(is_array($snapshot) ? $snapshot : []),
                 'distance_km' => $route['distance_km'],
                 'duration_minutes' => $route['duration_minutes'],
+                'waiting_minutes' => round((float) $waitingMinutes, 2),
+                'waiting_charge' => $waitingCharge,
+                'surge_multiplier' => $surgeMultiplier,
+                ...($tierDiscountSnapshot ? ['tier_discount' => $tierDiscountSnapshot] : []),
                 ...($promoSnapshot ? ['promo' => $promoSnapshot] : []),
             ],
         ]);
@@ -529,13 +659,16 @@ class RideService
             'discount_amount' => $discountAmount,
             'distance_km' => $route['distance_km'],
             'duration_minutes' => $route['duration_minutes'],
-            'waiting_charge' => $this->fareEstimationService->calculateWaitingCharge($pricing, $waitingMinutes),
+            'waiting_charge' => $waitingCharge,
             'fare_breakdown' => [
                 'base_fare' => (float) $pricing->base_fare,
                 'distance_charge' => round($route['distance_km'] * (float) $pricing->per_km_rate, 2),
                 'time_charge' => round($route['duration_minutes'] * (float) $pricing->per_minute_rate, 2),
-                'waiting_charge' => $this->fareEstimationService->calculateWaitingCharge($pricing, $waitingMinutes),
+                'waiting_charge' => $waitingCharge,
                 'minimum_fare' => (float) $pricing->minimum_fare,
+                'surge_multiplier' => $surgeMultiplier,
+                'surge_amount' => round($adjusted['surged_fare'] - $meteredFare, 2),
+                'booking_fee_discount' => $adjusted['booking_fee_discount'],
                 'promo_discount' => $discountAmount,
             ],
         ];

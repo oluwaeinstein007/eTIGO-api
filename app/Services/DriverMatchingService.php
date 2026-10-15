@@ -19,6 +19,8 @@ class DriverMatchingService
 
     private const AUTO_RETRY_KEY = 'ride:%s:auto_retry_count';
 
+    private const DRIVER_OFFER_KEY = 'driver:%s:offered_ride';
+
     public function __construct(
         private DriverLocationService $locationService,
     ) {}
@@ -57,7 +59,7 @@ class DriverMatchingService
             $distanceMap[$entry['driver_id']] = $entry['distance_km'];
         }
 
-        $eligible = Driver::with('vehicle')
+        $eligible = Driver::query()
             ->whereIn('id', $nearbyDriverModelIds)
             ->where('status', DriverStatus::Approved)
             ->where('is_online', true)
@@ -72,7 +74,8 @@ class DriverMatchingService
                     RideStatus::InProgress,
                 ]));
             })
-            ->get();
+            ->get()
+            ->reject(fn (Driver $driver) => $this->hasPendingOfferForAnotherRide($driver->user_id, $ride));
 
         $results = $eligible->map(fn (Driver $driver) => [
             'driver_id' => $driver->id,
@@ -93,13 +96,44 @@ class DriverMatchingService
 
     public function setDispatchedDriver(Ride $ride, string $driverUserId): void
     {
-        $key = sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id);
-        Cache::put($key, $driverUserId, config('matching.driver_response_timeout', 30) + 5);
+        // The response-timeout job clears these keys explicitly; the TTL is only
+        // a safety net and must outlive queue lag so the job still sees them.
+        $ttl = (int) config('matching.driver_response_timeout', 20) + 60;
+
+        Cache::put(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id), $driverUserId, $ttl);
+        Cache::put(sprintf(self::DRIVER_OFFER_KEY, $driverUserId), (string) $ride->id, $ttl);
     }
 
     public function clearDispatchedDriver(Ride $ride): void
     {
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        $key = sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id);
+        $driverUserId = Cache::get($key);
+
+        Cache::forget($key);
+
+        if ($driverUserId) {
+            $this->releaseDriverOffer($driverUserId, $ride);
+        }
+    }
+
+    /**
+     * Whether the driver is currently holding an unanswered offer for a
+     * different ride, so they are never offered two rides at once.
+     */
+    public function hasPendingOfferForAnotherRide(string $driverUserId, Ride $ride): bool
+    {
+        $offeredRideId = Cache::get(sprintf(self::DRIVER_OFFER_KEY, $driverUserId));
+
+        return $offeredRideId !== null && $offeredRideId !== (string) $ride->id;
+    }
+
+    private function releaseDriverOffer(string $driverUserId, Ride $ride): void
+    {
+        $offerKey = sprintf(self::DRIVER_OFFER_KEY, $driverUserId);
+
+        if (Cache::get($offerKey) === (string) $ride->id) {
+            Cache::forget($offerKey);
+        }
     }
 
     public function getDispatchedDriverId(Ride $ride): ?string
@@ -124,8 +158,8 @@ class DriverMatchingService
 
     public function cleanupRideCache(Ride $ride): void
     {
+        $this->clearDispatchedDriver($ride);
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
         Cache::forget(sprintf(self::AUTO_RETRY_KEY, $ride->id));
     }
@@ -165,7 +199,7 @@ class DriverMatchingService
 
         Cache::put(sprintf(self::AUTO_RETRY_KEY, $ride->id), $currentRetries + 1, $timeout);
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
-        Cache::forget(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+        $this->clearDispatchedDriver($ride);
         Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
     }
 }

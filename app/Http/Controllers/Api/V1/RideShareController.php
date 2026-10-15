@@ -6,14 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\RideShareResource;
 use App\Models\Ride;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 
 class RideShareController extends Controller
 {
     public function show(string $rideId, string $token): JsonResponse
     {
-        $ride = Ride::where('id', $rideId)
-            ->where('share_token', $token)
-            ->first();
+        $ride = Str::isUuid($rideId)
+            ? Ride::where('id', $rideId)->where('share_token', $token)->first()
+            : null;
 
         if (! $ride) {
             return response()->json(['message' => 'Invalid or expired share link.'], 404);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\CancellationReason;
 use App\Enums\NotificationType;
 use App\Enums\RideStatus;
 use App\Models\Ride;
@@ -109,14 +110,22 @@ class RideNotificationService
     private function notifyCancellation(Ride $ride, RideStatus $previousStatus): void
     {
         $ride->loadMissing('cancelledByUser');
-        $cancellerName = $ride->cancelledByUser?->first_name ?? 'The ride';
+        $canceller = $ride->cancelledByUser;
+
+        $cancellerLabel = match (true) {
+            $canceller === null => 'E-tiGo',
+            $canceller->isAdmin() => 'E-tiGo support',
+            $canceller->id === $ride->driver_id => 'Your driver',
+            default => 'The passenger',
+        };
+
+        $reasonLabel = $ride->cancellation_reason
+            ? (CancellationReason::tryFrom($ride->cancellation_reason)?->label() ?? $ride->cancellation_reason)
+            : null;
+
+        $body = "{$cancellerLabel} cancelled the ride.".($reasonLabel ? " Reason: {$reasonLabel}." : '');
 
         if ($ride->cancelled_by !== $ride->passenger_id) {
-            $body = "{$cancellerName} cancelled the ride.";
-            if ($ride->cancellation_reason) {
-                $body .= " Reason: {$ride->cancellation_reason}";
-            }
-
             $this->notificationService->send(
                 userId: $ride->passenger_id,
                 type: NotificationType::RideCancelled,
@@ -131,7 +140,7 @@ class RideNotificationService
                 userId: $ride->driver_id,
                 type: NotificationType::RideCancelled,
                 title: 'Ride Cancelled',
-                body: 'The passenger cancelled the ride.',
+                body: $body,
                 data: ['ride_id' => (string) $ride->id],
             );
         }

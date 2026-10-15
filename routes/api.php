@@ -244,6 +244,8 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
         ->middleware(['user.type:passenger', 'throttle:3,1']);
     Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
+    Route::post('/{ride}/pin/regenerate', [RideController::class, 'regeneratePin'])
+        ->middleware(['user.type:passenger', 'throttle:5,1']);
     Route::get('/{ride}/location', [RideLocationController::class, 'show']);
     Route::post('/{ride}/driver-arrived', [RideController::class, 'driverArrived'])->middleware('user.type:driver');
     Route::post('/{ride}/verify-pin', [RideController::class, 'verifyPin'])->middleware('user.type:driver');

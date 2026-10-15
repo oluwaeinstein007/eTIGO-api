@@ -32,7 +32,16 @@ class DriverResponseTimeoutJob implements ShouldQueue
         }
 
         $currentlyDispatched = $matchingService->getDispatchedDriverId($ride);
-        if ($currentlyDispatched !== $this->driverUserId) {
+
+        if ($currentlyDispatched !== null && $currentlyDispatched !== $this->driverUserId) {
+            return;
+        }
+
+        // A missing key means either the driver rejected (the reject flow has
+        // already re-dispatched) or the key expired under queue lag, in which
+        // case this job must still move the ride on to the next driver.
+        if ($currentlyDispatched === null
+            && in_array($this->driverUserId, $matchingService->getRejectedDriverIds($ride), true)) {
             return;
         }
 

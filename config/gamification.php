@@ -44,6 +44,9 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    // Local clock times in the ride city's timezone; this timezone is the
+    // fallback when a ride has no city loaded.
+    'timezone' => env('GAMIFICATION_TIMEZONE', 'Africa/Lagos'),
     'off_peak_start' => env('GAMIFICATION_OFF_PEAK_START', '22:00'),
 
     'off_peak_end' => env('GAMIFICATION_OFF_PEAK_END', '06:00'),

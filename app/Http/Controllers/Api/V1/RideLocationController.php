@@ -33,6 +33,16 @@ class RideLocationController extends Controller
             ]);
         }
 
+        if (! $ride->isActive() && ! $user->isAdmin()) {
+            // The driver's position stops being shared once the trip is over.
+            return response()->json([
+                'message' => 'Live location is only available during an active ride.',
+                'location' => null,
+                'eta' => null,
+                'ride_status' => $ride->status->value,
+            ]);
+        }
+
         $location = $this->locationService->getDriverLocation($ride->driver_id);
 
         if (! $location) {

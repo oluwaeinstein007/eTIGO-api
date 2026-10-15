@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DiscountType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -98,9 +99,12 @@ class PromoCode extends Model
         return $query->where('code', strtoupper(trim($code)));
     }
 
-    public function isWithinTimeWindow(): bool
+    /**
+     * @param  CarbonInterface|null  $at  Evaluate the window at this instant (defaults to now)
+     */
+    public function isWithinTimeWindow(?CarbonInterface $at = null): bool
     {
-        $now = now();
+        $now = $at ?? now();
 
         return $this->is_active
             && ! $this->isCancelled()

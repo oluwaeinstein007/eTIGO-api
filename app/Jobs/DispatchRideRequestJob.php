@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class DispatchRideRequestJob implements ShouldQueue
@@ -41,7 +42,12 @@ class DispatchRideRequestJob implements ShouldQueue
         if (empty($candidates)) {
             if ($matchingService->hasReachedMaxRadius($ride)) {
                 $maxTimeoutSeconds = config('matching.matching_timeout', 300);
-                $isWithinTimeoutWindow = $ride->created_at !== null && $ride->created_at->diffInSeconds(now()) < $maxTimeoutSeconds;
+                $searchStartedAt = $ride->stateTransitions()
+                    ->where('to_state', RideStatus::Searching->value)
+                    ->latest('created_at')
+                    ->value('created_at') ?? $ride->created_at;
+                $isWithinTimeoutWindow = $searchStartedAt !== null
+                    && Carbon::parse($searchStartedAt)->diffInSeconds(now()) < $maxTimeoutSeconds;
 
                 if ($matchingService->canAutoRetry($ride) && $isWithinTimeoutWindow) {
                     $matchingService->resetForAutoRetry($ride);
@@ -72,31 +78,41 @@ class DispatchRideRequestJob implements ShouldQueue
 
         $timeout = config('matching.driver_response_timeout', 30);
 
-        RideRequestDispatched::dispatch(
-            driverUserId: $best['user_id'],
-            rideId: $ride->id,
-            pickupAddress: $ride->pickup_address,
-            destinationAddress: $ride->destination_address,
-            pickupLat: (float) $ride->pickup_lat,
-            pickupLng: (float) $ride->pickup_lng,
-            destinationLat: (float) $ride->destination_lat,
-            destinationLng: (float) $ride->destination_lng,
-            fareEstimate: (float) $ride->fare_estimate_amount,
-            currency: $ride->fare_currency ?? 'NGN',
-            vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
-            responseTimeoutSeconds: $timeout,
-            paymentMethod: $ride->payment_method?->value ?? '',
-            passengerName: trim(
-                ($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')
-            ),
-            passengerRating: $ride->passenger?->averageRating(),
-            distanceKm: isset($ride->pricing_snapshot['distance_km'])
-                ? (float) $ride->pricing_snapshot['distance_km']
-                : null,
-            durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
-                ? (float) $ride->pricing_snapshot['duration_minutes']
-                : null,
-        );
+        try {
+            RideRequestDispatched::dispatch(
+                driverUserId: $best['user_id'],
+                rideId: $ride->id,
+                pickupAddress: $ride->pickup_address,
+                destinationAddress: $ride->destination_address,
+                pickupLat: (float) $ride->pickup_lat,
+                pickupLng: (float) $ride->pickup_lng,
+                destinationLat: (float) $ride->destination_lat,
+                destinationLng: (float) $ride->destination_lng,
+                fareEstimate: (float) $ride->fare_estimate_amount,
+                currency: $ride->fare_currency ?? 'NGN',
+                vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
+                responseTimeoutSeconds: $timeout,
+                paymentMethod: $ride->payment_method?->value ?? '',
+                passengerName: trim(
+                    ($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')
+                ),
+                passengerRating: $ride->passenger?->averageRating(),
+                distanceKm: isset($ride->pricing_snapshot['distance_km'])
+                    ? (float) $ride->pricing_snapshot['distance_km']
+                    : null,
+                durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
+                    ? (float) $ride->pricing_snapshot['duration_minutes']
+                    : null,
+            );
+        } catch (\Throwable $e) {
+            // The push notification below and the response timeout must still
+            // go out when the WebSocket server is unavailable.
+            Log::warning('Ride request broadcast failed', [
+                'ride_id' => $ride->id,
+                'driver_user_id' => $best['user_id'],
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         try {
             $pushGateway->sendToUser($best['user_id'], [

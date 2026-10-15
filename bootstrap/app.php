@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureUserType;
 use App\Http\Middleware\LogRequests;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -61,19 +62,14 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        $exceptions->render(function (ModelNotFoundException $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Resource not found.',
-                    'error_code' => 'NOT_FOUND',
-                ], 404);
-            }
-        });
-
+        // Laravel converts ModelNotFoundException into NotFoundHttpException before
+        // render callbacks run, so the original exception is inspected here.
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
-                    'message' => 'The requested endpoint does not exist.',
+                    'message' => $e->getPrevious() instanceof ModelNotFoundException
+                        ? 'Resource not found.'
+                        : 'The requested endpoint does not exist.',
                     'error_code' => 'NOT_FOUND',
                 ], 404);
             }
@@ -84,7 +80,23 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'message' => $e->getMessage() ?: 'An error occurred.',
                     'error_code' => 'HTTP_ERROR',
-                ], $e->getStatusCode());
+                ], $e->getStatusCode(), $e->getHeaders());
+            }
+        });
+
+        // Malformed identifiers or dates that reach PostgreSQL (e.g. a non-UUID
+        // filter value) are client errors, not server faults.
+        $exceptions->render(function (QueryException $e, Request $request) {
+            $invalidInputStates = ['22P02', '22007', '22008'];
+
+            if (($request->is('api/*') || $request->expectsJson())
+                && in_array($e->errorInfo[0] ?? $e->getCode(), $invalidInputStates, true)) {
+                report($e);
+
+                return response()->json([
+                    'message' => 'One or more parameters have an invalid format.',
+                    'error_code' => 'INVALID_PARAMETER',
+                ], 422);
             }
         });
 

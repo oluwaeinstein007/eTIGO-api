@@ -24,27 +24,43 @@ class MatchingTimeoutJob implements ShouldQueue
 
     public array $backoff = [5, 15];
 
+    /**
+     * The search attempt (1 = initial request, 2+ = passenger retries) this
+     * timer belongs to. Null applies the timeout to whatever search is running.
+     * Declared with a default so jobs queued before this property existed
+     * still unserialize cleanly.
+     */
+    public ?int $searchAttempt = null;
+
     public function __construct(
         public readonly string $rideId,
-    ) {}
+        ?int $searchAttempt = null,
+    ) {
+        $this->searchAttempt = $searchAttempt;
+    }
 
     public function handle(
         RideStateMachine $stateMachine,
         DriverMatchingService $matchingService,
         WalletPaymentService $walletPaymentService,
     ): void {
-        $ride = Ride::find($this->rideId);
+        $ride = DB::transaction(function () use ($stateMachine, $walletPaymentService) {
+            $ride = Ride::lockForUpdate()->find($this->rideId);
 
-        if (! $ride || $ride->status !== RideStatus::Searching) {
-            return;
-        }
+            if (! $ride || $ride->status !== RideStatus::Searching) {
+                return null;
+            }
 
-        Log::info('Matching timed out — no driver found', [
-            'ride_id' => $this->rideId,
-        ]);
+            if ($this->searchAttempt !== null && $ride->searchAttemptCount() !== $this->searchAttempt) {
+                // Timer from an earlier search; the passenger has since retried.
+                return null;
+            }
 
-        DB::transaction(function () use ($ride, $stateMachine, $walletPaymentService) {
-            $stateMachine->transitionTo(
+            Log::info('Matching timed out — no driver found', [
+                'ride_id' => $this->rideId,
+            ]);
+
+            $ride = $stateMachine->transitionTo(
                 $ride,
                 RideStatus::NoDriverFound,
                 null,
@@ -55,8 +71,12 @@ class MatchingTimeoutJob implements ShouldQueue
             if ($ride->payment_method === PaymentMethod::Wallet) {
                 $walletPaymentService->releaseHold($ride);
             }
+
+            return $ride;
         });
 
-        $matchingService->cleanupRideCache($ride);
+        if ($ride) {
+            $matchingService->cleanupRideCache($ride);
+        }
     }
 }

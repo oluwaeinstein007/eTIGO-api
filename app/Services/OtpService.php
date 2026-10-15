@@ -19,7 +19,12 @@ class OtpService
 
     private const PIN_LENGTH = 4;
 
-    private const PIN_EXPIRY_MINUTES = 30;
+    /**
+     * The ride PIN must stay valid for the whole pickup phase — matching, a
+     * possible passenger retry, and the drive to the pickup point — so it is
+     * tied to the ride lifecycle rather than a short OTP-style window.
+     */
+    private const PIN_EXPIRY_MINUTES = 360;
 
     private const RIDE_MAX_ATTEMPTS = 3;
 

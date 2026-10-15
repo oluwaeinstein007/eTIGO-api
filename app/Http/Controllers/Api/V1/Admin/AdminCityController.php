@@ -45,7 +45,7 @@ class AdminCityController extends Controller
 
         $query->withCount(['vehicleClasses', 'drivers']);
 
-        $cities = $query->latest()->paginate(min($request->integer('per_page', 20), 100));
+        $cities = $query->latest()->paginate($this->perPage($request));
 
         return response()->json([
             'cities' => CityResource::collection($cities),
