@@ -446,7 +446,7 @@ Drivers can dispute a flag; operations upholds or overturns it (overturning reve
   - debited from the driver's **available earnings** into the `platform_fees` account when a stall is actually held (immediately, or when a queued driver is promoted) — never while queued;
   - may take the balance down to `max_negative_balance` like cash commission; beyond that, or when the earnings account is frozen, the reservation is refused, and a queued driver who can no longer pay is skipped and notified;
   - waived for Platinum and Diamond drivers;
-  - refunded for a cancellation within `EV_RESERVATION_FREE_CANCEL_MINUTES` (2) of the stall being held; kept on a later cancellation, a no-show or a completed session — the fee pays for holding the stall.
+  - refunded for a cancellation within `EV_RESERVATION_FREE_CANCEL_MINUTES` (2) of the stall being held; kept on a later cancellation, a no-show or a completed session — the fee pays for holding the stall. Reservations expose the deadline as `free_cancellation_until`, so apps never hard-code the window.
 
 ---
 

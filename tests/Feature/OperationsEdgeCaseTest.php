@@ -165,10 +165,13 @@ it('charges the reservation fee to the driver\'s earnings when a stall is held',
     $driver = evDriver();
     $station = stationWithFreeStall();
 
+    $this->freezeSecond();
+
     $this->actingAs($driver->user)
         ->postJson("/api/v1/driver/ev-reservations/stations/{$station->id}/reserve")
         ->assertCreated()
-        ->assertJsonPath('outcome', 'reserved');
+        ->assertJsonPath('outcome', 'reserved')
+        ->assertJsonPath('reservation.free_cancellation_until', now()->addMinutes(config('ev_charging.free_cancellation_minutes'))->toISOString());
 
     expect(driverEarningsKobo($driver))->toBe(-50000)
         ->and(app(LedgerService::class)->systemAccount(AccountType::PlatformFees)->fresh()->balance)->toBe(50000)
@@ -194,7 +197,9 @@ it('refunds the fee when the driver cancels within the free-cancellation window'
     $station = stationWithFreeStall();
     $id = $this->actingAs($driver->user)->postJson("/api/v1/driver/ev-reservations/stations/{$station->id}/reserve")->json('reservation.id');
 
-    $this->actingAs($driver->user)->postJson("/api/v1/driver/ev-reservations/{$id}/cancel")->assertOk();
+    $this->actingAs($driver->user)->postJson("/api/v1/driver/ev-reservations/{$id}/cancel")
+        ->assertOk()
+        ->assertJsonPath('reservation.free_cancellation_until', null);
 
     expect(driverEarningsKobo($driver))->toBe(0)
         ->and(EvReservation::find($id)->fee_refunded_at)->not->toBeNull();

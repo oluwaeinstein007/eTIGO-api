@@ -9520,6 +9520,7 @@ Three possible outcomes:
 - Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`). A driver whose earnings account is frozen gets 422 `"Your earnings account is on hold, so the reservation fee cannot be paid. Contact support."`. A queued driver who can no longer pay when a stall frees up is skipped: their reservation is cancelled (the reason is in `notes`) and they get an `ev_reservation_cancelled` push.
 - Waived for Platinum and Diamond drivers (`fee_waived: true`).
 - Refunded in full if the driver cancels within `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) of the stall being held (`fee_refunded_at`). Kept after that, and on a no-show (expiry) or a completed session.
+- `free_cancellation_until` is the time until which cancelling refunds the fee; use it for a countdown instead of hard-coding the window. It is `null` when there is nothing to refund (fee waived, not charged yet, already refunded, or the reservation is closed).
 
 **Response 201 — Immediate Reservation:**
 ```json
@@ -9535,6 +9536,7 @@ Three possible outcomes:
     "fee_waived": false,
     "fee_charged_at": "2026-10-11T10:00:00.000000Z",
     "fee_refunded_at": null,
+    "free_cancellation_until": "2026-10-11T10:02:00.000000Z",
     "reserved_at": "2026-10-11T10:00:00.000000Z"
   }
 }
@@ -9657,7 +9659,8 @@ Cancels any non-terminal reservation. Releases the stall and triggers queue tran
   "reservation": {
     "status": { "value": "cancelled", "label": "Cancelled" },
     "fee_charged_at": "2026-10-11T10:00:00.000000Z",
-    "fee_refunded_at": "2026-10-11T10:01:10.000000Z"
+    "fee_refunded_at": "2026-10-11T10:01:10.000000Z",
+    "free_cancellation_until": null
   }
 }
 ```

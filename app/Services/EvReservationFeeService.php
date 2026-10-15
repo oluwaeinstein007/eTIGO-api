@@ -10,6 +10,7 @@ use App\Models\Driver;
 use App\Models\EvReservation;
 use App\Models\Journal;
 use App\Models\User;
+use Carbon\CarbonInterface;
 
 /**
  * Collects the EV stall reservation fee from the driver's available earnings
@@ -78,13 +79,9 @@ class EvReservationFeeService
      */
     public function refundIfWithinGracePeriod(EvReservation $reservation): bool
     {
-        if ($reservation->fee_charged_at === null || $reservation->fee_refunded_at !== null) {
-            return false;
-        }
+        $freeUntil = self::freeCancellationUntil($reservation);
 
-        $graceMinutes = (int) config('ev_charging.free_cancellation_minutes', 2);
-
-        if ($reservation->fee_charged_at->lt(now()->subMinutes($graceMinutes))) {
+        if ($freeUntil === null || now()->gt($freeUntil)) {
             return false;
         }
 
@@ -98,6 +95,18 @@ class EvReservationFeeService
         $reservation->update(['fee_refunded_at' => now()]);
 
         return true;
+    }
+
+    /**
+     * Until when cancelling refunds the fee; null when no fee is left to refund.
+     */
+    public static function freeCancellationUntil(EvReservation $reservation): ?CarbonInterface
+    {
+        if ($reservation->fee_charged_at === null || $reservation->fee_refunded_at !== null) {
+            return null;
+        }
+
+        return $reservation->fee_charged_at->copy()->addMinutes((int) config('ev_charging.free_cancellation_minutes', 2));
     }
 
     /**
