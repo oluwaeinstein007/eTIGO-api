@@ -8,8 +8,14 @@ on:
 
 jobs:
   test:
-    name: Tests
+    # 8.4 is what the servers run (composer.json pins config.platform.php to
+    # it); 8.5 is what developers run locally. Both must pass to deploy.
+    name: Tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
 
     services:
       postgres:
@@ -42,7 +48,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: ${{ matrix.php }}
           extensions: pgsql, redis, mbstring, xml, curl, zip, bcmath, intl, gd
           coverage: none
 
@@ -54,8 +60,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
+          key: ${{ runner.os }}-php${{ matrix.php }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-php${{ matrix.php }}-composer-
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
