@@ -1,13 +1,218 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\neTiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access |\n| Operations | `operations` | Drivers, vehicles, cities, trips, pricing, surge, fleet, gamification |\n| Support | `support` | Passengers, disputes |\n| Finance | `finance` | Pricing (view/manage), fleet agreements |\n| Safety | `safety_operator` | Drivers (suspend/reactivate), passengers, safety investigations |\n\n**Permission Matrix:**\n\n| Endpoint Group | Operations | Support | Finance | Safety |\n|----------------|:----------:|:-------:|:-------:|:------:|\n| Drivers | \u2705 | \u2014 | \u2014 | \u2705 |\n| Cities | \u2705 | \u2014 | \u2014 | \u2014 |\n| Vehicle Classes | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2705 | \u2014 |\n| Surge Rules | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (assign) | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2705 | \u2014 |\n| Fleet Vehicles | \u2705 | \u2014 | \u2705 | \u2014 |\n| Fleet Agreements | \u2705 | \u2014 | \u2705 | \u2014 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2014 | \u2705 |\n| Disputes | \u2014 | \u2705 | \u2014 | \u2014 |\n| Wallets | \u2014 | \u2705 | \u2705 | \u2014 |\n| Wallets (freeze) | \u2014 | \u2014 | \u2705 | \u2014 |\n| Driver Ledgers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Ledger Explorer | \u2014 | \u2014 | \u2705 | \u2014 |\n| Adjustments | \u2014 | \u2014 | \u2705 | \u2014 |\n| Payouts | \u2014 | \u2014 | \u2705 | \u2014 |\n| Settings | \u2014 | \u2014 | \u2705 | \u2014 |\n| Reports (financial) | \u2014 | \u2014 | \u2705 | \u2014 |\n| Reports (operational) | \u2705 | \u2014 | \u2705 | \u2014 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include `errors` object with field-level details.\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes E-Class (Premium) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login/registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection). Create and list requests store the ids that later requests use \u2014 for example **Create Ride** sets `ride_id` and `share_token`, **Top Up Wallet** sets `topup_reference`, **List All Drivers** sets `driver_id`, **Create City** sets `city_id`. Every variable is declared on the collection, so nothing resolves to an undefined `{{...}}`.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
+      "key": "account_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adjustment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "base_url",
       "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "base_url_root",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "city_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "comfort_class_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dispute_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "driver_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "driver_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "economy_class_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ev_reservation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ev_station_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flag_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fleet_agreement_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invitation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invite_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "note_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "passenger_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "passenger_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payment_method_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payment_reference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payout_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "premium_class_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pricing_config_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "promo_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "remittance_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "repair_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reverb_app_key",
+      "value": "etigo-key",
+      "type": "string"
+    },
+    {
+      "key": "reverb_host",
+      "value": "localhost",
+      "type": "string"
+    },
+    {
+      "key": "reverb_port",
+      "value": "8080",
+      "type": "string"
+    },
+    {
+      "key": "ride_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "saved_place_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "share_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sos_incident_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "surge_rule_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "topup_reference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vehicle_class_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vehicle_id",
+      "value": "",
       "type": "string"
     }
   ],
@@ -71,13 +276,11 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/config",
+              "raw": "{{base_url}}/config",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
-                "api",
-                "v1",
                 "config"
               ]
             },
@@ -259,7 +462,7 @@
                   "variable": [
                     {
                       "key": "cityId",
-                      "value": "",
+                      "value": "{{city_id}}",
                       "description": "The UUID of the city"
                     }
                   ]
@@ -611,9 +814,11 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    var key = data.token ? ((data.user && data.user.type === 'driver') ? 'driver_token' : 'passenger_token') : null;",
+                      "    pm.collectionVariables.set(key, data.token);",
+                      "    if (pm.environment.name) { pm.environment.set(key, data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -707,9 +912,10 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    pm.collectionVariables.set('passenger_token', data.token);",
+                      "    if (pm.environment.name) { pm.environment.set('passenger_token', data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -791,9 +997,10 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('driver_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    pm.collectionVariables.set('driver_token', data.token);",
+                      "    if (pm.environment.name) { pm.environment.set('driver_token', data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -851,9 +1058,11 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    var key = data.token ? ((data.user && data.user.type === 'driver') ? 'driver_token' : 'passenger_token') : null;",
+                      "    pm.collectionVariables.set(key, data.token);",
+                      "    if (pm.environment.name) { pm.environment.set(key, data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -934,9 +1143,11 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    var key = data.token ? ((data.user && data.user.type === 'driver') ? 'driver_token' : 'passenger_token') : null;",
+                      "    pm.collectionVariables.set(key, data.token);",
+                      "    if (pm.environment.name) { pm.environment.set(key, data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1005,9 +1216,11 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('passenger_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    var key = data.token ? ((data.user && data.user.type === 'driver') ? 'driver_token' : 'passenger_token') : null;",
+                      "    pm.collectionVariables.set(key, data.token);",
+                      "    if (pm.environment.name) { pm.environment.set(key, data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1291,9 +1504,10 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('admin_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    pm.collectionVariables.set('admin_token', data.token);",
+                      "    if (pm.environment.name) { pm.environment.set('admin_token', data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1579,7 +1793,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/auth/invite/verify/TOKEN_HERE",
+                  "raw": "{{base_url}}/admin/auth/invite/verify/{{invite_token}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -1588,10 +1802,10 @@
                     "auth",
                     "invite",
                     "verify",
-                    "TOKEN_HERE"
+                    "{{invite_token}}"
                   ]
                 },
-                "description": "No auth required. Validates invitation token before showing accept form."
+                "description": "Validates an invitation token from the invite email link (`{{invite_token}}`). Returns the invited email and role, or 404/422 if the token is invalid, expired or already used."
               },
               "response": [
                 {
@@ -1627,9 +1841,10 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "var jsonData = pm.response.json();",
-                      "if (jsonData.token) {",
-                      "    pm.collectionVariables.set('admin_token', jsonData.token);",
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    pm.collectionVariables.set('admin_token', data.token);",
+                      "    if (pm.environment.name) { pm.environment.set('admin_token', data.token); }",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1971,6 +2186,23 @@
                   ],
                   "body": "{\n  \"message\": \"Home address updated.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-111111111111\",\n    \"type\": \"home\",\n    \"name\": \"Home\",\n    \"address\": \"New home address\",\n    \"latitude\": 6.5,\n    \"longitude\": 3.5,\n    \"created_at\": \"2026-10-12T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:05:00.000000Z\"\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('saved_place_id', data.saved_place.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -2019,6 +2251,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Place saved.\",\n  \"saved_place\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-222222222222\",\n    \"type\": \"work\",\n    \"name\": \"Work\",\n    \"address\": \"Eko Atlantic City, Lagos\",\n    \"latitude\": 6.41,\n    \"longitude\": 3.405,\n    \"created_at\": \"2026-10-12T10:01:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:01:00.000000Z\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('saved_place_id', data.saved_place.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -2081,6 +2330,23 @@
                   ],
                   "body": "{\n  \"message\": \"A name is required for custom places.\",\n  \"errors\": {\n    \"name\": [\"A name is required for custom places.\"]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('saved_place_id', data.saved_place.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -2110,7 +2376,7 @@
                   "variable": [
                     {
                       "key": "savedPlace",
-                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "value": "{{saved_place_id}}",
                       "description": "Saved place UUID"
                     }
                   ]
@@ -2167,7 +2433,7 @@
                   "variable": [
                     {
                       "key": "savedPlace",
-                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "value": "{{saved_place_id}}",
                       "description": "Saved place UUID"
                     }
                   ]
@@ -2216,7 +2482,7 @@
                   "variable": [
                     {
                       "key": "savedPlace",
-                      "value": "a1b2c3d4-e5f6-7890-abcd-333333333333",
+                      "value": "{{saved_place_id}}",
                       "description": "Saved place UUID"
                     }
                   ]
@@ -2526,6 +2792,24 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"vehicle_class_id\": [\n      \"The selected vehicle class id is invalid.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('ride_id', data.ride.id); } catch (e) {}",
+                      "try { remember('share_token', data.ride.share_token); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -2724,7 +3008,7 @@
                     "cancel"
                   ]
                 },
-                "description": "Cancels a ride in a cancellable state (requested, searching, matched, driver_en_route, driver_arrived). In-progress rides cannot be cancelled."
+                "description": "Cancels a ride that is `requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived` or `no_driver_found` (passengers can dismiss a ride that found no driver). In-progress rides cannot be cancelled. If the ride changed state at the same moment (e.g. the trip just started) the API returns 409 `INVALID_STATE_TRANSITION`."
               },
               "response": [
                 {
@@ -3169,6 +3453,65 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This ride can only be retried after no driver was found.\",\n  \"current_status\": \"completed\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Regenerate Ride PIN",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/pin/regenerate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "pin",
+                    "regenerate"
+                  ]
+                },
+                "description": "Issues a fresh 4-digit ride PIN (for example after the driver used up the 3 verification attempts). Only the ride's passenger can call it, and only while the ride is `matched`, `driver_en_route` or `driver_arrived`. The previous PIN stops working. Rate limited to 5 requests per minute."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 New PIN",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A new PIN has been issued. Share it with your driver at pickup.\",\n  \"pin_code\": \"4821\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Trip Already Started",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A new PIN can only be issued before the trip starts.\",\n  \"current_status\": \"in_progress\"\n}"
                 }
               ]
             }
@@ -3649,6 +3992,23 @@
                   ],
                   "body": "{\n  \"message\": \"Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo2.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('dispute_id', data.dispute.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -3896,56 +4256,6 @@
                   "body": "{\n  \"redemptions\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-123456789012\",\n      \"promo_code\": {\n        \"code\": \"WELCOME50\",\n        \"type\": \"percentage\",\n        \"value\": 50,\n        \"max_discount\": 2000,\n        \"description\": \"50% off your first ride (max \\u20a62,000)\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"reference_number\": \"TRP-NG-000142\",\n        \"destination\": {\n          \"address\": \"Eko Atlantic City\"\n        }\n      },\n      \"discount_amount\": 1500.0,\n      \"redeemed_at\": \"2026-10-10T14:30:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 }
               ]
-            },
-            {
-              "name": "Promo Redemption History",
-              "request": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Accept",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/v1/promos/redemptions",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "promos",
-                    "redemptions"
-                  ],
-                  "query": [
-                    {
-                      "key": "per_page",
-                      "value": "15",
-                      "description": "Items per page (default: 15, max: 50)",
-                      "disabled": true
-                    },
-                    {
-                      "key": "page",
-                      "value": "1",
-                      "description": "Page number",
-                      "disabled": true
-                    }
-                  ]
-                },
-                "description": "Returns the authenticated passenger's promo code redemption history, paginated.",
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{token}}",
-                      "type": "string"
-                    }
-                  ]
-                }
-              },
-              "response": []
             },
             {
               "name": "Validate Promo Code",
@@ -4255,6 +4565,23 @@
                   ],
                   "body": "{\n  \"message\": \"Top-up initialized.\",\n  \"payment_link\": \"https://checkout.paystack.com/abc123xyz\",\n  \"tx_ref\": \"TOPUP-A1B2C3D4E5F6\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('topup_reference', data.tx_ref); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -4272,7 +4599,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/passenger/wallet/topup/{{transaction_id}}/verify",
+                  "raw": "{{base_url}}/passenger/wallet/topup/{{topup_reference}}/verify",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -4280,11 +4607,11 @@
                     "passenger",
                     "wallet",
                     "topup",
-                    "{{transaction_id}}",
+                    "{{topup_reference}}",
                     "verify"
                   ]
                 },
-                "description": "Verify a Paystack transaction after payment. Dispatches async wallet credit if successful."
+                "description": "Fallback when the payment webhook is delayed. Pass the `tx_ref` returned by **Top Up Wallet** (Paystack also appends it to your callback URL as `reference`) \u2014 it is captured automatically into `{{topup_reference}}`. Only your own top-ups can be verified (404 otherwise). The wallet is credited with the amount Paystack actually collected; verifying an already-credited top-up is safe."
               },
               "response": [
                 {
@@ -6694,13 +7021,11 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/driver/compliance",
+                  "raw": "{{base_url}}/driver/compliance",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "driver",
                     "compliance"
                   ]
@@ -6732,42 +7057,6 @@
                   "raw": "{\n  \"notes\": \"I did not complete this ride offline. The passenger cancelled and I drove in the opposite direction.\"\n}"
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/driver/flags/{{flag_id}}/dispute",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "driver",
-                    "flags",
-                    "{{flag_id}}",
-                    "dispute"
-                  ]
-                },
-                "description": "Driver disputes an offline trip flag. Notes must be at least 10 characters. Can only dispute flags assigned to the authenticated driver. Cannot dispute already-disputed flags.\n\n**Auth:** Driver token required."
-              },
-              "response": []
-            },
-            {
-              "name": "Dispute Offline Flag",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Accept",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{driver_token}}"
-                  }
-                ],
-                "url": {
                   "raw": "{{base_url}}/driver/flags/{{flag_id}}/dispute",
                   "host": [
                     "{{base_url}}"
@@ -6779,26 +7068,9 @@
                     "dispute"
                   ]
                 },
-                "description": "Dispute an offline trip flag. Requires `notes` (min 10 chars). Can only be disputed once and only by the flagged driver.",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"notes\": \"I was stuck in traffic and my phone lost connection. The passenger can confirm the trip was completed.\"\n}"
-                }
+                "description": "Driver disputes an offline trip flag. Notes must be at least 10 characters. Can only dispute flags assigned to the authenticated driver. Cannot dispute already-disputed flags.\n\n**Auth:** Driver token required."
               },
-              "response": [
-                {
-                  "name": "200 \u2014 Disputed",
-                  "status": "OK",
-                  "code": 200,
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"message\": \"Flag disputed successfully. An admin will review your dispute.\",\n  \"flag\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"is_disputed\": true,\n    \"dispute_notes\": \"I was stuck in traffic and my phone lost connection.\",\n    \"dispute_outcome\": \"pending\"\n  }\n}"
-                }
-              ]
+              "response": []
             }
           ]
         },
@@ -6878,6 +7150,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"All stalls occupied. Please try again later.\",\n  \"outcome\": \"retry\",\n  \"retry_after_minutes\": 15,\n  \"estimated_wait_minutes\": 35\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('ev_reservation_id', data.reservation.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -7224,6 +7513,23 @@
                   ],
                   "body": "{\n  \"message\": \"Vehicle service request submitted successfully.\",\n  \"repair\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"reference_number\": \"REP-A1B2C3\",\n    \"type\": \"routine_maintenance\",\n    \"status\": \"in_progress\",\n    \"title\": \"Oil change and filter replacement\"\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('repair_id', data.repair.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             }
           ]
@@ -7312,10 +7618,10 @@
                     "bank-account"
                   ]
                 },
-                "description": "Add and verify a new bank account via Paystack. Requires `bank_code` and 10-digit `account_number`. Automatically becomes the primary account.",
+                "description": "Verifies the account with Paystack account resolution and saves it as the driver's primary payout account.\n\n- **First account:** send `bank_code` and `account_number`.\n- **Replacing an account:** first call **Request Bank Account Change Code**, then include `otp_code`. Without a valid code the request returns 422 (`errors.otp_code`).",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\"\n}"
+                  "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"otp_code\": \"123456\"\n}"
                 }
               },
               "response": [
@@ -7330,6 +7636,196 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"****6789\",\n    \"account_name\": \"ADEBAYO OGUNDIMU\",\n    \"is_verified\": true,\n    \"is_primary\": true\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Code Required To Replace",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Changing your payout account requires a verification code.\",\n  \"errors\": {\n    \"otp_code\": [\n      \"Request a code with POST /driver/bank-account/otp and include it here.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Supported Banks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/bank-account/banks",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "bank-account",
+                    "banks"
+                  ]
+                },
+                "description": "Lists Nigerian banks (code + name) supported for payouts, from Paystack. Cached for 24 hours. Use a bank's `code` as `bank_code` when resolving or adding an account."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Banks",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"banks\": [\n    {\n      \"id\": 9,\n      \"code\": \"058\",\n      \"name\": \"Guaranty Trust Bank\"\n    },\n    {\n      \"id\": 1,\n      \"code\": \"044\",\n      \"name\": \"Access Bank\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resolve Bank Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/bank-account/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "bank-account",
+                    "resolve"
+                  ]
+                },
+                "description": "Looks up the account holder's name for a bank code + 10-digit account number so the driver can confirm it before saving. Nothing is stored. Rate limited to 30 requests per minute.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Resolved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"account_name\": \"ADEBAYO OGUNDIMU\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Cannot Resolve",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Unable to resolve bank account details. Please check the account number and bank.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Request Bank Account Change Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/bank-account/otp",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "bank-account",
+                    "otp"
+                  ]
+                },
+                "description": "Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; `123456` in non-production). The code is required to **replace** an existing payout account so a stolen session cannot redirect payouts. Not needed for the first account. Rate limited to 3 requests per minute; 60-second cooldown between codes."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Code Sent",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Verification code sent to your phone.\",\n  \"expires_at\": \"2026-10-15T10:05:00+00:00\"\n}"
+                },
+                {
+                  "name": "422 \u2014 No Account To Replace",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"No bank account on file. Add one without a code.\"\n}"
+                },
+                {
+                  "name": "429 \u2014 Cooldown",
+                  "status": "Too Many Requests",
+                  "code": 429,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Please wait before requesting another code.\"\n}"
                 }
               ]
             }
@@ -7630,6 +8126,23 @@
                   ],
                   "body": "{\n  \"message\": \"Payout request submitted for approval.\",\n  \"payout\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"amount\": 500000,\n    \"status\": \"requested\",\n    \"requested_at\": \"2026-10-13T10:00:00.000000Z\"\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('payout_id', data.payout.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -7647,13 +8160,11 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/driver/payouts/preference",
+                  "raw": "{{base_url}}/driver/payouts/preference",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "driver",
                     "payouts",
                     "preference"
@@ -7664,7 +8175,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{auth_token}}"
+                      "value": "{{driver_token}}"
                     }
                   ]
                 },
@@ -7739,6 +8250,23 @@
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('admin_id', data.admins[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -7768,7 +8296,7 @@
                   "variable": [
                     {
                       "key": "adminId",
-                      "value": "",
+                      "value": "{{admin_id}}",
                       "description": "The UUID of the admin"
                     }
                   ]
@@ -7862,6 +8390,23 @@
                   ],
                   "body": "{\n  \"message\": \"An admin with this email already exists.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('invitation_id', data.invitation.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -7947,7 +8492,7 @@
                   "variable": [
                     {
                       "key": "invitationId",
-                      "value": "",
+                      "value": "{{invitation_id}}",
                       "description": "The UUID of the invitation"
                     }
                   ]
@@ -8009,7 +8554,7 @@
                   "variable": [
                     {
                       "key": "invitationId",
-                      "value": "",
+                      "value": "{{invitation_id}}",
                       "description": "The UUID of the invitation"
                     }
                   ]
@@ -8078,7 +8623,7 @@
                   "variable": [
                     {
                       "key": "adminId",
-                      "value": "",
+                      "value": "{{admin_id}}",
                       "description": "The UUID of the admin"
                     }
                   ]
@@ -8140,7 +8685,7 @@
                   "variable": [
                     {
                       "key": "adminId",
-                      "value": "",
+                      "value": "{{admin_id}}",
                       "description": "The UUID of the admin"
                     }
                   ]
@@ -8202,7 +8747,7 @@
                   "variable": [
                     {
                       "key": "adminId",
-                      "value": "",
+                      "value": "{{admin_id}}",
                       "description": "The UUID of the admin"
                     }
                   ]
@@ -8269,7 +8814,7 @@
                   "variable": [
                     {
                       "key": "adminId",
-                      "value": "",
+                      "value": "{{admin_id}}",
                       "description": "The UUID of the admin to delete"
                     }
                   ]
@@ -8391,6 +8936,23 @@
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('driver_id', data.drivers[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -8509,7 +9071,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -8579,7 +9141,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -8649,7 +9211,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -8721,12 +9283,12 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     },
                     {
                       "key": "documentId",
-                      "value": "",
+                      "value": "{{document_id}}",
                       "description": "The UUID of the document"
                     }
                   ]
@@ -8798,12 +9360,12 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     },
                     {
                       "key": "documentId",
-                      "value": "",
+                      "value": "{{document_id}}",
                       "description": "The UUID of the document"
                     }
                   ]
@@ -8873,7 +9435,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -8927,7 +9489,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -8993,7 +9555,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -9043,7 +9605,7 @@
                   "variable": [
                     {
                       "key": "driverId",
-                      "value": "",
+                      "value": "{{driver_id}}",
                       "description": "The UUID of the driver"
                     }
                   ]
@@ -9282,6 +9844,69 @@
                   "body": "{\n  \"message\": \"Driver is currently suspended. Please reactivate the driver instead.\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Update Driver Vehicle Class",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/{{driver_id}}/vehicle-class",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    "{{driver_id}}",
+                    "vehicle-class"
+                  ]
+                },
+                "description": "Confirms or changes the vehicle class a driver operates in (drivers can only pick a class while onboarding). Requires an active vehicle class; refused with 409 while the driver is on an active ride. Audited as `vehicle_class_changed`. Roles: operations, safety_operator.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicle_class_id\": \"{{vehicle_class_id}}\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle class updated.\",\n  \"vehicle\": {\n    \"id\": \"uuid\",\n    \"plate_number\": \"LAG-123AB\",\n    \"vehicle_class_id\": \"uuid\",\n    \"vehicle_class\": {\n      \"id\": \"uuid\",\n      \"name\": \"premium\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "409 \u2014 Driver On Active Ride",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The vehicle class cannot be changed while the driver is on an active ride.\"\n}"
+                }
+              ]
             }
           ],
           "description": "**Required Role(s):** Operations, Safety (Super Admin always has access)"
@@ -9435,6 +10060,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"plate_number\": [\n      \"The plate number has already been taken.\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('vehicle_id', data.vehicle.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -9855,7 +10497,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"driver_id\": \"{{driver_uuid}}\",\n  \"vehicle_id\": \"{{vehicle_uuid}}\",\n  \"daily_remittance_target\": 40000,\n  \"total_vehicle_cost\": 5000000,\n  \"agreement_start_date\": \"2026-10-09\"\n}"
+                  "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"vehicle_id\": \"{{vehicle_id}}\",\n  \"daily_remittance_target\": 40000,\n  \"total_vehicle_cost\": 5000000,\n  \"agreement_start_date\": \"2026-10-09\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/fleet-agreements",
@@ -9905,6 +10547,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Vehicle must be marked as fleet before creating an agreement.\"\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('fleet_agreement_id', data.agreement.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -10162,7 +10821,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"new_vehicle_id\": \"{{vehicle_uuid}}\",\n  \"reason\": \"Vehicle needs maintenance\",\n  \"carry_over_remitted\": true,\n  \"daily_remittance_target\": 40000,\n  \"total_vehicle_cost\": 5000000\n}"
+                  "raw": "{\n  \"new_vehicle_id\": \"{{vehicle_id}}\",\n  \"reason\": \"Vehicle needs maintenance\",\n  \"carry_over_remitted\": true,\n  \"daily_remittance_target\": 40000,\n  \"total_vehicle_cost\": 5000000\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/fleet-agreements/{{fleet_agreement_id}}/swap",
@@ -10376,6 +11035,23 @@
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('passenger_id', data.passengers[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -10499,7 +11175,7 @@
                   "variable": [
                     {
                       "key": "passengerId",
-                      "value": "",
+                      "value": "{{passenger_id}}",
                       "description": "The UUID of the passenger"
                     }
                   ]
@@ -10565,7 +11241,7 @@
                   "variable": [
                     {
                       "key": "passengerId",
-                      "value": "",
+                      "value": "{{passenger_id}}",
                       "description": "The UUID of the passenger"
                     }
                   ]
@@ -10631,7 +11307,7 @@
                   "variable": [
                     {
                       "key": "passengerId",
-                      "value": "",
+                      "value": "{{passenger_id}}",
                       "description": "The UUID of the passenger"
                     }
                   ]
@@ -10681,7 +11357,7 @@
                   "variable": [
                     {
                       "key": "passengerId",
-                      "value": "",
+                      "value": "{{passenger_id}}",
                       "description": "The UUID of the passenger"
                     }
                   ]
@@ -10902,6 +11578,23 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"name\": [\n      \"The name has already been taken.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('city_id', data.city.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -10931,7 +11624,7 @@
                   "variable": [
                     {
                       "key": "cityId",
-                      "value": "",
+                      "value": "{{city_id}}",
                       "description": "The UUID of the city"
                     }
                   ]
@@ -11000,7 +11693,7 @@
                   "variable": [
                     {
                       "key": "cityId",
-                      "value": "",
+                      "value": "{{city_id}}",
                       "description": "The UUID of the city"
                     }
                   ]
@@ -11062,7 +11755,7 @@
                   "variable": [
                     {
                       "key": "cityId",
-                      "value": "",
+                      "value": "{{city_id}}",
                       "description": "The UUID of the city"
                     }
                   ]
@@ -11132,7 +11825,7 @@
                   "variable": [
                     {
                       "key": "cityId",
-                      "value": "",
+                      "value": "{{city_id}}",
                       "description": "The UUID of the city"
                     }
                   ]
@@ -11272,6 +11965,23 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"name\": [\n      \"The name has already been taken.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('vehicle_class_id', data.vehicle_class.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -11301,7 +12011,7 @@
                   "variable": [
                     {
                       "key": "vehicleClassId",
-                      "value": "",
+                      "value": "{{vehicle_class_id}}",
                       "description": "The UUID of the vehicle class"
                     }
                   ]
@@ -11358,7 +12068,7 @@
                   "variable": [
                     {
                       "key": "vehicleClassId",
-                      "value": "",
+                      "value": "{{vehicle_class_id}}",
                       "description": "The UUID of the vehicle class"
                     }
                   ]
@@ -11445,6 +12155,23 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"base_fare\": [\n      \"The base fare must be at least 0.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('pricing_config_id', data.pricing_config.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -11462,7 +12189,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/pricing?city_id=1&vehicle_class_id=1&current_only=false&per_page=20",
+                  "raw": "{{base_url}}/admin/pricing?city_id={{city_id}}&vehicle_class_id={{vehicle_class_id}}&current_only=false&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -11479,12 +12206,12 @@
                     },
                     {
                       "key": "city_id",
-                      "value": "1",
+                      "value": "{{city_id}}",
                       "description": "Optional: filter by city"
                     },
                     {
                       "key": "vehicle_class_id",
-                      "value": "1",
+                      "value": "{{vehicle_class_id}}",
                       "description": "Optional: filter by vehicle class"
                     },
                     {
@@ -11543,7 +12270,7 @@
                   "variable": [
                     {
                       "key": "pricingConfigId",
-                      "value": "",
+                      "value": "{{pricing_config_id}}",
                       "description": "The UUID of the pricing config"
                     }
                   ]
@@ -11592,7 +12319,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/pricing/current?city_id=1&vehicle_class_id=1",
+                  "raw": "{{base_url}}/admin/pricing/current?city_id={{city_id}}&vehicle_class_id={{vehicle_class_id}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -11604,12 +12331,12 @@
                   "query": [
                     {
                       "key": "city_id",
-                      "value": "1",
+                      "value": "{{city_id}}",
                       "description": "Required: city ID"
                     },
                     {
                       "key": "vehicle_class_id",
-                      "value": "1",
+                      "value": "{{vehicle_class_id}}",
                       "description": "Required: vehicle class ID"
                     }
                   ]
@@ -11757,6 +12484,23 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"multiplier\": [\n      \"The multiplier must be at least 1.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('surge_rule_id', data.surge_rule.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -11817,6 +12561,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"multiplier\": [\n      \"The multiplier must be at least 1.\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('surge_rule_id', data.surge_rule.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -11879,6 +12640,23 @@
                   ],
                   "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"multiplier\": [\n      \"The multiplier must be at least 1.\"\n    ]\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('surge_rule_id', data.surge_rule.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -11896,7 +12674,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/surge-rules?city_id=1&active_only=false&per_page=20",
+                  "raw": "{{base_url}}/admin/surge-rules?city_id={{city_id}}&active_only=false&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -11907,7 +12685,7 @@
                   "query": [
                     {
                       "key": "city_id",
-                      "value": "1",
+                      "value": "{{city_id}}",
                       "description": "Optional: filter by city"
                     },
                     {
@@ -11966,7 +12744,7 @@
                   "variable": [
                     {
                       "key": "surgeRuleId",
-                      "value": "",
+                      "value": "{{surge_rule_id}}",
                       "description": "The UUID of the surge rule"
                     }
                   ]
@@ -12035,7 +12813,7 @@
                   "variable": [
                     {
                       "key": "surgeRuleId",
-                      "value": "",
+                      "value": "{{surge_rule_id}}",
                       "description": "The UUID of the surge rule"
                     }
                   ]
@@ -12097,7 +12875,7 @@
                   "variable": [
                     {
                       "key": "surgeRuleId",
-                      "value": "",
+                      "value": "{{surge_rule_id}}",
                       "description": "The UUID of the surge rule"
                     }
                   ]
@@ -12146,7 +12924,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/surge-rules/current-multiplier?city_id=1&vehicle_class_id=1",
+                  "raw": "{{base_url}}/admin/surge-rules/current-multiplier?city_id={{city_id}}&vehicle_class_id={{vehicle_class_id}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -12158,12 +12936,12 @@
                   "query": [
                     {
                       "key": "city_id",
-                      "value": "1",
+                      "value": "{{city_id}}",
                       "description": "Required: city ID"
                     },
                     {
                       "key": "vehicle_class_id",
-                      "value": "1",
+                      "value": "{{vehicle_class_id}}",
                       "description": "Optional: vehicle class ID (null = city-wide)"
                     }
                   ]
@@ -12599,6 +13377,23 @@
                   ],
                   "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n      \"reference_number\": \"DSP-20261009-K7L8M9\",\n      \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"category\": \"fare_dispute\",\n      \"category_label\": \"Fare Dispute\",\n      \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n      \"status\": \"open\",\n      \"status_label\": \"Open\",\n      \"resolution_notes\": null,\n      \"refund_amount\": null,\n      \"refund_currency\": null,\n      \"reported_by\": {\n        \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"phone\": \"+2348100000001\",\n        \"type\": \"passenger\"\n      },\n      \"ride\": {\n        \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n        \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n        \"status\": \"completed\",\n        \"city\": {\n          \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n          \"name\": \"Lagos\"\n        },\n        \"passenger\": {\n          \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n          \"first_name\": \"Ade\",\n          \"last_name\": \"Ogunleye\",\n          \"phone\": \"+2348100000001\"\n        },\n        \"driver\": {\n          \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n          \"first_name\": \"Bayo\",\n          \"last_name\": \"Akinola\",\n          \"phone\": \"+2348200000001\"\n        }\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('dispute_id', data.disputes[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -13032,6 +13827,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Note added successfully.\",\n  \"note\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n    \"content\": \"Contacted passenger to verify the complaint. Passenger confirmed the fare discrepancy.\",\n    \"admin\": {\n      \"id\": \"admin-uuid-here\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"email\": \"admin@etigo.com\"\n    },\n    \"created_at\": \"2026-10-12T10:30:00.000000Z\",\n    \"updated_at\": \"2026-10-12T10:30:00.000000Z\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('note_id', data.note.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -14161,13 +14973,11 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/offline-flags?per_page=20",
+                  "raw": "{{base_url}}/admin/offline-flags?per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "offline-flags"
                   ],
@@ -14223,7 +15033,24 @@
                 },
                 "description": "List all offline trip flags with optional filters. Includes driver, passenger, ride, and resolver relationships.\n\n**Auth:** Admin token (operations or safety_operator role)."
               },
-              "response": []
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('flag_id', data.flags[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Show Offline Trip Flag",
@@ -14240,13 +15067,11 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}",
+                  "raw": "{{base_url}}/admin/offline-flags/{{flag_id}}",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "offline-flags",
                     "{{flag_id}}"
@@ -14279,13 +15104,11 @@
                   "raw": "{\n  \"outcome\": \"upheld\",\n  \"notes\": \"Evidence confirms the driver continued along the intended route after cancellation.\"\n}"
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}/review",
+                  "raw": "{{base_url}}/admin/offline-flags/{{flag_id}}/review",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "offline-flags",
                     "{{flag_id}}",
@@ -14319,13 +15142,11 @@
                   "raw": "{\n  \"notes\": \"Pattern of abuse confirmed after investigation.\"\n}"
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}/escalate",
+                  "raw": "{{base_url}}/admin/offline-flags/{{flag_id}}/escalate",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "offline-flags",
                     "{{flag_id}}",
@@ -14351,13 +15172,11 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/offline-flags/{{flag_id}}/confirm-deactivation",
+                  "raw": "{{base_url}}/admin/offline-flags/{{flag_id}}/confirm-deactivation",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "offline-flags",
                     "{{flag_id}}",
@@ -14481,7 +15300,24 @@
                 },
                 "description": "Create a new EV charging station. Stalls are auto-generated based on `total_stalls`. Requires admin (operations) role."
               },
-              "response": []
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('ev_station_id', data.station.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Show Station",
@@ -14676,16 +15512,14 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/admin/ev-stations/{{station_id}}",
+                  "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
-                    "api",
-                    "v1",
                     "admin",
                     "ev-stations",
-                    "{{station_id}}"
+                    "{{ev_station_id}}"
                   ]
                 },
                 "auth": {
@@ -14693,7 +15527,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{auth_token}}"
+                      "value": "{{admin_token}}"
                     }
                   ]
                 },
@@ -14799,6 +15633,23 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Adjustment created and pending approval.\",\n  \"adjustment\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"type\": \"credit\",\n    \"amount\": 150000,\n    \"status\": \"pending\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('adjustment_id', data.adjustment.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -15283,6 +16134,23 @@
                   ],
                   "body": "{\n  \"wallets\": [\n    {\n      \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n      \"type\": \"passenger_wallet\",\n      \"balance\": 2500000,\n      \"status\": \"active\",\n      \"owner\": {\n        \"id\": \"user-1\",\n        \"name\": \"Ade Ojo\",\n        \"email\": \"ade@example.com\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('account_id', data.wallets[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -15483,10 +16351,10 @@
                     "refund"
                   ]
                 },
-                "description": "Refund to passenger wallet for a completed/cancelled ride. Amount in kobo. Validates against remaining refundable amount.",
+                "description": "Refunds part or all of a **completed** ride's fare to the passenger's wallet (amount in kobo). The refundable amount is what the passenger actually paid minus earlier refunds. Unless `clawback_driver_earnings` is `false` (platform-fault refunds), the driver's proportional share of the refund is recovered from their earnings. Linked to the ride's dispute when one exists. Role: finance.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": 150000,\n  \"reason\": \"Overcharged due to incorrect route \\u2014 refunding the difference\"\n}"
+                  "raw": "{\n  \"amount\": 100000,\n  \"reason\": \"Driver took a much longer route than necessary.\",\n  \"clawback_driver_earnings\": true\n}"
                 }
               },
               "response": [
@@ -15500,10 +16368,10 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Refund credited to passenger wallet.\"\n}"
+                  "body": "{\n  \"message\": \"Refund credited to passenger wallet.\",\n  \"refund_kobo\": 100000,\n  \"driver_clawback_kobo\": 80000,\n  \"remaining_refundable_kobo\": 400000\n}"
                 },
                 {
-                  "name": "422 \u2014 Exceeds Limit",
+                  "name": "422 \u2014 Exceeds Refundable",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -15512,19 +16380,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Refund exceeds remaining refundable amount of NGN 1,500.00.\"\n}"
-                },
-                {
-                  "name": "422 \u2014 Not Terminal",
-                  "status": "Unprocessable Entity",
-                  "code": 422,
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"message\": \"Ride must be completed or cancelled to issue a refund.\"\n}"
+                  "body": "{\n  \"message\": \"Refund exceeds remaining refundable amount of \u20a65,000.00.\",\n  \"max_refundable_kobo\": 500000\n}"
                 }
               ]
             }
@@ -15994,6 +16850,23 @@
                   ],
                   "body": "{\n  \"message\": \"Promo code created successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 25,\n    \"is_active\": true\n  }\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('promo_id', data.promo.id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -16087,7 +16960,7 @@
                   "body": "{\n  \"message\": \"Promo code updated successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"per_user_limit\": 3\n  }\n}"
                 },
                 {
-                  "name": "422 — Cancelled Promo",
+                  "name": "422 \u2014 Cancelled Promo",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -16146,7 +17019,7 @@
                   "body": "{\n  \"message\": \"Promo code deactivated.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"is_active\": false\n  }\n}"
                 },
                 {
-                  "name": "422 — Cancelled Promo",
+                  "name": "422 \u2014 Cancelled Promo",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -16189,11 +17062,11 @@
                     "cancel"
                   ]
                 },
-                "description": "Permanently cancels a promo code. Sets is_active=false and cancelled_at timestamp. This action is irreversible — use Toggle Status (pause) for temporary deactivation. Returns 422 if already cancelled."
+                "description": "Permanently cancels a promo code. Sets is_active=false and cancelled_at timestamp. This action is irreversible \u2014 use Toggle Status (pause) for temporary deactivation. Returns 422 if already cancelled."
               },
               "response": [
                 {
-                  "name": "200 — Cancelled",
+                  "name": "200 \u2014 Cancelled",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -16205,7 +17078,7 @@
                   "body": "{\n  \"message\": \"Promo code cancelled permanently.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\",\n    \"is_active\": false,\n    \"cancelled_at\": \"2026-10-15T12:00:00.000000Z\",\n    \"is_cancelled\": true\n  }\n}"
                 },
                 {
-                  "name": "422 — Already Cancelled",
+                  "name": "422 \u2014 Already Cancelled",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -16638,6 +17511,23 @@
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('payment_method_id', (data.payment_methods.find(function (m) { return m.type === 'card'; }) || {}).id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -16728,7 +17618,7 @@
                   "variable": [
                     {
                       "key": "paymentId",
-                      "value": "",
+                      "value": "{{payment_reference}}",
                       "description": "The payment ID or transaction reference"
                     }
                   ]
@@ -16789,7 +17679,7 @@
                   "variable": [
                     {
                       "key": "paymentMethodId",
-                      "value": "",
+                      "value": "{{payment_method_id}}",
                       "description": "The UUID of the payment method"
                     }
                   ]
@@ -16849,7 +17739,7 @@
                   "variable": [
                     {
                       "key": "paymentMethodId",
-                      "value": "",
+                      "value": "{{payment_method_id}}",
                       "description": "The UUID of the payment method"
                     }
                   ]
@@ -16987,6 +17877,23 @@
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\"\n}"
                 }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('notification_id', data.data[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
               ]
             },
             {
@@ -17069,7 +17976,7 @@
                   "variable": [
                     {
                       "key": "notificationId",
-                      "value": "",
+                      "value": "{{notification_id}}",
                       "description": "The UUID of the notification"
                     }
                   ]
@@ -17490,7 +18397,7 @@
                   },
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{token}}"
+                    "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "url": {
@@ -17534,7 +18441,7 @@
                   },
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{token}}"
+                    "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "url": {
@@ -17591,7 +18498,7 @@
                   },
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{token}}"
+                    "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "url": {
@@ -17636,7 +18543,7 @@
                   },
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{token}}"
+                    "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "url": {
@@ -17684,7 +18591,7 @@
                   },
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{token}}"
+                    "value": "Bearer {{passenger_token}}"
                   }
                 ],
                 "url": {
@@ -17740,7 +18647,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{passenger_token}}"
               }
             ],
             "body": {
@@ -17785,6 +18692,23 @@
               ],
               "body": "{\n  \"message\": \"An active SOS incident already exists for this ride.\"\n}"
             }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var data = pm.response.json();",
+                  "function remember(key, value) {",
+                  "    if (value === undefined || value === null || value === '') { return; }",
+                  "    pm.collectionVariables.set(key, value);",
+                  "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                  "}",
+                  "try { remember('sos_incident_id', data.incident.id); } catch (e) {}"
+                ]
+              }
+            }
           ]
         },
         {
@@ -17798,7 +18722,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{passenger_token}}"
               }
             ],
             "url": {
@@ -17840,7 +18764,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{passenger_token}}"
               }
             ],
             "url": {

@@ -40,7 +40,7 @@ class SyncPostmanCollection extends Command
 
     private function syncCollection(string $apiKey, string $collectionId): bool
     {
-        $path = base_path('doc/postman_collection.json');
+        $path = base_path('doc/technical/postman_collection.json');
 
         if (! file_exists($path)) {
             $this->error("Collection file not found: {$path}");
@@ -90,7 +90,7 @@ class SyncPostmanCollection extends Command
 
     private function syncEnvironments(string $apiKey, ?string $workspaceId): bool
     {
-        $envDir = base_path('doc/postman_environments');
+        $envDir = base_path('doc/technical/postman_environments');
 
         if (! is_dir($envDir)) {
             return true;

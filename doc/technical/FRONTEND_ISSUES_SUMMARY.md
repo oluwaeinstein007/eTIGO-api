@@ -274,5 +274,5 @@ This will execute the data fix migration that corrects invalid dispute categorie
 
 ## Updated Documentation
 
-- Postman Collection: `doc/postman_collection.json` (updated)
-- API Reference: `doc/API_REFERENCE.md` (updated)
+- Postman Collection: `doc/technical/postman_collection.json` (updated)
+- API Reference: `doc/technical/API_REFERENCE.md` (updated)

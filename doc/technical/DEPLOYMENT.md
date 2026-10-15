@@ -10,7 +10,9 @@
 | Web Server  | Nginx                           |
 | Database    | PostgreSQL 16                    |
 | Cache/Queue | Redis 7                         |
-| Process Mgr | Supervisor (queue workers)       |
+| Process Mgr | Supervisor (queue workers, Reverb) |
+| Scheduler   | cron → `php artisan schedule:run` every minute |
+| WebSockets  | Laravel Reverb (`BROADCAST_CONNECTION=reverb`) |
 | CI/CD       | GitHub Actions                   |
 | Deploy User | `deploy` (SSH key auth)          |
 | App Path    | `/var/www/etigo-api/current`     |
@@ -79,6 +81,7 @@ ln -nfs ${APP_DIR}/shared/storage ${RELEASE_DIR}/storage
 cd ${RELEASE_DIR}
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 php artisan migrate --force
+php artisan db:seed --class=ReferenceDataSeeder --force
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
@@ -89,7 +92,42 @@ ln -nfs ${RELEASE_DIR} ${APP_DIR}/current
 
 sudo systemctl restart php8.4-fpm
 sudo supervisorctl restart etigo-worker:*
+php artisan reverb:restart
 ```
+
+`ReferenceDataSeeder` is idempotent: it creates the ledger system accounts, the default commission rate, loyalty tiers and point multipliers only when they are missing, and never overwrites values an admin has changed. Payments, settlements and refunds fail without the system accounts, so it runs on every deploy.
+
+## Background Processes
+
+Three long-running pieces must be up for the platform to work, besides Nginx and PHP-FPM:
+
+| Process | How it runs | What breaks without it |
+|---------|-------------|------------------------|
+| Queue workers | Supervisor `etigo-worker` (2 processes, `queue:work database`) | Driver matching and offer timeouts, final fare, push/in-app notifications, payout transfers, webhook processing, SOS check-ins and alerts |
+| Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
+| Reverb | Supervisor `etigo-reverb` (`php artisan reverb:start`), proxied by Nginx | Live ride updates, driver offers over WebSocket and the admin SOS console (push notifications and polling endpoints still work) |
+| Telemetry gateway (optional) | `php artisan telemetry:serve start` under Supervisor, port `TELEMETRY_SERVER_PORT` (8081) behind Nginx | High-frequency driver GPS over WebSocket. Without it drivers report location through `POST /driver/location`. Restart it on deploy (`php artisan telemetry:serve restart`) — it is long-running and keeps old code |
+
+`provision.sh` sets up the queue workers and the scheduler. Check an existing server with `cat /etc/cron.d/etigo-scheduler` (or `crontab -l -u deploy`) and `php artisan schedule:list`.
+
+### Scheduled jobs
+
+Times are Africa/Lagos where noted, otherwise server time (UTC).
+
+| Schedule | Job | Purpose |
+|----------|-----|---------|
+| Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
+| Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |
+| Every 30 min | `StuckTransactionSweeperJob` | Re-verify pending top-ups with Paystack and credit or abandon them |
+| Hourly | `ExpireStaleHoldsJob` | Release expired wallet holds (after `hold_expiry_hours`) whose ride is no longer active — holds of rides still under way are kept |
+| Hourly | `SettleDriverEarningsJob` | Move pending driver earnings to available (per the settlement-delay setting) |
+| Hourly | `LiftExpiredComplianceSuspensionsJob` | Reinstate drivers whose automatic 48-hour suspension has ended |
+| Daily 00:00 | `model:prune` (notifications) | Delete in-app notifications older than 90 days |
+| Daily 02:00 | `DailyReconciliationJob` | Compare gateway top-ups/transfers with the ledger |
+| Daily 02:30 | `ledger:check` | Ledger integrity check (balances vs entries) |
+| Daily 04:00 Lagos | `DailyRemittanceSettlementJob` → `RemittanceShortfallAlertJob` (chained) | Settle yesterday's fleet remittances, then update shortfall flags |
+| Monday 06:00 Lagos | `ProcessWeeklyAutoPayoutJob` | Weekly payouts for drivers who chose `weekly_auto` |
+| Monday 08:00 | `NegativeDriverBalanceReportJob` | Report drivers with negative balances (cash commission debt) |
 
 ## Rollback
 
@@ -183,6 +221,13 @@ sudo systemctl restart php8.4-fpm
 # Queue Workers
 sudo supervisorctl status etigo-worker:*
 sudo supervisorctl restart etigo-worker:*
+
+# Reverb (WebSockets)
+php artisan reverb:restart
+
+# Scheduler
+cat /etc/cron.d/etigo-scheduler
+php artisan schedule:list
 
 # Redis
 sudo systemctl restart redis-server

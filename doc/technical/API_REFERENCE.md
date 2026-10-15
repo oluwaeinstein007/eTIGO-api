@@ -3,8 +3,10 @@
 **Base URL:** `{APP_URL}/api/v1`  
 **Auth:** Bearer token via Laravel Sanctum (`Authorization: Bearer {token}`)  
 **Content-Type:** `application/json` (except file uploads: `multipart/form-data`)  
-**Rate Limiting:** Auth endpoints (`/auth/*`, `/admin/auth/*`) are limited to 5 requests/minute per IP — exceeding returns `429 Too Many Requests`  
-**Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format.
+**Rate Limiting:** Auth endpoints (`/auth/*`, `/admin/auth/*`) are limited to 5 requests/minute per IP — exceeding returns `429 Too Many Requests` with a `Retry-After` header (seconds)  
+**Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
+**Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
+**Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
 
 ---
 
@@ -184,7 +186,7 @@ POST /auth/otp/verify
 POST /auth/register/complete
 ```
 
-Called after OTP verification when `is_new_user` is `true`. Phone must have been verified within the last 10 minutes.
+Called after OTP verification when `is_new_user` is `true`. The phone must have been verified within the last 10 minutes **for the same `type`** sent to `POST /auth/otp/verify`, and each verification completes exactly one registration. To open the other account type for the same phone (e.g. a passenger who also wants to drive), verify the OTP again with that `type`.
 
 | Field      | Type   | Required | Description                          |
 |------------|--------|----------|--------------------------------------|
@@ -237,7 +239,7 @@ Called after OTP verification when `is_new_user` is `true`. Phone must have been
 
 Driver registration automatically creates a `Driver` record with `onboarding` status.
 
-**Response 403:**
+**Response 403** — no unused verification for this phone and `type` in the last 10 minutes:
 ```json
 {
   "message": "Phone number not verified. Please verify your phone first."
@@ -1410,7 +1412,10 @@ Only available for drivers with `vehicle_ownership_type: "own_vehicle"`. Fleet v
 ```
 PUT /driver/vehicle
 ```
-Same fields as register, all optional (partial update supported). Resets vehicle class approval. If plate number changes, plate verification is re-dispatched.
+Same fields as register, all optional (partial update supported). If the plate number changes, plate verification is re-dispatched.
+
+- **Vehicle class:** drivers can change `vehicle_class_id` only while their status is `onboarding` or `rejected`. After the application is submitted, the class is set by E-tiGo (see **Update Driver Vehicle Class** in Admin — Driver Management); a different `vehicle_class_id` returns `422` with `errors.vehicle_class_id`.
+- **Fleet vehicles** belong to E-tiGo and cannot be edited by the driver (`403`).
 
 **Response 200:**
 ```json
@@ -1446,6 +1451,21 @@ Same fields as register, all optional (partial update supported). Resets vehicle
 {
   "message": "Vehicle updated successfully. Plate re-verification initiated.",
   "vehicle": { "..." }
+}
+```
+
+**Response 422 (class change after submission):**
+```json
+{
+  "message": "Your vehicle class can only be changed by E-tiGo after your application is submitted. Contact support.",
+  "errors": { "vehicle_class_id": ["Vehicle class changes require admin approval."] }
+}
+```
+
+**Response 403 (fleet vehicle):**
+```json
+{
+  "message": "Fleet vehicles are managed by E-tiGo. Contact support to update vehicle details."
 }
 ```
 
@@ -1553,7 +1573,11 @@ POST /driver/toggle-online
 ```
 Toggle driver online/offline status. No request body required.
 
-**Requirements:** Driver must be `approved`, have a registered vehicle with an assigned vehicle class, not be `suspended`, have completed KYC verification (`kyc_status` must be `verified`), and not have an excessive negative earnings balance.
+**Going online requires:** status `approved` (not `suspended`), a registered vehicle with an assigned vehicle class, completed KYC (`kyc_status` = `verified`), and an available earnings balance no lower than the negative-balance threshold (`max_negative_balance`, default −₦5,000 — see Wallet Settings).
+
+**Going offline** is refused with `409` while the driver has an active ride (`matched` → `in_progress`), so passenger tracking and location updates continue until the trip ends.
+
+Drivers whose app stops sending locations for 2 minutes are no longer offered rides or shown on maps, even if they forgot to go offline.
 
 **Response 200 (went online):**
 ```json
@@ -1612,6 +1636,13 @@ Toggle driver online/offline status. No request body required.
     "KYC verification is not complete.",
     "Outstanding negative balance exceeds the allowed threshold."
   ]
+}
+```
+
+**Response 409 (going offline mid-trip):**
+```json
+{
+  "message": "You cannot go offline during an active ride. Complete or cancel the ride first."
 }
 ```
 
@@ -1932,7 +1963,7 @@ POST /driver/kyc/verify-vehicle
 |--------------|--------|----------|-------------------------------|
 | plate_number | string | Yes      | Plate number (3–20 chars)     |
 
-Requires a registered vehicle.
+Requires a registered vehicle, and `plate_number` must match that vehicle's plate (case, spaces and hyphens are ignored) — verifying a different car's plate is refused with `422`.
 
 **Response 200 (verified):**
 ```json
@@ -1956,6 +1987,14 @@ Requires a registered vehicle.
 ```json
 {
   "message": "Register a vehicle before verifying its plate."
+}
+```
+
+**Response 422 (plate mismatch):**
+```json
+{
+  "message": "The plate number must match your registered vehicle.",
+  "errors": { "plate_number": ["The plate number must match your registered vehicle."] }
 }
 ```
 
@@ -2426,7 +2465,7 @@ After toggling, the driver's `kyc_status` is automatically recalculated. If the 
 ```
 POST /admin/drivers/{driver_id}/suspend
 ```
-Force-sets driver offline and blocks them from accepting requests.
+Force-sets driver offline, removes them from the live driver map and blocks them from accepting requests.
 
 | Field  | Type   | Required | Description                |
 |--------|--------|----------|----------------------------|
@@ -2524,13 +2563,43 @@ GET /admin/drivers/{driver_id}/trips
 
 ---
 
+### Update Driver Vehicle Class
+```
+PUT /admin/drivers/{driver_id}/vehicle-class
+```
+Confirms or changes the vehicle class a driver operates in. Drivers choose a preferred class during onboarding; after submission only E-tiGo can change it (the class determines which ride requests — and fares — the driver receives). Audited as `vehicle_class_changed`.
+
+**Roles:** `operations`, `safety_operator` (and `super_admin`).
+
+| Field            | Type          | Required | Description |
+|------------------|---------------|----------|-------------|
+| vehicle_class_id | string (UUID) | Yes      | An **active** vehicle class |
+
+**Response 200:**
+```json
+{
+  "message": "Vehicle class updated.",
+  "vehicle": {
+    "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "plate_number": "LAG-123AB",
+    "vehicle_class_id": "1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+    "vehicle_class": { "id": "1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f", "name": "premium", "display_name": "Premium" }
+  }
+}
+```
+
+**Response 409:** `"The vehicle class cannot be changed while the driver is on an active ride."`
+**Response 422:** No registered vehicle, or `vehicle_class_id` missing/inactive.
+
+---
+
 ### Complete Driver Onboarding & KYC (Admin Bypass)
 ```
 POST /admin/drivers/{driver_id}/complete-onboarding
 ```
 Marks a driver's onboarding and KYC as completed and approved in one action without requiring external third-party KYC verification (QoreID).
 
-> **Note:** Testing/QA only. This endpoint is intended for development and onboarding flow testing, and will be removed before production go-live.
+> **Note:** Testing/QA only. In production (`APP_ENV=production`) it always returns `403` — `"Manual onboarding and KYC bypass is disabled in production."`
 
 **Requirements:**
 The driver must have provided all required onboarding data:
@@ -4861,6 +4930,8 @@ POST /rides/estimate
 - `city_id` must reference an **active** city — inactive cities return 422
 - Pickup and destination coordinates cannot be identical — returns 422
 
+**How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged unless the route or waiting time changes.
+
 **Response 200:**
 ```json
 {
@@ -4873,14 +4944,14 @@ POST /rides/estimate
         "capacity": 4,
         "icon": "lite"
       },
-      "fare_estimate": "6150.00",
+      "fare_estimate": "4100.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
       "currency": "NGN",
       "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
       "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
       "pricing_snapshot": {
-        "pricing_config_id": 1,
+        "pricing_config_id": "0f8e7d6c-5b4a-4392-8a1b-2c3d4e5f6a7b",
         "version": 1,
         "base_fare": "600.00",
         "per_km_rate": "250.00",
@@ -4899,7 +4970,8 @@ POST /rides/estimate
         "active": false,
         "multiplier": 1,
         "rule_name": null
-      }
+      },
+      "booking_fee_discount": 0
     },
     {
       "vehicle_class": {
@@ -4909,14 +4981,14 @@ POST /rides/estimate
         "capacity": 4,
         "icon": "comfort"
       },
-      "fare_estimate": "8500.00",
+      "fare_estimate": "8325.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
       "currency": "NGN",
       "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
       "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
       "pricing_snapshot": {
-        "pricing_config_id": 2,
+        "pricing_config_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
         "version": 1,
         "base_fare": "800.00",
         "per_km_rate": "350.00",
@@ -4935,7 +5007,8 @@ POST /rides/estimate
         "active": true,
         "multiplier": 1.5,
         "rule_name": "Morning Rush Hour"
-      }
+      },
+      "booking_fee_discount": 0
     }
   ]
 }
@@ -4949,7 +5022,7 @@ POST /rides/estimate
     "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
   ],
   "cross_city": {
-    "destination_city_id": 1,
+    "destination_city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
     "destination_city_name": "Lagos",
     "pickup_city_name": "Abuja",
     "warning": "This is a cross-city ride from Abuja to Lagos. Pickup city (Abuja) pricing applies for this trip."
@@ -4979,7 +5052,11 @@ POST /rides
 
 Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
 
-On creation, the **matching engine** is automatically triggered: `DispatchRideRequestJob` searches for nearby eligible drivers via Redis GEOSEARCH and dispatches the ride to the nearest candidate. A `MatchingTimeoutJob` is also scheduled as a safety net (default 180s). See [Matching Engine — How It Works](#matching-engine--how-it-works) for details.
+**What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). The final fare is computed from the actual route with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
+
+**PIN:** valid for 6 hours (the whole pickup phase). If the driver uses up the 3 attempts, the passenger can issue a new PIN with `POST /rides/{ride}/pin/regenerate`.
+
+On creation, the **matching engine** is automatically triggered: `DispatchRideRequestJob` searches for nearby eligible drivers via Redis GEOSEARCH and dispatches the ride to the nearest candidate. A `MatchingTimeoutJob` is also scheduled as a safety net (default 300s). See [Matching Engine — How It Works](#matching-engine--how-it-works) for details.
 
 | Field              | Type    | Required | Description                         |
 |--------------------|---------|----------|-------------------------------------|
@@ -4992,7 +5069,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
 | payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
-| promo_code         | string  | No       | A valid promo code to apply at ride completion (max 50 chars). Validated for user eligibility at creation; fully applied (with city/geo/fare checks) at ride completion. |
+| promo_code         | string  | No       | Promo code to apply (max 50 chars). **All** rules are checked at booking against this ride (user eligibility, city, vehicle class, pickup geo-fence, minimum fare vs. the estimate, peak/off-peak in the city's timezone) — an invalid code returns `422` on `promo_code`. The discount is applied to the final fare at completion; the code's validity window and peak rules are honoured as they were at booking. |
 
 **Response 201:**
 ```json
@@ -5089,6 +5166,8 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 }
 ```
 
+Other `422` validation messages: `vehicle_class_id` — `"This vehicle class is not available in the selected city."` (inactive in the city or deactivated platform-wide) or `"Pricing is not yet configured for this vehicle class in the selected city."`; `promo_code` — the promo's rejection reason (e.g. `"This promo code is not valid in your city."`); `payment_method` — wallet problems such as `"Insufficient wallet balance."`.
+
 ---
 
 ### List Rides
@@ -5100,11 +5179,11 @@ GET /rides
 
 | Query Param | Type    | Description                          |
 |-------------|---------|--------------------------------------|
-| status      | string  | Filter by ride status enum value     |
-| city_id     | string (UUID) | Filter by city                       |
-| from_date   | date    | Filter rides from this date          |
-| to_date     | date    | Filter rides until this date         |
-| per_page    | integer | Results per page (default: 15)       |
+| status      | string  | Filter by ride status enum value (unknown values are ignored) |
+| city_id     | string (UUID) | Filter by city (`422` if not a UUID) |
+| from_date   | date    | Filter rides from this date (`422` if not a date) |
+| to_date     | date    | Filter rides until this date (`422` if not a date) |
+| per_page    | integer | Results per page (default 15, clamped to 1–50) |
 
 **Response 200:**
 ```json
@@ -5175,17 +5254,18 @@ GET /rides
 GET /rides/{ride}
 ```
 
-**Auth required.** Returns full ride details with state transition history. Passengers see their rides, drivers see assigned rides, admins see any ride. PIN code is only visible to the passenger (and admins).
+**Auth required.** Returns full ride details with state transition history. Passengers see their rides, drivers see assigned rides, admins see any ride. The PIN code is only returned to the passenger.
 
 **Response 200:**
 ```json
 {
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "city_id": 1,
-    "vehicle_class_id": 1,
-    "passenger_id": 1,
-    "driver_id": 7,
+    "reference_number": "TRP-NG-000418",
+    "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+    "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+    "passenger_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    "driver_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
     "pickup": {
       "lat": "6.5244000",
       "lng": "3.3792000",
@@ -5203,9 +5283,8 @@ GET /rides/{ride}
     "final_fare_amount": null,
     "discount_amount": null,
     "fare_currency": "NGN",
-    "promo_code": null,
     "pricing_snapshot": {
-      "pricing_config_id": 1,
+      "pricing_config_id": "0f8e7d6c-5b4a-4392-8a1b-2c3d4e5f6a7b",
       "version": 1,
       "base_fare": "600.00",
       "per_km_rate": "250.00",
@@ -5214,16 +5293,25 @@ GET /rides/{ride}
       "waiting_time_rate": "50.00",
       "free_waiting_minutes": 5,
       "effective_from": "2026-09-30T00:00:00+00:00",
-      "captured_at": "2026-10-06T14:00:00+00:00"
+      "captured_at": "2026-10-06T14:00:00+00:00",
+      "distance_km": 10.0,
+      "duration_minutes": 25.0,
+      "surge_multiplier": 1.0,
+      "surge_rule_name": null,
+      "booking_fee_discount_pct": 0,
+      "tier_name": "Bronze"
     },
+    "distance_km": 10.0,
+    "duration_minutes": 25.0,
     "payment_method": "cash",
     "payment_status": "pending",
+    "tip_amount": null,
     "cancellation_reason": null,
     "city": { "...": "..." },
     "vehicle_class": { "...": "..." },
     "passenger": { "...": "..." },
     "driver": {
-      "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+      "id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
       "first_name": "Bayo",
       "last_name": "Akinola",
       "phone": "+2348200000001",
@@ -5241,43 +5329,43 @@ GET /rides/{ride}
         "from_state": "requested",
         "to_state": "searching",
         "triggered_by_type": "passenger",
-        "triggered_by_id": 1,
+        "triggered_by_id": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
         "metadata": null,
         "created_at": "2026-10-06T14:00:00.000000Z"
       },
       {
-        "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+        "id": "a1b2c3d4-5e6f-4a8b-9c0d-1e2f3a4b5c6d",
         "from_state": "searching",
         "to_state": "matched",
-        "triggered_by_type": "system",
-        "triggered_by_id": null,
+        "triggered_by_type": "driver",
+        "triggered_by_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
         "metadata": null,
         "created_at": "2026-10-06T14:01:00.000000Z"
       },
       {
-        "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+        "id": "b2c3d4e5-6f7a-4b9c-8d1e-2f3a4b5c6d7e",
         "from_state": "matched",
         "to_state": "driver_en_route",
         "triggered_by_type": "driver",
-        "triggered_by_id": 7,
+        "triggered_by_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
         "metadata": null,
         "created_at": "2026-10-06T14:01:30.000000Z"
       },
       {
-        "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+        "id": "c3d4e5f6-7a8b-4c0d-9e2f-3a4b5c6d7e8f",
         "from_state": "driver_en_route",
         "to_state": "driver_arrived",
         "triggered_by_type": "driver",
-        "triggered_by_id": 7,
+        "triggered_by_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
         "metadata": null,
         "created_at": "2026-10-06T14:04:00.000000Z"
       },
       {
-        "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+        "id": "d4e5f6a7-8b9c-4d1e-8f3a-4b5c6d7e8f9a",
         "from_state": "driver_arrived",
         "to_state": "in_progress",
         "triggered_by_type": "driver",
-        "triggered_by_id": 7,
+        "triggered_by_id": "f6a7b8c9-0d1e-4f3a-8b5c-6d7e8f9a0b1c",
         "metadata": null,
         "created_at": "2026-10-06T14:05:00.000000Z"
       }
@@ -5285,11 +5373,26 @@ GET /rides/{ride}
     "matched_at": "2026-10-06T14:01:00.000000Z",
     "started_at": "2026-10-06T14:05:00.000000Z",
     "completed_at": null,
+    "pin_code": "4821",
     "created_at": "2026-10-06T14:00:00.000000Z",
     "updated_at": "2026-10-06T14:05:00.000000Z"
   }
 }
 ```
+
+`pin_code` is returned only to the ride's passenger. `promo_code` (`{ "id", "code" }`) appears only when a promo was applied, and `payment` appears once a payment record exists.
+
+**`pricing_snapshot` keys added as the ride progresses** (all amounts in NGN):
+
+| Key | Added | Meaning |
+|-----|-------|---------|
+| `distance_km`, `duration_minutes` | Booking, replaced at completion | Estimated, then actual route |
+| `surge_multiplier`, `surge_rule_name` | Booking | Surge locked in at booking and used for the final fare |
+| `booking_fee_discount_pct`, `tier_name` | Booking | Passenger's loyalty-tier discount locked in at booking |
+| `waiting_minutes`, `waiting_charge` | Completion | Chargeable waiting after the free minutes |
+| `tier_discount` | Completion (if > 0) | `{ "tier", "percentage", "amount" }` actually deducted |
+| `promo` | Completion (if a promo applied) | `{ "promo_code_id", "promo_code", "discount_amount", "raw_fare" }` |
+| `fleet_remittance` | Settlement (fleet drivers) | `{ "agreement_id", "date", "remittance_share", "driver_share" }` |
 
 **Response 403:**
 ```json
@@ -5305,7 +5408,9 @@ GET /rides/{ride}
 POST /rides/{ride}/cancel
 ```
 
-**Auth required.** Cancels a ride that is in a cancellable state (requested, searching, matched, driver_en_route, driver_arrived). In-progress and completed rides cannot be cancelled.
+**Auth required.** Cancels a ride that is in a cancellable state (`requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived`, `no_driver_found`). Passengers can dismiss a ride that found no driver. In-progress and completed rides cannot be cancelled. Any wallet hold is released.
+
+The other party is notified with who cancelled — the passenger, the driver, or E-tiGo support (admin) — and the human-readable reason.
 
 | Field          | Type   | Required | Description                                    |
 |----------------|--------|----------|------------------------------------------------|
@@ -5343,6 +5448,15 @@ POST /rides/{ride}/cancel
 ```json
 {
   "message": "This ride cannot be cancelled in its current state.",
+  "current_status": "in_progress"
+}
+```
+
+**Response 409** — the ride changed state at the same moment (e.g. the trip just started):
+```json
+{
+  "message": "Invalid ride state transition from 'in_progress' to 'cancelled'.",
+  "error_code": "INVALID_STATE_TRANSITION",
   "current_status": "in_progress"
 }
 ```
@@ -5395,7 +5509,7 @@ POST /rides/{ride}/verify-pin
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver submits the 4-digit PIN received from the passenger. On success, the ride transitions to `in_progress`. Maximum 3 attempts before lockout.
+Driver submits the 4-digit PIN received from the passenger. On success, the ride transitions to `in_progress`. The PIN is valid for 6 hours from booking and allows 3 attempts; after a lockout the passenger issues a new PIN with **Regenerate Ride PIN**.
 
 | Field    | Type   | Required | Description         |
 |----------|--------|----------|---------------------|
@@ -5427,8 +5541,37 @@ Driver submits the 4-digit PIN received from the passenger. On success, the ride
 **Response 422 (max attempts):**
 ```json
 {
-  "message": "Maximum PIN verification attempts exceeded.",
+  "message": "Maximum PIN verification attempts exceeded. Contact support.",
   "verified": false
+}
+```
+
+---
+
+### Regenerate Ride PIN
+```
+POST /rides/{ride}/pin/regenerate
+```
+
+**Auth required. Middleware:** `user.type:passenger`, `throttle:5,1`
+
+Issues a fresh 4-digit PIN with a new set of 3 attempts — for example after the driver used up the attempts. Only the ride's passenger can call it (they read it to the driver in person), and only before the trip starts (`matched`, `driver_en_route`, `driver_arrived`). The previous PIN stops working. The new PIN is also returned as `pin_code` on the passenger's ride detail.
+
+**Response 200:**
+```json
+{
+  "message": "A new PIN has been issued. Share it with your driver at pickup.",
+  "pin_code": "4821"
+}
+```
+
+**Response 403:** `"You are not authorized to manage this ride."`
+
+**Response 422:**
+```json
+{
+  "message": "A new PIN can only be issued before the trip starts.",
+  "current_status": "in_progress"
 }
 ```
 
@@ -5485,7 +5628,7 @@ POST /rides/{ride}/accept
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching` and the ride was dispatched to this specific driver. Uses row-level locking (`SELECT FOR UPDATE`) to prevent concurrent acceptances — first-accept-wins.
+Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching`, the ride was dispatched to this specific driver, and the driver is approved and online. Uses row-level locking (`SELECT FOR UPDATE`) on the ride and the driver to prevent concurrent acceptances — first-accept-wins — and a driver can never hold two active rides.
 
 On acceptance, the ride transitions through `matched` → `driver_en_route` atomically. The matching engine cache (rejected drivers, dispatch state) is cleaned up.
 
@@ -5577,6 +5720,20 @@ On acceptance, the ride transitions through `matched` → `driver_en_route` atom
 }
 ```
 
+**Response 403 (not approved or offline):**
+```json
+{
+  "message": "Only approved drivers who are online can accept rides."
+}
+```
+
+**Response 409 (driver already on an active ride):**
+```json
+{
+  "message": "You already have an active ride. Complete it before accepting another."
+}
+```
+
 **Response 409 (concurrent acceptance — another driver already accepted):**
 ```json
 {
@@ -5628,20 +5785,22 @@ Driver rejects a dispatched ride request. The driver is added to the rejected li
 
 ### Matching Engine — How It Works
 
-When a ride is created (`POST /rides`), the system automatically:
+When a ride is created (`POST /rides`) or re-sent (`POST /rides/{ride}/rebroadcast`), the system automatically:
 
-1. **Dispatches** `DispatchRideRequestJob` — searches for the nearest eligible driver via Redis GEOSEARCH within the initial radius (default 3km)
-2. **Broadcasts** `RideRequestDispatched` event on `driver.{userId}` WebSocket channel + sends push notification to the selected driver
-3. **Sets timeout** — `DriverResponseTimeoutJob` fires after the response window (default 20s). If the driver hasn't responded, it's treated as a rejection and the ride re-dispatches to the next candidate
-4. **Expands radius** — if no candidates found in current radius, expands by `radius_step_km` (default 2km) up to `max_radius_km` (default 15km)
-5. **Final timeout** — `MatchingTimeoutJob` transitions to `no_driver_found` after `matching_timeout` (default 180s) if no match is found
+1. **Dispatches** `DispatchRideRequestJob` — searches for the nearest eligible driver via Redis GEOSEARCH within the current radius tier (3 km, then 7 km, then 15 km)
+2. **Offers** the ride to the closest candidate — `RideRequestDispatched` on the `driver.{userId}` WebSocket channel plus a push notification. A failed WebSocket broadcast does not stop the push or the timeout.
+3. **Times out** the offer — `DriverResponseTimeoutJob` fires after the response window (default 20 s). An unanswered offer counts as a rejection and the ride moves to the next candidate (this also works if the queue runs late).
+4. **Expands** to the next radius tier when no candidate is left in the current one; after the last tier it waits `auto_retry_delay_seconds` and starts a new wave (`max_auto_retries` times).
+5. **Gives up** — `MatchingTimeoutJob` moves the ride to `no_driver_found` after `matching_timeout` (default 300 s) from the start of the current search. A passenger retry starts a fresh window; timers from an earlier search are ignored.
 
-**Eligibility criteria** — a driver must be:
-- Online (`is_online = true`)
-- Approved (`status = approved`)
-- Have a vehicle matching the requested vehicle class
-- Not already on another active ride
-- Not have previously rejected this specific ride
+**Eligibility** — a driver is offered a ride only if they are:
+- Online (`is_online = true`) and approved (`status = approved`)
+- Reporting their location (last update within 2 minutes — drivers whose app stopped reporting are skipped and pruned from the geo index)
+- Driving a vehicle of the requested class
+- Not on another active ride (`matched` → `in_progress`) and not holding an unanswered offer for another ride
+- Not a driver who already rejected or ignored this ride
+
+Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), including to rides that ended in `no_driver_found`.
 
 **WebSocket event — `ride.request.dispatched`** on channel `driver.{userId}`:
 ```json
@@ -5660,15 +5819,16 @@ When a ride is created (`POST /rides`), the system automatically:
 }
 ```
 
-**Configuration** (via environment variables):
+**Configuration** (`config/matching.php`, via environment variables):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MATCHING_INITIAL_RADIUS_KM` | `3.0` | Starting search radius |
-| `MATCHING_RADIUS_STEP_KM` | `2.0` | Expansion per failed dispatch round |
-| `MATCHING_MAX_RADIUS_KM` | `15.0` | Maximum search radius |
-| `MATCHING_DRIVER_RESPONSE_TIMEOUT` | `20` | Seconds before auto-reject |
-| `MATCHING_TIMEOUT` | `180` | Overall matching deadline (seconds) |
+| `MATCHING_RADIUS_TIER_1_KM` / `_2_KM` / `_3_KM` | `3` / `7` / `15` | Search radius tiers |
+| `MATCHING_MAX_AUTO_RETRIES` | `1` | Extra waves after the last tier |
+| `MATCHING_AUTO_RETRY_DELAY` | `10` | Seconds between waves |
+| `MATCHING_DRIVER_RESPONSE_TIMEOUT` | `20` | Seconds a driver has to respond |
+| `MATCHING_TIMEOUT` | `300` | Overall matching deadline per search (seconds) |
+| `MATCHING_MAX_CANDIDATES` | `20` | Candidates read per radius search |
 
 ---
 
@@ -5705,6 +5865,18 @@ ETA target: pickup location when status is `driver_en_route`/`matched`/`driver_a
   "message": "No driver assigned to this ride.",
   "location": null,
   "eta": null
+}
+```
+
+**Response 200 (ride no longer active — passenger/driver view):**
+
+The driver's position stops being shared once the ride is completed or cancelled. Admins still receive the last known location.
+```json
+{
+  "message": "Live location is only available during an active ride.",
+  "location": null,
+  "eta": null,
+  "ride_status": "completed"
 }
 ```
 
@@ -5863,7 +6035,7 @@ GET /rides/{ride}/share/{token}
 }
 ```
 
-**Response 404:**
+**Response 404** (unknown ride, wrong token or malformed ride ID):
 ```json
 {
   "message": "Invalid or expired share link."
@@ -6154,7 +6326,9 @@ Returns eligible drivers near the ride's pickup point for manual assignment. Sor
 POST /admin/rides/{ride}/assign
 ```
 
-Manually assigns an online driver to a ride. The ride must be in `searching` or `requested` state. The driver must meet all eligibility criteria. This bypasses the automated matching engine — useful for support escalations or edge cases where automated matching fails.
+Manually assigns an online driver to a ride. The ride must be `requested`, `searching` or `no_driver_found` — assigning a ride that found no driver is the main use. The driver must meet all eligibility criteria. This bypasses the automated matching engine and moves the ride straight to `driver_en_route`.
+
+For a `no_driver_found` ride, the assignment is refused if the passenger has since booked another active ride, and a wallet ride's fare hold is placed again (refused if the wallet no longer covers the fare).
 
 | Field     | Type    | Required | Description                           |
 |-----------|---------|----------|---------------------------------------|
@@ -6165,7 +6339,9 @@ Manually assigns an online driver to a ride. The ride must be in `searching` or 
 - Driver must be `approved` status
 - Driver must be online (`is_online = true`)
 - Driver's vehicle class must match the ride's vehicle class
-- Driver must not have another active ride
+- Driver must not have another active ride (`errors.driver_id`: `"Driver already has an active ride."`)
+
+**Errors:** `409` `INVALID_STATE_TRANSITION` — `"This ride cannot be assigned in its current state."` with `current_status`; `422` — validation errors above, `errors.ride`: `"The passenger already has another active ride."` or a wallet hold error.
 
 **Response 200:**
 ```json
@@ -6763,7 +6939,7 @@ DELETE /device-tokens
 ```
 GET /notifications
 ```
-Returns paginated notifications for the authenticated user, newest first. Default 20 per page (max 50).
+Returns paginated notifications for the authenticated user, newest first. Default 20 per page (max 50). Notifications older than `NOTIFICATION_RETENTION_DAYS` (default 90) are deleted daily.
 
 **Query Parameters:**
 | Field    | Type   | Required | Description                                                       |
@@ -7192,8 +7368,16 @@ Driver confirms cash has been collected from passenger. Only available for compl
 ```
 
 **Response 403:** Not the assigned driver.
-**Response 422:** Ride not completed, not a cash ride, or already confirmed.
-**Response 500:** Overpayment exceeds maximum (₦2,000) or would exceed rider's wallet balance cap (₦500,000).
+**Response 422:** Ride not completed, not a cash ride, or already confirmed (`errors.ride`); or the change cannot be credited (`errors.amount_collected`):
+```json
+{
+  "message": "Cash overpayment exceeds maximum allowed (₦2,000.00).",
+  "errors": {
+    "amount_collected": ["Cash overpayment exceeds maximum allowed (₦2,000.00)."]
+  }
+}
+```
+The other `amount_collected` error is `"Cash change would exceed rider wallet maximum balance (₦500,000.00)."` (the cap comes from the admin wallet settings).
 
 ---
 
@@ -7234,7 +7418,13 @@ Authorization: Bearer {passenger_token}
 |--------|---------|----------|------------------------------------------------------|
 | amount | numeric | Yes      | Between `min_amount` and `max_amount` from tip settings |
 
-Adds a tip to a completed ride. For card rides, an additional tokenized charge is captured via Paystack. For cash/bank-transfer/USSD rides, the tip is logged. Only one tip per ride. The min/max limits are admin-configurable via the settings API (defaults: ₦50–₦50,000).
+Adds a tip to a completed **card or cash** ride. Only one tip per ride; concurrent requests cannot both succeed.
+
+- **Card:** the tip is charged to the passenger's default saved card. If the charge fails, the tip is not recorded and the request returns 422. A successful charge is credited in full to the driver's earnings (no commission).
+- **Cash:** the tip is recorded only; the driver collects it in person.
+- Wallet and bank-transfer rides cannot be tipped yet.
+
+The min/max limits are admin-configurable via the settings API (defaults: ₦50–₦50,000).
 
 **Response 200:**
 ```json
@@ -7255,7 +7445,12 @@ Adds a tip to a completed ride. For card rides, an additional tokenized charge i
 ```
 
 **Response 403:** Not the ride's passenger.
-**Response 422:** Ride not completed, tip already added, or amount out of range.
+**Response 422:** Ride not completed, amount out of range, or one of:
+- `"A tip has already been added to this ride."`
+- `"Tips can only be added to card or cash rides."`
+- `"No default payment method on file to charge tip."`
+- `"Failed to charge tip amount."` (card declined or gateway unavailable — nothing is recorded)
+- `"No payment record found for this ride."`
 
 ---
 
@@ -7374,13 +7569,13 @@ POST /webhooks/paystack
 
 | Event | Condition | Action |
 |---|---|---|
-| `charge.success` | Reference starts with `TOPUP-` and metadata contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up) |
-| `charge.success` | All other charges | Verifies transaction with Paystack API and updates the `Payment` record (ride payment) |
+| `charge.success` | Reference starts with `TOPUP-` and metadata contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up, credited once per reference) |
+| `charge.success` | All other charges | Re-verifies the transaction with Paystack **by its reference**, checks amount and currency, and captures the matching `Payment` (ride payment), then settles driver earnings |
 | `transfer.success` | — | Dispatches `ProcessPayoutWebhookJob` with status `paid` |
-| `transfer.failed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
-| `transfer.reversed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
+| `transfer.failed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` (money returned to the driver's balance) |
+| `transfer.reversed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` (money returned to the driver's balance) |
 
-All events are deduplicated via the `webhook_events` table.
+**Deduplication:** every event is stored in `webhook_events`, keyed by provider, event ID **and** event type (a transfer's `transfer.success` and later `transfer.reversed` share an ID but are both processed). A redelivered event that was fully processed returns `"Already processed."`. If processing failed part-way (for example Paystack's verify API timed out and the webhook returned 500), the provider's retry is processed again — every handler is idempotent, so nothing is applied twice.
 
 **Response 200:**
 ```json
@@ -7422,12 +7617,13 @@ POST /webhooks/flutterwave
 
 | Event | Condition | Action |
 |---|---|---|
-| `charge.completed` | `tx_ref` starts with `TOPUP-` and meta contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up) |
+| `charge.completed` | `status` = `successful`, `tx_ref` starts with `TOPUP-` and meta contains `account_id` | Dispatches `ProcessTopupWebhookJob` (wallet top-up; Flutterwave amounts are in naira and converted to kobo) |
 | `charge.completed` | All other charges | Verifies transaction with Flutterwave API and updates the `Payment` record (ride payment) |
-| `transfer.completed` | — | Dispatches `ProcessPayoutWebhookJob` with status `paid` |
+| `transfer.completed` | `data.status` = `SUCCESSFUL` | Dispatches `ProcessPayoutWebhookJob` with status `paid` |
+| `transfer.completed` | any other `data.status` (e.g. `FAILED`) | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
 | `transfer.failed` | — | Dispatches `ProcessPayoutWebhookJob` with status `failed` |
 
-All events are deduplicated via the `webhook_events` table (provider = `flutterwave`).
+Deduplication works as for Paystack (provider = `flutterwave`): processed events are skipped, events whose processing failed are processed again on retry. Driver payouts are currently sent through Paystack only, so Flutterwave transfer events are not expected yet.
 
 **Response 200:**
 ```json
@@ -8729,7 +8925,14 @@ Date filtering applies to `total_redemptions`, `unique_users`, `total_discount_g
 
 `POST /api/v1/rides/{ride}/sos`
 
-Triggers an emergency SOS incident on an active ride. Dispatches a check-in job and begins the escalation pipeline.
+Triggers an emergency SOS incident on an active ride (any status from `requested` to `in_progress`). Either the passenger or the driver of the ride can trigger it. Only one open incident per ride is allowed; simultaneous taps are serialised so a double tap cannot open two.
+
+**What happens next (server-side, no client action needed):**
+1. A WhatsApp alert (SMS fallback) with GPS and trip details is queued to E-tiGo's safety desk — it does not depend on the WebSocket server.
+2. After `SOS_CHECK_IN_DELAY` (default 5 s) the triggering user gets an "Are you safe?" check-in (`sos.check_in.requested` on `user.{userId}` + push).
+3. If there is no response within `SOS_ESCALATION_TIMEOUT` (default 30 s) the incident is escalated to the safety console.
+
+A safety operator can take over or resolve the incident at any open stage — they do not wait for the escalation.
 
 **Request:**
 ```json
@@ -8774,15 +8977,19 @@ Triggers an emergency SOS incident on an active ride. Dispatches a check-in job 
 
 **`auto_dial_emergency`:** The mobile client should immediately initiate a phone call to this number (Nigeria's emergency line) when receiving this response.
 
-**Real-time:** A `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel immediately, and an alert with GPS + trip details is sent to E-tiGo's internal safety number via WhatsApp (with SMS fallback).
+**Real-time:** A `sos.incident.triggered` event is broadcast on the `admin.sos` WebSocket channel immediately. If the broadcast fails, the SOS is still created and the WhatsApp alert still goes out.
 
-**Errors:** `422` (ride not active, not a participant, invalid coords), `409` (active SOS already exists)
+**Errors:**
+- `422` — validation: invalid coordinates, or `errors.ride`: `"SOS can only be triggered on an active ride."` / `"You are not a participant of this ride."`
+- `409` — `"An active SOS incident already exists for this ride."`
 
 ### Acknowledge SOS Check-In
 
 `POST /api/v1/sos/{incident}/acknowledge`
 
-User confirms they are safe after receiving a check-in prompt. Only the triggering user can acknowledge.
+User confirms they are safe ("I'm safe"). Only the triggering user can acknowledge. Accepted as soon as the SOS is raised (`triggered`) or after the check-in prompt (`check_in_sent`); this stops the escalation.
+
+**Errors:** `422` — `"Only the person who triggered the SOS can acknowledge it."` / `"This incident is not awaiting a check-in response."`
 
 **Response (200):**
 ```json
@@ -8796,7 +9003,7 @@ User confirms they are safe after receiving a check-in prompt. Only the triggeri
 
 `POST /api/v1/sos/{incident}/cancel`
 
-Cancels an active SOS incident. Available to the triggering user or an admin.
+Cancels an open SOS incident (false alarm). Available to the triggering user or an admin, until a safety operator takes over — after that only the operator can close it (resolve).
 
 **Response (200):**
 ```json
@@ -8805,6 +9012,8 @@ Cancels an active SOS incident. Available to the triggering user or an admin.
   "incident": { "status": "cancelled", ... }
 }
 ```
+
+**Errors:** `422` — `"You are not authorized to cancel this incident."`, `"This incident has already been closed."`, or `"A safety operator is handling this incident and will close it."` (status `operator_assigned` or `dispatched`).
 
 ---
 
@@ -8861,7 +9070,9 @@ Returns all incidents (active and resolved) with filters.
 
 `POST /api/v1/admin/sos/{incident}/assign`
 
-Safety operator self-assigns to an escalated incident. Uses row locking to prevent concurrent assignment conflicts.
+Safety operator takes over an incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`). Calling it on an incident another operator already holds reassigns it to the caller (logged as `operator_reassigned`). Uses row locking to prevent concurrent assignment conflicts.
+
+**Errors:** `422` — `"This incident cannot be assigned in its current state."` (already resolved or cancelled).
 
 **Response (200):**
 ```json
@@ -8875,7 +9086,7 @@ Safety operator self-assigns to an escalated incident. Uses row locking to preve
 
 `POST /api/v1/admin/sos/{incident}/dispatch`
 
-Initiates emergency services handoff. Requires operator assignment first.
+Initiates emergency services handoff. Requires operator assignment first (`422` `"An operator must be assigned before dispatching emergency services."`).
 
 **Request:**
 ```json
@@ -8896,7 +9107,7 @@ Initiates emergency services handoff. Requires operator assignment first.
 
 `POST /api/v1/admin/sos/{incident}/resolve`
 
-Resolves an SOS incident with operator notes.
+Resolves an SOS incident with operator notes. Allowed at any open stage — an operator can close a false alarm without waiting for escalation. If no operator was assigned, the resolving operator is recorded. `422` `"This incident has already been closed."` if it is already resolved or cancelled.
 
 **Request:**
 ```json
@@ -8911,9 +9122,12 @@ Resolves an SOS incident with operator notes.
 
 **SOS Incident Status Flow:**
 ```
-triggered → check_in_sent → acknowledged → resolved
-                           → escalated → operator_assigned → dispatched → resolved
-Any active state → cancelled
+triggered ──→ check_in_sent ──→ escalated ──→ operator_assigned ──→ dispatched ──→ resolved
+    │               │               │                 │
+    └─→ acknowledged ←┘             │                 └──────────────→ resolved
+                                    │
+operator_assigned / resolved: reachable from triggered, check_in_sent, acknowledged, escalated
+cancelled: reachable from triggered, check_in_sent, acknowledged, escalated (not once an operator holds it)
 ```
 
 **WebSocket Channels:**
@@ -9067,7 +9281,7 @@ Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate b
 
 `POST /api/v1/admin/offline-flags/{flag}/confirm-deactivation`
 
-Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3. Sets the driver's status to `deactivated` and forces them offline.
+Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3, and never while the driver's dispute of the flag is pending or after it was overturned. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification.
 
 **Auth required (admin).** Roles: `operations`, `safety_operator`
 
@@ -9093,12 +9307,11 @@ No request body required.
 }
 ```
 
-**Response 422:**
-```json
-{
-  "message": "Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation."
-}
-```
+**Response 422:** one of:
+- `"Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation."`
+- `"Review the driver's dispute before confirming deactivation."` (dispute pending)
+- `"This flag was overturned and cannot lead to deactivation."`
+- `"Driver is already deactivated."`
 
 **Response 404:**
 ```json
@@ -9111,8 +9324,8 @@ No request body required.
 | Tier | Label | Action |
 |------|-------|--------|
 | 1 | Warning | Push notification warning |
-| 2 | 48-Hour Suspension | Force offline + suspend account |
-| 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review |
+| 2 | 48-Hour Suspension | Force offline + suspend account. Lifted automatically after `OFFLINE_SUSPENSION_HOURS` (default 48) by the hourly `LiftExpiredComplianceSuspensionsJob`; the driver is notified. Suspensions set by an admin for other reasons are never lifted automatically. |
+| 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review (confirm-deactivation above) |
 
 ---
 
@@ -9265,6 +9478,10 @@ Three possible outcomes:
 | `queued` | 200 | All occupied but departure imminent — queue hold |
 | `retry` | 200 | No availability, no imminent departures — retry later |
 
+**Reservation expiry:** a `reserved` stall is held for `EV_RESERVATION_EXPIRY` minutes (default 30). If the driver has not activated it by then, `ExpireEvReservationsJob` (every 5 minutes) marks it `expired`, frees the stall and hands it to the first queued driver at that station, who receives a push notification that a stall is ready. The same hand-over happens when a session is completed or cancelled. Queues hold at most `EV_MAX_QUEUE_SIZE` drivers (default 10).
+
+**Note:** any driver can currently reserve a stall — vehicles are not yet checked for being electric (BE-EV-10 is pending an EV vehicle class).
+
 **Response 201 — Immediate Reservation:**
 ```json
 {
@@ -9303,7 +9520,7 @@ Three possible outcomes:
 }
 ```
 
-**Response 422:** Driver already has an active reservation, station not operational, or not a driver.
+**Response 422:** `"You already have an active reservation."` (one open reservation per driver, `EV_MAX_ACTIVE_RESERVATIONS`), station not operational, or `"Only drivers can reserve EV charging stalls."`
 
 ### List My Reservations
 
@@ -9314,7 +9531,7 @@ Authorization: Bearer {driver_token}
 
 | Param | Type | Rules |
 |-------|------|-------|
-| `status` | string | Optional filter: `reserved`, `queued`, `active`, `completed`, `expired`, `cancelled` |
+| `status` | string | Optional filter: `pending_review`, `reserved`, `queued`, `active`, `completed`, `expired`, `cancelled` |
 | `per_page` | integer | Optional, default 20 |
 
 **Response 200:**
@@ -9361,7 +9578,7 @@ Transitions `reserved` → `active`. Marks the stall as occupied with estimated 
 }
 ```
 
-**Response 422:** Not in `reserved` status.
+**Response 422:** `"Only reserved reservations can be activated."` (including a reservation that has already expired).
 
 ### Complete Reservation
 
@@ -9767,33 +9984,122 @@ Initializes a Paystack payment for wallet top-up. Amounts are in kobo. Supported
 }
 ```
 
-**Response 422:** Wallet frozen, exceeds max balance, or daily limit exceeded.
-**Response 429:** Too many top-up attempts (max 5/hour).
+**Response 422:** `"Wallet is frozen or closed."`, `"Top-up would exceed maximum wallet balance of ₦…"`, or `"Daily top-up limit exceeded."` (limits come from the admin wallet settings).
+**Response 429:** Too many top-up attempts (5 per hour, 10 per day).
+**Response 502:** `"Unable to initialize payment. Please try again."`
 
 ### Verify Top-up
 
 ```
-GET /passenger/wallet/topup/{transactionId}/verify
+GET /passenger/wallet/topup/{reference}/verify
 Authorization: Bearer {passenger_token}
 ```
 
-Verifies a Paystack transaction by its transaction ID (returned by Paystack after payment, not the tx_ref). On success, dispatches `ProcessTopupWebhookJob`.
+Fallback for a missed or delayed Paystack webhook. `{reference}` is the `tx_ref` returned by **Initialize Top-up** (Paystack also appends it to the callback URL as `reference`). Only the caller's own top-ups can be verified. The wallet is credited with the amount Paystack actually collected, once — calling this repeatedly or racing the webhook never credits twice.
 
-**Response 200:**
+**Response 200 (verified — credit queued):**
 ```json
 {
   "message": "Top-up is being processed."
 }
 ```
 
-**Response 422:** Transaction was not successful.
-**Response 502:** Unable to verify transaction with Paystack.
+**Response 200 (already credited):**
+```json
+{
+  "message": "Top-up has already been credited."
+}
+```
+
+**Response 404:** `"Top-up not found."` — unknown reference, or a reference belonging to another user.
+
+**Response 422 (payment not completed):**
+```json
+{
+  "message": "Transaction was not successful.",
+  "status": "abandoned"
+}
+```
+
+**Response 502:** `"Unable to verify transaction."` — Paystack could not be reached; retry later.
 
 ---
 
 ## Driver — Bank Account
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
+
+Typical flow: **List Supported Banks** → **Resolve Bank Account** (show the account name for confirmation) → **Add Bank Account**. Replacing an existing payout account additionally requires a one-time code from **Request Bank Account Change Code**.
+
+### List Supported Banks
+
+```
+GET /driver/bank-account/banks
+Authorization: Bearer {driver_token}
+```
+
+Lists Nigerian banks supported for payouts (from Paystack, cached for 24 hours). Use a bank's `code` as `bank_code`.
+
+**Response 200:**
+```json
+{
+  "banks": [
+    { "id": 9, "code": "058", "name": "Guaranty Trust Bank" },
+    { "id": 1, "code": "044", "name": "Access Bank" }
+  ]
+}
+```
+
+### Resolve Bank Account
+
+```
+POST /driver/bank-account/resolve
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Looks up the account holder's name so the driver can confirm it before saving. Nothing is stored. Rate limited to 30 requests per minute.
+
+| Field            | Type   | Required | Rules          |
+|------------------|--------|----------|----------------|
+| `bank_code`      | string | Yes      | Valid bank code |
+| `account_number` | string | Yes      | 10-digit NUBAN |
+
+**Response 200:**
+```json
+{
+  "bank_code": "058",
+  "account_number": "0123456789",
+  "account_name": "JOHN DOE"
+}
+```
+
+**Response 422:**
+```json
+{
+  "message": "Unable to resolve bank account details. Please check the account number and bank."
+}
+```
+
+### Request Bank Account Change Code
+
+```
+POST /driver/bank-account/otp
+Authorization: Bearer {driver_token}
+```
+
+Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `123456` in local/staging). The code is required to **replace** an existing payout account, so a stolen session cannot redirect payouts. It is not needed for the first account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
+
+**Response 200:**
+```json
+{
+  "message": "Verification code sent to your phone.",
+  "expires_at": "2026-10-15T10:05:00+00:00"
+}
+```
+
+**Response 422:** `"No bank account on file. Add one without a code."` or `"Add a phone number to your account before changing bank details."`
+**Response 429:** `"Please wait before requesting another code."`
 
 ### Add Bank Account
 
@@ -9803,7 +10109,7 @@ Authorization: Bearer {driver_token}
 Content-Type: application/json
 ```
 
-Verifies the bank account via Paystack account resolution and saves it as the driver's primary bank account. Supports both traditional banks (NUBAN) and OPay accounts.
+Verifies the bank account via Paystack account resolution and saves it as the driver's primary bank account (any previous account stops being primary). Supports both traditional banks (NUBAN) and OPay accounts.
 
 **Request Body:**
 
@@ -9811,6 +10117,7 @@ Verifies the bank account via Paystack account resolution and saves it as the dr
 |------------------|--------|----------|--------------------|
 | `account_number` | string | Yes      | 10-digit NUBAN     |
 | `bank_code`      | string | Yes      | Valid bank code     |
+| `otp_code`       | string | When replacing | 6-digit code from **Request Bank Account Change Code** |
 
 **Response 201:**
 ```json
@@ -9820,11 +10127,19 @@ Verifies the bank account via Paystack account resolution and saves it as the dr
     "id": "uuid",
     "bank_code": "058",
     "bank_name": "GTBank",
-    "account_number": "0123456789",
+    "account_number": "******6789",
     "account_name": "JOHN DOE",
     "is_verified": true,
     "is_primary": true
   }
+}
+```
+
+**Response 422 (replacing without a valid code):**
+```json
+{
+  "message": "Changing your payout account requires a verification code.",
+  "errors": { "otp_code": ["Request a code with POST /driver/bank-account/otp and include it here."] }
 }
 ```
 
@@ -9835,7 +10150,7 @@ GET /driver/bank-account
 Authorization: Bearer {driver_token}
 ```
 
-**Response 200:** Returns the driver's primary bank account.
+**Response 200:** Returns the driver's primary bank account (account number masked).
 **Response 404:** No bank account on file.
 
 ---
@@ -10215,11 +10530,11 @@ Returns paginated ledger entries for the driver's earnings account.
 ### List Payouts
 
 ```
-GET /driver/payouts
+GET /driver/payouts?status=paid
 Authorization: Bearer {driver_token}
 ```
 
-Returns the driver's payout history.
+Returns the driver's payout history, newest first, 20 per page. Optional `status` filter: `requested`, `approved`, `processing`, `paid`, `failed`, `rejected`, `reversed`.
 
 ### Request Payout
 
@@ -10228,16 +10543,37 @@ POST /driver/payouts
 Authorization: Bearer {driver_token}
 ```
 
-Requests a withdrawal from driver earnings to their primary bank account via Paystack transfer. Supports both traditional bank accounts (NUBAN) and OPay mobile money transfers. Requires an approved bank account. Payout goes through admin approval before transfer is initiated.
+Requests a withdrawal from available driver earnings to the driver's primary bank account via Paystack transfer. Supports both traditional bank accounts (NUBAN) and OPay accounts. Requires a verified bank account. Finance approves the request before the transfer is sent. Rate limit: 3 requests per minute.
 
 **Request Body:**
 
 | Field    | Type    | Required | Rules                         |
 |----------|---------|----------|-------------------------------|
-| `amount` | integer | Yes      | Min: 100000 (₦1,000), in kobo |
+| `amount` | integer | Yes      | In kobo. At least the admin `min_payout` wallet setting (default 100000 = ₦1,000) |
 
-**Response 201:** Payout request created, pending admin approval.
-**Response 422:** Insufficient balance, no bank account, or wallet frozen.
+**Payout lifecycle:** `requested` → `approved` (finance) → `processing` (transfer sent) → `paid`. The money leaves the driver's available balance when the transfer is sent; if the balance no longer covers it at that point, the payout becomes `failed` with a reason and nothing is debited. A transfer that fails or is reversed by the bank returns the money to the driver's available balance (`failed` / `reversed`). Finance can `reject` a request or `retry` a failed payout.
+
+**Response 201:**
+```json
+{
+  "message": "Payout request submitted for approval.",
+  "payout": {
+    "id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+    "amount": 500000,
+    "status": "requested",
+    "status_label": "Requested",
+    "requested_at": "2026-10-15T09:00:00+00:00",
+    "bank_account": { "...": "..." },
+    "created_at": "2026-10-15T09:00:00+00:00"
+  }
+}
+```
+
+**Response 422:** one of:
+- `"No verified bank account on file. Please add a bank account first."`
+- `"Insufficient available balance."`
+- `"You already have a pending payout request."` (one `requested`, `approved` or `processing` payout at a time)
+- a validation error on `amount` (below the minimum)
 
 ### Update Payout Preference
 
@@ -10355,18 +10691,52 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
+Manual credits or debits to any ledger account, with maker–checker approval: the admin who creates an adjustment cannot approve it. Nothing is posted to the ledger until approval.
+
+**Create — request body:**
+
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `account_id` | string (UUID) | Yes | Existing ledger account |
+| `type` | string | Yes | `credit` or `debit` |
+| `amount` | integer | Yes | In kobo, min 1 |
+| `reason` | string | Yes | 10–2000 chars |
+
+A credit is funded from the `refunds` system account; a debit goes to `platform_commission`.
+
+**Reject — request body:** `reason` (string, 10–2000 chars, required).
+
+| Response | When |
+|----------|------|
+| 201 | `"Adjustment created and pending approval."` |
+| 200 | `"Adjustment approved and posted."` / `"Adjustment rejected."` |
+| 403 | `"Approver must differ from creator."` |
+| 422 | `"Adjustment is not pending."`, or the ledger refused the posting (e.g. the account is frozen: `"Account … is frozen, cannot post."`) — the adjustment stays `pending` |
+
 ### Payouts
 
 ```
-GET /admin/payouts?status=pending
+GET /admin/payouts?status=requested&search=bayo&from=2026-10-01&to=2026-10-15
 POST /admin/payouts/{payout}/approve
 POST /admin/payouts/{payout}/reject
 POST /admin/payouts/{payout}/retry
-GET /admin/payouts/export?format=csv
+GET /admin/payouts/export?from=2026-10-01&to=2026-10-15
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance
+
+Each action locks the payout, so two admins acting at once cannot approve, reject or retry the same payout twice. The driver is notified of approval, rejection (with the reason) and the final transfer result.
+
+| Action | Allowed from | Result |
+|--------|--------------|--------|
+| `approve` | `requested` | `approved`; transfer queued — `"Payout approved and transfer initiated."` |
+| `reject` | `requested` | `rejected` — body: `reason` (string, min 10 chars, required) |
+| `retry` | `failed` | `approved`; transfer queued again — `"Payout retry initiated."` The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again; otherwise a new transfer reference is used. |
+
+**Response 422:** `"Payout is not in requested status."` (approve/reject) or `"Only failed payouts can be retried."` (retry).
+
+`export` streams a CSV (`from` and `to` dates are required) with payout ID, driver, bank code, masked account number, amount (kobo), status, requested and paid times.
 
 ### Refund to Wallet
 
@@ -10376,6 +10746,33 @@ Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance
+
+Refunds part or all of a completed ride's fare to the passenger's E-tiGo wallet, whatever the original payment method. Several partial refunds are allowed up to what the passenger actually paid (tips are excluded). By default the driver's share of the refunded amount is recovered from their earnings, in the same proportion as the ride was settled (net of commission and fleet remittance).
+
+**Request Body:**
+
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `amount` | integer | Yes | In kobo, min 1 |
+| `reason` | string | Yes | 10–2000 chars |
+| `clawback_driver_earnings` | boolean | No | Default `true`. `false` = E-tiGo absorbs the whole refund |
+
+**Response 200:**
+```json
+{
+  "message": "Refund credited to passenger wallet.",
+  "refund_kobo": 100000,
+  "driver_clawback_kobo": 80000,
+  "remaining_refundable_kobo": 400000
+}
+```
+
+**Response 422:**
+- `"Only completed rides can be refunded."`
+- `"Refund exceeds remaining refundable amount of ₦4,000.00."` with `max_refundable_kobo`. The check is repeated under a lock, so concurrent refunds can never exceed what was paid.
+- a ledger error, e.g. the driver's earnings account is frozen (retry with `clawback_driver_earnings: false`)
+
+The passenger receives a `wallet_refund` notification once the refund is committed.
 
 ### Commission Settings
 
@@ -10433,13 +10830,13 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Updates wallet configuration. Only provided fields are updated; omitted fields retain their current values.
+Updates wallet configuration. Only provided fields are updated; omitted fields retain their current values. Changes take effect immediately for top-up limits, payout minimums, settlement timing, cash-commission debt limits and hold/top-up expiry. Every change is recorded in the audit log with the old and new values.
 
 **Request Body:** (all fields optional)
 
 | Field | Type | Rules |
 |-------|------|-------|
-| `min_topup` | integer | Min: 1000 |
+| `min_topup` | integer | Min: 1000. Cannot exceed `max_balance` or `daily_topup_cap` |
 | `max_balance` | integer | Min: 100000 |
 | `daily_topup_cap` | integer | Min: 100000 |
 | `min_payout` | integer | Min: 10000 |
@@ -10456,7 +10853,7 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 }
 ```
 
-**Response 422:** Validation error.
+**Response 422:** Validation error, including `min_topup` errors when the combined settings would make top-ups impossible: `"The minimum top-up cannot exceed the maximum wallet balance."` / `"The minimum top-up cannot exceed the daily top-up cap."`
 
 ### Tip Settings
 
@@ -10495,7 +10892,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Updates tip configuration. Only provided fields are updated; omitted fields retain their current values. Presets are automatically sorted ascending.
+Updates tip configuration. Only provided fields are updated; omitted fields retain their current values. Presets are automatically sorted ascending, and every preset must lie within the (new or current) `min_amount`–`max_amount` range. Changes are audit-logged.
 
 **Request Body:** (all fields optional)
 
@@ -10513,7 +10910,7 @@ Updates tip configuration. Only provided fields are updated; omitted fields reta
 }
 ```
 
-**Response 422:** Validation error (empty presets, min_amount ≥ max_amount, etc.).
+**Response 422:** Validation error (empty presets, more than 10 presets), `"min_amount must be less than max_amount."`, or `"Every tip preset must be between 50 and 50000."` (using the effective limits).
 
 ### Daily Reconciliation Report
 
@@ -10524,7 +10921,14 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Returns the daily reconciliation report comparing Paystack gateway settlements against ledger entries.
+Returns the daily reconciliation report generated by `DailyReconciliationJob` (02:00 daily, for the previous day; one report per date). It compares, in kobo:
+
+| Pair | Gateway side | Ledger side |
+|------|--------------|-------------|
+| Charges | Successful wallet top-up charges confirmed by webhook (`TOPUP-` references; Paystack `charge.success` and Flutterwave `charge.completed`) | Top-up credits to passenger wallets |
+| Transfers | Successful payout transfers confirmed by webhook (Paystack `transfer.success`, Flutterwave `transfer.completed`) | Payouts marked `paid` that day |
+
+Any difference is listed in `mismatches` with `type`, `gateway_total`, `ledger_total` and `difference`, and the report `status` is `mismatched`. Ride card payments are not part of this report. A webhook received just before midnight and processed just after it can show as a one-day timing difference.
 
 **Query Parameters:**
 
@@ -10905,15 +11309,26 @@ Server errors (500) include debug details only when `APP_DEBUG=true`:
 }
 ```
 
-| Code | Error Code         | Description            |
-|------|--------------------|------------------------|
-| 401  | `UNAUTHENTICATED`  | Missing or invalid token |
-| 403  | `HTTP_ERROR`       | Forbidden / wrong role |
-| 404  | `NOT_FOUND`        | Resource or endpoint not found |
-| 409  | `HTTP_ERROR`       | Conflict               |
-| 422  | `VALIDATION_ERROR` | Validation error       |
-| 429  | `HTTP_ERROR`       | Too many requests      |
-| 500  | `SERVER_ERROR`     | Server error (no stack traces in production) |
+State conflicts (409) — a ride or SOS incident changed state between reading and acting on it (e.g. the passenger cancels as the trip starts):
+```json
+{
+  "message": "Invalid ride state transition from 'in_progress' to 'cancelled'.",
+  "error_code": "INVALID_STATE_TRANSITION",
+  "current_status": "in_progress"
+}
+```
+
+| Code | Error Code                 | Description |
+|------|----------------------------|-------------|
+| 401  | `UNAUTHENTICATED`          | Missing, invalid or expired token |
+| 403  | `HTTP_ERROR`               | Forbidden / wrong user type or admin role |
+| 404  | `NOT_FOUND`                | `"Resource not found."` for an unknown id; `"The requested endpoint does not exist."` for an unknown URL |
+| 409  | `INVALID_STATE_TRANSITION` | Ride/SOS state changed concurrently; refresh and retry (`current_status` included) |
+| 409  | `HTTP_ERROR` / none        | Other conflicts (e.g. duplicate active ride, driver already on a ride) |
+| 422  | `VALIDATION_ERROR`         | Validation error (`errors` object) |
+| 422  | `INVALID_PARAMETER`        | A malformed identifier or date reached the database |
+| 429  | `HTTP_ERROR`               | Too many requests — wait for `Retry-After` seconds |
+| 500  | `SERVER_ERROR`             | Server error (no stack traces in production) |
 
 ---
 
@@ -11042,12 +11457,12 @@ Super Admins always bypass role checks and have full access.
 |---------------------|--------------------------------------------|
 | `triggered`         | SOS triggered, awaiting check-in dispatch  |
 | `check_in_sent`     | Check-in prompt sent to user               |
-| `acknowledged`      | User confirmed they are safe (terminal)    |
+| `acknowledged`      | User confirmed they are safe (an operator can still take over or close it) |
 | `escalated`         | No response — escalated to safety console  |
-| `operator_assigned` | Safety operator self-assigned              |
+| `operator_assigned` | Safety operator took over the incident     |
 | `dispatched`        | Emergency services dispatch initiated      |
 | `resolved`          | Incident closed by operator (terminal)     |
-| `cancelled`         | Incident cancelled by user (terminal)      |
+| `cancelled`         | Incident cancelled by the user or an admin before an operator took over (terminal) |
 
 ### SOS Trigger Type
 | Value       | Description                        |
@@ -11075,13 +11490,18 @@ Super Admins always bypass role checks and have full access.
 - `driver_en_route` -> `driver_arrived`, `cancelled`
 - `driver_arrived` -> `in_progress`, `cancelled`
 - `in_progress` -> `completed`
-- `completed`, `cancelled`, `no_driver_found` -> (terminal states)
+- `no_driver_found` -> `searching` (passenger retry or admin assignment), `cancelled` (passenger dismisses it)
+- `completed`, `cancelled` -> (terminal states)
+
+A transition that is no longer allowed — usually because another request changed the ride first (e.g. the passenger cancelled while the driver was accepting) — returns `409` with `error_code: "INVALID_STATE_TRANSITION"` and the ride's `current_status`.
 
 ### Payment Method
 | Value  | Description |
 |--------|-------------|
-| `cash` | Cash payment on delivery |
-| `card` | Card payment via gateway |
+| `cash` | Cash paid to the driver at the end of the trip |
+| `card` | Saved card charged via the payment gateway |
+| `wallet` | E-tiGo wallet: fare held at booking, settled at completion |
+| `bank_transfer` | Payment link / transfer via the payment gateway |
 
 ### Payment Status
 | Value                | Description                              |
@@ -11094,6 +11514,7 @@ Super Admins always bypass role checks and have full access.
 | `failed`             | Payment failed                           |
 | `pending_collection` | Cash payment awaiting driver collection  |
 | `collected`          | Cash payment collected by driver         |
+| `paid`               | Reserved (not set by current flows; wallet rides settle as `captured`, or `failed` with a shortfall) |
 
 ### Discount Type
 | Value        | Description                                |
@@ -11195,7 +11616,8 @@ Super Admins always bypass role checks and have full access.
 ### EV Reservation Status
 | Value       | Description                             |
 |-------------|-----------------------------------------|
-| `reserved`  | Stall locked, awaiting driver arrival   |
+| `pending_review` | General charge request awaiting review by operations |
+| `reserved`  | Stall locked, awaiting driver arrival (expires after 30 min by default) |
 | `queued`    | Waiting for stall to become available   |
 | `active`    | Charging session in progress            |
 | `completed` | Charging session finished (terminal)    |
@@ -11220,6 +11642,17 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Ride cancelled     | Other party| `ride_cancelled`     | Cancellation by passenger/driver/admin         |
 | No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
+
+**Wallet and payout notifications** (stored in-app — see `GET /notifications` — and pushed):
+
+| Event | Recipient | Notification Type |
+|-------|-----------|-------------------|
+| Top-up credited / failed | Passenger | `topup_success` / `topup_failed` |
+| Ride paid from wallet | Passenger | `ride_wallet_payment` |
+| Refund credited to wallet | Passenger | `wallet_refund` |
+| Cash change credited to wallet | Passenger | `cash_change_credit` |
+| Payout approved / paid / failed | Driver | `payout_approved` / `payout_paid` / `payout_failed` |
+| Payout request rejected (with reason) | Driver | `payout_rejected` |
 
 **Payload format:**
 ```json

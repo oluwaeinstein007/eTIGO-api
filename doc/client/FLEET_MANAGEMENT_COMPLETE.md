@@ -987,7 +987,7 @@ Validation messages to handle:
 
 ### Postman Collection
 
-Import `doc/postman_collection.json` — folders:
+Import `doc/technical/postman_collection.json` — folders:
 - **Admin — Fleet Agreement Management** (11 requests with example responses)
 - **Driver — Fleet Remittance** (3 requests with example responses for all states)
 
@@ -1013,7 +1013,7 @@ Import `doc/postman_collection.json` — folders:
 
 ### Full API Documentation
 
-See `doc/API_REFERENCE.md` — sections:
+See `doc/technical/API_REFERENCE.md` — sections:
 - **Admin — Fleet Agreement Management**
 - **Driver — Fleet Remittance**
 - **Enums → Fleet Agreement Status**
