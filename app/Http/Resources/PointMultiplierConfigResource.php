@@ -20,6 +20,7 @@ class PointMultiplierConfigResource extends JsonResource
             'condition_label' => $conditionType?->label(),
             'multiplier_value' => (float) $this->multiplier_value,
             'is_stackable' => $this->is_stackable,
+            'is_awarded' => $conditionType?->isAwarded() ?? false,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

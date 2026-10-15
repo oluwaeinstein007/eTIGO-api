@@ -90,13 +90,18 @@ function bookRide(object $test, array $overrides = []): TestResponse
     ], $overrides));
 }
 
-function startTrip(object $test, Ride $ride): Ride
+/**
+ * Puts the ride in progress as if it started $tripMinutes ago, so completing
+ * it now bills that much trip time. The default matches the mocked route
+ * estimate, keeping the final fare equal to the booking quote.
+ */
+function startTrip(object $test, Ride $ride, int $tripMinutes = 15): Ride
 {
     $ride->update([
         'driver_id' => $test->driverUser->id,
         'status' => RideStatus::InProgress,
-        'matched_at' => now(),
-        'started_at' => now(),
+        'matched_at' => now()->subMinutes($tripMinutes),
+        'started_at' => now()->subMinutes($tripMinutes),
     ]);
 
     return $ride->fresh();
@@ -343,6 +348,79 @@ it('applies the passenger\'s tier booking-fee discount to the estimate and the f
         ->and($ride->fresh()->pricing_snapshot['tier_discount'])->toEqual([
             'tier' => 'Gold', 'percentage' => 5, 'amount' => 30,
         ]);
+});
+
+// === Final fare: upfront fare and trip time ===
+// The mocked route quotes 8.5 km and 15 min: 600 + 8.5 × 250 + 15 × 40 = 3,325.
+// Tolerance is max(25% of 15, 10) = 10 min; the billed-time cap is 3 × 15 = 45 min.
+
+it('charges the upfront quote when the trip runs within the time tolerance', function () {
+    $booking = bookRide($this)->assertCreated()->assertJsonPath('ride.fare_estimate_amount', '3325.00');
+    $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 24);
+    completeTrip($this, $ride)->assertOk();
+
+    $snapshot = $ride->fresh()->pricing_snapshot;
+    expect($ride->fresh()->final_fare_amount)->toBe('3325.00')
+        ->and($snapshot['duration_minutes'])->toEqual(15)
+        ->and($snapshot['actual_trip_minutes'])->toEqual(24)
+        ->and($snapshot['time_adjusted'])->toBeFalse();
+});
+
+it('keeps the upfront quote when the trip is quicker than estimated', function () {
+    $booking = bookRide($this)->assertCreated();
+    $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 8);
+    completeTrip($this, $ride)->assertOk();
+
+    expect($ride->fresh()->final_fare_amount)->toBe('3325.00');
+});
+
+it('bills the actual trip time when the trip runs significantly longer', function () {
+    $booking = bookRide($this)->assertCreated();
+    $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 40);
+    completeTrip($this, $ride)->assertOk();
+
+    // 600 + 8.5 × 250 + 40 × 40
+    $snapshot = $ride->fresh()->pricing_snapshot;
+    expect($ride->fresh()->final_fare_amount)->toBe('4325.00')
+        ->and($snapshot['duration_minutes'])->toEqual(40)
+        ->and($snapshot['quoted_duration_minutes'])->toEqual(15)
+        ->and($snapshot['time_adjusted'])->toBeTrue()
+        ->and($snapshot['time_capped'])->toBeFalse();
+
+    actingWith($this, $this->passengerToken)
+        ->getJson("/api/v1/rides/{$ride->id}/receipt")
+        ->assertOk()
+        ->assertJsonPath('receipt.trip_time.quoted_minutes', 15)
+        ->assertJsonPath('receipt.trip_time.billed_minutes', 40)
+        ->assertJsonPath('receipt.trip_time.adjusted', true)
+        ->assertJsonPath('receipt.fare_breakdown.time_charge', 1600);
+});
+
+it('caps the billed trip time when a trip is left running', function () {
+    $booking = bookRide($this)->assertCreated();
+    $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 180);
+    completeTrip($this, $ride)->assertOk();
+
+    // 600 + 8.5 × 250 + 45 (capped) × 40
+    $snapshot = $ride->fresh()->pricing_snapshot;
+    expect($ride->fresh()->final_fare_amount)->toBe('4525.00')
+        ->and($snapshot['duration_minutes'])->toEqual(45)
+        ->and($snapshot['actual_trip_minutes'])->toEqual(180)
+        ->and($snapshot['time_capped'])->toBeTrue();
+});
+
+it('uses the quoted route without asking the maps provider again', function () {
+    $booking = bookRide($this)->assertCreated();
+    $ride = startTrip($this, Ride::find($booking->json('ride.id')));
+
+    $maps = Mockery::mock(MapsGateway::class);
+    $maps->shouldNotReceive('getDistanceAndDuration');
+    $this->app->instance(MapsGateway::class, $maps);
+
+    completeTrip($this, $ride)->assertOk();
+
+    expect($ride->fresh()->final_fare_amount)->toBe('3325.00')
+        ->and($ride->fresh()->pricing_snapshot['quoted_distance_km'])->toEqual(8.5);
 });
 
 // === Promos across the ride lifecycle ===

@@ -55,6 +55,14 @@ class RideReceiptController extends Controller
                 ],
                 'distance_km' => $snapshot['distance_km'] ?? null,
                 'duration_minutes' => $snapshot['duration_minutes'] ?? null,
+                // Upfront fare: the quoted time is billed unless the trip ran
+                // significantly longer (see config/pricing.php).
+                'trip_time' => isset($snapshot['quoted_duration_minutes']) ? [
+                    'quoted_minutes' => (float) $snapshot['quoted_duration_minutes'],
+                    'actual_minutes' => $snapshot['actual_trip_minutes'] ?? null,
+                    'billed_minutes' => (float) ($snapshot['duration_minutes'] ?? 0),
+                    'adjusted' => (bool) ($snapshot['time_adjusted'] ?? false),
+                ] : null,
                 'vehicle_class' => $ride->vehicleClass?->display_name,
                 'driver' => $ride->driver ? [
                     'name' => "{$ride->driver->first_name} {$ride->driver->last_name}",
