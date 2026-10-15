@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\FleetAgreementStatus;
+use App\Enums\FuelType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Fleet\AssignFleetVehicleRequest;
 use App\Http\Requests\Admin\Fleet\StoreFleetVehicleRequest;
@@ -15,6 +16,7 @@ use App\Models\Vehicle;
 use App\Services\FleetRemittanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminFleetVehicleController extends Controller
 {
@@ -35,6 +37,13 @@ class AdminFleetVehicleController extends Controller
                     ->orWhere('model', 'ilike', "%{$search}%")
                     ->orWhere('plate_number', 'ilike', "%{$search}%");
             });
+        }
+
+        $request->validate(['fuel_type' => ['nullable', Rule::in([...array_column(FuelType::cases(), 'value'), 'none'])]]);
+
+        if ($request->filled('fuel_type')) {
+            $fuelType = $request->input('fuel_type');
+            $fuelType === 'none' ? $query->whereNull('fuel_type') : $query->where('fuel_type', $fuelType);
         }
 
         $vehicles = $query->latest()->paginate(20);

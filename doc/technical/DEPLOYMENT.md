@@ -200,6 +200,28 @@ AWS_USE_PATH_STYLE_ENDPOINT=false
 
 > **Important:** The `etigo.com` domain must be verified on [Resend](https://resend.com/domains) before emails will send in production. Add the DNS records (SPF, DKIM, DMARC) provided by Resend to your domain registrar.
 
+### Paystack dashboard settings
+
+Set these in **both** Test mode (staging) and Live mode (production); each mode has its own settings.
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| Webhook URL (Settings → API Keys & Webhooks) | `https://<api-host>/api/v1/webhooks/paystack` (staging: `https://etigo-api.apeinhood.xyz/api/v1/webhooks/paystack`) | Credits top-ups and settles payouts as soon as Paystack confirms them. Without it, payouts wait for the 15-minute reconciliation |
+| Transfer OTP (Settings → Preferences) | Off | With it on, every API transfer waits for an OTP and is abandoned; such payouts show `attention_reason: awaiting_otp` |
+| IP whitelist | The API server's public IP | A leaked secret key is useless from anywhere else |
+| Dashboard two-factor sign-in | On for every user | Protects the account that can move money |
+
+Keep only the float needed for upcoming payouts in the Paystack balance.
+
+### One-off after deploying fuel types
+
+Vehicles created before fuel type was required have none. Run once (and again whenever useful) to ask their drivers to set it and to list fleet vehicles operations must update:
+
+```bash
+php artisan vehicles:request-fuel-types --dry-run   # list only
+php artisan vehicles:request-fuel-types
+```
+
 To update environment variables:
 
 ```bash

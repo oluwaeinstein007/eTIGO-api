@@ -74,7 +74,9 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
                 $payout->update([
                     'status' => PayoutStatus::Processing,
                     'gateway_transfer_id' => (string) $previous['id'],
+                    'provider_status' => $previousStatus,
                 ]);
+                PayoutReconciliationService::alertIfAwaitingOtp($payout);
 
                 return;
             }
@@ -105,9 +107,11 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             $payout->update([
                 'status' => PayoutStatus::Processing,
                 'gateway_transfer_id' => (string) $transfer['id'],
+                'provider_status' => strtolower((string) ($transfer['status'] ?? '')) ?: null,
             ]);
 
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
+            PayoutReconciliationService::alertIfAwaitingOtp($payout);
         } catch (\Throwable $e) {
             if (PayoutReconciliationService::isProviderUnavailable($e)) {
                 // A timeout or 5xx may still have created the transfer: keep the

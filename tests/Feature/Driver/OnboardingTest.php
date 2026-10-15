@@ -147,6 +147,7 @@ it('prevents duplicate vehicle registration', function () {
             'colour' => 'Black',
             'plate_number' => 'XYZ-9999',
             'year' => 2023,
+            'fuel_type' => 'petrol',
             'vehicle_class_id' => $vehicleClass->id,
         ]);
 

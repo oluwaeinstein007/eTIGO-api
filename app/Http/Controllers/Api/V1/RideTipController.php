@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\StoreTipFormRequest;
 use App\Http\Resources\PaymentResource;
@@ -19,7 +20,11 @@ class RideTipController extends Controller
     public function store(StoreTipFormRequest $request, Ride $ride): JsonResponse
     {
         try {
-            $payment = $this->paymentService->addTip($ride, (float) $request->validated('amount'));
+            $payment = $this->paymentService->addTip(
+                $ride,
+                (float) $request->validated('amount'),
+                PaymentMethod::tryFrom((string) $request->validated('source')),
+            );
         } catch (\RuntimeException $e) {
             return response()->json([
                 'message' => $e->getMessage(),
@@ -28,6 +33,7 @@ class RideTipController extends Controller
 
         AuditLog::record($ride, 'tip_added', $request->user(), null, [
             'tip_amount' => $request->validated('amount'),
+            'tip_method' => $payment->tip_method?->value,
         ]);
 
         return response()->json([

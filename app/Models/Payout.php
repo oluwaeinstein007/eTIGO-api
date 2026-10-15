@@ -19,6 +19,7 @@ class Payout extends Model
         'status',
         'gateway_transfer_id',
         'gateway_reference',
+        'provider_status',
         'failure_reason',
         'requested_at',
         'approved_at',
@@ -71,6 +72,9 @@ class Payout extends Model
         return $this->status === PayoutStatus::Requested;
     }
 
+    /** Paystack holds a transfer in this status until someone enters an OTP. */
+    public const PROVIDER_AWAITING_OTP = 'otp';
+
     /** An approved payout is normally sent within seconds; after this it is stuck. */
     public const APPROVED_STALE_MINUTES = 10;
 
@@ -83,10 +87,23 @@ class Payout extends Model
      */
     public function isAwaitingConfirmation(): bool
     {
+        return $this->attentionReason() !== null;
+    }
+
+    /**
+     * Why finance should look at this payout: Paystack is holding the
+     * transfer for an OTP, it was never sent, or it was never confirmed.
+     */
+    public function attentionReason(): ?string
+    {
+        if ($this->status === PayoutStatus::Processing && $this->provider_status === self::PROVIDER_AWAITING_OTP) {
+            return 'awaiting_otp';
+        }
+
         return match ($this->status) {
-            PayoutStatus::Approved => $this->approved_at?->lte(now()->subMinutes(self::APPROVED_STALE_MINUTES)) ?? false,
-            PayoutStatus::Processing => $this->updated_at?->lte(now()->subMinutes(self::PROCESSING_STALE_MINUTES)) ?? false,
-            default => false,
+            PayoutStatus::Approved => $this->approved_at?->lte(now()->subMinutes(self::APPROVED_STALE_MINUTES)) ? 'not_sent' : null,
+            PayoutStatus::Processing => $this->updated_at?->lte(now()->subMinutes(self::PROCESSING_STALE_MINUTES)) ? 'unconfirmed' : null,
+            default => null,
         };
     }
 

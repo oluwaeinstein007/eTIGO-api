@@ -1373,7 +1373,7 @@ Only available for drivers with `vehicle_ownership_type: "own_vehicle"`. Fleet v
 | plate_number     | string        | Yes      | Plate number (unique)    |
 | year             | integer       | Yes      | Year of manufacture (2000 – next year) |
 | vehicle_class_id | string (UUID) | Yes      | Preferred vehicle class (confirmed by E-tiGo at approval) |
-| fuel_type        | string        | No       | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`. Only `electric` and `plug_in_hybrid` vehicles can use EV charging stalls |
+| fuel_type        | string        | Yes      | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`. Only `electric` and `plug_in_hybrid` vehicles can use EV charging stalls |
 
 **Response 201:**
 ```json
@@ -1541,7 +1541,7 @@ Submits the driver application for admin review. Only valid when driver status i
 
 **Requirements vary by ownership type:**
 - **All drivers:** `vehicle_ownership_type` set, required documents uploaded, licence number set, city selected.
-- **`own_vehicle` only:** vehicle registered.
+- **`own_vehicle` only:** vehicle registered, with its `fuel_type` set (vehicles registered before fuel type was required must set it first: `"Your vehicle's fuel type is required."`).
 - **`fleet_vehicle`:** no vehicle required at submission time (assigned by admin after approval).
 
 **Response 200:**
@@ -2160,6 +2160,7 @@ GET /admin/drivers
 | kyc_status       | string | No       | Filter: `not_started`, `in_progress`, `verified`, `failed`    |
 | city_id          | string (UUID) | No | Filter by city                                      |
 | vehicle_class_id | string (UUID) | No | Filter by vehicle class                             |
+| fuel_type        | string | No       | Filter by the vehicle's fuel type; `none` lists drivers whose vehicle has no fuel type yet |
 | search           | string | No       | Search by driver name, email, or phone               |
 | per_page         | integer | No      | Results per page (default: 20)                       |
 
@@ -2685,6 +2686,7 @@ GET /admin/fleet-vehicles
 | Parameter       | Type    | Required | Description                                      |
 |-----------------|---------|----------|--------------------------------------------------|
 | unassigned_only | boolean | No       | `true` to show only unassigned (available) vehicles |
+| fuel_type       | string  | No       | Filter by fuel type; `none` lists vehicles with no fuel type yet |
 | search          | string  | No       | Search by make, model, or plate number           |
 
 **Response 200:**
@@ -2737,7 +2739,7 @@ Creates a new fleet vehicle in inventory with no driver assigned. The vehicle is
 | plate_number     | string        | Yes      | Plate number (unique across all vehicles) |
 | year             | integer       | Yes      | Year of manufacture (2000 – next year) |
 | vehicle_class_id | string (UUID) | Yes      | Must exist in vehicle_classes          |
-| fuel_type        | string        | No       | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`           |
+| fuel_type        | string        | Yes      | `petrol`, `diesel`, `cng`, `hybrid`, `plug_in_hybrid` or `electric`           |
 
 **Response 201:**
 ```json
@@ -6689,9 +6691,16 @@ Surge pricing applies a multiplier to fares during high-demand periods (rush hou
 |----------------|----------------------------------------------------------------------|
 | `manual`       | Admin toggles on/off — for weather, events, emergencies              |
 | `time_based`   | Fires on a schedule (days of week + time window) — for rush hours    |
-| `demand_based` | Fires when demand/supply ratio exceeds threshold — wired for future  |
+| `demand_based` | Fires when live demand outstrips available drivers (see below)       |
 
 **Fare formula with surge:** `fare = max(minimum_fare, base + distance + time + waiting) × surge_multiplier`
+
+**How demand is measured** (per city, and per class when the rule names one; cached for 60 s):
+- **Requests:** distinct passengers who booked a ride in the last `SURGE_DEMAND_WINDOW_MINUTES` (10).
+- **Available drivers:** approved, online drivers in the city with a vehicle of that class, not on a trip, whose app reported a location in the last 2 minutes. Demo drivers are excluded.
+- **Ratio:** requests ÷ available drivers (with no driver available, the ratio equals the number of requests). The exact ratio is compared with the rule; the response shows it rounded to 2 decimals.
+- If driver locations cannot be read, supply is unknown: `available_drivers` and `ratio` are `null`, demand rules do not fire, and nothing is cached.
+- A demand rule fires when the ratio reaches `conditions.min_demand_supply_ratio` **and** at least `conditions.min_requests` passengers are asking (default `SURGE_DEMAND_MIN_REQUESTS`, 5), so a single late-night request never surges.
 
 ### List Surge Rules
 ```
@@ -6757,6 +6766,7 @@ POST /admin/surge-rules
 | conditions.start_time                | string  | Yes (time_based)              | HH:mm format (e.g. "07:00")             |
 | conditions.end_time                  | string  | Yes (time_based)              | HH:mm format (e.g. "09:00")             |
 | conditions.min_demand_supply_ratio   | number  | Yes (demand_based)            | Minimum ratio to trigger (≥1.0)          |
+| conditions.min_requests              | integer | No (demand_based)             | Minimum passengers asking before it can fire (default 5) |
 | priority                             | integer | No                            | Higher wins when rules conflict (0–100)  |
 | is_active                            | boolean | No                            | Default: true                            |
 | effective_from                       | string  | Yes                           | ISO 8601 datetime                        |
@@ -6898,7 +6908,7 @@ GET /admin/surge-rules/current-multiplier
 | city_id          | string (UUID) | Yes      | City ID                        |
 | vehicle_class_id | string (UUID) | No       | Vehicle class ID (null = all)  |
 
-Returns the currently active surge multiplier for the given city (and optionally vehicle class).
+Returns the currently active surge multiplier for the given city (and optionally vehicle class), plus `demand`: the live figures demand-based rules are measured against (cached for a minute).
 
 **Response 200 (surge active):**
 ```json
@@ -6923,6 +6933,12 @@ Returns the currently active surge multiplier for the given city (and optionally
       "is_active": true,
       "...": "..."
     }
+  },
+  "demand": {
+    "requests": 12,
+    "available_drivers": 4,
+    "ratio": 3.0,
+    "window_minutes": 10
   }
 }
 ```
@@ -6935,6 +6951,12 @@ Returns the currently active surge multiplier for the given city (and optionally
     "multiplier": 1,
     "rule_name": null,
     "rule": null
+  },
+  "demand": {
+    "requests": 1,
+    "available_drivers": 6,
+    "ratio": 0.17,
+    "window_minutes": 10
   }
 }
 ```
@@ -7472,13 +7494,14 @@ Authorization: Bearer {passenger_token}
 | Field  | Type    | Required | Notes                                              |
 |--------|---------|----------|------------------------------------------------------|
 | amount | numeric | Yes      | Between `min_amount` and `max_amount` from tip settings |
+| source | string  | Bank-transfer rides only | How to pay the tip: `wallet`, `card` or `cash`. Defaults to the ride's payment method |
 
-Adds a tip to a completed **card, wallet or cash** ride — the tip follows the trip's payment method. Only one tip per ride; concurrent requests cannot both succeed. Tips carry no commission: the driver receives the full amount.
+Adds a tip to a completed ride. Only one tip per ride; concurrent requests cannot both succeed. Tips carry no commission: the driver receives the full amount. The tip's source is independent of how the ride was paid, and is returned as `tip_method`.
 
-- **Card:** charged to the passenger's default saved card. If the charge fails, the tip is not recorded and the request returns 422.
+- **Card:** charged to the passenger's default saved card. If the card is declined, the tip is not recorded and the request returns 422; the passenger can try again. If the bank does not answer (timeout or provider error), the tip stays reserved and is checked with the provider by its reference before anything is charged again: 422 `"We could not confirm your tip payment with the bank yet. Please try again in a few minutes; you will not be charged twice."`. A later attempt settles the earlier one first; if that charge went through, it returns 422 `"Your earlier tip went through, so you were not charged again."`.
 - **Wallet:** paid from the passenger's available wallet balance to the driver in one ledger journal. A frozen wallet, or a balance that cannot cover the tip, returns 422 and nothing is recorded.
-- **Cash:** recorded only; the driver collects it in person.
-- Bank-transfer rides cannot be tipped.
+- **Cash:** recorded only; the driver collects it in person. Only allowed on cash rides.
+- **Bank-transfer rides** were a one-off checkout, so `source` (`wallet` or `card`) is required.
 
 The min/max limits are admin-configurable via the settings API (defaults: ₦50–₦50,000).
 
@@ -7494,6 +7517,7 @@ The min/max limits are admin-configurable via the settings API (defaults: ₦50�
     "method": "cash",
     "method_label": "Cash",
     "tip_amount": "500.00",
+    "tip_method": "cash",
     "status": "collected",
     "status_label": "Collected"
   }
@@ -7503,7 +7527,8 @@ The min/max limits are admin-configurable via the settings API (defaults: ₦50�
 **Response 403:** Not the ride's passenger.
 **Response 422:** Ride not completed, amount out of range, or one of:
 - `"A tip has already been added to this ride."`
-- `"Tips can only be added to card, wallet or cash rides."`
+- `"Choose how to pay the tip: wallet or card."` (`errors.source`, bank-transfer ride without `source`)
+- `"Cash tips can only be recorded on cash rides."` (`errors.source`)
 - `"Your wallet balance is too low for this tip."` / `"Wallet is frozen or closed."` (wallet rides)
 - `"No default payment method on file to charge tip."`
 - `"Failed to charge tip amount."` (card declined or gateway unavailable — nothing is recorded)
@@ -10934,7 +10959,10 @@ Each action locks the payout, so two admins acting at once cannot approve, rejec
 
 **Response 422:** `"Payout is not in requested status."` (approve/reject), `"Only failed or reversed payouts can be retried."` (retry), or `"Only approved or processing payouts can be checked with the payment provider."` with `current_status` (verify).
 
-Admin payout objects include **`needs_attention: true`** when a payout has been `approved` for more than 10 minutes without being sent, or `processing` for more than 30 minutes without a result — show the **check status** action for those.
+Admin payout objects include **`needs_attention: true`** when a payout has been `approved` for more than 10 minutes without being sent, or `processing` for more than 30 minutes without a result — show the **check status** action for those. They also carry:
+
+- `attention_reason`: `awaiting_otp` (Paystack is holding the transfer for an OTP: turn off transfer OTP in the Paystack dashboard, then check status), `not_sent`, `unconfirmed`, or `null`. `awaiting_otp` is flagged immediately, not after the delay.
+- `provider_status`: Paystack's last reported status for the transfer (`pending`, `otp`, `success`, …), or `null` before it was sent.
 
 #### Check payout status with Paystack
 
@@ -11896,6 +11924,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
+| Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
 
 **Wallet and payout notifications** (stored in-app — see `GET /notifications` — and pushed):
 

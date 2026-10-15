@@ -10,10 +10,13 @@ use App\Enums\PaymentStatus;
 use App\Events\PaymentUpdated;
 use App\Models\AppSetting;
 use App\Models\Driver;
+use App\Models\Journal;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\UserPaymentMethod;
 use App\Notifications\CashChangeWalletCreditNotification;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -298,7 +301,14 @@ class PaymentService
         return $payment;
     }
 
-    public function addTip(Ride $ride, float $tipAmount): Payment
+    public const TIP_UNCONFIRMED_MESSAGE = 'We could not confirm your tip payment with the bank yet. Please try again in a few minutes; you will not be charged twice.';
+
+    /**
+     * @param  PaymentMethod|null  $source  How the tip is paid (card, wallet or cash);
+     *                                      defaults to the ride's method. Bank-transfer
+     *                                      rides must name one.
+     */
+    public function addTip(Ride $ride, float $tipAmount, ?PaymentMethod $source = null): Payment
     {
         $payment = $ride->payment;
 
@@ -306,48 +316,48 @@ class PaymentService
             throw new \RuntimeException('No payment record found for this ride.');
         }
 
-        if (! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
-            throw new \RuntimeException('Tips can only be added to card, wallet or cash rides.');
+        $source ??= $ride->payment_method;
+
+        if (! in_array($source, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
+            throw new \RuntimeException('Choose how to pay the tip: wallet or card.');
+        }
+
+        if ($source === PaymentMethod::Cash && $ride->payment_method !== PaymentMethod::Cash) {
+            throw new \RuntimeException('Cash tips can only be recorded on cash rides.');
+        }
+
+        if ($this->hasUnconfirmedCardTip($payment) && $this->resolveUnconfirmedCardTip($ride, $payment) === 'paid') {
+            throw new \RuntimeException('Your earlier tip went through, so you were not charged again.');
+        }
+
+        $card = null;
+        $reference = null;
+
+        if ($source === PaymentMethod::Card && $tipAmount > 0) {
+            $card = UserPaymentMethod::where('user_id', $ride->passenger_id)->where('is_default', true)->first()
+                ?? throw new \RuntimeException('No default payment method on file to charge tip.');
+            $reference = 'ETIGO-TIP-'.Str::upper(Str::random(12));
         }
 
         // Claim the tip slot before any charge so concurrent requests cannot
         // both charge the passenger's card.
         $claimed = Payment::whereKey($payment->id)
             ->where(fn ($query) => $query->whereNull('tip_amount')->orWhere('tip_amount', 0))
-            ->update(['tip_amount' => $tipAmount]);
+            ->update(['tip_amount' => $tipAmount, 'tip_method' => $source, 'tip_reference' => $reference]);
 
         if ($claimed === 0) {
             throw new \RuntimeException('A tip has already been added to this ride.');
         }
 
-        if ($ride->payment_method === PaymentMethod::Card && $tipAmount > 0) {
-            try {
-                $this->chargeCardTip($ride, $tipAmount);
-            } catch (\Throwable $e) {
-                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
-
-                throw $e;
-            }
-
-            try {
-                $this->driverEarningsService->creditTip($ride, (int) round($tipAmount * 100));
-            } catch (\Throwable $e) {
-                // The passenger has been charged; surface the missing credit for
-                // reconciliation rather than failing the request.
-                Log::critical('Card tip charged but not credited to driver', [
-                    'ride_id' => $ride->id,
-                    'tip_amount' => $tipAmount,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
+        if ($card !== null) {
+            $this->collectCardTip($ride, $payment, $card, $tipAmount, $reference);
         }
 
-        if ($ride->payment_method === PaymentMethod::Wallet && $tipAmount > 0) {
+        if ($source === PaymentMethod::Wallet && $tipAmount > 0) {
             try {
                 $this->walletPaymentService->payTip($ride, (int) round($tipAmount * 100));
             } catch (\Throwable $e) {
-                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+                $this->releaseTip($payment);
 
                 throw new \RuntimeException($e instanceof \DomainException ? $e->getMessage() : 'Failed to pay the tip from your wallet.');
             }
@@ -359,41 +369,126 @@ class PaymentService
     }
 
     /**
-     * External charges cannot be rolled back, so this runs outside any
-     * database transaction and before the tip is considered final.
+     * A card tip whose charge outcome was never confirmed: the attempt's
+     * reference is kept and nothing has been credited to the driver yet.
      */
-    private function chargeCardTip(Ride $ride, float $tipAmount): void
+    public function hasUnconfirmedCardTip(Payment $payment): bool
     {
-        $passenger = $ride->passenger;
-        $defaultMethod = UserPaymentMethod::where('user_id', $passenger->id)
-            ->where('is_default', true)
-            ->first();
+        return $payment->tip_method === PaymentMethod::Card
+            && $payment->tip_reference !== null
+            && ! Journal::where('idempotency_key', "card-tip-{$payment->ride_id}")->exists();
+    }
 
-        if (! $defaultMethod) {
-            throw new \RuntimeException('No default payment method on file to charge tip.');
-        }
-
+    /**
+     * External charges cannot be rolled back, so this runs outside any
+     * database transaction. A definite decline releases the tip slot; a
+     * timeout or provider error keeps it, with the attempt's reference, and
+     * asks the provider what happened before anything is charged again.
+     */
+    private function collectCardTip(Ride $ride, Payment $payment, UserPaymentMethod $card, float $tipAmount, string $reference): void
+    {
         try {
             $result = $this->paymentGateway->chargeWithToken([
-                'token' => $defaultMethod->gateway_token,
-                'provider' => $defaultMethod->provider,
-                'email' => $defaultMethod->gateway_email ?? $passenger->paymentEmail(),
+                'token' => $card->gateway_token,
+                'provider' => $card->provider,
+                'email' => $card->gateway_email ?? $ride->passenger->paymentEmail(),
                 'amount' => $tipAmount,
                 'currency' => $ride->fare_currency,
-                'tx_ref' => 'ETIGO-TIP-'.Str::upper(Str::random(12)),
+                'tx_ref' => $reference,
             ]);
         } catch (\Throwable $e) {
-            Log::warning('Tip charge failed', [
-                'ride_id' => $ride->id,
-                'error' => $e->getMessage(),
-            ]);
+            Log::warning('Tip charge failed', ['ride_id' => $ride->id, 'reference' => $reference, 'error' => $e->getMessage()]);
+
+            if (! $this->isUncertainGatewayFailure($e)) {
+                $this->releaseTip($payment);
+
+                throw new \RuntimeException('Failed to charge tip amount.');
+            }
+
+            if ($this->resolveUnconfirmedCardTip($ride, $payment->fresh()) === 'paid') {
+                return;
+            }
 
             throw new \RuntimeException('Failed to charge tip amount.');
         }
 
         if ($result['status'] !== 'successful') {
+            $this->releaseTip($payment);
+
             throw new \RuntimeException("Tip charge returned non-successful status: {$result['status']}");
         }
+
+        $this->creditCardTip($ride, $tipAmount);
+    }
+
+    /**
+     * Ask the provider about an unconfirmed card tip by its reference.
+     *
+     * @return 'paid'|'failed'
+     *
+     * @throws \RuntimeException when the outcome is still unknown (the tip stays reserved)
+     */
+    private function resolveUnconfirmedCardTip(Ride $ride, Payment $payment): string
+    {
+        try {
+            $transaction = $this->paymentGateway->verifyTransaction($payment->tip_reference);
+        } catch (\Throwable $e) {
+            $provider = UserPaymentMethod::where('user_id', $ride->passenger_id)->where('is_default', true)->value('provider');
+
+            // Paystack answers an unknown reference with a client error: the charge never happened.
+            if ($provider === 'paystack' && $e instanceof RequestException && $e->response->clientError() && $e->response->status() !== 429) {
+                $this->releaseTip($payment);
+
+                return 'failed';
+            }
+
+            Log::critical('Card tip charge outcome unknown', ['ride_id' => $ride->id, 'reference' => $payment->tip_reference, 'error' => $e->getMessage()]);
+
+            throw new \RuntimeException(self::TIP_UNCONFIRMED_MESSAGE);
+        }
+
+        $status = strtolower((string) ($transaction['status'] ?? ''));
+
+        if ($status === 'successful') {
+            $this->creditCardTip($ride, (float) $payment->tip_amount);
+
+            return 'paid';
+        }
+
+        if (in_array($status, ['failed', 'abandoned', 'reversed', 'cancelled'], true)) {
+            $this->releaseTip($payment);
+
+            return 'failed';
+        }
+
+        throw new \RuntimeException(self::TIP_UNCONFIRMED_MESSAGE);
+    }
+
+    private function creditCardTip(Ride $ride, float $tipAmount): void
+    {
+        try {
+            $this->driverEarningsService->creditTip($ride, (int) round($tipAmount * 100));
+        } catch (\Throwable $e) {
+            // The passenger has been charged; surface the missing credit for
+            // reconciliation rather than failing the request.
+            Log::critical('Card tip charged but not credited to driver', [
+                'ride_id' => $ride->id,
+                'tip_amount' => $tipAmount,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function releaseTip(Payment $payment): void
+    {
+        Payment::whereKey($payment->id)->update(['tip_amount' => 0, 'tip_method' => null, 'tip_reference' => null]);
+    }
+
+    /** A timeout, server error or throttling says nothing about whether the charge happened. */
+    private function isUncertainGatewayFailure(\Throwable $e): bool
+    {
+        return $e instanceof ConnectionException
+            || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429));
     }
 
     public function refundPayment(Payment $payment, ?float $amount = null): Payment

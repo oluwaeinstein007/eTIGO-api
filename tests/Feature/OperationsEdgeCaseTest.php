@@ -9,6 +9,7 @@ use App\Enums\EvReservationStatus;
 use App\Enums\EvStallStatus;
 use App\Enums\FuelType;
 use App\Enums\SosIncidentStatus;
+use App\Enums\VehicleOwnershipType;
 use App\Events\SosIncidentTriggered;
 use App\Jobs\ExpireEvReservationsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
@@ -19,6 +20,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\DriverDocument;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
@@ -32,11 +34,13 @@ use App\Models\TierConfig;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Notifications\VehicleFuelTypeRequiredNotification;
 use App\Services\CarbonScoreService;
 use App\Services\LedgerService;
 use App\Services\SanctionService;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Queue;
 
 // === SOS ===
@@ -245,6 +249,102 @@ it('lets an approved driver declare an electric vehicle once but not change it a
         ->putJson('/api/v1/driver/vehicle', ['fuel_type' => 'petrol'])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['fuel_type']);
+});
+
+it('requires a fuel type when a driver registers a vehicle', function () {
+    $driver = Driver::factory()->create(['status' => DriverStatus::Onboarding, 'vehicle_ownership_type' => VehicleOwnershipType::OwnVehicle]);
+
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/vehicle', [
+            'make' => 'Toyota', 'model' => 'Corolla', 'colour' => 'White', 'plate_number' => 'LAG-777XY',
+            'year' => 2022, 'vehicle_class_id' => VehicleClass::factory()->create()->id,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['fuel_type']);
+});
+
+it('will not submit an application whose vehicle has no fuel type', function () {
+    $driver = Driver::factory()->create(['status' => DriverStatus::Onboarding, 'vehicle_ownership_type' => VehicleOwnershipType::OwnVehicle]);
+    Vehicle::factory()->create(['driver_id' => $driver->id, 'fuel_type' => null]);
+
+    $response = $this->actingAs($driver->user)->postJson('/api/v1/driver/onboarding/submit')->assertUnprocessable();
+
+    expect($response->json('errors'))->toContain("Your vehicle's fuel type is required.")
+        ->and($driver->fresh()->status)->toBe(DriverStatus::Onboarding);
+});
+
+it('lets operations find drivers whose vehicle has no fuel type', function () {
+    $operations = User::factory()->admin(AdminRole::Operations)->create();
+    $missing = Driver::factory()->approved()->create();
+    Vehicle::factory()->create(['driver_id' => $missing->id, 'fuel_type' => null]);
+    evDriver();
+
+    $this->actingAs($operations)
+        ->getJson('/api/v1/admin/drivers?fuel_type=none')
+        ->assertOk()
+        ->assertJsonCount(1, 'drivers')
+        ->assertJsonPath('drivers.0.id', $missing->id);
+});
+
+it('rejects an unknown fuel type filter', function () {
+    $operations = User::factory()->admin(AdminRole::Operations)->create();
+
+    $this->actingAs($operations)->getJson('/api/v1/admin/drivers?fuel_type=steam')->assertUnprocessable()->assertJsonValidationErrors(['fuel_type']);
+    $this->actingAs($operations)->getJson('/api/v1/admin/fleet-vehicles?fuel_type=steam')->assertUnprocessable()->assertJsonValidationErrors(['fuel_type']);
+});
+
+it('does not offer to submit an application whose vehicle has no fuel type', function () {
+    $driver = Driver::factory()->create([
+        'status' => DriverStatus::Onboarding,
+        'vehicle_ownership_type' => VehicleOwnershipType::OwnVehicle,
+        'licence_number' => 'LAG-DL-001',
+        'city_id' => City::factory()->create()->id,
+    ]);
+    foreach (['driving_licence', 'government_id', 'vehicle_registration', 'insurance_certificate'] as $type) {
+        DriverDocument::create([
+            'driver_id' => $driver->id, 'type' => $type, 'file_path' => "documents/{$type}.pdf",
+            'original_filename' => "{$type}.pdf", 'mime_type' => 'application/pdf', 'file_size' => 1024, 'status' => 'pending',
+        ]);
+    }
+    $vehicle = Vehicle::factory()->create(['driver_id' => $driver->id, 'fuel_type' => null]);
+
+    $this->actingAs($driver->user)->getJson('/api/v1/driver/onboarding/status')->assertJsonPath('can_submit', false);
+    $vehicle->update(['fuel_type' => 'petrol']);
+
+    $this->actingAs($driver->fresh()->user)->getJson('/api/v1/driver/onboarding/status')
+        ->assertOk()
+        ->assertJsonPath('can_submit', true);
+});
+
+it('lets operations find fleet vehicles whose fuel type is missing', function () {
+    $operations = User::factory()->admin(AdminRole::Operations)->create();
+    $missing = Vehicle::factory()->fleet()->create(['fuel_type' => null]);
+    Vehicle::factory()->fleet()->electric()->create();
+
+    $this->actingAs($operations)
+        ->getJson('/api/v1/admin/fleet-vehicles?fuel_type=none')
+        ->assertOk()
+        ->assertJsonCount(1, 'vehicles')
+        ->assertJsonPath('vehicles.0.id', $missing->id);
+});
+
+it('asks drivers without a fuel type to set it and lists fleet vehicles for operations', function () {
+    NotificationFacade::fake();
+    $missing = Driver::factory()->approved()->create();
+    Vehicle::factory()->create(['driver_id' => $missing->id, 'fuel_type' => null]);
+    $declared = evDriver();
+    $rejected = Driver::factory()->rejected()->create();
+    Vehicle::factory()->create(['driver_id' => $rejected->id, 'fuel_type' => null]);
+    Vehicle::factory()->fleet()->create(['fuel_type' => null, 'plate_number' => 'FLT-001AA']);
+
+    $this->artisan('vehicles:request-fuel-types')
+        ->expectsOutputToContain('Asked 2 driver(s)')
+        ->expectsOutputToContain('FLT-001AA')
+        ->assertSuccessful();
+
+    NotificationFacade::assertSentTo($missing->user, VehicleFuelTypeRequiredNotification::class);
+    NotificationFacade::assertSentTo($rejected->user, VehicleFuelTypeRequiredNotification::class);
+    NotificationFacade::assertNotSentTo($declared->user, VehicleFuelTypeRequiredNotification::class);
 });
 
 it('lets operations correct a driver\'s fuel type and audits it', function () {

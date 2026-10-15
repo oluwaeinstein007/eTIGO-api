@@ -464,6 +464,7 @@ it('auto-triggers plate verification on vehicle registration', function () {
             'colour' => 'White',
             'plate_number' => 'ABJ-456XY',
             'year' => 2023,
+            'fuel_type' => 'petrol',
             'vehicle_class_id' => $vehicleClass->id,
         ]);
 

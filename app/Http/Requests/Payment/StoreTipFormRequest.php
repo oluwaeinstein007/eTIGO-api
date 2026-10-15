@@ -6,7 +6,9 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
+use App\Services\PaymentService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTipFormRequest extends FormRequest
 {
@@ -23,9 +25,16 @@ class StoreTipFormRequest extends FormRequest
 
         return [
             'amount' => ['required', 'numeric', "min:{$tipSettings['min_amount']}", "max:{$tipSettings['max_amount']}"],
+            'source' => ['nullable', Rule::enum(PaymentMethod::class)->only([PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash])],
         ];
     }
 
+    /**
+     * `source` defaults to the ride's payment method. A bank-transfer ride was
+     * a one-off checkout with nothing to charge a tip to, so it must name one.
+     * A card tip whose charge outcome is still unknown may be retried: the
+     * service checks the earlier charge before charging again.
+     */
     public function after(): array
     {
         return [
@@ -36,8 +45,16 @@ class StoreTipFormRequest extends FormRequest
                     $validator->errors()->add('ride', 'Tips can only be added to completed rides.');
                 }
 
-                if ($ride && ! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
-                    $validator->errors()->add('ride', 'Tips can only be added to card, wallet or cash rides.');
+                $source = $this->input('source');
+
+                if ($ride && $ride->payment_method === PaymentMethod::BankTransfer && $source === null) {
+                    $validator->errors()->add('source', 'Choose how to pay the tip: wallet or card.');
+
+                    return;
+                }
+
+                if ($ride && $source === PaymentMethod::Cash->value && $ride->payment_method !== PaymentMethod::Cash) {
+                    $validator->errors()->add('source', 'Cash tips can only be recorded on cash rides.');
 
                     return;
                 }
@@ -56,7 +73,7 @@ class StoreTipFormRequest extends FormRequest
                     return;
                 }
 
-                if ($payment->tip_amount > 0) {
+                if ($payment->tip_amount > 0 && ! app(PaymentService::class)->hasUnconfirmedCardTip($payment)) {
                     $validator->errors()->add('amount', 'A tip has already been added to this ride.');
                 }
             },
