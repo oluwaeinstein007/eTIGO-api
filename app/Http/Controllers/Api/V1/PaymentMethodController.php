@@ -62,7 +62,7 @@ class PaymentMethodController extends Controller
             'amount' => $request->validated('amount'),
             'currency' => $request->validated('currency'),
             'redirect_url' => $request->validated('redirect_url'),
-            'customer_email' => $user->email,
+            'customer_email' => $user->paymentEmail(),
             'customer_name' => "{$user->first_name} {$user->last_name}",
             'channels' => $request->validated('channels', ['card']),
         ]);
@@ -97,7 +97,7 @@ class PaymentMethodController extends Controller
                 [
                     'provider' => $provider,
                     'gateway_token' => $result['authorization_code'],
-                    'gateway_email' => $request->user()->email,
+                    'gateway_email' => $request->user()->paymentEmail(),
                     'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
                 ],
             );

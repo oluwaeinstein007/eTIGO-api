@@ -114,6 +114,20 @@ it('rejects wallet settings whose minimum top-up exceeds the maximum balance', f
 
 // === Top-ups ===
 
+it('lets a passenger who signed up without an email start a wallet top-up', function () {
+    $passenger = User::factory()->passenger()->create(['email' => null]);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('initializePayment')->once()
+        ->withArgs(fn (array $data) => $data['customer']['email'] === "{$passenger->id}@rider.etigo.ng")
+        ->andReturn(['link' => 'https://checkout.paystack.test/abc']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($passenger)
+        ->postJson('/api/v1/passenger/wallet/topup', ['amount' => 100000, 'callback_url' => 'https://app.etigo.test/wallet'])
+        ->assertOk()
+        ->assertJsonPath('payment_link', 'https://checkout.paystack.test/abc');
+});
+
 it('credits a verified top-up with the amount the provider collected', function () {
     $wallet = passengerWallet($this);
     WalletTransaction::create(['account_id' => $wallet->id, 'reference' => 'TOPUP-OWN1', 'amount' => 100000, 'status' => WalletTransactionStatus::Pending]);

@@ -77,7 +77,7 @@ class WalletTopupController extends Controller
                 'currency' => 'NGN',
                 'redirect_url' => $request->validated('callback_url'),
                 'customer' => [
-                    'email' => $user->email,
+                    'email' => $user->paymentEmail(),
                     'name' => "{$user->first_name} {$user->last_name}",
                 ],
                 'meta' => [

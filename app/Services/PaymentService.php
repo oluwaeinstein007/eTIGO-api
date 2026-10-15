@@ -94,7 +94,7 @@ class PaymentService
             $result = $this->paymentGateway->chargeWithToken([
                 'token' => $defaultMethod->gateway_token,
                 'provider' => $defaultMethod->provider,
-                'email' => $defaultMethod->gateway_email ?? $passenger->email,
+                'email' => $defaultMethod->gateway_email ?? $passenger->paymentEmail(),
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'tx_ref' => $txRef,
@@ -154,7 +154,7 @@ class PaymentService
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'redirect_url' => config('app.url').'/payments/callback',
-                'customer_email' => $passenger->email ?? "{$passenger->id}@rider.etigo.ng",
+                'customer_email' => $passenger->paymentEmail(),
                 'channels' => ['card'],
             ]);
 
@@ -196,7 +196,7 @@ class PaymentService
                 'amount' => $amount,
                 'currency' => $ride->fare_currency,
                 'redirect_url' => config('app.url').'/payments/callback',
-                'customer_email' => $passenger->email ?? "{$passenger->id}@rider.etigo.ng",
+                'customer_email' => $passenger->paymentEmail(),
             ]);
 
             $payment->update(['gateway_payment_link' => $result['payment_link']]);
@@ -366,7 +366,7 @@ class PaymentService
             $result = $this->paymentGateway->chargeWithToken([
                 'token' => $defaultMethod->gateway_token,
                 'provider' => $defaultMethod->provider,
-                'email' => $defaultMethod->gateway_email ?? $passenger->email,
+                'email' => $defaultMethod->gateway_email ?? $passenger->paymentEmail(),
                 'amount' => $tipAmount,
                 'currency' => $ride->fare_currency,
                 'tx_ref' => 'ETIGO-TIP-'.Str::upper(Str::random(12)),

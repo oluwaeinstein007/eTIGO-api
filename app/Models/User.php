@@ -101,6 +101,16 @@ class User extends Authenticatable
         return $this->type === UserType::Passenger;
     }
 
+    /**
+     * The email given to payment providers, which require one. Passengers can
+     * sign up with only a phone number, so a stable per-user address is used
+     * until they add an email.
+     */
+    public function paymentEmail(): string
+    {
+        return $this->email ?: "{$this->id}@rider.etigo.ng";
+    }
+
     public function isDriver(): bool
     {
         return $this->type === UserType::Driver;
