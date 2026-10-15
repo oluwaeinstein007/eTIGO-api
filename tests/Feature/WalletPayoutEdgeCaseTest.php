@@ -520,6 +520,24 @@ it('fails a payout and returns the money when Paystack refuses the transfer', fu
         ->and(driverAvailableKobo($this))->toBe(500000);
 });
 
+it('flags a transfer Paystack holds for an OTP straight away', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('initiateTransfer')->once()
+        ->andReturn(['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'otp']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
+
+    $this->actingAs($this->finance)
+        ->getJson('/api/v1/admin/payouts?status=processing')
+        ->assertOk()
+        ->assertJsonPath('payouts.0.needs_attention', true)
+        ->assertJsonPath('payouts.0.attention_reason', 'awaiting_otp')
+        ->assertJsonPath('payouts.0.provider_status', 'otp');
+});
+
 it('flags a payout whose transfer outcome is overdue for finance', function () {
     fundDriverEarnings($this, 500000);
     $payout = stuckPayout($this);
@@ -528,7 +546,8 @@ it('flags a payout whose transfer outcome is overdue for finance', function () {
         ->getJson('/api/v1/admin/payouts?status=approved')
         ->assertOk()
         ->assertJsonPath('payouts.0.id', $payout->id)
-        ->assertJsonPath('payouts.0.needs_attention', true);
+        ->assertJsonPath('payouts.0.needs_attention', true)
+        ->assertJsonPath('payouts.0.attention_reason', 'not_sent');
 });
 
 it('marks a stuck payout paid when Paystack confirms the transfer went through', function () {

@@ -74,7 +74,9 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
                 $payout->update([
                     'status' => PayoutStatus::Processing,
                     'gateway_transfer_id' => (string) $previous['id'],
+                    'provider_status' => $previousStatus,
                 ]);
+                $this->warnIfAwaitingOtp($payout);
 
                 return;
             }
@@ -105,9 +107,11 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
             $payout->update([
                 'status' => PayoutStatus::Processing,
                 'gateway_transfer_id' => (string) $transfer['id'],
+                'provider_status' => strtolower((string) ($transfer['status'] ?? '')) ?: null,
             ]);
 
             Log::info("Payout transfer initiated: {$payout->id}, transfer ID: {$transfer['id']}");
+            $this->warnIfAwaitingOtp($payout);
         } catch (\Throwable $e) {
             if (PayoutReconciliationService::isProviderUnavailable($e)) {
                 // A timeout or 5xx may still have created the transfer: keep the
@@ -133,6 +137,19 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         $attempt = preg_match('/^-(\d+)$/', $suffix, $matches) ? (int) $matches[1] + 1 : 2;
 
         return "PAYOUT-{$payout->id}-{$attempt}";
+    }
+
+    /**
+     * With transfer OTP switched on in the Paystack dashboard, a transfer
+     * waits for an OTP that nobody enters and is eventually abandoned.
+     */
+    private function warnIfAwaitingOtp(Payout $payout): void
+    {
+        if ($payout->provider_status === Payout::PROVIDER_AWAITING_OTP) {
+            Log::critical('Paystack is holding a payout transfer for an OTP; turn off transfer OTP in the Paystack dashboard', [
+                'payout_id' => $payout->id,
+            ]);
+        }
     }
 
     /**

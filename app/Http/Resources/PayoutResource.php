@@ -27,6 +27,9 @@ class PayoutResource extends JsonResource
             // Transfer outcome not confirmed for longer than usual: show the
             // "check status" action (POST /admin/payouts/{id}/verify).
             'needs_attention' => $this->when($isAdmin, fn () => $this->resource->isAwaitingConfirmation()),
+            // awaiting_otp (Paystack wants an OTP), not_sent or unconfirmed.
+            'attention_reason' => $this->when($isAdmin, fn () => $this->resource->attentionReason()),
+            'provider_status' => $this->when($isAdmin, $this->provider_status),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

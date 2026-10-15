@@ -108,8 +108,10 @@ class PayoutReconciliationService
             $payout->update([
                 'status' => PayoutStatus::Processing,
                 'gateway_transfer_id' => (string) $transfer['id'],
+                'provider_status' => $status,
             ]);
         } else {
+            $payout->provider_status = $status;
             $payout->touch();
         }
 
