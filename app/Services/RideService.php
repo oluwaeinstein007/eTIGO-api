@@ -554,12 +554,8 @@ class RideService
      */
     public function calculateFinalFare(Ride $ride): array
     {
-        $route = $this->mapsGateway->getDistanceAndDuration(
-            (float) $ride->pickup_lat, (float) $ride->pickup_lng,
-            (float) $ride->destination_lat, (float) $ride->destination_lng,
-        );
-
         $snapshot = $ride->pricing_snapshot;
+        $route = $this->quotedRoute($ride, $snapshot);
         $pricing = PricingConfig::find($snapshot['pricing_config_id']);
 
         if (! $pricing) {
@@ -581,10 +577,22 @@ class RideService
             }
         }
 
+        $tripTime = $this->billedTripTime($ride, $route['duration_minutes']);
+        $tripMinutes = $tripTime['billed_minutes'];
+
+        if ($tripTime['capped']) {
+            Log::warning('Trip time capped on the final fare; the trip may not have been ended on time', [
+                'ride_id' => $ride->id,
+                'quoted_minutes' => $route['duration_minutes'],
+                'actual_minutes' => $tripTime['actual_minutes'],
+                'billed_minutes' => $tripMinutes,
+            ]);
+        }
+
         $meteredFare = $this->fareEstimationService->calculateFare(
             $pricing,
             $route['distance_km'],
-            $route['duration_minutes'],
+            $tripMinutes,
             $waitingMinutes,
         );
 
@@ -645,7 +653,12 @@ class RideService
             'pricing_snapshot' => [
                 ...(is_array($snapshot) ? $snapshot : []),
                 'distance_km' => $route['distance_km'],
-                'duration_minutes' => $route['duration_minutes'],
+                'duration_minutes' => $tripMinutes,
+                'quoted_distance_km' => $route['distance_km'],
+                'quoted_duration_minutes' => $route['duration_minutes'],
+                'actual_trip_minutes' => $tripTime['actual_minutes'],
+                'time_adjusted' => $tripTime['adjusted'],
+                'time_capped' => $tripTime['capped'],
                 'waiting_minutes' => round((float) $waitingMinutes, 2),
                 'waiting_charge' => $waitingCharge,
                 'surge_multiplier' => $surgeMultiplier,
@@ -659,12 +672,12 @@ class RideService
             'raw_fare' => $rawFare,
             'discount_amount' => $discountAmount,
             'distance_km' => $route['distance_km'],
-            'duration_minutes' => $route['duration_minutes'],
+            'duration_minutes' => $tripMinutes,
             'waiting_charge' => $waitingCharge,
             'fare_breakdown' => [
                 'base_fare' => (float) $pricing->base_fare,
                 'distance_charge' => round($route['distance_km'] * (float) $pricing->per_km_rate, 2),
-                'time_charge' => round($route['duration_minutes'] * (float) $pricing->per_minute_rate, 2),
+                'time_charge' => round($tripMinutes * (float) $pricing->per_minute_rate, 2),
                 'waiting_charge' => $waitingCharge,
                 'minimum_fare' => (float) $pricing->minimum_fare,
                 'surge_multiplier' => $surgeMultiplier,
@@ -672,6 +685,68 @@ class RideService
                 'booking_fee_discount' => $adjusted['booking_fee_discount'],
                 'promo_discount' => $discountAmount,
             ],
+        ];
+    }
+
+    /**
+     * The route the passenger was quoted at booking. The final fare is an
+     * upfront fare, so it keeps the quoted distance rather than asking the
+     * maps provider again. Rides booked before the quote was recorded fall
+     * back to a fresh route.
+     *
+     * @param  array<string, mixed>|null  $snapshot
+     * @return array{distance_km: float, duration_minutes: float}
+     */
+    private function quotedRoute(Ride $ride, ?array $snapshot): array
+    {
+        $distanceKm = $snapshot['quoted_distance_km'] ?? $snapshot['distance_km'] ?? null;
+        $durationMinutes = $snapshot['quoted_duration_minutes'] ?? $snapshot['duration_minutes'] ?? null;
+
+        if ($distanceKm !== null && $durationMinutes !== null) {
+            return ['distance_km' => (float) $distanceKm, 'duration_minutes' => (float) $durationMinutes];
+        }
+
+        return $this->mapsGateway->getDistanceAndDuration(
+            (float) $ride->pickup_lat, (float) $ride->pickup_lng,
+            (float) $ride->destination_lat, (float) $ride->destination_lng,
+        );
+    }
+
+    /**
+     * The minutes the time charge bills. The quote already allows for
+     * expected traffic, so the quoted time stands unless the trip (PIN start
+     * to completion) ran longer than the tolerance; then the actual time is
+     * billed, capped so a trip nobody ended cannot run up the fare. A trip
+     * that ends sooner keeps the quoted time.
+     *
+     * @return array{billed_minutes: float, actual_minutes: float|null, adjusted: bool, capped: bool}
+     */
+    private function billedTripTime(Ride $ride, float $quotedMinutes): array
+    {
+        $actualMinutes = $ride->started_at && $ride->completed_at
+            ? round(max(0, $ride->started_at->diffInMinutes($ride->completed_at)), 2)
+            : null;
+
+        $tolerance = max(
+            $quotedMinutes * (float) config('pricing.trip_time_tolerance_pct', 25) / 100,
+            (float) config('pricing.trip_time_tolerance_min_minutes', 10),
+        );
+
+        if ($actualMinutes === null || $actualMinutes <= $quotedMinutes + $tolerance) {
+            return ['billed_minutes' => $quotedMinutes, 'actual_minutes' => $actualMinutes, 'adjusted' => false, 'capped' => false];
+        }
+
+        $cap = max(
+            $quotedMinutes * (float) config('pricing.max_billed_time_multiplier', 3),
+            $quotedMinutes + $tolerance,
+        );
+        $billedMinutes = round(min($actualMinutes, $cap), 2);
+
+        return [
+            'billed_minutes' => $billedMinutes,
+            'actual_minutes' => $actualMinutes,
+            'adjusted' => true,
+            'capped' => $actualMinutes > $cap,
         ];
     }
 }

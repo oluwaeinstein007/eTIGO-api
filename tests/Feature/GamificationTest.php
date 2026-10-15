@@ -375,4 +375,14 @@ describe('Admin Gamification', function () {
             'multiplier_value' => 2.50,
         ]);
     });
+
+    it('shows that the shared journey multiplier is not awarded yet', function () {
+        $multipliers = collect($this->getJson('/api/v1/admin/gamification/multipliers', [
+            'Authorization' => "Bearer {$this->adminToken}",
+        ])->assertOk()->json('multipliers'))->keyBy('condition_type');
+
+        expect($multipliers['ev_ride']['is_awarded'])->toBeTrue()
+            ->and($multipliers['off_peak']['is_awarded'])->toBeTrue()
+            ->and($multipliers['shared_journey']['is_awarded'])->toBeFalse();
+    });
 });
