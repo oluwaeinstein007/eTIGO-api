@@ -37,6 +37,12 @@ class AdminFleetVehicleController extends Controller
             });
         }
 
+        if ($request->filled('fuel_type')) {
+            // "none" finds vehicles whose fuel type was never recorded.
+            $fuelType = $request->input('fuel_type');
+            $fuelType === 'none' ? $query->whereNull('fuel_type') : $query->where('fuel_type', $fuelType);
+        }
+
         $vehicles = $query->latest()->paginate(20);
 
         return response()->json([

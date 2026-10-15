@@ -398,6 +398,9 @@ class OnboardingController extends Controller
 
         if ($driver->isOwnVehicle() && ! $driver->vehicle) {
             $errors[] = 'Vehicle information is required.';
+        } elseif ($driver->isOwnVehicle() && $driver->vehicle->fuel_type === null) {
+            // Vehicles registered before fuel type was required.
+            $errors[] = "Your vehicle's fuel type is required.";
         }
 
         if (! $driver->licence_number) {
