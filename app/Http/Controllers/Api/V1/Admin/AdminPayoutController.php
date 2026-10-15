@@ -10,6 +10,7 @@ use App\Jobs\ProcessPayoutTransferJob;
 use App\Models\AuditLog;
 use App\Models\Payout;
 use App\Notifications\PayoutStatusNotification;
+use App\Services\PayoutReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -141,7 +142,9 @@ class AdminPayoutController extends Controller
         $retried = DB::transaction(function () use ($request, $payout) {
             $payout = Payout::lockForUpdate()->find($payout->id);
 
-            if ($payout->status !== PayoutStatus::Failed) {
+            // Failed (the transfer was refused) and reversed (the bank sent it
+            // back) both mean the money is back in the driver's balance.
+            if (! in_array($payout->status, [PayoutStatus::Failed, PayoutStatus::Reversed], true)) {
                 return null;
             }
 
@@ -158,12 +161,47 @@ class AdminPayoutController extends Controller
         });
 
         if (! $retried) {
-            return response()->json(['message' => 'Only failed payouts can be retried.'], 422);
+            return response()->json(['message' => 'Only failed or reversed payouts can be retried.'], 422);
         }
 
         ProcessPayoutTransferJob::dispatch($retried->id);
 
         return response()->json(['message' => 'Payout retry initiated.']);
+    }
+
+    /**
+     * Finance's "check status" action for a payout whose transfer outcome is
+     * unknown: asks Paystack about the transfer reference and settles it.
+     */
+    public function verify(Request $request, Payout $payout, PayoutReconciliationService $reconciler): JsonResponse
+    {
+        if (! in_array($payout->status, [PayoutStatus::Approved, PayoutStatus::Processing], true)) {
+            return response()->json([
+                'message' => 'Only approved or processing payouts can be checked with the payment provider.',
+                'current_status' => $payout->status->value,
+            ], 422);
+        }
+
+        try {
+            $result = $reconciler->reconcile($payout);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Could not reach the payment provider. Try again shortly.'], 502);
+        }
+
+        AuditLog::record($payout, 'payout.verified', $request->user(), null, $result);
+
+        return response()->json([
+            'message' => match ($result['outcome']) {
+                PayoutReconciliationService::OUTCOME_PAID => 'The transfer went through; the payout is now paid.',
+                PayoutReconciliationService::OUTCOME_FAILED => 'The transfer failed; the money was returned to the driver. You can retry the payout.',
+                PayoutReconciliationService::OUTCOME_PROCESSING => 'The transfer is still being processed by the payment provider.',
+                PayoutReconciliationService::OUTCOME_RESENT => 'The transfer was never created; it has been sent again.',
+                default => 'The transfer status could not be confirmed; it will be checked again automatically.',
+            },
+            'outcome' => $result['outcome'],
+            'provider_status' => $result['provider_status'],
+            'payout' => new PayoutResource($payout->fresh()->load(['bankAccount', 'driver.user'])),
+        ]);
     }
 
     public function export(Request $request): StreamedResponse

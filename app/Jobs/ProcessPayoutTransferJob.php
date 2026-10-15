@@ -8,6 +8,7 @@ use App\Enums\PayoutStatus;
 use App\Models\Payout;
 use App\Notifications\PayoutStatusNotification;
 use App\Services\PayoutLedgerService;
+use App\Services\PayoutReconciliationService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -27,9 +28,6 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
     public int $backoff = 30;
 
     public int $uniqueFor = 300;
-
-    /** Paystack transfer statuses after which the transfer will never pay out. */
-    private const FAILED_TRANSFER_STATUSES = ['failed', 'reversed', 'abandoned', 'rejected', 'blocked'];
 
     public function __construct(public readonly string $payoutId) {}
 
@@ -73,7 +71,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
-            if ($previous !== null && ! in_array($previousStatus, self::FAILED_TRANSFER_STATUSES, true)) {
+            if ($previous !== null && ! in_array($previousStatus, PayoutReconciliationService::FAILED_STATUSES, true)) {
                 $payout->update([
                     'status' => PayoutStatus::Processing,
                     'gateway_transfer_id' => (string) $previous['id'],
@@ -101,7 +99,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
                 'reference' => $reference,
             ]);
 
-            if (in_array(strtolower((string) ($transfer['status'] ?? '')), self::FAILED_TRANSFER_STATUSES, true)) {
+            if (in_array(strtolower((string) ($transfer['status'] ?? '')), PayoutReconciliationService::FAILED_STATUSES, true)) {
                 throw new \RuntimeException("Transfer {$transfer['status']} by the payment provider.");
             }
 
@@ -132,6 +130,20 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         $attempt = preg_match('/^-(\d+)$/', $suffix, $matches) ? (int) $matches[1] + 1 : 2;
 
         return "PAYOUT-{$payout->id}-{$attempt}";
+    }
+
+    /**
+     * Every attempt failed to reach Paystack, so whether the transfer was
+     * created is unknown. The money stays reserved and the payout stays
+     * approved: ReconcilePayoutsJob (or finance's "check status" action) asks
+     * Paystack about the reference and settles it either way.
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        Log::critical('Payout transfer could not be confirmed with Paystack; left for reconciliation', [
+            'payout_id' => $this->payoutId,
+            'error' => $exception?->getMessage(),
+        ]);
     }
 
     private function markFailed(Payout $payout, string $reason): void

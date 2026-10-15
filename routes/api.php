@@ -586,6 +586,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{payout}/approve', [AdminPayoutController::class, 'approve']);
         Route::post('/{payout}/reject', [AdminPayoutController::class, 'reject']);
         Route::post('/{payout}/retry', [AdminPayoutController::class, 'retry']);
+        Route::post('/{payout}/verify', [AdminPayoutController::class, 'verify']);
         Route::get('/export', [AdminPayoutController::class, 'export']);
     });
 

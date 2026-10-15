@@ -14,6 +14,7 @@ use App\Enums\WalletTransactionStatus;
 use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\ProcessPayoutTransferJob;
 use App\Jobs\ProcessPayoutWebhookJob;
+use App\Jobs\ReconcilePayoutsJob;
 use App\Jobs\SettleDriverEarningsJob;
 use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\Account;
@@ -33,12 +34,15 @@ use App\Models\Vehicle;
 use App\Models\WalletTransaction;
 use App\Services\DriverEarningsService;
 use App\Services\LedgerService;
+use App\Services\PayoutLedgerService;
 use App\Services\RideSettlementService;
 use App\Services\WalletRefundService;
 use Database\Seeders\SystemAccountSeeder;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Mockery\MockInterface;
 
 beforeEach(function () {
     $this->seed(SystemAccountSeeder::class);
@@ -341,6 +345,157 @@ it('marks a payout paid without sending it again when the earlier transfer went 
 
     expect($payout->fresh()->status)->toBe(PayoutStatus::Paid)
         ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+// --- Payouts whose transfer outcome is unknown (Paystack unreachable, webhook missing) ---
+
+function stuckPayout(object $test, PayoutStatus $status = PayoutStatus::Approved): Payout
+{
+    // The transfer job reserved the money and set the reference, then lost touch with Paystack.
+    $payout = approvedPayout($test, 200000);
+    app(PayoutLedgerService::class)->debit($payout);
+    $payout->update([
+        'status' => $status,
+        'gateway_reference' => "PAYOUT-{$payout->id}",
+        'approved_at' => now()->subMinutes(30),
+    ]);
+
+    return $payout->fresh();
+}
+
+function paystackKnowsTransfer(object $test, Payout $payout, ?string $status): MockInterface
+{
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->with("PAYOUT-{$payout->id}")
+        ->andReturn($status === null ? null : ['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => $status]);
+    app()->instance(WalletGateway::class, $gateway);
+
+    return $gateway;
+}
+
+it('keeps the money reserved when every attempt to reach Paystack fails', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = approvedPayout($this, 200000);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('initiateTransfer')->andThrow(new ConnectionException('Connection timed out'));
+    $this->app->instance(WalletGateway::class, $gateway);
+    $job = new ProcessPayoutTransferJob($payout->id);
+
+    expect(fn () => app()->call([$job, 'handle']))->toThrow(ConnectionException::class);
+    $job->failed(new ConnectionException('Connection timed out'));
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Approved)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('flags a payout whose transfer outcome is overdue for finance', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+
+    $this->actingAs($this->finance)
+        ->getJson('/api/v1/admin/payouts?status=approved')
+        ->assertOk()
+        ->assertJsonPath('payouts.0.id', $payout->id)
+        ->assertJsonPath('payouts.0.needs_attention', true);
+});
+
+it('marks a stuck payout paid when Paystack confirms the transfer went through', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+    paystackKnowsTransfer($this, $payout, 'success')->shouldNotReceive('initiateTransfer');
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertOk()
+        ->assertJsonPath('outcome', 'paid')
+        ->assertJsonPath('payout.status', 'paid');
+
+    expect(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('returns the money when Paystack reports a stuck transfer as failed', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this, PayoutStatus::Processing);
+    paystackKnowsTransfer($this, $payout, 'failed');
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertOk()
+        ->assertJsonPath('outcome', 'failed')
+        ->assertJsonPath('payout.status', 'reversed');
+
+    expect(driverAvailableKobo($this))->toBe(500000);
+});
+
+it('lets finance retry a payout whose transfer the bank sent back', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this, PayoutStatus::Processing);
+    $gateway = paystackKnowsTransfer($this, $payout, 'reversed');
+    $this->actingAs($this->finance)->postJson("/api/v1/admin/payouts/{$payout->id}/verify")->assertOk();
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Reversed);
+    $gateway->shouldReceive('initiateTransfer')->once()
+        ->withArgs(fn (array $data) => $data['reference'] === "PAYOUT-{$payout->id}-2")
+        ->andReturn(['id' => '82738472', 'reference' => "PAYOUT-{$payout->id}-2", 'status' => 'pending']);
+
+    $this->actingAs($this->finance)->postJson("/api/v1/admin/payouts/{$payout->id}/retry")->assertOk();
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Processing)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('sends a stuck payout again under the same reference when Paystack never received it', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+    paystackKnowsTransfer($this, $payout, null)
+        ->shouldReceive('initiateTransfer')->once()
+        ->withArgs(fn (array $data) => $data['reference'] === "PAYOUT-{$payout->id}")
+        ->andReturn(['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'pending']);
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertOk()
+        ->assertJsonPath('outcome', 'resent');
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Processing)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('tells finance when Paystack cannot be reached and changes nothing', function () {
+    fundDriverEarnings($this, 500000);
+    $payout = stuckPayout($this);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->andThrow(new ConnectionException('Connection timed out'));
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertStatus(502);
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Approved)
+        ->and(driverAvailableKobo($this))->toBe(300000);
+});
+
+it('only checks approved or processing payouts with Paystack', function () {
+    $payout = Payout::factory()->paid()->create(['driver_id' => $this->driver->id]);
+
+    $this->actingAs($this->finance)
+        ->postJson("/api/v1/admin/payouts/{$payout->id}/verify")
+        ->assertUnprocessable()
+        ->assertJsonPath('current_status', 'paid');
+});
+
+it('settles payouts stuck for longer than usual on its own', function () {
+    fundDriverEarnings($this, 900000);
+    $stuck = stuckPayout($this);
+    $fresh = approvedPayout($this, 100000);
+    $fresh->update(['approved_at' => now()]);
+    $gateway = paystackKnowsTransfer($this, $stuck, 'success');
+
+    app()->call([new ReconcilePayoutsJob, 'handle']);
+
+    expect($stuck->fresh()->status)->toBe(PayoutStatus::Paid)
+        ->and($fresh->fresh()->status)->toBe(PayoutStatus::Approved);
+    $gateway->shouldHaveReceived('verifyTransfer')->once();
 });
 
 it('fails a payout without sending money when the balance no longer covers it', function () {
