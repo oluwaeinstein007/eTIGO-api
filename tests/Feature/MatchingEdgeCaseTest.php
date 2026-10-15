@@ -11,7 +11,9 @@ use App\Jobs\DriverResponseTimeoutJob;
 use App\Jobs\MatchingTimeoutJob;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\GamificationProfile;
 use App\Models\Hold;
+use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\User;
@@ -20,6 +22,7 @@ use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\LedgerService;
+use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\SystemAccountSeeder;
 use Illuminate\Support\Facades\Queue;
 
@@ -202,4 +205,79 @@ it('refuses to assign a no-driver-found ride when the passenger already booked a
         ->assertJsonValidationErrors(['ride' => 'The passenger already has another active ride.']);
 
     expect($ride->fresh()->status)->toBe(RideStatus::NoDriverFound);
+});
+
+// === Priority matching (Gold, Platinum, Diamond passengers) ===
+
+it('keeps a driver near a waiting Gold passenger for that passenger rather than a standard ride', function () {
+    $driver = onlineDriver($this);
+    $priority = rideInStatus($this, RideStatus::Searching, ['pickup_lat' => 6.5244, 'pickup_lng' => 3.3792, 'pricing_snapshot' => ['priority_matching' => true]]);
+    $standard = rideInStatus($this, RideStatus::Searching, ['pickup_lat' => 6.5300, 'pickup_lng' => 3.3800]);
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('findNearbyDrivers')->andReturn([['driver_id' => $driver['driver']->id, 'distance_km' => 0.8]]);
+    $locations->shouldReceive('getDriverLocation')->andReturn(['lat' => 6.5250, 'lng' => 3.3795, 'heading' => 0.0, 'speed' => 0.0, 'timestamp' => now()->timestamp]);
+    $matching = new DriverMatchingService($locations);
+
+    expect($matching->findEligibleDrivers($standard, 3.0))->toBe([])
+        ->and(array_column($matching->findEligibleDrivers($priority, 3.0), 'user_id'))->toBe([$driver['user']->id]);
+});
+
+it('offers a Gold passenger the nearest driver, never a farther one', function () {
+    $near = onlineDriver($this);
+    $far = onlineDriver($this);
+    $priority = rideInStatus($this, RideStatus::Searching, ['pricing_snapshot' => ['priority_matching' => true]]);
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('findNearbyDrivers')->andReturn([
+        ['driver_id' => $far['driver']->id, 'distance_km' => 2.6],
+        ['driver_id' => $near['driver']->id, 'distance_km' => 0.4],
+    ]);
+
+    $candidates = (new DriverMatchingService($locations))->findEligibleDrivers($priority, 3.0);
+
+    expect(array_column($candidates, 'user_id'))->toBe([$near['user']->id, $far['user']->id]);
+});
+
+it('stops holding a driver once the priority ride is already waiting on another driver\'s answer', function () {
+    $driver = onlineDriver($this);
+    $other = onlineDriver($this);
+    $priority = rideInStatus($this, RideStatus::Searching, ['pricing_snapshot' => ['priority_matching' => true]]);
+    $standard = rideInStatus($this, RideStatus::Searching);
+    $locations = Mockery::mock(DriverLocationService::class);
+    $locations->shouldReceive('findNearbyDrivers')->andReturn([['driver_id' => $driver['driver']->id, 'distance_km' => 0.8]]);
+    $locations->shouldReceive('getDriverLocation')->andReturn(['lat' => (float) $priority->pickup_lat, 'lng' => (float) $priority->pickup_lng, 'heading' => 0.0, 'speed' => 0.0, 'timestamp' => now()->timestamp]);
+    $matching = new DriverMatchingService($locations);
+    $matching->setDispatchedDriver($priority, $other['user']->id);
+
+    expect(array_column($matching->findEligibleDrivers($standard, 3.0), 'user_id'))->toBe([$driver['user']->id]);
+});
+
+it('gives a Gold passenger\'s search an extra automatic retry wave', function () {
+    $matching = app(DriverMatchingService::class);
+    $standard = rideInStatus($this, RideStatus::Searching);
+    $priority = rideInStatus($this, RideStatus::Searching, ['pricing_snapshot' => ['priority_matching' => true]]);
+    foreach ([$standard, $priority] as $ride) {
+        $matching->resetForAutoRetry($ride);
+    }
+
+    expect($matching->canAutoRetry($standard))->toBeFalse()
+        ->and($matching->canAutoRetry($priority))->toBeTrue();
+});
+
+it('locks in priority matching for Gold passengers at booking', function () {
+    $this->seed(ReferenceDataSeeder::class);
+    GamificationProfile::factory()->create(['user_id' => $this->passenger->id, 'current_tier' => 3]);
+    PricingConfig::factory()->create(['city_id' => $this->city->id, 'vehicle_class_id' => $this->vehicleClass->id, 'effective_from' => now()->subDay(), 'created_by_admin_id' => $this->admin->id]);
+    $maps = Mockery::mock(MapsGateway::class);
+    $maps->shouldReceive('getDistanceAndDuration')->andReturn(['distance_km' => 8.5, 'duration_minutes' => 15.0]);
+    $maps->shouldReceive('reverseGeocode')->andReturn(['address' => '123 Test Street, Lagos']);
+    $this->app->instance(MapsGateway::class, $maps);
+
+    $this->actingAs($this->passenger)->postJson('/api/v1/rides', [
+        'city_id' => $this->city->id, 'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_lat' => 6.5244, 'pickup_lng' => 3.3792, 'pickup_address' => 'Yaba, Lagos',
+        'destination_lat' => 6.4541, 'destination_lng' => 3.3947, 'destination_address' => 'Lagos Island',
+        'payment_method' => 'cash',
+    ])->assertCreated();
+
+    expect(Ride::first()->pricing_snapshot['priority_matching'])->toBeTrue();
 });

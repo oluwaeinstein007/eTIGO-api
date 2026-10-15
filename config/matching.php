@@ -33,6 +33,10 @@ return [
     |
     */
     'max_auto_retries' => (int) env('MATCHING_MAX_AUTO_RETRIES', 1),
+
+    // Priority matching (Gold, Platinum, Diamond passengers): extra automatic
+    // retry waves on top of max_auto_retries.
+    'priority_extra_auto_retries' => (int) env('MATCHING_PRIORITY_EXTRA_RETRIES', 1),
     'auto_retry_delay_seconds' => (int) env('MATCHING_AUTO_RETRY_DELAY', 10),
 
     /*

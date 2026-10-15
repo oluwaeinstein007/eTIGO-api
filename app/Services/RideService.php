@@ -125,6 +125,7 @@ class RideService
                     'surge_rule_name' => $estimate['surge']['rule_name'],
                     'booking_fee_discount_pct' => $bookingFeeDiscountPct,
                     'tier_name' => $tierBenefits['tier_name'],
+                    'priority_matching' => (bool) $tierBenefits['priority_matching'],
                 ],
                 'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,

@@ -6,6 +6,7 @@ use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Models\Driver;
 use App\Models\Ride;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -77,6 +78,11 @@ class DriverMatchingService
             ->get()
             ->reject(fn (Driver $driver) => $this->hasPendingOfferForAnotherRide($driver->user_id, $ride));
 
+        if (! $this->isPriorityRide($ride)) {
+            $held = $this->driversHeldForWaitingPriorityRides($ride, $eligible);
+            $eligible = $eligible->reject(fn (Driver $driver) => in_array($driver->id, $held, true));
+        }
+
         $results = $eligible->map(fn (Driver $driver) => [
             'driver_id' => $driver->id,
             'user_id' => $driver->user_id,
@@ -84,6 +90,78 @@ class DriverMatchingService
         ])->sortBy('distance_km')->values()->all();
 
         return $results;
+    }
+
+    /**
+     * Gold, Platinum and Diamond passengers get priority matching, locked in
+     * at booking.
+     */
+    public function isPriorityRide(Ride $ride): bool
+    {
+        return (bool) data_get($ride->pricing_snapshot, 'priority_matching', false);
+    }
+
+    /**
+     * Priority matching never sends a passenger a farther driver: every ride
+     * is offered its nearest eligible driver. What priority decides is who
+     * gets a scarce driver: a free driver within the current search radius of
+     * a priority ride that is waiting for its next search (between radius
+     * tiers or retry waves) is kept for that ride instead of being offered to
+     * a standard ride.
+     *
+     * @param  Collection<int, Driver>  $candidates
+     * @return list<string> Ids of the drivers held for a priority ride
+     */
+    private function driversHeldForWaitingPriorityRides(Ride $ride, Collection $candidates): array
+    {
+        if ($candidates->isEmpty()) {
+            return [];
+        }
+
+        $waiting = Ride::query()
+            ->where('status', RideStatus::Searching)
+            ->whereKeyNot($ride->id)
+            ->where('city_id', $ride->city_id)
+            ->where('vehicle_class_id', $ride->vehicle_class_id)
+            ->whereRaw("(pricing_snapshot->>'priority_matching')::boolean")
+            ->get()
+            ->filter(fn (Ride $priority) => $this->getDispatchedDriverId($priority) === null);
+
+        if ($waiting->isEmpty()) {
+            return [];
+        }
+
+        $held = [];
+
+        foreach ($candidates as $driver) {
+            $location = $this->locationService->getDriverLocation((string) $driver->id);
+
+            if ($location === null) {
+                continue;
+            }
+
+            foreach ($waiting as $priority) {
+                $withinReach = $this->distanceKm($location['lat'], $location['lng'], (float) $priority->pickup_lat, (float) $priority->pickup_lng)
+                    <= $this->calculateCurrentRadius($priority);
+
+                if ($withinReach && ! in_array($driver->user_id, $this->getRejectedDriverIds($priority), true)) {
+                    $held[] = $driver->id;
+
+                    break;
+                }
+            }
+        }
+
+        return $held;
+    }
+
+    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     public function markDriverRejected(Ride $ride, string $driverUserId): void
@@ -187,7 +265,9 @@ class DriverMatchingService
 
     public function canAutoRetry(Ride $ride): bool
     {
-        $maxRetries = (int) config('matching.max_auto_retries', 1);
+        // Priority matching: Gold+ searches get extra automatic retry waves.
+        $maxRetries = (int) config('matching.max_auto_retries', 1)
+            + ($this->isPriorityRide($ride) ? (int) config('matching.priority_extra_auto_retries', 1) : 0);
 
         return $this->getAutoRetryCount($ride) < $maxRetries;
     }
