@@ -6,6 +6,7 @@ use App\Enums\AccountType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LedgerEntryResource;
 use App\Models\Account;
+use App\Models\LedgerEntry;
 use App\Services\DriverEarningsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,6 +90,30 @@ class DriverLedgerController extends Controller
                 'per_page' => $entries->perPage(),
                 'total' => $entries->total(),
             ],
+        ]);
+    }
+
+    public function show(Request $request, LedgerEntry $entry): JsonResponse
+    {
+        $driver = $request->user()->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        $account = Account::where('owner_type', 'App\\Models\\Driver')
+            ->where('owner_id', $driver->id)
+            ->where('type', AccountType::DriverEarningsAvailable)
+            ->first();
+
+        if (! $account || $entry->account_id !== $account->id) {
+            return response()->json(['message' => 'Transaction not found.'], 404);
+        }
+
+        $entry->load('journal');
+
+        return response()->json([
+            'transaction' => new LedgerEntryResource($entry),
         ]);
     }
 }
