@@ -64,17 +64,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
-        Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $isValid): bool {
-            if (! $isValid) {
-                return false;
-            }
-
-            $lifetimeMinutes = $token->tokenable?->isAdmin()
-                ? (int) config('sanctum.admin_token_expiration')
-                : (int) config('sanctum.app_token_expiration');
-
-            return $lifetimeMinutes <= 0 || $token->created_at->gt(now()->subMinutes($lifetimeMinutes));
-        });
+        Sanctum::authenticateAccessTokensUsing(
+            fn (PersonalAccessToken $token, bool $isValid): bool => $isValid && ! $token->hasOutlivedSession(),
+        );
         Event::listen(SocialiteWasCalled::class, AppleExtendSocialite::class);
         Event::listen(TierUpgraded::class, SendTierUpgradedNotification::class);
 

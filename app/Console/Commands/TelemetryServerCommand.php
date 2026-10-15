@@ -224,8 +224,9 @@ class TelemetryServerCommand extends Command
 
         // 2. Query Sanctum token model
         try {
+            // The same session lifetime rules as the HTTP API apply here.
             $tokenModel = PersonalAccessToken::findToken($token);
-            if (! $tokenModel) {
+            if (! $tokenModel || $tokenModel->hasOutlivedSession()) {
                 $connection->send(json_encode([
                     'type' => 'error',
                     'code' => 401,
