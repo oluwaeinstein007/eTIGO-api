@@ -261,6 +261,19 @@ it('refuses to regenerate the PIN once the trip has started', function () {
         ->assertJsonPath('message', 'A new PIN can only be issued before the trip starts.');
 });
 
+it('explains that a new PIN needs an assigned driver while the ride is still searching', function () {
+    $ride = Ride::factory()->searching()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+    ]);
+
+    actingWith($this, $this->passengerToken)
+        ->postJson("/api/v1/rides/{$ride->id}/pin/regenerate")
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'A new PIN can be issued once a driver has been assigned.');
+});
+
 // === Location privacy and share links ===
 
 it('stops sharing the driver\'s live location once the ride is completed', function () {

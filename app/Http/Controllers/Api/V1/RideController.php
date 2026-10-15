@@ -237,6 +237,13 @@ class RideController extends Controller
             return response()->json(['message' => 'You are not authorized to manage this ride.'], 403);
         }
 
+        if (in_array($ride->status, [RideStatus::Requested, RideStatus::Searching, RideStatus::NoDriverFound], true)) {
+            return response()->json([
+                'message' => 'A new PIN can be issued once a driver has been assigned.',
+                'current_status' => $ride->status->value,
+            ], 422);
+        }
+
         if (! in_array($ride->status, [RideStatus::Matched, RideStatus::DriverEnRoute, RideStatus::DriverArrived], true)) {
             return response()->json([
                 'message' => 'A new PIN can only be issued before the trip starts.',
