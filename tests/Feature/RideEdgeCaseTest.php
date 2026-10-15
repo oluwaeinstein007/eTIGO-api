@@ -132,6 +132,14 @@ it('rejects booking with 422 when the vehicle class is deactivated platform-wide
         ]);
 });
 
+it('gives each booking its own trip reference even when two are saved at the same moment', function () {
+    $referenceDrawnByOtherBooking = Ride::generateReferenceNumber();
+
+    $reference = bookRide($this)->assertCreated()->json('ride.reference_number');
+
+    expect($reference)->toStartWith('TRP-NG-')->not->toBe($referenceDrawnByOtherBooking);
+});
+
 // === Cancellation ===
 
 it('lets a passenger dismiss a ride that ended with no driver found', function () {

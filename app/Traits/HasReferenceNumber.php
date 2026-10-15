@@ -2,8 +2,6 @@
 
 namespace App\Traits;
 
-use Illuminate\Support\Facades\DB;
-
 trait HasReferenceNumber
 {
     public static function bootHasReferenceNumber(): void
@@ -23,25 +21,31 @@ trait HasReferenceNumber
     public static function generateReferenceNumber(): string
     {
         $prefix = static::referencePrefix();
-        $table = (new static)->getTable();
+        $model = new static;
+        $table = $model->getTable();
+        $connection = $model->getConnection();
 
-        return DB::transaction(function () use ($prefix, $table) {
-            $maxNum = (int) DB::table($table)
+        // Postgres hands out each sequence value exactly once, so records
+        // created at the same moment never draw the same number.
+        if ($connection->getDriverName() === 'pgsql') {
+            $nextNum = (int) $connection->selectOne('SELECT nextval(?) AS value', ["{$table}_reference_number_seq"])->value;
+        } else {
+            $maxNum = (int) $connection->table($table)
                 ->whereNotNull('reference_number')
                 ->where('reference_number', 'like', "{$prefix}%")
                 ->selectRaw("MAX(CAST(REPLACE(reference_number, ?, '') AS INTEGER)) as max_num", [$prefix])
                 ->value('max_num');
-
             $nextNum = $maxNum + 1;
+        }
+
+        $referenceNumber = $prefix.str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+
+        while ($connection->table($table)->where('reference_number', $referenceNumber)->exists()) {
+            $nextNum++;
             $referenceNumber = $prefix.str_pad($nextNum, 6, '0', STR_PAD_LEFT);
+        }
 
-            while (DB::table($table)->where('reference_number', $referenceNumber)->exists()) {
-                $nextNum++;
-                $referenceNumber = $prefix.str_pad($nextNum, 6, '0', STR_PAD_LEFT);
-            }
-
-            return $referenceNumber;
-        });
+        return $referenceNumber;
     }
 
     abstract protected static function referencePrefix(): string;
