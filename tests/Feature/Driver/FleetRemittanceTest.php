@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\FleetAgreementStatus;
+use App\Jobs\DailyRemittanceSettlementJob;
 use App\Jobs\RemittanceShortfallAlertJob;
 use App\Models\DailyRemittance;
 use App\Models\Driver;
@@ -8,6 +9,8 @@ use App\Models\FleetAgreement;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\FleetRemittanceService;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Bus;
 
 function driverWithFleetAgreement(): array
 {
@@ -245,4 +248,17 @@ it('does not re-flag agreements already at the correct escalation level', functi
 
     $agreement->refresh();
     expect($agreement->shortfall_flagged_at->toDateTimeString())->toBe($originalFlaggedAt->toDateTimeString());
+});
+
+it('raises shortfall flags only after the day\'s remittances have been settled', function () {
+    Bus::fake();
+
+    collect(app(Schedule::class)->events())
+        ->firstOrFail(fn ($event) => $event->description === 'fleet-daily-remittance-settlement')
+        ->run(app());
+
+    Bus::assertChained([
+        DailyRemittanceSettlementJob::class,
+        RemittanceShortfallAlertJob::class,
+    ]);
 });

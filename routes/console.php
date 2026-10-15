@@ -14,6 +14,7 @@ use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\Notification;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -35,10 +36,13 @@ Schedule::job(new ProcessWeeklyAutoPayoutJob)
     ->timezone('Africa/Lagos')
     ->withoutOverlapping();
 
-$resetTime = config('fleet.daily_reset_time', '04:00');
-$settlementDate = now('Africa/Lagos')->subDay()->toDateString();
-Schedule::job(new DailyRemittanceSettlementJob($settlementDate))
-    ->dailyAt($resetTime)
+// Shortfall flags are computed from the streaks that settlement updates, so
+// the alert job is chained to run only after settlement has finished.
+Schedule::call(fn () => Bus::chain([
+    new DailyRemittanceSettlementJob(now('Africa/Lagos')->subDay()->toDateString()),
+    new RemittanceShortfallAlertJob,
+])->dispatch())
+    ->name('fleet-daily-remittance-settlement')
+    ->dailyAt(config('fleet.daily_reset_time', '04:00'))
     ->timezone('Africa/Lagos')
-    ->withoutOverlapping()
-    ->then(fn () => RemittanceShortfallAlertJob::dispatch());
+    ->withoutOverlapping();
