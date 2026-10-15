@@ -208,6 +208,7 @@ Set these in **both** Test mode (staging) and Live mode (production); each mode 
 |---------|-------|-----|
 | Webhook URL (Settings → API Keys & Webhooks) | `https://<api-host>/api/v1/webhooks/paystack` (staging: `https://etigo-api.apeinhood.xyz/api/v1/webhooks/paystack`) | Credits top-ups and settles payouts as soon as Paystack confirms them. Without it, payouts wait for the 15-minute reconciliation |
 | Transfer OTP (Settings → Preferences) | Off | With it on, every API transfer waits for an OTP and is abandoned; such payouts show `attention_reason: awaiting_otp` |
+| Transfer Approval → Approval URL (Settings → Preferences) | Tick **Confirm transfers in live mode** (production) or **in test mode** (staging) and set `https://<api-host>/api/v1/webhooks/paystack/transfer-approval` (staging: `https://etigo-api.apeinhood.xyz/api/v1/webhooks/paystack/transfer-approval`). **On Reject:** Do Nothing. **Contact email:** a monitored finance/ops inbox | Paystack asks our API about every transfer before sending it, and only payouts the API is sending are approved. A leaked secret key cannot move money, and transfers made by hand in the dashboard are rejected too. If the API is down, payouts are blocked, then returned to the driver by reconciliation and can be retried. Run one staging payout and check that it is approved before turning this on in live mode |
 | IP whitelist | The API server's public IP | A leaked secret key is useless from anywhere else |
 | Dashboard two-factor sign-in | On for every user | Protects the account that can move money |
 

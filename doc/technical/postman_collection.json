@@ -20324,6 +20324,64 @@
               ]
             },
             {
+              "name": "Paystack Transfer Approval",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"source\": \"balance\",\n  \"reason\": \"E-tiGo driver payout #9f3c1a52-6c1e-4f8e-9d0b-3b7d2a4c8e11\",\n  \"amount\": 250000,\n  \"recipient\": \"RCP_1a2b3c4d5e6f7g8\",\n  \"reference\": \"PAYOUT-9f3c1a52-6c1e-4f8e-9d0b-3b7d2a4c8e11\",\n  \"currency\": \"NGN\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/webhooks/paystack/transfer-approval",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhooks",
+                    "paystack",
+                    "transfer-approval"
+                  ]
+                },
+                "description": "**Paystack's transfer Approval URL** (Settings \u2192 Preferences \u2192 Transfer Approval). Called by Paystack before every transfer, not by the apps. No auth: the endpoint changes nothing and approves only what is already in our database.\n\n- `200` approves the transfer, `400` rejects it. No answer within a few seconds blocks it.\n- Approved only if `reference` is a payout's `gateway_reference` (`PAYOUT-{id}`, `PAYOUT-{id}-2`, \u2026), the payout is `approved` or `processing`, `amount` (kobo) equals the payout amount, `currency` (if sent) is `NGN`, and `recipient` is the recipient code saved on the payout before the transfer started.\n- Anything else, such as a transfer started with a leaked secret key or made by hand in the dashboard, is rejected and logged as critical. The reason is logged, not returned.\n- The body may also be wrapped in `data`, and `recipient` may be an object carrying `recipient_code`.\n\nTo try it locally, send a transfer whose reference, amount and recipient match an approved payout (200). Change any one of them to get 400."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Transfer Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Transfer approved.\"\n}"
+                },
+                {
+                  "name": "400 \u2014 Transfer Rejected",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Transfer rejected.\"\n}"
+                }
+              ]
+            },
+            {
               "name": "QoreID KYC Webhook",
               "request": {
                 "method": "POST",
@@ -20486,7 +20544,7 @@
           ]
         }
       ],
-      "description": "External webhook endpoints. Verified by signature headers, no bearer token auth."
+      "description": "External endpoints called by providers, no bearer token auth. Webhooks are verified by signature headers; the Paystack transfer approval URL needs none, as it only answers whether a transfer matches a payout we are sending."
     }
   ]
 }
