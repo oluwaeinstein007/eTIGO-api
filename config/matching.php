@@ -70,4 +70,27 @@ return [
     */
     'max_candidates_per_search' => (int) env('MATCHING_MAX_CANDIDATES', 20),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Manual Assignment Window (hours)
+    |--------------------------------------------------------------------------
+    |
+    | Rides that found no driver stay on the admin pending list (and in its
+    | "needs attention" count) for this long after they were requested.
+    |
+    */
+    'manual_assignment_window_hours' => (int) env('MATCHING_MANUAL_ASSIGNMENT_WINDOW_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Demo Driver Email Domain
+    |--------------------------------------------------------------------------
+    |
+    | Drivers seeded by MonitoringDemoSeeder use this email domain. They are
+    | for testing the admin dashboard and are never offered rides by
+    | automatic matching; they can still be assigned manually.
+    |
+    */
+    'demo_driver_email_domain' => env('MATCHING_DEMO_DRIVER_EMAIL_DOMAIN', 'ops-demo.etigo.com'),
+
 ];

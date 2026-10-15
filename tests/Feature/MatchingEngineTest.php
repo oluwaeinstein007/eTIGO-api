@@ -444,3 +444,22 @@ it('has sensible matching config defaults', function () {
     expect(config('matching.driver_response_timeout'))->toBe(20);
     expect(config('matching.matching_timeout'))->toBe(300);
 });
+
+it('never offers rides to demo drivers automatically', function () {
+    $realDriver = createOnlineDriver($this)['driver'];
+    $demo = createOnlineDriver($this);
+    $demo['user']->update(['email' => 'driver.test@ops-demo.etigo.com']);
+    $ride = createSearchingRide($this);
+
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('findNearbyDrivers')
+        ->once()
+        ->andReturn([
+            ['driver_id' => $demo['driver']->id, 'distance_km' => 0.5],
+            ['driver_id' => $realDriver->id, 'distance_km' => 2.0],
+        ]);
+
+    $eligibleDrivers = (new DriverMatchingService($locationService))->findEligibleDrivers($ride, 15.0);
+
+    expect(array_column($eligibleDrivers, 'driver_id'))->toBe([$realDriver->id]);
+});
