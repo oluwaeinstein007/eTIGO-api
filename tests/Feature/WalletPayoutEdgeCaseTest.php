@@ -96,6 +96,9 @@ function cardRide(object $test, float $fare): Ride
 
 it('enforces the minimum top-up configured by an admin at runtime', function () {
     AppSetting::setValue('wallet.min_topup', 100000, 'wallet');
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldNotReceive('initializePayment');
+    $this->app->instance(WalletGateway::class, $gateway);
 
     $this->actingAs($this->passenger)
         ->postJson('/api/v1/passenger/wallet/topup', ['amount' => 60000, 'callback_url' => 'https://app.etigo.test/wallet'])
