@@ -445,6 +445,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:operations')->prefix('monitoring')->group(function () {
         Route::get('/active-rides', [AdminMonitoringController::class, 'activeRides']);
         Route::get('/online-drivers', [AdminMonitoringController::class, 'onlineDrivers']);
+        Route::get('/rides/{ride}', [AdminMonitoringController::class, 'rideDetail']);
     });
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {

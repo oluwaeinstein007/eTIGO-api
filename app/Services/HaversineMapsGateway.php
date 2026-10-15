@@ -36,6 +36,60 @@ class HaversineMapsGateway implements MapsGateway
     }
 
     /**
+     * Without a routing provider the route is the straight line between the
+     * two points.
+     *
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     */
+    public function getRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+    ): array {
+        return [
+            'encoded_polyline' => self::encodePolyline([
+                [$originLat, $originLng],
+                [$destinationLat, $destinationLng],
+            ]),
+            ...$this->getDistanceAndDuration($originLat, $originLng, $destinationLat, $destinationLng),
+        ];
+    }
+
+    /**
+     * Encode points with Google's polyline algorithm at precision 5.
+     *
+     * @param  list<array{0: float, 1: float}>  $points
+     */
+    public static function encodePolyline(array $points): string
+    {
+        $encoded = '';
+        $previousLat = 0;
+        $previousLng = 0;
+
+        foreach ($points as [$lat, $lng]) {
+            $latE5 = (int) round($lat * 1e5);
+            $lngE5 = (int) round($lng * 1e5);
+
+            foreach ([$latE5 - $previousLat, $lngE5 - $previousLng] as $delta) {
+                $value = $delta < 0 ? ~($delta << 1) : $delta << 1;
+
+                while ($value >= 0x20) {
+                    $encoded .= chr((0x20 | ($value & 0x1F)) + 63);
+                    $value >>= 5;
+                }
+
+                $encoded .= chr($value + 63);
+            }
+
+            $previousLat = $latE5;
+            $previousLng = $lngE5;
+        }
+
+        return $encoded;
+    }
+
+    /**
      * @return array{lat: float, lng: float, formatted_address: string}
      */
     public function geocode(string $address): array

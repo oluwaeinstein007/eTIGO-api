@@ -24,6 +24,7 @@ class AdminRideController extends Controller
         if (! in_array($ride->status, [RideStatus::Searching, RideStatus::Requested, RideStatus::NoDriverFound], true)) {
             return response()->json([
                 'message' => 'This ride cannot be assigned in its current state.',
+                'error_code' => 'RIDE_NOT_ASSIGNABLE',
                 'current_status' => $ride->status->value,
             ], 422);
         }

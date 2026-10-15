@@ -221,6 +221,24 @@ it('rejects admin assign when driver has wrong vehicle class', function () {
     $response->assertUnprocessable();
 });
 
+it('rejects admin assign for a ride that already has a driver', function () {
+    $admin = User::factory()->admin()->create();
+    $adminToken = $admin->createToken('auth', ['admin'])->plainTextToken;
+
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $ride->update(['status' => RideStatus::DriverEnRoute]);
+
+    $response = $this->withToken($adminToken)
+        ->postJson("/api/v1/admin/rides/{$ride->id}/assign", [
+            'driver_id' => $d['user']->id,
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonPath('error_code', 'RIDE_NOT_ASSIGNABLE')
+        ->assertJsonPath('current_status', 'driver_en_route');
+});
+
 it('rejects admin assign when driver is offline', function () {
     $admin = User::factory()->admin()->create();
     $adminToken = $admin->createToken('auth', ['admin'])->plainTextToken;

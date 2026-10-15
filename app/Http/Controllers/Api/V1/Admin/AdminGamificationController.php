@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\TierLevel;
+use App\Enums\UserType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Gamification\UpdateMultiplierConfigFormRequest;
 use App\Http\Requests\Gamification\UpdateTierConfigFormRequest;
@@ -12,6 +13,7 @@ use App\Http\Resources\TierConfigResource;
 use App\Models\AuditLog;
 use App\Models\GamificationProfile;
 use App\Models\PointMultiplierConfig;
+use App\Models\Ride;
 use App\Models\TierConfig;
 use App\Models\TripCarbonScore;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +24,19 @@ class AdminGamificationController extends Controller
 {
     public function indexUsers(Request $request): JsonResponse
     {
-        $query = GamificationProfile::with('user');
+        $latestRide = fn (string $column) => Ride::select($column)
+            ->join('cities', 'cities.id', '=', 'rides.city_id')
+            ->whereColumn('rides.passenger_id', 'gamification_profiles.user_id')
+            ->latest('rides.created_at')
+            ->limit(1);
+
+        $query = GamificationProfile::with('user')
+            ->whereHas('user', fn ($q) => $q->where('type', UserType::Passenger))
+            ->select('gamification_profiles.*')
+            ->addSelect([
+                'city_id' => $latestRide('cities.id'),
+                'city_name' => $latestRide('cities.name'),
+            ]);
 
         if ($request->filled('tier')) {
             $query->where('current_tier', $request->input('tier'));
@@ -50,7 +64,7 @@ class AdminGamificationController extends Controller
         $sortDir = $request->input('sort_dir', 'desc');
 
         if (in_array($sortBy, ['total_ranking_points', 'total_carbon_score', 'current_tier', 'created_at'])) {
-            $query->orderBy($sortBy, $sortDir === 'asc' ? 'asc' : 'desc');
+            $query->orderBy("gamification_profiles.{$sortBy}", $sortDir === 'asc' ? 'asc' : 'desc');
         }
 
         $profiles = $query->paginate(min(max($request->integer('per_page', 15), 1), 100));
@@ -70,8 +84,8 @@ class AdminGamificationController extends Controller
 
     public function aggregate(Request $request): JsonResponse
     {
-        $profileQuery = GamificationProfile::query();
-        $carbonQuery = TripCarbonScore::query();
+        $profileQuery = GamificationProfile::whereHas('user', fn ($q) => $q->where('type', UserType::Passenger));
+        $carbonQuery = TripCarbonScore::whereHas('user', fn ($q) => $q->where('type', UserType::Passenger));
 
         if ($request->filled('city_id')) {
             $cityId = $request->input('city_id');

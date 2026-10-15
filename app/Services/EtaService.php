@@ -66,7 +66,7 @@ class EtaService
      */
     public function getThrottledEta(Ride $ride, float $driverLat, float $driverLng): ?array
     {
-        $cacheKey = "ride_eta:{$ride->id}:{$ride->status->value}";
+        $cacheKey = $this->throttleCacheKey($ride);
 
         $cached = Cache::get($cacheKey);
 
@@ -81,5 +81,54 @@ class EtaService
         }
 
         return $eta;
+    }
+
+    /**
+     * ETA for the admin monitoring views: to the pickup while the driver is on
+     * the way, to the destination while the trip is in progress. It reuses the
+     * ETA last computed from the driver's location reports and otherwise falls
+     * back to a straight-line estimate, so listing rides never calls the
+     * routing provider.
+     *
+     * @param  array{lat: float, lng: float}|null  $driverLocation
+     * @return array{target: string, distance_km: float, duration_minutes: float}|null
+     */
+    public function getMonitoringEta(Ride $ride, ?array $driverLocation): ?array
+    {
+        $target = match ($ride->status) {
+            RideStatus::Matched, RideStatus::DriverEnRoute => 'pickup',
+            RideStatus::InProgress => 'destination',
+            default => null,
+        };
+
+        if ($target === null || $driverLocation === null) {
+            return null;
+        }
+
+        $eta = Cache::get($this->throttleCacheKey($ride));
+
+        if ($eta === null) {
+            [$targetLat, $targetLng] = $target === 'pickup'
+                ? [$ride->pickup_lat, $ride->pickup_lng]
+                : [$ride->destination_lat, $ride->destination_lng];
+
+            $eta = (new HaversineMapsGateway)->getDistanceAndDuration(
+                (float) $driverLocation['lat'],
+                (float) $driverLocation['lng'],
+                (float) $targetLat,
+                (float) $targetLng,
+            );
+        }
+
+        return [
+            'target' => $target,
+            'distance_km' => (float) $eta['distance_km'],
+            'duration_minutes' => (float) $eta['duration_minutes'],
+        ];
+    }
+
+    private function throttleCacheKey(Ride $ride): string
+    {
+        return "ride_eta:{$ride->id}:{$ride->status->value}";
     }
 }

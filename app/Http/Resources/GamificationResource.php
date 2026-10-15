@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class GamificationResource extends JsonResource
 {
     private static ?array $tierConfigCache = null;
+
     private static ?array $scoreTotalsCache = null;
 
     private static function tierConfigs(): array
@@ -103,6 +104,8 @@ class GamificationResource extends JsonResource
             'first_name' => $this->whenLoaded('user', fn () => $this->user?->first_name),
             'last_name' => $this->whenLoaded('user', fn () => $this->user?->last_name),
             'email' => $this->whenLoaded('user', fn () => $this->user?->email),
+            'city_id' => $this->when($this->hasAttribute('city_name'), fn () => $this->city_id),
+            'city_name' => $this->when($this->hasAttribute('city_name'), fn () => $this->city_name),
             'current_tier' => $this->current_tier,
             'tier_name' => $currentTier->label(),
             'total_ranking_points' => $this->total_ranking_points,

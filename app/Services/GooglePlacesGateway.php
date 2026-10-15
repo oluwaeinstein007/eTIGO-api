@@ -22,10 +22,48 @@ class GooglePlacesGateway implements MapsGateway
         float $destinationLat,
         float $destinationLng,
     ): array {
+        $route = $this->computeRoute($originLat, $originLng, $destinationLat, $destinationLng, 'routes.distanceMeters,routes.duration');
+
+        return $this->distanceAndDuration($route);
+    }
+
+    /**
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     */
+    public function getRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+    ): array {
+        $route = $this->computeRoute(
+            $originLat,
+            $originLng,
+            $destinationLat,
+            $destinationLng,
+            'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+        );
+
+        return [
+            'encoded_polyline' => (string) ($route['polyline']['encodedPolyline'] ?? ''),
+            ...$this->distanceAndDuration($route),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function computeRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+        string $fieldMask,
+    ): array {
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'X-Goog-Api-Key' => $this->apiKey,
-            'X-Goog-FieldMask' => 'routes.distanceMeters,routes.duration',
+            'X-Goog-FieldMask' => $fieldMask,
         ])->post('https://routes.googleapis.com/directions/v2:computeRoutes', [
             'origin' => [
                 'location' => [
@@ -56,7 +94,15 @@ class GooglePlacesGateway implements MapsGateway
             throw new RuntimeException('Google Routes API returned no routes.');
         }
 
-        $route = $routes[0];
+        return $routes[0];
+    }
+
+    /**
+     * @param  array<string, mixed>  $route
+     * @return array{distance_km: float, duration_minutes: float}
+     */
+    private function distanceAndDuration(array $route): array
+    {
         $distanceMeters = (float) ($route['distanceMeters'] ?? 0);
         $durationSeconds = (float) rtrim((string) ($route['duration'] ?? '0s'), 's');
 

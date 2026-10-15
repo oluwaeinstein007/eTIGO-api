@@ -15,6 +15,19 @@ interface MapsGateway extends PlaceSearchGateway
     ): array;
 
     /**
+     * Driving route between two points. The polyline uses Google's encoded
+     * polyline format at precision 5.
+     *
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     */
+    public function getRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+    ): array;
+
+    /**
      * @return array{lat: float, lng: float, formatted_address: string}
      */
     public function geocode(string $address): array;
