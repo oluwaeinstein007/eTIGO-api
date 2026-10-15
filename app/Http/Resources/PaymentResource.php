@@ -24,6 +24,7 @@ class PaymentResource extends JsonResource
             'method' => $this->method?->value,
             'method_label' => $this->method?->label(),
             'tip_amount' => $this->tip_amount,
+            'tip_method' => $this->tip_method?->value,
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'gateway_transaction_id' => $this->when(

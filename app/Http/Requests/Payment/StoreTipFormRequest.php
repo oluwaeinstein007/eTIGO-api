@@ -7,6 +7,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTipFormRequest extends FormRequest
 {
@@ -23,6 +24,8 @@ class StoreTipFormRequest extends FormRequest
 
         return [
             'amount' => ['required', 'numeric', "min:{$tipSettings['min_amount']}", "max:{$tipSettings['max_amount']}"],
+            // How the tip is paid; defaults to the ride's own method.
+            'source' => ['nullable', Rule::enum(PaymentMethod::class)->only([PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash])],
         ];
     }
 
@@ -36,8 +39,17 @@ class StoreTipFormRequest extends FormRequest
                     $validator->errors()->add('ride', 'Tips can only be added to completed rides.');
                 }
 
-                if ($ride && ! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
-                    $validator->errors()->add('ride', 'Tips can only be added to card, wallet or cash rides.');
+                $source = $this->input('source');
+
+                if ($ride && $ride->payment_method === PaymentMethod::BankTransfer && $source === null) {
+                    // A bank transfer is a one-off checkout: there is nothing to charge a tip to.
+                    $validator->errors()->add('source', 'Choose how to pay the tip: wallet or card.');
+
+                    return;
+                }
+
+                if ($ride && $source === PaymentMethod::Cash->value && $ride->payment_method !== PaymentMethod::Cash) {
+                    $validator->errors()->add('source', 'Cash tips can only be recorded on cash rides.');
 
                     return;
                 }

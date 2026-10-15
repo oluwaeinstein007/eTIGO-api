@@ -271,18 +271,73 @@ it('refuses a wallet tip the balance cannot cover and records nothing', function
         ->and(driverAvailableKobo($this))->toBe(0);
 });
 
-it('rejects tips on bank-transfer rides with 422', function () {
+function bankTransferRide(object $test): Ride
+{
     $ride = Ride::factory()->completed()->create([
-        'passenger_id' => $this->passenger->id,
-        'driver_id' => $this->driverUser->id,
+        'passenger_id' => $test->passenger->id,
+        'driver_id' => $test->driverUser->id,
         'payment_method' => PaymentMethod::BankTransfer,
     ]);
     Payment::factory()->captured()->create(['ride_id' => $ride->id, 'method' => PaymentMethod::BankTransfer]);
 
+    return $ride;
+}
+
+it('asks how to pay a tip on a bank-transfer ride', function () {
+    $ride = bankTransferRide($this);
+
     $this->actingAs($this->passenger)
         ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['ride' => 'Tips can only be added to card, wallet or cash rides.']);
+        ->assertJsonValidationErrors(['source' => 'Choose how to pay the tip: wallet or card.']);
+});
+
+it('pays a tip on a bank-transfer ride from the wallet', function () {
+    $wallet = passengerWallet($this);
+    $this->ledger->postJournal([
+        ['account_id' => $this->ledger->systemAccount(AccountType::PspClearing)->id, 'type' => LedgerEntryType::Debit->value, 'amount' => 100000],
+        ['account_id' => $wallet->id, 'type' => LedgerEntryType::Credit->value, 'amount' => 100000],
+    ], ['description' => 'Top-up']);
+    $ride = bankTransferRide($this);
+
+    $this->actingAs($this->passenger)
+        ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500, 'source' => 'wallet'])
+        ->assertOk()
+        ->assertJsonPath('payment.tip_method', 'wallet');
+
+    expect($wallet->fresh()->balance)->toBe(50000)
+        ->and(driverAvailableKobo($this))->toBe(50000);
+});
+
+it('charges a tip on a bank-transfer ride to the saved card', function () {
+    UserPaymentMethod::create([
+        'user_id' => $this->passenger->id, 'provider' => 'paystack', 'gateway_token' => 'AUTH_test',
+        'card_brand' => 'visa', 'card_last_four' => '4242', 'is_default' => true,
+    ]);
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('chargeWithToken')->once()
+        ->withArgs(fn (array $data) => (float) $data['amount'] === 500.0)
+        ->andReturn(['status' => 'successful', 'transaction_id' => 'TIP-1']);
+    $this->app->instance(PaymentGateway::class, $gateway);
+    $ride = bankTransferRide($this);
+
+    $this->actingAs($this->passenger)
+        ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500, 'source' => 'card'])
+        ->assertOk()
+        ->assertJsonPath('payment.tip_method', 'card');
+
+    expect(driverAvailableKobo($this))->toBe(50000);
+});
+
+it('only records a cash tip on a cash ride', function () {
+    $ride = walletRide($this);
+
+    $this->actingAs($this->passenger)
+        ->postJson("/api/v1/rides/{$ride->id}/tip", ['amount' => 500, 'source' => 'cash'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['source' => 'Cash tips can only be recorded on cash rides.']);
+
+    expect((float) $ride->payment->fresh()->tip_amount)->toBe(0.0);
 });
 
 // === Fleet remittance in the ledger ===

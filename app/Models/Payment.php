@@ -27,6 +27,7 @@ class Payment extends Model
         'gateway_tx_ref',
         'gateway_payment_link',
         'tip_amount',
+        'tip_method',
         'status',
         'failure_reason',
     ];
@@ -38,6 +39,7 @@ class Payment extends Model
             'amount_collected' => 'decimal:2',
             'cash_change_amount' => 'decimal:2',
             'tip_amount' => 'decimal:2',
+            'tip_method' => PaymentMethod::class,
             'method' => PaymentMethod::class,
         ];
     }

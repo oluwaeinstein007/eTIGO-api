@@ -298,7 +298,12 @@ class PaymentService
         return $payment;
     }
 
-    public function addTip(Ride $ride, float $tipAmount): Payment
+    /**
+     * @param  PaymentMethod|null  $source  How the tip is paid (card, wallet or cash);
+     *                                      defaults to the ride's method. Bank-transfer
+     *                                      rides must name one.
+     */
+    public function addTip(Ride $ride, float $tipAmount, ?PaymentMethod $source = null): Payment
     {
         $payment = $ride->payment;
 
@@ -306,25 +311,31 @@ class PaymentService
             throw new \RuntimeException('No payment record found for this ride.');
         }
 
-        if (! in_array($ride->payment_method, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
-            throw new \RuntimeException('Tips can only be added to card, wallet or cash rides.');
+        $source ??= $ride->payment_method;
+
+        if (! in_array($source, [PaymentMethod::Card, PaymentMethod::Wallet, PaymentMethod::Cash], true)) {
+            throw new \RuntimeException('Choose how to pay the tip: wallet or card.');
+        }
+
+        if ($source === PaymentMethod::Cash && $ride->payment_method !== PaymentMethod::Cash) {
+            throw new \RuntimeException('Cash tips can only be recorded on cash rides.');
         }
 
         // Claim the tip slot before any charge so concurrent requests cannot
         // both charge the passenger's card.
         $claimed = Payment::whereKey($payment->id)
             ->where(fn ($query) => $query->whereNull('tip_amount')->orWhere('tip_amount', 0))
-            ->update(['tip_amount' => $tipAmount]);
+            ->update(['tip_amount' => $tipAmount, 'tip_method' => $source]);
 
         if ($claimed === 0) {
             throw new \RuntimeException('A tip has already been added to this ride.');
         }
 
-        if ($ride->payment_method === PaymentMethod::Card && $tipAmount > 0) {
+        if ($source === PaymentMethod::Card && $tipAmount > 0) {
             try {
                 $this->chargeCardTip($ride, $tipAmount);
             } catch (\Throwable $e) {
-                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+                Payment::whereKey($payment->id)->update(['tip_amount' => 0, 'tip_method' => null]);
 
                 throw $e;
             }
@@ -343,11 +354,11 @@ class PaymentService
 
         }
 
-        if ($ride->payment_method === PaymentMethod::Wallet && $tipAmount > 0) {
+        if ($source === PaymentMethod::Wallet && $tipAmount > 0) {
             try {
                 $this->walletPaymentService->payTip($ride, (int) round($tipAmount * 100));
             } catch (\Throwable $e) {
-                Payment::whereKey($payment->id)->update(['tip_amount' => 0]);
+                Payment::whereKey($payment->id)->update(['tip_amount' => 0, 'tip_method' => null]);
 
                 throw new \RuntimeException($e instanceof \DomainException ? $e->getMessage() : 'Failed to pay the tip from your wallet.');
             }
