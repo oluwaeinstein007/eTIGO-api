@@ -259,3 +259,40 @@ test('admin wallet settings validates input', function () {
 
     $response->assertUnprocessable();
 });
+
+test('driver can fetch paginated ledger transactions with custom per_page and page', function () {
+    $ledger = app(LedgerService::class);
+    $driverAccount = $ledger->findOrCreateAccount(
+        'App\\Models\\Driver',
+        $this->driver->id,
+        AccountType::DriverEarningsAvailable,
+    );
+    $pspAccount = $ledger->systemAccount(AccountType::PspClearing);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $ledger->postJournal([
+            ['account_id' => $pspAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => 10000 * $i],
+            ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => 10000 * $i],
+        ], [
+            'description' => "Test tx $i",
+            'idempotency_key' => "test-tx-$i",
+        ]);
+    }
+
+    $response = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?per_page=2&page=1');
+
+    $response->assertOk()
+        ->assertJsonCount(2, 'transactions')
+        ->assertJsonPath('meta.current_page', 1)
+        ->assertJsonPath('meta.last_page', 3)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.total', 5);
+
+    $page2 = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?per_page=2&page=2');
+
+    $page2->assertOk()
+        ->assertJsonCount(2, 'transactions')
+        ->assertJsonPath('meta.current_page', 2);
+});

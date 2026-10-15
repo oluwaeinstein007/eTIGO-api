@@ -40,6 +40,8 @@ class DriverLedgerController extends Controller
             'type' => ['sometimes', 'in:debit,credit'],
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         $driver = $request->user()->driver;
@@ -76,7 +78,8 @@ class DriverLedgerController extends Controller
             $query->where('created_at', '<=', $request->input('to').' 23:59:59');
         }
 
-        $entries = $query->paginate(20);
+        $perPage = min(max($request->integer('per_page', 20), 1), 100);
+        $entries = $query->paginate($perPage);
 
         return response()->json([
             'transactions' => LedgerEntryResource::collection($entries),
