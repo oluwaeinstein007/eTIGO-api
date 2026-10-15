@@ -13,6 +13,7 @@ use App\Enums\UserType;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\GamificationProfile;
+use App\Models\Rating;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\SosIncident;
@@ -88,6 +89,7 @@ class MonitoringDemoSeeder extends Seeder
         $this->seedPendingRides($lagos, $economy, $comfort, $passengers);
         $this->seedActiveRides($lagos, $economy, $comfort, $passengers, $drivers);
         $this->seedGamification($drivers['ola']);
+        $this->seedDriverRatings($lagos, $drivers, $passengers);
         $this->placeIdleDrivers($drivers);
 
         $this->command?->info('Monitoring demo data ready. Demo drivers report their location every minute via the scheduler (or run `php artisan demo:simulate-drivers --loop`).');
@@ -95,12 +97,12 @@ class MonitoringDemoSeeder extends Seeder
 
     private function email(string $name): string
     {
-        return $name.'@'.SimulateDemoDriversCommand::EMAIL_DOMAIN;
+        return $name.'@'.SimulateDemoDriversCommand::emailDomain();
     }
 
     private function resetPreviousRides(): void
     {
-        $demoUserIds = User::where('email', 'like', '%@'.SimulateDemoDriversCommand::EMAIL_DOMAIN)->pluck('id');
+        $demoUserIds = User::where('email', 'like', '%@'.SimulateDemoDriversCommand::emailDomain())->pluck('id');
 
         $staleRides = Ride::where(fn ($q) => $q->whereIn('passenger_id', $demoUserIds)->orWhereIn('driver_id', $demoUserIds))
             ->whereIn('status', [...RideStatus::activeStatuses(), RideStatus::NoDriverFound])
@@ -426,6 +428,68 @@ class MonitoringDemoSeeder extends Seeder
         $degrees = $km / 111.32 / M_SQRT2;
 
         return [round($lat + $degrees, 7), round($lng + $degrees / cos(deg2rad($lat)), 7)];
+    }
+
+    /**
+     * Gives every demo driver two rated, completed trips from earlier in the
+     * month so ratings show on the dashboard. Drivers already rated are left
+     * alone.
+     *
+     * @param  array<string, Driver>  $drivers
+     * @param  array<string, User>  $passengers
+     */
+    private function seedDriverRatings(City $lagos, array $drivers, array $passengers): void
+    {
+        $scores = [[5, 5], [5, 4], [4, 4], [5, 5], [4, 5], [5, 4], [4, 3], [5, 5], [5, 4], [4, 4]];
+        $raters = array_values($passengers);
+
+        foreach (array_values($drivers) as $index => $driver) {
+            if (Rating::where('rated_user_id', $driver->user_id)->exists()) {
+                continue;
+            }
+
+            $vehicleClassId = $driver->vehicle()->value('vehicle_class_id');
+
+            foreach ($scores[$index % count($scores)] as $trip => $score) {
+                $passenger = $raters[($index + $trip) % count($raters)];
+                $completedAt = now()->subDays(3 + $index + $trip * 5)->setTime(9 + $trip * 6, 20);
+                [$pickupLat, $pickupLng, $pickupAddress] = self::PLACES[array_keys(self::PLACES)[$index % count(self::PLACES)]];
+                [$destinationLat, $destinationLng, $destinationAddress] = self::PLACES[array_keys(self::PLACES)[($index + 5) % count(self::PLACES)]];
+
+                $ride = Ride::forceCreate([
+                    'city_id' => $lagos->id,
+                    'vehicle_class_id' => $vehicleClassId,
+                    'passenger_id' => $passenger->id,
+                    'driver_id' => $driver->user_id,
+                    'pickup_lat' => $pickupLat,
+                    'pickup_lng' => $pickupLng,
+                    'pickup_address' => $pickupAddress,
+                    'destination_lat' => $destinationLat,
+                    'destination_lng' => $destinationLng,
+                    'destination_address' => $destinationAddress,
+                    'status' => RideStatus::Completed,
+                    'share_token' => Str::random(32),
+                    'fare_estimate_amount' => 4300,
+                    'final_fare_amount' => 4300,
+                    'fare_currency' => 'NGN',
+                    'payment_method' => PaymentMethod::Cash,
+                    'payment_status' => PaymentStatus::Collected,
+                    'matched_at' => $completedAt->copy()->subMinutes(30),
+                    'started_at' => $completedAt->copy()->subMinutes(24),
+                    'completed_at' => $completedAt,
+                    'created_at' => $completedAt->copy()->subMinutes(33),
+                    'updated_at' => $completedAt,
+                ]);
+
+                Rating::create([
+                    'ride_id' => $ride->id,
+                    'rated_by_user_id' => $passenger->id,
+                    'rated_user_id' => $driver->user_id,
+                    'score' => $score,
+                    'created_at' => $completedAt->copy()->addMinutes(2),
+                ]);
+            }
+        }
     }
 
     /**

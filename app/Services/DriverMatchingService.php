@@ -67,6 +67,7 @@ class DriverMatchingService
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
             ->whereNotIn('user_id', $rejectedIds)
             ->when($dispatchedTo, fn ($q) => $q->where('user_id', '!=', $dispatchedTo))
+            ->whereDoesntHave('user', fn ($q) => $q->where('email', 'like', '%@'.config('matching.demo_driver_email_domain')))
             ->whereDoesntHave('user', function ($q) {
                 $q->whereHas('driverRides', fn ($r) => $r->whereIn('status', [
                     RideStatus::Matched,

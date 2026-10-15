@@ -6297,6 +6297,8 @@ GET /admin/rides/pending
 
 By default returns rides waiting for a driver — `requested`, `searching` or `no_driver_found` with no driver. Pass `status` to include matched rides too. Ordered **oldest first**.
 
+`no_driver_found` rides are listed (and counted) only for **24 hours** after they were requested (`MATCHING_MANUAL_ASSIGNMENT_WINDOW_HOURS`); after that the passenger has long gone and the ride drops off.
+
 | Param            | Type    | Description |
 |------------------|---------|-------------|
 | status           | string  | Comma-separated, any of `requested`, `searching`, `no_driver_found`, `matched`, `driver_en_route`. Example: `status=searching,no_driver_found,matched,driver_en_route` shows unmatched and matched rides together. Without it, only unassigned rides are returned. |
@@ -6350,7 +6352,7 @@ Rides matched by an admin go straight to `driver_en_route`, so include both `mat
 
 **Fields on a matched ride:** `driver` (name, phone), `driver_rating` (float, nullable), `driver_vehicle` (`make`, `model`, `colour`, `plate_number`) and `matched_at` (when the driver accepted, or the admin assigned).
 
-**`summary`** ignores `status`, `search`, `vehicle_class_id` and paging but follows `city_id`. `awaiting_driver` is the number of unassigned `requested`, `searching` and `no_driver_found` rides — use it for the "needs attention" badge. `by_status` counts every status the list can show.
+**`summary`** ignores `status`, `search`, `vehicle_class_id` and paging but follows `city_id` and the 24-hour window. `awaiting_driver` is the number of unassigned `requested`, `searching` and `no_driver_found` rides — use it for the "needs attention" badge. `by_status` counts every status the list can show.
 
 ### List Available Drivers for a Ride
 ```
@@ -6479,6 +6481,8 @@ The ride must be `requested`, `searching` or `no_driver_found`. For a `no_driver
 - **Available drivers:** 2 economy drivers near Ikeja City Mall (0.8 km and 2.3 km), 1 near UNILAG (1.5 km), and 2 comfort drivers in Lekki (1.1 km, and one at 6.5 km — outside the default radius).
 - **Active:** one ride at each stage — `matched`, `driver_en_route`, `driver_arrived` and two `in_progress`; one in-progress ride has an open SOS raised by the passenger.
 - **Gamification:** 6 passengers across Lagos, Abuja, Port Harcourt and Ibadan covering all 5 tiers, with completed rides and carbon scores over the last 3 months.
+
+Every demo driver also has two rated past trips, so ratings are filled in. Demo drivers are never offered rides by automatic matching — they only get rides through manual assignment — so they don't hold up real test rides.
 
 Demo accounts use `@ops-demo.etigo.com` emails (password `Qwer!234`). The scheduler runs `demo:simulate-drivers` every minute outside production, so demo drivers keep reporting their location and drivers on a ride move towards the pickup or destination. Re-run the seeder to reset the rides after testing assignments.
 
