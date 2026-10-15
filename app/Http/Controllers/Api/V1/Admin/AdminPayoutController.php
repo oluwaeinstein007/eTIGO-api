@@ -173,7 +173,7 @@ class AdminPayoutController extends Controller
      * Finance's "check status" action for a payout whose transfer outcome is
      * unknown: asks Paystack about the transfer reference and settles it.
      */
-    public function verify(Request $request, Payout $payout, PayoutReconciliationService $reconciler): JsonResponse
+    public function verify(Request $request, Payout $payout): JsonResponse
     {
         if (! in_array($payout->status, [PayoutStatus::Approved, PayoutStatus::Processing], true)) {
             return response()->json([
@@ -183,7 +183,8 @@ class AdminPayoutController extends Controller
         }
 
         try {
-            $result = $reconciler->reconcile($payout);
+            // Resolved only now: the checks above must not depend on the gateway's configuration.
+            $result = app(PayoutReconciliationService::class)->reconcile($payout);
         } catch (\Throwable $e) {
             if (! PayoutReconciliationService::isProviderUnavailable($e)) {
                 throw $e;
