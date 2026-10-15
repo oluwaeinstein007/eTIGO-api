@@ -461,6 +461,7 @@ it('debits the driver again when a failed payout is retried and sent', function 
     $payout = approvedPayout($this, 200000);
     $attempt = 0;
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('initiateTransfer')->twice()->andReturnUsing(function () use (&$attempt, $payout) {
         if (++$attempt === 1) {
             throw new RuntimeException('Bank unavailable');
@@ -486,6 +487,7 @@ it('sends a retried payout under a new reference once Paystack has failed the ea
     $payout = approvedPayout($this, 200000);
     $payout->update(['status' => PayoutStatus::Failed, 'gateway_reference' => "PAYOUT-{$payout->id}", 'gateway_transfer_id' => 'TRF-OLD']);
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('verifyTransfer')->once()->with("PAYOUT-{$payout->id}")
         ->andReturn(['id' => 'TRF-OLD', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'failed']);
     $gateway->shouldReceive('initiateTransfer')->once()
@@ -536,6 +538,7 @@ function stuckPayout(object $test, PayoutStatus $status = PayoutStatus::Approved
 function paystackKnowsTransfer(object $test, Payout $payout, ?string $status): MockInterface
 {
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('verifyTransfer')->with("PAYOUT-{$payout->id}")
         ->andReturn($status === null ? null : ['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => $status]);
     app()->instance(WalletGateway::class, $gateway);
@@ -547,6 +550,7 @@ it('keeps the money reserved when every attempt to reach Paystack fails', functi
     fundDriverEarnings($this, 500000);
     $payout = approvedPayout($this, 200000);
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('initiateTransfer')->andThrow(new ConnectionException('Connection timed out'));
     $this->app->instance(WalletGateway::class, $gateway);
     $job = new ProcessPayoutTransferJob($payout->id);
@@ -562,6 +566,7 @@ it('treats a Paystack server error on a transfer as an unknown outcome, not a fa
     fundDriverEarnings($this, 500000);
     $payout = approvedPayout($this, 200000);
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('initiateTransfer')->once()
         ->andThrow(new PaymentProviderException('Paystack API error: 504 - Gateway Timeout', 504));
     $this->app->instance(WalletGateway::class, $gateway);
@@ -584,6 +589,7 @@ it('fails a payout and returns the money when Paystack refuses the transfer', fu
     fundDriverEarnings($this, 500000);
     $payout = approvedPayout($this, 200000);
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('initiateTransfer')->once()
         ->andThrow(new PaymentProviderException('Paystack API error: 400 - Account number is invalid', 400));
     $this->app->instance(WalletGateway::class, $gateway);
@@ -598,6 +604,7 @@ it('flags a transfer Paystack holds for an OTP straight away', function () {
     fundDriverEarnings($this, 500000);
     $payout = approvedPayout($this, 200000);
     $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('createTransferRecipient')->andReturn('RCP_driver');
     $gateway->shouldReceive('initiateTransfer')->once()
         ->andReturn(['id' => '82738471', 'reference' => "PAYOUT-{$payout->id}", 'status' => 'otp']);
     $this->app->instance(WalletGateway::class, $gateway);

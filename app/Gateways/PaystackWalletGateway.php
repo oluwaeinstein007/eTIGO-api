@@ -57,21 +57,11 @@ class PaystackWalletGateway implements WalletGateway
 
     public function initiateTransfer(array $data): array
     {
-        $recipientCode = $data['recipient_code'] ?? null;
-
-        if (! $recipientCode) {
-            $recipientCode = $this->createTransferRecipient(
-                $data['account_number'],
-                $data['account_bank'],
-                $data['currency'] ?? 'NGN',
-            );
-        }
-
         $response = $this->request('post', '/transfer', [
             'source' => 'balance',
             'reason' => $data['narration'] ?? '',
             'amount' => (int) round($data['amount'] * 100),
-            'recipient' => $recipientCode,
+            'recipient' => $data['recipient_code'],
             'reference' => $data['reference'],
         ]);
 
@@ -126,7 +116,7 @@ class PaystackWalletGateway implements WalletGateway
         ], $response['data']);
     }
 
-    private function createTransferRecipient(string $accountNumber, string $bankCode, string $currency = 'NGN'): string
+    public function createTransferRecipient(string $accountNumber, string $bankCode, string $currency = 'NGN'): string
     {
         $type = $bankCode === 'opay' ? 'mobile_money' : 'nuban';
 

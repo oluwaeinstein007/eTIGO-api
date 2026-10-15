@@ -7728,6 +7728,56 @@ POST /webhooks/paystack
 }
 ```
 
+### Paystack Transfer Approval
+
+```
+POST /webhooks/paystack/transfer-approval
+```
+
+**No authentication. Called by Paystack, not by the apps.** This is the **Approval URL** in the Paystack dashboard (Settings → Preferences → Transfer Approval). Once it is set, Paystack asks this endpoint about every transfer from the balance before sending it. A `200` lets the transfer go (status `pending`), a `400` rejects it (status `rejected`), and no answer within a few seconds blocks it (status `blocked`).
+
+A transfer is approved only when it is a driver payout that the payout job is sending right now:
+
+| Check | Rejected when |
+|---|---|
+| `reference` | No payout has this `gateway_reference` (`PAYOUT-{id}`, `PAYOUT-{id}-2`, …) |
+| Payout status | The payout is not `approved` or `processing` |
+| `amount` (kobo) | It differs from the payout amount |
+| `currency` (if sent) | It is not `NGN` |
+| `recipient` | It is not the recipient code saved on the payout (`gateway_recipient_code`), which the payout job creates for the driver's bank account just before it starts the transfer |
+
+Anything else is rejected and logged as **critical**. That includes a transfer started with a leaked secret key, or one made by hand in the Paystack dashboard. The endpoint changes nothing and approves only what is already in our database, so it does not need to trust the caller. The transfer may also arrive wrapped in `data`, as webhooks are, and the recipient may be a string code or an object carrying `recipient_code`.
+
+If a payout's transfer is rejected or blocked, the payout fails and the money goes back to the driver: either at once, if Paystack reports it when the transfer is created, or through payout reconciliation. Finance can then retry it.
+
+**Request body** (the payload the transfer was started with):
+```json
+{
+  "source": "balance",
+  "reason": "E-tiGo driver payout #9f3c1a52-6c1e-4f8e-9d0b-3b7d2a4c8e11",
+  "amount": 250000,
+  "recipient": "RCP_1a2b3c4d5e6f7g8",
+  "reference": "PAYOUT-9f3c1a52-6c1e-4f8e-9d0b-3b7d2a4c8e11",
+  "currency": "NGN"
+}
+```
+
+**Response 200 (approved):**
+```json
+{
+  "message": "Transfer approved."
+}
+```
+
+**Response 400 (rejected):**
+```json
+{
+  "message": "Transfer rejected."
+}
+```
+
+The response never says why a transfer was rejected. The reason is in the critical log entry, with the reference, amount and recipient. The endpoint is public, so after 5 critical alerts in a minute from one IP address, further rejections from that address are logged as warnings instead, so junk requests cannot bury a real alert. The endpoint is not rate-limited, so a burst of weekly auto-payouts is never refused.
+
 ### Flutterwave Webhook
 
 ```

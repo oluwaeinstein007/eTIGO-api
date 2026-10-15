@@ -10,7 +10,17 @@ interface WalletGateway
     /** @return array{status: string, amount: int, tx_ref: string} */
     public function verifyTransaction(string $transactionId): array;
 
-    /** @return array{id: int|string, reference: string, status: string} */
+    /**
+     * Register a bank account as a transfer recipient and return its code.
+     */
+    public function createTransferRecipient(string $accountNumber, string $bankCode, string $currency = 'NGN'): string;
+
+    /**
+     * Send money to a recipient from createTransferRecipient(). $data holds
+     * recipient_code, amount (naira), reference, narration and currency.
+     *
+     * @return array{id: int|string, reference: string, status: string}
+     */
     public function initiateTransfer(array $data): array;
 
     /**
