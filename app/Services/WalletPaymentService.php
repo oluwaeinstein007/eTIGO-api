@@ -108,17 +108,10 @@ class WalletPaymentService
                     $earningsAccountType,
                 );
 
-                $journalLines = array_filter([
+                $this->ledgerService->postJournal([
                     ['account_id' => $passengerAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $chargeAmount],
-                    $commission['commission'] > 0
-                        ? ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']]
-                        : null,
-                    $commission['net_earnings'] > 0
-                        ? ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']]
-                        : null,
-                ]);
-
-                $this->ledgerService->postJournal(array_values($journalLines), [
+                    ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $chargeAmount],
+                ], [
                     'description' => "Ride settlement for ride {$ride->id}",
                     'idempotency_key' => "ride-settlement-{$ride->id}",
                     'metadata' => [
@@ -129,8 +122,27 @@ class WalletPaymentService
                         'commission_rate' => $commission['rate'],
                         'commission_kobo' => $commission['commission'],
                         'net_earnings_kobo' => $commission['net_earnings'],
+                        'category' => 'ride_fare',
                     ],
                 ]);
+
+                if ($commission['commission'] > 0) {
+                    $this->ledgerService->postJournal([
+                        ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $commission['commission']],
+                        ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']],
+                    ], [
+                        'description' => "Platform commission for ride {$ride->id}",
+                        'idempotency_key' => "wallet-commission-{$ride->id}",
+                        'metadata' => [
+                            'ride_id' => $ride->id,
+                            'fare_kobo' => $finalFareKobo,
+                            'charged_kobo' => $chargeAmount,
+                            'commission_rate' => $commission['rate'],
+                            'commission_kobo' => $commission['commission'],
+                            'category' => 'commission',
+                        ],
+                    ]);
+                }
             }
 
             $hold->update([

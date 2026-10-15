@@ -6,6 +6,7 @@ use App\Enums\AccountType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LedgerEntryResource;
 use App\Models\Account;
+use App\Models\LedgerEntry;
 use App\Services\DriverEarningsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,8 @@ class DriverLedgerController extends Controller
             'type' => ['sometimes', 'in:debit,credit'],
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         $driver = $request->user()->driver;
@@ -76,7 +79,8 @@ class DriverLedgerController extends Controller
             $query->where('created_at', '<=', $request->input('to').' 23:59:59');
         }
 
-        $entries = $query->paginate(20);
+        $perPage = min(max($request->integer('per_page', 20), 1), 100);
+        $entries = $query->paginate($perPage);
 
         return response()->json([
             'transactions' => LedgerEntryResource::collection($entries),
@@ -86,6 +90,30 @@ class DriverLedgerController extends Controller
                 'per_page' => $entries->perPage(),
                 'total' => $entries->total(),
             ],
+        ]);
+    }
+
+    public function show(Request $request, LedgerEntry $entry): JsonResponse
+    {
+        $driver = $request->user()->driver;
+
+        if (! $driver) {
+            return response()->json(['message' => 'Driver profile not found.'], 404);
+        }
+
+        $account = Account::where('owner_type', 'App\\Models\\Driver')
+            ->where('owner_id', $driver->id)
+            ->where('type', AccountType::DriverEarningsAvailable)
+            ->first();
+
+        if (! $account || $entry->account_id !== $account->id) {
+            return response()->json(['message' => 'Transaction not found.'], 404);
+        }
+
+        $entry->load('journal');
+
+        return response()->json([
+            'transaction' => new LedgerEntryResource($entry),
         ]);
     }
 }

@@ -64,6 +64,7 @@ class DriverEarningsService
                         'fare_kobo' => $fareAmountKobo,
                         'commission_rate' => $commission['rate'],
                         'commission_kobo' => $commission['commission'],
+                        'category' => 'commission',
                     ],
                 ]);
             }
@@ -77,17 +78,11 @@ class DriverEarningsService
                 $driver->id,
                 $earningsAccountType,
             );
-            $journalLines = array_values(array_filter([
-                ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $fareAmountKobo],
-                $commission['commission'] > 0
-                    ? ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']]
-                    : null,
-                $commission['net_earnings'] > 0
-                    ? ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['net_earnings']]
-                    : null,
-            ]));
 
-            $this->ledgerService->postJournal($journalLines, [
+            $this->ledgerService->postJournal([
+                ['account_id' => $pspClearingAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $fareAmountKobo],
+                ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $fareAmountKobo],
+            ], [
                 'description' => "Card ride settlement for ride {$ride->id}",
                 'idempotency_key' => "card-settlement-{$ride->id}",
                 'metadata' => [
@@ -96,8 +91,26 @@ class DriverEarningsService
                     'commission_rate' => $commission['rate'],
                     'commission_kobo' => $commission['commission'],
                     'net_earnings_kobo' => $commission['net_earnings'],
+                    'category' => 'ride_fare',
                 ],
             ]);
+
+            if ($commission['commission'] > 0) {
+                $this->ledgerService->postJournal([
+                    ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $commission['commission']],
+                    ['account_id' => $platformAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $commission['commission']],
+                ], [
+                    'description' => "Platform commission for ride {$ride->id}",
+                    'idempotency_key' => "card-commission-{$ride->id}",
+                    'metadata' => [
+                        'ride_id' => $ride->id,
+                        'fare_kobo' => $fareAmountKobo,
+                        'commission_rate' => $commission['rate'],
+                        'commission_kobo' => $commission['commission'],
+                        'category' => 'commission',
+                    ],
+                ]);
+            }
         }
     }
 

@@ -102,6 +102,19 @@ test('settle captures hold and posts journal entries', function () {
 
     expect($driverAccount->balance)->toBe(200000);
 
+    $entries = $driverAccount->entries()->with('journal')->orderByDesc('created_at')->get();
+    expect($entries)->toHaveCount(2);
+
+    $commissionDebit = $entries->firstWhere('type', \App\Enums\LedgerEntryType::Debit);
+    expect($commissionDebit)->not->toBeNull()
+        ->and($commissionDebit->amount)->toBe(50000)
+        ->and($commissionDebit->journal->description)->toBe("Platform commission for ride {$this->ride->id}");
+
+    $fareCredit = $entries->firstWhere('type', \App\Enums\LedgerEntryType::Credit);
+    expect($fareCredit)->not->toBeNull()
+        ->and($fareCredit->amount)->toBe(250000)
+        ->and($fareCredit->journal->description)->toBe("Ride settlement for ride {$this->ride->id}");
+
     $platformAccount = Account::where('type', AccountType::PlatformCommission)
         ->where('owner_type', 'system')
         ->first();

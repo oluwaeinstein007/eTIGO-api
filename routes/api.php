@@ -343,6 +343,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::prefix('ledger')->group(function () {
         Route::get('/summary', [DriverLedgerController::class, 'summary']);
         Route::get('/transactions', [DriverLedgerController::class, 'index']);
+        Route::get('/transactions/{entry}', [DriverLedgerController::class, 'show']);
     });
 
     Route::prefix('bank-account')->group(function () {

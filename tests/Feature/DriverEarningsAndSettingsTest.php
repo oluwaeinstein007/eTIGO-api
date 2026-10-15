@@ -259,3 +259,97 @@ test('admin wallet settings validates input', function () {
 
     $response->assertUnprocessable();
 });
+
+test('driver can fetch paginated ledger transactions with custom per_page and page', function () {
+    $ledger = app(LedgerService::class);
+    $driverAccount = $ledger->findOrCreateAccount(
+        'App\\Models\\Driver',
+        $this->driver->id,
+        AccountType::DriverEarningsAvailable,
+    );
+    $pspAccount = $ledger->systemAccount(AccountType::PspClearing);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $ledger->postJournal([
+            ['account_id' => $pspAccount->id, 'type' => LedgerEntryType::Debit->value, 'amount' => 10000 * $i],
+            ['account_id' => $driverAccount->id, 'type' => LedgerEntryType::Credit->value, 'amount' => 10000 * $i],
+        ], [
+            'description' => "Test tx $i",
+            'idempotency_key' => "test-tx-$i",
+        ]);
+    }
+
+    $response = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?per_page=2&page=1');
+
+    $response->assertOk()
+        ->assertJsonCount(2, 'transactions')
+        ->assertJsonPath('meta.current_page', 1)
+        ->assertJsonPath('meta.last_page', 3)
+        ->assertJsonPath('meta.per_page', 2)
+        ->assertJsonPath('meta.total', 5);
+
+    $page2 = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?per_page=2&page=2');
+
+    $page2->assertOk()
+        ->assertJsonCount(2, 'transactions')
+        ->assertJsonPath('meta.current_page', 2);
+});
+
+test('card-ride settlement logs gross fare credit and platform commission debit on driver ledger', function () {
+    $service = app(DriverEarningsService::class);
+
+    $ride = Ride::factory()->completed()->create([
+        'driver_id' => $this->driverUser->id,
+        'payment_method' => PaymentMethod::Card,
+        'final_fare_amount' => 5000,
+    ]);
+
+    // ₦5,000 = 500,000 kobo. 20% commission = 100,000 kobo. Net = 400,000 kobo.
+    $service->creditRideEarnings($ride, 500000);
+
+    $driverAccount = Account::where('owner_type', 'App\\Models\\Driver')
+        ->where('owner_id', $this->driver->id)
+        ->where('type', AccountType::DriverEarningsAvailable)
+        ->first();
+
+    expect($driverAccount)->not->toBeNull()
+        ->and($driverAccount->balance)->toBe(400000);
+
+    // Verify driver has both credit (gross fare) and debit (platform commission) entries
+    $entries = $driverAccount->entries()->with('journal')->orderByDesc('created_at')->get();
+    expect($entries)->toHaveCount(2);
+
+    $commissionDebit = $entries->firstWhere('type', LedgerEntryType::Debit);
+    expect($commissionDebit)->not->toBeNull()
+        ->and($commissionDebit->amount)->toBe(100000)
+        ->and($commissionDebit->journal->description)->toBe("Platform commission for ride {$ride->id}")
+        ->and($commissionDebit->journal->metadata['category'])->toBe('commission')
+        ->and($commissionDebit->journal->metadata['commission_rate'])->toBe(0.2);
+
+    $fareCredit = $entries->firstWhere('type', LedgerEntryType::Credit);
+    expect($fareCredit)->not->toBeNull()
+        ->and($fareCredit->amount)->toBe(500000)
+        ->and($fareCredit->journal->description)->toBe("Card ride settlement for ride {$ride->id}");
+
+    // Verify API responses:
+    // Debit filter returns platform commission
+    $debitRes = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?type=debit');
+
+    $debitRes->assertOk()
+        ->assertJsonCount(1, 'transactions')
+        ->assertJsonPath('transactions.0.type', 'debit')
+        ->assertJsonPath('transactions.0.amount', 100000)
+        ->assertJsonPath('transactions.0.journal.description', "Platform commission for ride {$ride->id}");
+
+    // Credit filter returns ride fare
+    $creditRes = $this->withToken($this->driverToken)
+        ->getJson('/api/v1/driver/ledger/transactions?type=credit');
+
+    $creditRes->assertOk()
+        ->assertJsonCount(1, 'transactions')
+        ->assertJsonPath('transactions.0.type', 'credit')
+        ->assertJsonPath('transactions.0.amount', 500000);
+});

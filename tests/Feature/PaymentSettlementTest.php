@@ -64,6 +64,46 @@ describe('ProcessPaymentJob', function () {
         });
     });
 
+    it('credits driver ledger account when card tip is added', function () {
+        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\SystemAccountSeeder']);
+        $driver = \App\Models\Driver::factory()->create(['user_id' => $this->driverUser->id]);
+
+        UserPaymentMethod::create([
+            'user_id' => $this->passenger->id,
+            'gateway_token' => 'tok_test',
+            'card_brand' => 'VISA',
+            'card_last_four' => '4242',
+            'is_default' => true,
+        ]);
+
+        $ride = Ride::factory()->completed()->withCard()->create([
+            'passenger_id' => $this->passenger->id,
+            'driver_id' => $this->driverUser->id,
+            'final_fare_amount' => 5000,
+        ]);
+
+        $service = app(PaymentService::class);
+        $payment = $service->processRidePayment($ride);
+
+        $driverAccount = app(\App\Services\LedgerService::class)->findOrCreateAccount(
+            'App\\Models\\Driver',
+            $driver->id,
+            \App\Enums\AccountType::DriverEarningsAvailable,
+        );
+        $initialBalance = $driverAccount->fresh()->balance;
+
+        $service->addTip($ride, 1000); // ₦1,000 = 100,000 kobo
+
+        expect($driverAccount->fresh()->balance)->toBe($initialBalance + 100000);
+
+        // Verify ledger entry
+        $tipEntry = $driverAccount->entries()->latest()->first();
+        expect($tipEntry->amount)->toBe(100000)
+            ->and($tipEntry->type->value)->toBe('credit')
+            ->and($tipEntry->journal->description)->toBe("Tip for ride {$ride->id}")
+            ->and($tipEntry->journal->metadata['category'])->toBe('tip');
+    });
+
     it('creates a pending_collection payment for cash rides', function () {
         $ride = Ride::factory()->completed()->create([
             'passenger_id' => $this->passenger->id,
