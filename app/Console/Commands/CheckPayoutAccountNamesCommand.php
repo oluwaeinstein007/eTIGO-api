@@ -64,6 +64,7 @@ class CheckPayoutAccountNamesCommand extends Command
 
         $this->line(match (true) {
             ! $this->option('apply') => 'Nothing was changed. Run with --apply to record the results.',
+            $mismatches === [] => 'Results recorded; every account matched, so no payouts were paused.',
             $review => 'Mismatched accounts are waiting for review under /admin/payout-accounts?review_status=pending.',
             default => 'Results recorded; the name check is not in review mode, so no payouts were paused.',
         });
