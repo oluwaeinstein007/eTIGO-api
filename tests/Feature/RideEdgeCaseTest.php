@@ -93,9 +93,9 @@ function bookRide(object $test, array $overrides = []): TestResponse
 /**
  * Puts the ride in progress as if it started $tripMinutes ago, so completing
  * it now bills that much trip time. The default matches the mocked route
- * estimate, keeping the final fare equal to the booking quote.
+ * estimate, keeping the final fare equal to the booking quote. The clock is
+ * frozen so the trip lasts exactly $tripMinutes when completed.
  */
-/** Freezes the clock so the trip lasts exactly $tripMinutes when completed. */
 function startTrip(object $test, Ride $ride, int $tripMinutes = 15): Ride
 {
     $test->freezeTime();
