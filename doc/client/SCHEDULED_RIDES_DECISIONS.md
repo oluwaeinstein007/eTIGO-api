@@ -10,7 +10,7 @@
 
 Passengers can now book a ride for later. The design follows the scheduled-ride products of Uber (Uber Reserve), Bolt and Lyft. The passenger books and is quoted a fixed price. Drivers can commit to the booking in advance. Shortly before pickup the ride either goes to the committed driver or is matched like any other ride.
 
-This report lists every product decision we had to make, what competitors do, what we chose and why. Section 4 lists the decisions we need from the client.
+This report lists every product decision we had to make, what competitors do, what we chose and why. Section 6 lists the decisions we need from the client. They are also tracked in the [Open Questions Decision Report](OPEN_QUESTIONS_DECISIONS.md) (SR-1 to SR-7).
 
 Competitor terms vary by country and change over time. The figures below come from the companies' public pages and launch announcements (sources at the end); treat them as typical practice, not exact current terms in Nigeria.
 

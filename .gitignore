@@ -33,3 +33,6 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Python bytecode (doc/tools scripts)
+__pycache__/
