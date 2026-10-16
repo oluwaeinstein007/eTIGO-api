@@ -165,6 +165,12 @@
         "enabled": true
       },
       {
+        "key": "payout_account_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
         "key": "payout_id",
         "value": "",
         "type": "default",

@@ -6,6 +6,7 @@ use App\Enums\NotificationType;
 use App\Models\BankAccount;
 use App\Notifications\Channels\AppNotificationChannel;
 use App\Notifications\Channels\SmsChannel;
+use App\Services\PayoutAccountSafeguards;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -54,6 +55,18 @@ class PayoutAccountChangedNotification extends Notification implements ShouldQue
         $lastFour = substr($this->bankAccount->account_number, -4);
 
         return "Your payout bank account was {$action} {$this->bankAccount->account_name}, account ending {$lastFour}. "
+            .$this->payoutNotice()
             .'If you did not do this, contact E-tiGo support immediately.';
+    }
+
+    private function payoutNotice(): string
+    {
+        $block = app(PayoutAccountSafeguards::class)->blockFor($this->bankAccount);
+
+        return match ($block['code'] ?? null) {
+            PayoutAccountSafeguards::UNDER_REVIEW => 'Payouts to it are paused until E-tiGo checks the account name. ',
+            PayoutAccountSafeguards::ON_HOLD => 'Payouts to it start '.app(PayoutAccountSafeguards::class)->formatTime($this->bankAccount->payouts_held_until).'. ',
+            default => '',
+        };
     }
 }

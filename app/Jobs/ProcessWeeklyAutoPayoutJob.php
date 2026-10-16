@@ -10,6 +10,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\Payout;
+use App\Services\PayoutAccountSafeguards;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -27,7 +28,7 @@ class ProcessWeeklyAutoPayoutJob implements ShouldBeUnique, ShouldQueue
         return 'weekly-auto-payout';
     }
 
-    public function handle(): void
+    public function handle(PayoutAccountSafeguards $safeguards): void
     {
         $minPayout = (int) AppSetting::wallet('min_payout');
 
@@ -43,6 +44,13 @@ class ProcessWeeklyAutoPayoutJob implements ShouldBeUnique, ShouldQueue
         $processed = 0;
 
         foreach ($drivers as $driver) {
+            // Held, under review or rejected: skip this week, pay next time.
+            if ($block = $safeguards->blockFor($driver->primaryBankAccount)) {
+                Log::info('Weekly auto-payout skipped for driver', ['driver_id' => $driver->id, 'reason' => $block['code']]);
+
+                continue;
+            }
+
             try {
                 DB::transaction(function () use ($driver, $minPayout, &$processed) {
                     $account = Account::where('owner_type', 'App\\Models\\Driver')

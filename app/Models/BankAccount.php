@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\BankAccountNameMatch;
+use App\Enums\BankAccountReviewStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +21,13 @@ class BankAccount extends Model
         'account_name',
         'is_verified',
         'is_primary',
+        'payouts_held_until',
+        'verified_name',
+        'name_match_status',
+        'review_status',
+        'review_note',
+        'reviewed_by_admin_id',
+        'reviewed_at',
     ];
 
     protected function casts(): array
@@ -26,12 +35,21 @@ class BankAccount extends Model
         return [
             'is_verified' => 'boolean',
             'is_primary' => 'boolean',
+            'payouts_held_until' => 'datetime',
+            'name_match_status' => BankAccountNameMatch::class,
+            'review_status' => BankAccountReviewStatus::class,
+            'reviewed_at' => 'datetime',
         ];
     }
 
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Driver::class);
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_admin_id');
     }
 
     public function payouts(): HasMany

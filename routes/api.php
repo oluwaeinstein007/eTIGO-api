@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminMonitoringController;
 use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
+use App\Http\Controllers\Api\V1\Admin\AdminPayoutAccountController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
 use App\Http\Controllers\Api\V1\Admin\AdminPricingController;
 use App\Http\Controllers\Api\V1\Admin\AdminPromoController;
@@ -592,6 +593,15 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{payout}/retry', [AdminPayoutController::class, 'retry']);
         Route::post('/{payout}/verify', [AdminPayoutController::class, 'verify']);
         Route::get('/export', [AdminPayoutController::class, 'export']);
+    });
+
+    // Driver payout bank accounts: name-check review queue and payout holds.
+    Route::middleware('admin.role:finance,support')->prefix('payout-accounts')->group(function () {
+        Route::get('/', [AdminPayoutAccountController::class, 'index']);
+        Route::get('/{bankAccount}', [AdminPayoutAccountController::class, 'show']);
+        Route::post('/{bankAccount}/approve', [AdminPayoutAccountController::class, 'approve'])->middleware('admin.role:finance');
+        Route::post('/{bankAccount}/reject', [AdminPayoutAccountController::class, 'reject'])->middleware('admin.role:finance');
+        Route::post('/{bankAccount}/release-hold', [AdminPayoutAccountController::class, 'releaseHold'])->middleware('admin.role:finance');
     });
 
     Route::middleware('admin.role:finance')->prefix('rides')->group(function () {

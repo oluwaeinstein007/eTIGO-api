@@ -51,6 +51,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payout Account Safeguards
+    |--------------------------------------------------------------------------
+    |
+    | After a driver replaces their payout bank account, payouts to the new
+    | account wait this many hours (0 = no hold), so a change the driver did
+    | not make can be reported before money leaves. A first account is exempt
+    | unless payout_account_hold_first_account is true.
+    |
+    | The account name Paystack returns is compared with the driver's verified
+    | name. payout_account_name_check: off (record only), review (a mismatch
+    | is saved but paid out only after finance approves it) or block (a
+    | mismatched account cannot be saved).
+    |
+    */
+
+    'payout_account_hold_hours' => (int) env('WALLET_PAYOUT_ACCOUNT_HOLD_HOURS', 24),
+
+    'payout_account_hold_first_account' => (bool) env('WALLET_PAYOUT_ACCOUNT_HOLD_FIRST_ACCOUNT', false),
+
+    'payout_account_name_check' => env('WALLET_PAYOUT_ACCOUNT_NAME_CHECK', 'review'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Commission
     |--------------------------------------------------------------------------
     */

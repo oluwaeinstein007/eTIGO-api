@@ -19,6 +19,10 @@ class BankAccountResource extends JsonResource
             'account_name' => $this->account_name,
             'is_verified' => $this->is_verified,
             'is_primary' => $this->is_primary,
+            // Payout safeguards: see payout_eligibility for what the driver can do now.
+            'payouts_held_until' => $this->payouts_held_until?->toIso8601String(),
+            'name_match_status' => $this->name_match_status?->value,
+            'review_status' => $this->review_status?->value,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

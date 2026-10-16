@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\PayoutAccountSafeguards;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,6 +31,11 @@ class PayoutResource extends JsonResource
             // awaiting_otp (Paystack wants an OTP), not_sent or unconfirmed.
             'attention_reason' => $this->when($isAdmin, fn () => $this->resource->attentionReason()),
             'provider_status' => $this->when($isAdmin, $this->provider_status),
+            // Why approve/retry would be refused (409): the account is on hold, under review or rejected.
+            'bank_account_block' => $this->when(
+                $isAdmin && $this->relationLoaded('bankAccount') && $this->bankAccount !== null,
+                fn () => app(PayoutAccountSafeguards::class)->blockFor($this->bankAccount),
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

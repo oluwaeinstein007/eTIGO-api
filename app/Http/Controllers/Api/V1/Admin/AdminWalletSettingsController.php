@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\PayoutAccountNameCheck;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AdminWalletSettingsController extends Controller
@@ -27,6 +29,9 @@ class AdminWalletSettingsController extends Controller
                 'max_negative_balance' => $settings['max_negative_balance'],
                 'hold_expiry_hours' => $settings['hold_expiry_hours'],
                 'abandoned_topup_minutes' => $settings['abandoned_topup_minutes'],
+                'payout_account_hold_hours' => $settings['payout_account_hold_hours'],
+                'payout_account_hold_first_account' => $settings['payout_account_hold_first_account'],
+                'payout_account_name_check' => $settings['payout_account_name_check'],
             ],
         ]);
     }
@@ -42,7 +47,14 @@ class AdminWalletSettingsController extends Controller
             'max_negative_balance' => ['sometimes', 'integer', 'max:0'],
             'hold_expiry_hours' => ['sometimes', 'integer', 'min:1', 'max:48'],
             'abandoned_topup_minutes' => ['sometimes', 'integer', 'min:5', 'max:1440'],
+            'payout_account_hold_hours' => ['sometimes', 'integer', 'min:0', 'max:168'],
+            'payout_account_hold_first_account' => ['sometimes', 'boolean'],
+            'payout_account_name_check' => ['sometimes', 'string', Rule::enum(PayoutAccountNameCheck::class)],
         ]);
+
+        if (array_key_exists('payout_account_hold_first_account', $validated)) {
+            $validated['payout_account_hold_first_account'] = $request->boolean('payout_account_hold_first_account');
+        }
 
         $current = AppSetting::getWalletSettings();
         $merged = array_merge($current, $validated);
@@ -60,7 +72,7 @@ class AdminWalletSettingsController extends Controller
 
         DB::transaction(function () use ($validated, $current, $request) {
             foreach ($validated as $key => $value) {
-                AppSetting::setValue("wallet.{$key}", $value, 'wallet');
+                AppSetting::setValue("wallet.{$key}", is_bool($value) ? (int) $value : $value, 'wallet');
             }
 
             AuditLog::record(

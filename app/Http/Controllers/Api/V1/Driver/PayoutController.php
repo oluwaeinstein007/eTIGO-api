@@ -11,6 +11,7 @@ use App\Http\Resources\PayoutResource;
 use App\Models\Account;
 use App\Models\AuditLog;
 use App\Models\Payout;
+use App\Services\PayoutAccountSafeguards;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,10 @@ use Illuminate\Validation\Rule;
 
 class PayoutController extends Controller
 {
+    public function __construct(
+        private PayoutAccountSafeguards $safeguards,
+    ) {}
+
     public function store(StorePayoutRequest $request): JsonResponse
     {
         $driver = $request->user()->driver;
@@ -29,6 +34,10 @@ class PayoutController extends Controller
         $bankAccount = $driver->primaryBankAccount;
         if (! $bankAccount || ! $bankAccount->is_verified) {
             return response()->json(['message' => 'No verified bank account on file. Please add a bank account first.'], 422);
+        }
+
+        if ($block = $this->safeguards->blockFor($bankAccount)) {
+            return response()->json($block, 422);
         }
 
         $amountKobo = $request->validated('amount');

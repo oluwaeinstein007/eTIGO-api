@@ -13,8 +13,8 @@ Request and response details are in `API_REFERENCE.md`; every new response has a
 | App | Must do (breaking) | Should do |
 |-----|--------------------|-----------|
 | Passenger | Verify top-ups with `tx_ref`; send the same `type` you verified with at registration | Tip wallet and bank-transfer rides (wallet/card choice); show the card-tip messages; optional priority-matching perk; PIN regenerate |
-| Driver | Adding or changing the bank account needs an OTP; `fuel_type` required when registering a vehicle; EV charging only when `vehicle.can_charge` | Fuel type picker and prompt; EV fee and free-cancellation countdown; payout statuses; `ev_reservation_cancelled`, `vehicle_fuel_type_required` and `payout_account_changed` notifications |
-| Admin dashboard | `fuel_type` required on fleet vehicle creation | Payout **Check status** button with `needs_attention` / `attention_reason`; Retry for `reversed`; fuel type on drivers and fleet; live surge demand |
+| Driver | Adding or changing the bank account needs an OTP; withdrawals can be held or under review (`payout_eligibility`); `fuel_type` required when registering a vehicle; EV charging only when `vehicle.can_charge` | Fuel type picker and prompt; EV fee and free-cancellation countdown; payout statuses; `ev_reservation_cancelled`, `vehicle_fuel_type_required` and `payout_account_changed` notifications |
+| Admin dashboard | `fuel_type` required on fleet vehicle creation | **Payout accounts** review screen and three new wallet settings; Payout **Check status** button with `needs_attention` / `attention_reason`; Retry for `reversed`; fuel type on drivers and fleet; live surge demand |
 | All | New error codes; session expiry (app 30 days, admin 8 hours) | |
 
 ---
@@ -30,6 +30,12 @@ Request and response details are in `API_REFERENCE.md`; every new response has a
 Every `POST /driver/bank-account` requires `otp_code`, including the driver's **first** account (updated after the first version of this guide, which exempted the first account). Request it with `POST /driver/bank-account/otp` (3 per minute), then send it with `POST /driver/bank-account`. Without it the request returns 422 `errors.otp_code`. Use one flow: resolve → confirm the name → send the code → enter the code → save. If Paystack cannot verify the account on save, the code is not used up: let the driver fix the details and retry with the same code (while it is still valid, 5 minutes).
 
 After every save the driver gets a **new notification** `payout_account_changed` (in-app and push, data: `bank_account_id`, `replaced_another`) and a WhatsApp/SMS message that is sent whatever their notification settings are. On tap, open the bank account screen.
+
+**Payout safeguards (driver app, admin dashboard)** — added after the first version of this guide:
+- **Before saving**, `POST /driver/bank-account/resolve` returns `name_check` and `payout_hold`. If `name_check.outcome` is `review`, show its `message` and let the driver continue or choose another account; if `blocked`, show the message and do not offer to save. If `payout_hold.applies`, show its `message` ("payouts will start 24 hours after you save it").
+- **After saving and on the bank account screen**, `POST`/`GET /driver/bank-account` return `payout_eligibility` (`can_request_payouts`, `code`, `message`, `payouts_held_until`). When `can_request_payouts` is false, disable **Withdraw** and show the message: `payout_account_on_hold` (countdown to `payouts_held_until`), `payout_account_under_review`, or `payout_account_rejected` (offer **Add another account**). `POST /driver/payouts` returns the same `code` with 422.
+- **New notification** `payout_account_reviewed` (data: `bank_account_id`, `review_status` `approved`/`rejected`): open the bank account screen.
+- **Admin dashboard (finance):** a **Payout accounts** screen on `GET /admin/payout-accounts` (badge from `summary.pending_review`; filters `review_status`, `name_match_status`, `on_hold`, `search`) with **Approve** (optional note), **Reject** (reason) and **Release hold** (reason). On the payouts list, `bank_account_block` explains why **Approve**/**Retry** would be refused (409); link to the account. Wallet settings gain `payout_account_hold_hours`, `payout_account_hold_first_account` and `payout_account_name_check` (`off`/`review`/`block`).
 
 ### 3. Registration is bound to the verified type (both apps)
 
