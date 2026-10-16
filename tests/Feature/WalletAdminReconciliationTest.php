@@ -99,6 +99,71 @@ test('DailyReconciliationJob reports a clean day when every top-up and payout we
         ->and($report->ledger_payouts_total)->toBe(250000);
 });
 
+test('DailyReconciliationJob asks Paystack about a payout settled without a webhook', function () {
+    $payout = Payout::factory()->create([
+        'status' => PayoutStatus::Paid,
+        'amount' => 200000,
+        'gateway_reference' => 'PAYOUT-VERIFIED-2',
+        'paid_at' => now()->subDay(),
+    ]);
+
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('verifyTransfer')->once()->with('PAYOUT-VERIFIED-2')
+        ->andReturn(['id' => 1043744364, 'reference' => 'PAYOUT-VERIFIED-2', 'status' => 'success', 'amount' => 200000]);
+    app()->instance(WalletGateway::class, $gateway);
+
+    (new DailyReconciliationJob(now()->subDay()->toDateString()))->handle();
+
+    $report = ReconciliationReport::first();
+    expect($report->status)->toBe('clean')
+        ->and($report->gateway_transfers_total)->toBe(200000)
+        ->and($report->ledger_payouts_total)->toBe(200000);
+});
+
+test('DailyReconciliationJob flags a paid payout that Paystack does not confirm', function (?array $transfer) {
+    Payout::factory()->create([
+        'status' => PayoutStatus::Paid,
+        'amount' => 200000,
+        'gateway_reference' => 'PAYOUT-UNCONFIRMED',
+        'paid_at' => now()->subDay(),
+    ]);
+
+    $gateway = Mockery::mock(WalletGateway::class);
+    $expectation = $gateway->shouldReceive('verifyTransfer')->once();
+    $transfer === null ? $expectation->andThrow(new RuntimeException('Gateway unavailable')) : $expectation->andReturn($transfer);
+    app()->instance(WalletGateway::class, $gateway);
+
+    (new DailyReconciliationJob(now()->subDay()->toDateString()))->handle();
+
+    $report = ReconciliationReport::first();
+    expect($report->status)->toBe('mismatched')
+        ->and($report->gateway_transfers_total)->toBe(0)
+        ->and($report->ledger_payouts_total)->toBe(200000);
+})->with([
+    'failed at Paystack' => [['id' => 1, 'reference' => 'PAYOUT-UNCONFIRMED', 'status' => 'failed', 'amount' => 200000]],
+    'Paystack unreachable' => [null],
+]);
+
+test('DailyReconciliationJob does not ask Paystack about a payout whose webhook arrived', function () {
+    config(['services.paystack.secret_key' => 'test_secret_key']);
+    $payout = Payout::factory()->create(['status' => PayoutStatus::Processing, 'gateway_transfer_id' => '5552', 'amount' => 250000]);
+    $payload = ['event' => 'transfer.success', 'data' => ['id' => 5552, 'reference' => "PAYOUT-{$payout->id}", 'amount' => 250000, 'status' => 'success']];
+
+    $this->travelTo(now()->subDay());
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
+        'x-paystack-signature' => hash_hmac('sha512', json_encode($payload), 'test_secret_key'),
+    ])->assertOk();
+    $this->travelBack();
+
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldNotReceive('verifyTransfer');
+    app()->instance(WalletGateway::class, $gateway);
+
+    (new DailyReconciliationJob(now()->subDay()->toDateString()))->handle();
+
+    expect(ReconciliationReport::first()->status)->toBe('clean');
+});
+
 // --- BE-WADM-22: StuckTransactionSweeperJob ---
 
 test('StuckTransactionSweeperJob marks old pending transactions as abandoned', function () {

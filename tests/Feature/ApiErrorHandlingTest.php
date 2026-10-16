@@ -65,3 +65,12 @@ it('renders an invalid state transition as 409 Conflict', function () {
             'current_status' => 'completed',
         ]);
 });
+
+it('answers a guest with 401 even without a JSON Accept header', function () {
+    // A link preview (e.g. WhatsApp) fetching an API URL; there is no login page to redirect to.
+    $this->get('/api/v1/rides/estimate', ['User-Agent' => 'WhatsApp/2.23.20.0'])
+        ->assertUnauthorized()
+        ->assertJsonPath('error_code', 'UNAUTHENTICATED');
+
+    $this->post('/broadcasting/auth')->assertUnauthorized();
+});

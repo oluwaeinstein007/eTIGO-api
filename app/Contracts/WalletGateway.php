@@ -25,8 +25,9 @@ interface WalletGateway
 
     /**
      * Look up a transfer by our reference; null when the provider has none.
+     * The amount is in kobo.
      *
-     * @return array{id: int|string, reference: string, status: string}|null
+     * @return array{id: int|string, reference: string, status: string, amount: int}|null
      */
     public function verifyTransfer(string $reference): ?array;
 

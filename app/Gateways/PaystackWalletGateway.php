@@ -86,6 +86,7 @@ class PaystackWalletGateway implements WalletGateway
             'id' => $data['id'],
             'reference' => $data['reference'],
             'status' => $data['status'],
+            'amount' => (int) ($data['amount'] ?? 0),
         ];
     }
 
