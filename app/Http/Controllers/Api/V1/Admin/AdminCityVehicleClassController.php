@@ -8,6 +8,7 @@ use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Services\AppCacheService;
+use App\Services\PricingCoverageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,7 @@ class AdminCityVehicleClassController extends Controller
 {
     public function __construct(
         private AppCacheService $cache,
+        private PricingCoverageService $coverage,
     ) {}
 
     public function update(UpdateCityVehicleClassesRequest $request, City $city): JsonResponse
@@ -41,6 +43,7 @@ class AdminCityVehicleClassController extends Controller
         return response()->json([
             'message' => 'City vehicle classes updated successfully.',
             'city' => new CityResource($city->fresh()->load('vehicleClasses')),
+            'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }
 }

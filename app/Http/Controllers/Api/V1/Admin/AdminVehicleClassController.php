@@ -9,12 +9,17 @@ use App\Http\Resources\VehicleClassResource;
 use App\Models\AuditLog;
 use App\Models\VehicleClass;
 use App\Services\AppCacheService;
+use App\Services\PricingCoverageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminVehicleClassController extends Controller
 {
+    public function __construct(
+        private PricingCoverageService $coverage,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = VehicleClass::withCount(['drivers', 'activeRides'])
@@ -63,6 +68,7 @@ class AdminVehicleClassController extends Controller
         return response()->json([
             'message' => 'Vehicle class created successfully.',
             'vehicle_class' => new VehicleClassResource($vehicleClass),
+            'warnings' => $this->coverage->warningsForVehicleClass($vehicleClass),
         ], 201);
     }
 
@@ -73,6 +79,7 @@ class AdminVehicleClassController extends Controller
 
         return response()->json([
             'vehicle_class' => new VehicleClassResource($vehicleClass),
+            'warnings' => $this->coverage->warningsForVehicleClass($vehicleClass),
         ]);
     }
 
@@ -106,6 +113,7 @@ class AdminVehicleClassController extends Controller
         return response()->json([
             'message' => 'Vehicle class updated successfully.',
             'vehicle_class' => new VehicleClassResource($vehicleClass),
+            'warnings' => $this->coverage->warningsForVehicleClass($vehicleClass),
         ]);
     }
 }

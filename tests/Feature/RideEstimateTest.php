@@ -5,6 +5,7 @@ use App\Models\City;
 use App\Models\PricingConfig;
 use App\Models\User;
 use App\Models\VehicleClass;
+use Illuminate\Support\Facades\Log;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -65,6 +66,8 @@ it('returns fare estimates for all vehicle classes in a city', function () {
 });
 
 it('returns empty estimates when no pricing configured', function () {
+    Log::spy()->shouldReceive('channel')->andReturnSelf();
+
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/rides/estimate', [
             'city_id' => $this->city->id,
@@ -76,6 +79,12 @@ it('returns empty estimates when no pricing configured', function () {
 
     $response->assertOk()
         ->assertJsonCount(0, 'estimates');
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn ($message, $context) => str_contains($message, 'no pricing for any vehicle class')
+            && $context['city_id'] === $this->city->id
+            && $context['vehicle_class_ids'] === [$this->vehicleClass->id])
+        ->once();
 });
 
 it('validates required fields', function () {

@@ -7,12 +7,17 @@ use App\Http\Requests\Admin\Pricing\StorePricingRequest;
 use App\Http\Resources\PricingResource;
 use App\Models\AuditLog;
 use App\Models\PricingConfig;
+use App\Services\PricingCoverageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminPricingController extends Controller
 {
+    public function __construct(
+        private PricingCoverageService $coverage,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = PricingConfig::with(['city', 'vehicleClass', 'createdByAdmin']);
@@ -138,7 +143,30 @@ class AdminPricingController extends Controller
         return response()->json([
             'message' => 'Pricing configuration created successfully.',
             'pricing_config' => new PricingResource($config),
+            'warnings' => $this->coverage->warningsForPricingConfig($config),
         ], 201);
+    }
+
+    /**
+     * Vehicle classes offered in a city that have no pricing in effect, so
+     * fare estimates leave them out.
+     */
+    public function gaps(Request $request): JsonResponse
+    {
+        $request->validate([
+            'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
+            'vehicle_class_id' => ['sometimes', 'uuid', 'exists:vehicle_classes,id'],
+        ]);
+
+        $gaps = $this->coverage->gaps(
+            array_filter([$request->input('city_id')]),
+            array_filter([$request->input('vehicle_class_id')]),
+        );
+
+        return response()->json([
+            'gaps' => $gaps->values(),
+            'total' => $gaps->count(),
+        ]);
     }
 
     public function show(PricingConfig $pricingConfig): JsonResponse

@@ -4504,6 +4504,8 @@ Authorization: Bearer {token}
 
 **Allowed Roles:** Operations (Super Admin always has access)
 
+Single-city responses (show, create, update, toggle status, update vehicle classes) include a `warnings` array that flags vehicle classes with no pricing in effect. See [Pricing coverage warnings](#pricing-coverage-warnings).
+
 ### List Cities
 ```
 GET /admin/cities
@@ -4533,6 +4535,7 @@ GET /admin/cities
       "is_active": true,
       "vehicle_classes_count": 3,
       "drivers_count": 12,
+      "unpriced_vehicle_classes_count": 0,
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -4761,6 +4764,8 @@ Syncs the pivot table — entries not included are removed.
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
 
 **Allowed Roles:** Operations (Super Admin always has access)
+
+Single-class responses (show, create, update) include a `warnings` array that flags cities where the class has no pricing in effect, or cities left with nothing bookable when the class is turned off. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
 ### List Vehicle Classes
 ```
@@ -6951,6 +6956,31 @@ Demo accounts use `@ops-demo.etigo.com` emails (password `Qwer!234`). The schedu
 
 **Allowed Roles:** Operations, Finance (Super Admin always has access)
 
+#### Pricing coverage warnings
+
+Fare estimates only include a vehicle class in a city when the class is active, turned on for that city, and has a pricing config in effect (`effective_from` in the past). If none of a city's classes qualifies, `POST /rides/estimate` returns an empty `estimates` list with "No pricing available for this city."
+
+To catch this when it is set up rather than when a passenger hits it, these admin responses include a `warnings` array of plain-English messages (empty when there is nothing to flag). They never block the change; show them to the admin after saving.
+
+| Endpoint | Warns when |
+|---|---|
+| `POST /admin/pricing` | The vehicle class is turned off; the city doesn't offer the class; the config starts later and nothing is in effect until then |
+| `GET /admin/cities/{id}`, `POST /admin/cities`, `PUT /admin/cities/{id}`, `PATCH /admin/cities/{id}/status`, `PUT /admin/cities/{id}/vehicle-classes` | Offered classes have no pricing in effect; an active city has no priced class at all, or offers no classes |
+| `GET /admin/vehicle-classes/{id}`, `POST /admin/vehicle-classes`, `PUT /admin/vehicle-classes/{id}` | The class has no pricing in effect in some of its cities; turning it off leaves a city with nothing bookable |
+
+`GET /admin/cities` also returns `unpriced_vehicle_classes_count` on each city, for a badge in the city list. The `pricing:check-coverage` command runs daily at 07:00 (Africa/Lagos) and logs a warning for every gap in an active city.
+
+**Example (`POST /admin/pricing` for a class that is turned off):**
+```json
+{
+  "message": "Pricing configuration created successfully.",
+  "pricing_config": { "...": "..." },
+  "warnings": [
+    "Comfort is turned off, so this pricing won't be used until the vehicle class is turned on."
+  ]
+}
+```
+
 ### List Pricing Configs
 ```
 GET /admin/pricing
@@ -7050,9 +7080,12 @@ Version is auto-incremented per city + vehicle class combination.
     "vehicle_class": { "id": "c3d4e5f6-a7b8-9012-cdef-123456789012", "name": "economy" },
     "created_by": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "first_name": "Super", "last_name": "Admin", "...": "..." },
     "created_at": "2026-10-06T14:00:00.000000Z"
-  }
+  },
+  "warnings": []
 }
 ```
+
+`warnings` lists reasons this config won't be used for fares yet (see [Pricing coverage warnings](#pricing-coverage-warnings)).
 
 ---
 
@@ -7129,6 +7162,36 @@ Returns the currently effective pricing config for the given city + vehicle clas
 ```json
 {
   "message": "No pricing configuration found for the specified city and vehicle class."
+}
+```
+
+---
+
+### List Pricing Coverage Gaps
+```
+GET /admin/pricing/gaps
+```
+| Query Param      | Type          | Required | Description                   |
+|------------------|---------------|----------|-------------------------------|
+| city_id          | string (UUID) | No       | Only gaps in this city        |
+| vehicle_class_id | string (UUID) | No       | Only gaps for this class      |
+
+Lists every vehicle class that is offered in a city (active overall and turned on for the city) but has no pricing config in effect, so fare estimates leave it out. `next_effective_from` is the start of the earliest scheduled config, or `null` when none is scheduled. Sorted by city name, then class name.
+
+**Response 200:**
+```json
+{
+  "gaps": [
+    {
+      "city_id": "01a14034-2ff9-71fc-952d-b178fdfd604a",
+      "city_name": "Lekki Test",
+      "city_is_active": true,
+      "vehicle_class_id": "7d6e10db-aedf-4442-9453-c9fb9b29778e",
+      "vehicle_class_name": "Comfort",
+      "next_effective_from": null
+    }
+  ],
+  "total": 1
 }
 ```
 

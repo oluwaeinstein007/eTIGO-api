@@ -30,6 +30,7 @@ Schedule::job(new StuckTransactionSweeperJob)->everyThirtyMinutes()->withoutOver
 Schedule::job(new ReconcilePayoutsJob)->everyFifteenMinutes()->withoutOverlapping();
 Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
+Schedule::command('pricing:check-coverage')->dailyAt('07:00')->timezone('Africa/Lagos');
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
 // Scheduled rides: start matching shortly before pickup and send reminders.
 Schedule::job(new ProcessScheduledRidesJob)->everyMinute()->withoutOverlapping();
