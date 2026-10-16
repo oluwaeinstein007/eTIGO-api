@@ -1612,6 +1612,8 @@ Toggle driver online/offline status. No request body required.
 
 Drivers whose app stops sending locations for 2 minutes are no longer offered rides or shown on maps, even if they forgot to go offline.
 
+**Set offline automatically:** a driver who has been online for 10 minutes without the app sending a location in that time (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) is set offline by the server and gets a `driver_set_offline` notification. Drivers on a trip are not. The app should show the driver as offline and, whenever it opens or returns to the foreground with `is_online: true`, restart location updates, otherwise the driver is invisible to matching.
+
 **Response 200 (went online):**
 ```json
 {

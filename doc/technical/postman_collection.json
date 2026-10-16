@@ -6925,7 +6925,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure."
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nA driver who has been online for 10 minutes without sending a location (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) is set offline by the server and gets a `driver_set_offline` notification, unless they are on a trip."
               },
               "response": [
                 {
@@ -7073,7 +7073,7 @@
                     "location"
                   ]
                 },
-                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0\u2013360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n- `timestamp` (optional): a date/time; accepted but not used \u2014 the server's time is recorded\n\n**Rate Limit:** 429 if called more than once per second."
+                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0\u2013360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n- `timestamp` (optional): a date/time; accepted but not used \u2014 the server's time is recorded\n\n**Rate Limit:** 429 if called more than once per second.\n\nLocations stop counting 2 minutes after the last one; after 10 minutes without one (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) the server sets the driver offline. The app must keep sending locations whenever the driver is online, including after it is reopened."
               },
               "response": [
                 {
