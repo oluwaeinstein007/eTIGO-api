@@ -101,6 +101,7 @@ class RideReceiptController extends Controller
                     ] : null,
                     'minimum_fare' => (float) ($snapshot['minimum_fare'] ?? 0),
                     'surge_multiplier' => $snapshot['surge_multiplier'] ?? null,
+                    'reservation_fee' => (float) ($snapshot['reservation_fee'] ?? 0),
                 ],
                 'fare_estimate' => $ride->fare_estimate_amount,
                 'final_fare' => $ride->final_fare_amount,

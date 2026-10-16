@@ -37,7 +37,8 @@ class ProcessScheduledRidesJob implements ShouldQueue
         }
 
         $this->upcoming()
-            ->whereNull('reminder_sent_at')
+            ->where(fn ($query) => $query->whereNull('reminder_sent_at')
+                ->orWhere(fn ($query) => $query->whereNotNull('reserved_driver_id')->whereNull('driver_reminder_sent_at')))
             ->where('scheduled_pickup_at', '<=', now()->addMinutes($settings['reminder_minutes']))
             ->where('scheduled_pickup_at', '>', $dispatchHorizon)
             ->pluck('id')

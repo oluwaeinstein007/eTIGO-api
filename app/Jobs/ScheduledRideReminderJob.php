@@ -11,8 +11,9 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Sends the reminder push for one scheduled ride (BE2-SCH-05). Queued by
- * ProcessScheduledRidesJob; the reminder goes out at most once.
+ * Sends the reminder pushes for one scheduled ride (BE2-SCH-05): to the
+ * passenger and, when a driver reserved it, to that driver. Queued by
+ * ProcessScheduledRidesJob; each reminder goes out at most once.
  */
 class ScheduledRideReminderJob implements ShouldBeUnique, ShouldQueue
 {
@@ -32,5 +33,6 @@ class ScheduledRideReminderJob implements ShouldBeUnique, ShouldQueue
     public function handle(ScheduledRideService $service): void
     {
         $service->sendReminder($this->scheduledRideId);
+        $service->sendDriverReminder($this->scheduledRideId);
     }
 }

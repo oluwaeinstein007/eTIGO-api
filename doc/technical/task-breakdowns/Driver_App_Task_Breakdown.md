@@ -177,6 +177,9 @@
 | FE2-DSH-01 | `[ ]` Build shift schedule screen: calendar/list view of assigned shifts with date, start/end time, status | D-15 | 📡 BE2-SHIFT-03 | ⚠ OQ-20: UI scope depends on scheduling model decision |
 | FE2-DSH-02 | `[ ]` Build shift reminder notification handler | D-15 | 📡 Push notification | — |
 | FE2-DVH-01 | `[ ]` Build vehicle status/health screen: charging status (for EV), maintenance indicators (due/overdue), next service date | D-16 | 📡 BE2-VEH-03 | ⚠ OQ-19: EV-specific vs general TBD |
+| FE2-DSR-01 | `[ ]` Build "Scheduled rides" screen: list bookings available to reserve (pickup time, trip, fare, passenger first name/rating) with a **Reserve** action; surface 422 reasons as returned | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides/available`, `POST /driver/scheduled-rides/{ride}/reserve`. See FRONTEND_UPDATE_SCHEDULED_RIDES.md |
+| FE2-DSR-02 | `[ ]` Build "My reservations" list with **Release**; show "be online by `dispatch_at`" | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides`, `POST /driver/scheduled-rides/{ride}/release` |
+| FE2-DSR-03 | `[ ]` Handle `scheduled_ride_reminder`, `scheduled_ride_reserved`, `scheduled_ride_reservation_released` and `ride_cancelled` (reserved booking) notifications; show `scheduled_pickup_at` on ride offers | D-12 | 📡 Push / `ride.request.dispatched` | A reserved ride arrives as a normal assigned ride at `dispatch_at` |
 | FE2-DVH-02 | `[ ]` Build lost item driver response screen: notification of reported lost item; "I have it" / "I don't have it" response; contact instructions if confirmed | D-14 | 📡 BE2-LF-06 | — |
 
 ---

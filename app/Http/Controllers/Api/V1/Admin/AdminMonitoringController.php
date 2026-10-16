@@ -127,7 +127,7 @@ class AdminMonitoringController extends Controller
         $perPage = min(max((int) $request->input('per_page', 50), 1), 100);
 
         $rides = Ride::whereIn('status', RideStatus::activeStatuses())
-            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver', 'stateTransitions'])
+            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver', 'stateTransitions', 'scheduledRide'])
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
             ->orderByDesc('created_at')
@@ -172,7 +172,7 @@ class AdminMonitoringController extends Controller
 
     public function rideDetail(Ride $ride): JsonResponse
     {
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle.vehicleClass', 'stateTransitions']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle.vehicleClass', 'stateTransitions', 'scheduledRide']);
 
         $ratings = $this->bulkAverageRatings(array_filter([$ride->driver_id]));
 
@@ -282,7 +282,7 @@ class AdminMonitoringController extends Controller
 
         $rides = Ride::whereIn('status', $allowedStatuses)
             ->where($withinAssignmentWindow)
-            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle'])
+            ->with(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'scheduledRide'])
             ->when($request->input('status'), function ($q, $v) use ($allowedStatuses) {
                 $statuses = array_filter(
                     array_map(fn ($s) => RideStatus::tryFrom($s), explode(',', $v)),

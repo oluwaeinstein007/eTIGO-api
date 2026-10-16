@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverRepairController;
+use App\Http\Controllers\Api\V1\Driver\DriverScheduledRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
 use App\Http\Controllers\Api\V1\Driver\EvReservationController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
@@ -321,6 +322,12 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/nearby-rides', NearbyRidesController::class);
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
+    Route::prefix('scheduled-rides')->group(function () {
+        Route::get('/', [DriverScheduledRideController::class, 'index']);
+        Route::get('/available', [DriverScheduledRideController::class, 'available']);
+        Route::post('/{ride}/reserve', [DriverScheduledRideController::class, 'reserve']);
+        Route::post('/{ride}/release', [DriverScheduledRideController::class, 'release']);
+    });
     Route::get('/stats', [DriverStatsController::class, 'show']);
     Route::get('/earnings', [DriverEarningsController::class, 'show']);
     Route::get('/earnings/rides/{ride}', [DriverEarningsController::class, 'rideBreakdown']);
@@ -459,6 +466,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::middleware('admin.role:operations')->group(function () {
         Route::get('/scheduled-rides', [AdminScheduledRideController::class, 'index']);
+        Route::post('/scheduled-rides/{ride}/assign', [AdminScheduledRideController::class, 'assign']);
+        Route::delete('/scheduled-rides/{ride}/assign', [AdminScheduledRideController::class, 'unassign']);
         Route::get('/settings/scheduled-rides', [AdminScheduledRideController::class, 'showSettings']);
         Route::put('/settings/scheduled-rides', [AdminScheduledRideController::class, 'updateSettings']);
     });

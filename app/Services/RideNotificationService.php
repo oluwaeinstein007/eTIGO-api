@@ -30,6 +30,11 @@ class RideNotificationService
 
     private function notifyScheduledRideDispatched(Ride $ride): void
     {
+        // Given straight to the reserved driver: the matched push follows.
+        if (Ride::whereKey($ride->id)->whereNotNull('driver_id')->exists()) {
+            return;
+        }
+
         $this->notificationService->send(
             userId: $ride->passenger_id,
             type: NotificationType::ScheduledRideDispatched,
@@ -148,6 +153,26 @@ class RideNotificationService
                 type: NotificationType::RideCancelled,
                 title: 'Ride Cancelled',
                 body: $body,
+                data: ['ride_id' => (string) $ride->id],
+            );
+        }
+
+        // A booking cancelled before dispatch has no driver yet, but a driver
+        // may have reserved it.
+        $ride->loadMissing('scheduledRide');
+        $reservedDriverId = $ride->driver_id === null ? $ride->scheduledRide?->reserved_driver_id : null;
+
+        if ($reservedDriverId !== null && $ride->cancelled_by !== $reservedDriverId) {
+            $fee = (float) ($ride->scheduledRide->late_cancellation_fee ?? 0);
+            $feeNote = $fee > 0 && $ride->scheduledRide->late_cancellation_fee_status !== 'waived'
+                ? ' You will receive the late-cancellation fee once it is collected.'
+                : '';
+
+            $this->notificationService->send(
+                userId: $reservedDriverId,
+                type: NotificationType::RideCancelled,
+                title: 'Reserved Pickup Cancelled',
+                body: "The passenger's scheduled ride from {$ride->pickup_address} was cancelled.".$feeNote,
                 data: ['ride_id' => (string) $ride->id],
             );
         }

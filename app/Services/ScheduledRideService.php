@@ -47,6 +47,7 @@ class ScheduledRideService
         private PromoValidationService $promoValidationService,
         private TierGateService $tierGateService,
         private NotificationService $notificationService,
+        private ScheduledRideReservationService $reservationService,
     ) {}
 
     /**
@@ -172,6 +173,14 @@ class ScheduledRideService
             $ride->save();
 
             $timeChanged = ! $pickupAt->equalTo($scheduled->scheduled_pickup_at);
+            $pickupMoved = $ride->wasChanged(['pickup_lat', 'pickup_lng', 'pickup_address']);
+
+            // A reserved driver committed to a time and place; a new one
+            // returns the booking to the pool.
+            if ($scheduled->isReserved() && ($timeChanged || $pickupMoved)) {
+                $this->reservationService->clearReservation($ride, $scheduled, 'pickup_changed', $passenger);
+            }
+
             $scheduled->scheduled_pickup_at = $pickupAt;
 
             if ($timeChanged) {
@@ -246,6 +255,7 @@ class ScheduledRideService
             'booking_fee_discount_pct' => $bookingFeeDiscountPct,
             'tier_name' => $tierBenefits['tier_name'],
             'priority_matching' => (bool) $tierBenefits['priority_matching'],
+            'reservation_fee' => $estimate['reservation_fee'],
         ];
     }
 
@@ -269,8 +279,9 @@ class ScheduledRideService
      * that cannot start are cancelled with a reason the passenger is told.
      * Safe to run more than once for the same booking.
      *
-     * @return 'dispatched'|'waiting'|'failed'|'skipped' waiting = the passenger is
-     *                                                   still on another ride; the next sweep tries again
+     * @return 'dispatched'|'assigned'|'waiting'|'failed'|'skipped' assigned = given straight
+     *                                                              to the reserved driver; waiting = the passenger is still on another ride
+     *                                                              and the next sweep tries again
      */
     public function dispatch(string $scheduledRideId): string
     {
@@ -338,7 +349,7 @@ class ScheduledRideService
 
             $scheduled->update(['dispatched_at' => now()]);
 
-            $this->stateMachine->transitionTo(
+            $ride = $this->stateMachine->transitionTo(
                 $ride,
                 RideStatus::Searching,
                 null,
@@ -350,6 +361,19 @@ class ScheduledRideService
             );
 
             AuditLog::record($ride, 'scheduled_ride_dispatched');
+
+            // A driver who reserved the booking gets it directly when they are
+            // online and free; otherwise it goes to normal matching.
+            $reservedDriver = $scheduled->reserved_driver_id ? User::find($scheduled->reserved_driver_id) : null;
+
+            if ($reservedDriver !== null) {
+                if ($this->reservationService->canTakeNow($reservedDriver, $ride)
+                    && $this->rideService->assignReservedDriver($ride, $reservedDriver, ['reason' => 'scheduled_dispatch'])) {
+                    return 'assigned';
+                }
+
+                $this->reservationService->clearReservation($ride, $scheduled, 'driver_unavailable');
+            }
 
             return 'dispatched';
         });
@@ -459,10 +483,73 @@ class ScheduledRideService
                 ],
             );
         } catch (\Throwable $e) {
+            // Give the claim back so the next sweep tries again, unless the
+            // booking moved on meanwhile.
+            ScheduledRide::query()
+                ->whereKey($scheduled->id)
+                ->whereNull('dispatched_at')
+                ->whereNull('cancelled_at')
+                ->where('reminder_sent_at', $scheduled->reminder_sent_at)
+                ->update(['reminder_sent_at' => null]);
+
             Log::warning('Scheduled ride reminder could not be sent', [
                 'ride_id' => $ride->id,
                 'error' => $e->getMessage(),
             ]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Remind the reserved driver of their pickup, once per reservation, so
+     * they are online when matching starts.
+     */
+    public function sendDriverReminder(string $scheduledRideId): bool
+    {
+        $scheduled = DB::transaction(function () use ($scheduledRideId) {
+            $scheduled = ScheduledRide::lockForUpdate()->find($scheduledRideId);
+
+            if ($scheduled === null || ! $scheduled->isUpcoming() || ! $scheduled->isReserved() || $scheduled->driver_reminder_sent_at !== null) {
+                return null;
+            }
+
+            $scheduled->update(['driver_reminder_sent_at' => now()]);
+
+            return $scheduled;
+        });
+
+        if ($scheduled === null) {
+            return false;
+        }
+
+        $ride = Ride::with('city')->find($scheduled->ride_id);
+        $timezone = $ride?->city?->timezone ?? config('app.timezone');
+        $pickup = $scheduled->scheduled_pickup_at->copy()->setTimezone($timezone)->format('g:i A');
+        $onlineBy = $scheduled->dispatchAt(AppSetting::scheduledRides()['dispatch_lead_minutes'])->setTimezone($timezone)->format('g:i A');
+
+        try {
+            $this->notificationService->send(
+                userId: $scheduled->reserved_driver_id,
+                type: NotificationType::ScheduledRideReminder,
+                title: 'Upcoming Reserved Pickup',
+                body: "Reserved pickup at {$pickup} from {$ride?->pickup_address}. Be online by {$onlineBy} to keep it.",
+                data: [
+                    'ride_id' => (string) $scheduled->ride_id,
+                    'scheduled_pickup_at' => $scheduled->scheduled_pickup_at->toIso8601String(),
+                ],
+            );
+        } catch (\Throwable $e) {
+            ScheduledRide::query()
+                ->whereKey($scheduled->id)
+                ->where('driver_reminder_sent_at', $scheduled->driver_reminder_sent_at)
+                ->update(['driver_reminder_sent_at' => null]);
+
+            Log::warning('Reserved driver reminder could not be sent', ['scheduled_ride_id' => $scheduled->id, 'error' => $e->getMessage()]);
+
+            return false;
         }
 
         return true;

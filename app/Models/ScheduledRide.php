@@ -24,6 +24,14 @@ class ScheduledRide extends Model
         'dispatched_at',
         'cancelled_at',
         'dispatch_failure_reason',
+        'reserved_driver_id',
+        'reserved_at',
+        'reserved_by_admin_id',
+        'driver_reminder_sent_at',
+        'reservation_released_reason',
+        'late_cancellation_fee',
+        'late_cancellation_fee_status',
+        'late_cancellation_fee_note',
     ];
 
     protected function casts(): array
@@ -33,12 +41,28 @@ class ScheduledRide extends Model
             'reminder_sent_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'reserved_at' => 'datetime',
+            'driver_reminder_sent_at' => 'datetime',
+            'late_cancellation_fee' => 'decimal:2',
         ];
     }
 
     public function ride(): BelongsTo
     {
         return $this->belongsTo(Ride::class);
+    }
+
+    /**
+     * The driver (user) who reserved this booking in advance.
+     */
+    public function reservedDriver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reserved_driver_id');
+    }
+
+    public function isReserved(): bool
+    {
+        return $this->reserved_driver_id !== null;
     }
 
     /**

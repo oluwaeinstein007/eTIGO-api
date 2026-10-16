@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\RideStatus;
+use App\Enums\UserType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Ride;
+use App\Models\User;
+use App\Services\ScheduledRideReservationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,11 +18,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Operations view of scheduled rides (Phase 2): the upcoming bookings and the
- * scheduling settings (BE2-SCH-09).
+ * Operations view of scheduled rides (Phase 2): the upcoming bookings, driver
+ * pre-assignment and the scheduling settings (BE2-SCH-09).
  */
 class AdminScheduledRideController extends Controller
 {
+    public function __construct(
+        private ScheduledRideReservationService $reservationService,
+    ) {}
+
     /**
      * Bookings in `scheduled` status, soonest pickup first.
      */
@@ -31,6 +38,7 @@ class AdminScheduledRideController extends Controller
             'from' => ['sometimes', 'nullable', 'date'],
             'to' => ['sometimes', 'nullable', 'date'],
             'per_page' => ['sometimes', 'integer'],
+            'reserved' => ['sometimes', 'boolean'],
         ]);
 
         $rides = Ride::query()
@@ -43,7 +51,10 @@ class AdminScheduledRideController extends Controller
             ->when($request->input('to'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '<=', Carbon::parse($v)->utc()))
             ->orderBy('scheduled_rides.scheduled_pickup_at')
             ->select('rides.*')
-            ->with(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide'])
+            ->when($request->has('reserved'), fn ($q) => $request->boolean('reserved')
+                ? $q->whereNotNull('scheduled_rides.reserved_driver_id')
+                : $q->whereNull('scheduled_rides.reserved_driver_id'))
+            ->with(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle'])
             ->paginate($this->perPage($request, 25, 100));
 
         return response()->json([
@@ -54,6 +65,41 @@ class AdminScheduledRideController extends Controller
                 'per_page' => $rides->perPage(),
                 'total' => $rides->total(),
             ],
+        ]);
+    }
+
+    /**
+     * Assign a driver to a booking ahead of dispatch (or move it to another
+     * driver). At dispatch the ride goes straight to them if they are free.
+     */
+    public function assign(Request $request, Ride $ride): JsonResponse
+    {
+        $validated = $request->validate([
+            'driver_id' => ['required', 'uuid', 'exists:users,id'],
+        ]);
+
+        $driver = User::where('type', UserType::Driver)->find($validated['driver_id']);
+
+        if ($driver === null) {
+            throw ValidationException::withMessages(['driver_id' => ['The selected user is not a driver.']]);
+        }
+
+        $ride->load('scheduledRide');
+        $ride = $this->reservationService->reserve($ride, $driver, $request->user());
+
+        return response()->json([
+            'message' => 'Driver assigned to the scheduled ride.',
+            'ride' => new RideResource($ride->load(['city', 'vehicleClass', 'passenger', 'scheduledRide.reservedDriver.driver.vehicle'])),
+        ]);
+    }
+
+    public function unassign(Request $request, Ride $ride): JsonResponse
+    {
+        $ride = $this->reservationService->release($ride, $request->user(), byAdmin: true);
+
+        return response()->json([
+            'message' => 'Driver removed from the scheduled ride.',
+            'ride' => new RideResource($ride->load(['city', 'vehicleClass', 'passenger', 'scheduledRide'])),
         ]);
     }
 
@@ -76,6 +122,13 @@ class AdminScheduledRideController extends Controller
             'retry_wave_delay_seconds' => ['sometimes', 'integer', 'min:10', 'max:300'],
             'max_upcoming_per_passenger' => ['sometimes', 'integer', 'min:1', 'max:50'],
             'min_minutes_between_bookings' => ['sometimes', 'integer', 'min:0', 'max:1440'],
+            'driver_reservations_enabled' => ['sometimes', 'boolean'],
+            'max_reservations_per_driver' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'driver_reservation_gap_minutes' => ['sometimes', 'integer', 'min:0', 'max:1440'],
+            'driver_reservation_buffer_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],
+            'reservation_fee' => ['sometimes', 'numeric', 'min:0', 'max:100000'],
+            'late_cancellation_fee' => ['sometimes', 'numeric', 'min:0', 'max:100000'],
+            'late_cancellation_window_minutes' => ['sometimes', 'integer', 'min:0', 'max:1440'],
         ]);
 
         $current = AppSetting::scheduledRides();

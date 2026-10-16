@@ -8,6 +8,7 @@ use App\Models\AppSetting;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
+use App\Models\ScheduledRide;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -69,6 +70,7 @@ class DriverMatchingService
             ->where('is_online', true)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
             ->whereNotIn('user_id', $rejectedIds)
+            ->whereNotIn('user_id', $this->driversKeptForReservedPickups($ride))
             ->when($dispatchedTo, fn ($q) => $q->where('user_id', '!=', $dispatchedTo))
             ->whereDoesntHave('user', fn ($q) => $q->where('email', 'like', '%@'.config('matching.demo_driver_email_domain')))
             ->whereDoesntHave('user', function ($q) {
@@ -94,6 +96,30 @@ class DriverMatchingService
         ])->sortBy('distance_km')->values()->all();
 
         return $results;
+    }
+
+    /**
+     * Drivers with a reserved scheduled pickup coming up soon are not offered
+     * other rides, so a trip in between cannot make them late
+     * (driver_reservation_buffer_minutes).
+     *
+     * @return list<string> User ids
+     */
+    private function driversKeptForReservedPickups(Ride $ride): array
+    {
+        $buffer = AppSetting::scheduledRides()['driver_reservation_buffer_minutes'];
+
+        if ($buffer <= 0) {
+            return [];
+        }
+
+        return ScheduledRide::query()
+            ->upcoming()
+            ->whereNotNull('reserved_driver_id')
+            ->where('ride_id', '!=', $ride->id)
+            ->where('scheduled_pickup_at', '<=', now()->addMinutes($buffer))
+            ->pluck('reserved_driver_id')
+            ->all();
     }
 
     /**

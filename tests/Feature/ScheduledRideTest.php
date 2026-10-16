@@ -24,6 +24,7 @@ use App\Models\SurgeRule;
 use App\Models\User;
 use App\Models\VehicleClass;
 use App\Services\DriverMatchingService;
+use App\Services\NotificationService;
 use App\Services\RidePinService;
 use App\Services\ScheduledRideService;
 use Illuminate\Support\Carbon;
@@ -645,4 +646,17 @@ it('does not let anyone cancel with a system-only reason', function () {
     ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('reason');
+});
+
+it('gives the reminder back to the sweep when it cannot be sent', function () {
+    $rideId = ($this->book)(['scheduled_pickup_at' => now()->addHours(2)->toIso8601String()])->json('ride.id');
+    $this->travel(61)->minutes();
+
+    $notifications = Mockery::mock(NotificationService::class);
+    $notifications->shouldReceive('send')->once()->andThrow(new RuntimeException('database unavailable'));
+    $this->app->instance(NotificationService::class, $notifications);
+
+    $scheduledId = ScheduledRide::where('ride_id', $rideId)->value('id');
+    expect(app(ScheduledRideService::class)->sendReminder($scheduledId))->toBeFalse()
+        ->and(ScheduledRide::find($scheduledId)->reminder_sent_at)->toBeNull();
 });

@@ -108,7 +108,7 @@ class RideController extends Controller
             ], 409);
         }
 
-        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide']);
+        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
         return response()->json([
             'message' => $scheduledPickupAt ? 'Ride scheduled successfully.' : 'Ride created successfully.',
@@ -125,7 +125,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode', 'scheduledRide']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),
@@ -173,7 +173,7 @@ class RideController extends Controller
 
         $perPage = $this->perPage($request, 15, 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores', 'scheduledRide'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores', 'scheduledRide.reservedDriver.driver.vehicle'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -234,7 +234,7 @@ class RideController extends Controller
         }
 
         $ride = $this->rideService->rebroadcastRide($ride, $passenger);
-        $ride->load(['city', 'vehicleClass', 'passenger']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride request sent again.',
@@ -315,7 +315,7 @@ class RideController extends Controller
         }
 
         $ride = $this->rideService->driverArrived($ride, $user);
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Driver arrival confirmed. Waiting for passenger PIN verification.',
@@ -365,7 +365,7 @@ class RideController extends Controller
             ], 422);
         }
 
-        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver', 'scheduledRide']);
 
         return response()->json([
             'message' => 'PIN verified. Ride started.',
@@ -394,7 +394,7 @@ class RideController extends Controller
 
         FinalFareCalculationJob::dispatch($ride->id);
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'promoCode']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'promoCode', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride completed successfully.',
@@ -443,7 +443,7 @@ class RideController extends Controller
             return response()->json(['message' => $result['error']], 409);
         }
 
-        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride accepted.',

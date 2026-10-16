@@ -116,7 +116,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 
 | Schedule | Job | Purpose |
 |----------|-----|---------|
-| Every minute | `ProcessScheduledRidesJob` | Scheduled rides: start matching for bookings whose dispatch time has come and send pickup reminders (queues `ScheduledRideDispatchJob` / `ScheduledRideReminderJob`). Needs the scheduler **and** a queue worker; without them scheduled rides never start |
+| Every minute | `ProcessScheduledRidesJob` | Scheduled rides: start matching (or hand the ride to its reserved driver) for bookings whose dispatch time has come, and send passenger and reserved-driver reminders (queues `ScheduledRideDispatchJob` / `ScheduledRideReminderJob`). Needs the scheduler **and** a queue worker; without them scheduled rides never start. Late-cancellation fees are collected by the queued `ChargeScheduledRideCancellationFeeJob` |
 | Every minute (local and staging only) | `demo:simulate-drivers` | Keep the demo drivers from `MonitoringDemoSeeder` reporting their location (does nothing when none are seeded) |
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |

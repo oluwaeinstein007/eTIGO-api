@@ -320,7 +320,7 @@
                 "config"
               ]
             },
-            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false."
+            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false. `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off) and `late_cancellation_window_minutes` let the app explain fees; `driver_reservations_enabled` tells the driver app whether to show the reservations screen."
           },
           "response": [
             {
@@ -333,7 +333,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60,\n    \"driver_reservations_enabled\": true\n  }\n}"
             }
           ]
         },
@@ -2723,7 +2723,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"estimates\": [\n    {\n      \"vehicle_class\": {\n        \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\"\n      },\n      \"fare_estimate\": \"6500.00\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"currency\": \"NGN\",\n      \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"destination_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"pricing_snapshot\": {\n        \"pricing_config_id\": \"01a1427a-b386-7357-8441-ba331f7dd4f9\",\n        \"version\": 1,\n        \"base_fare\": \"600.00\",\n        \"per_km_rate\": \"250.00\",\n        \"per_minute_rate\": \"40.00\",\n        \"minimum_fare\": \"1500.00\",\n        \"waiting_time_rate\": \"35.15\",\n        \"free_waiting_minutes\": 5,\n        \"effective_from\": \"2026-10-18T08:00:00+00:00\",\n        \"captured_at\": \"2026-10-19T08:00:00+00:00\"\n      },\n      \"waiting_time_policy\": {\n        \"free_minutes\": 5,\n        \"per_minute_rate\": \"35.15\"\n      },\n      \"surge\": {\n        \"active\": false,\n        \"multiplier\": 1,\n        \"rule_name\": null\n      },\n      \"booking_fee_discount\": 0\n    }\n  ]\n}"
+                  "body": "{\n  \"estimates\": [\n    {\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\"\n      },\n      \"fare_estimate\": \"6500.00\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"currency\": \"NGN\",\n      \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"destination_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"pricing_snapshot\": {\n        \"pricing_config_id\": \"01a142a2-0cf1-711e-a117-42100826724f\",\n        \"version\": 1,\n        \"base_fare\": \"600.00\",\n        \"per_km_rate\": \"250.00\",\n        \"per_minute_rate\": \"40.00\",\n        \"minimum_fare\": \"1500.00\",\n        \"waiting_time_rate\": \"52.04\",\n        \"free_waiting_minutes\": 5,\n        \"effective_from\": \"2026-10-18T08:00:00+00:00\",\n        \"captured_at\": \"2026-10-19T08:00:00+00:00\"\n      },\n      \"waiting_time_policy\": {\n        \"free_minutes\": 5,\n        \"per_minute_rate\": \"52.04\"\n      },\n      \"surge\": {\n        \"active\": false,\n        \"multiplier\": 1,\n        \"rule_name\": null\n      },\n      \"booking_fee_discount\": 0,\n      \"reservation_fee\": 0\n    }\n  ]\n}"
                 }
               ]
             },
@@ -3018,7 +3018,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Ride scheduled successfully.\",\n  \"ride\": {\n    \"id\": \"01a1427a-b3a5-7375-bb86-799cd1308dd2\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n    \"vehicle_class_id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n    \"passenger_id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null\n    },\n    \"share_token\": \"jC5DlZQa4UzHw9f4bhu09Z6mfK6KtjVA\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  },\n  \"pin_code\": null\n}"
+                  "body": "{\n  \"message\": \"Ride scheduled successfully.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": null,\n      \"reserved_at\": null,\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  },\n  \"pin_code\": null\n}"
                 },
                 {
                   "name": "422 \u2014 Pickup Too Soon",
@@ -3078,7 +3078,7 @@
               },
               "response": [
                 {
-                  "name": "200 \u2014 Upcoming Bookings",
+                  "name": "200 \u2014 Upcoming Bookings (reserved by a driver)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3087,7 +3087,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a1427a-b3a5-7375-bb86-799cd1308dd2\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"city_id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n      \"vehicle_class_id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n      \"passenger_id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n      \"driver_id\": null,\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"is_scheduled\": true,\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"scheduled\": {\n        \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n        \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n        \"can_edit\": true,\n        \"reminder_sent_at\": null,\n        \"dispatched_at\": null,\n        \"cancelled_at\": null,\n        \"dispatch_failure_reason\": null\n      },\n      \"share_token\": \"jC5DlZQa4UzHw9f4bhu09Z6mfK6KtjVA\",\n      \"fare_estimate_amount\": \"6500.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"co2_saved_kg\": 2.16,\n      \"payment_method\": \"card\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"city\": {\n        \"id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n        \"name\": \"Lagos\",\n        \"slug\": \"lagos\",\n        \"state\": \"Lagos\",\n        \"region\": \"South-West\",\n        \"boundary\": {\n          \"type\": \"Point\",\n          \"radius_km\": 40,\n          \"coordinates\": [\n            3.3792,\n            6.5244\n          ]\n        },\n        \"area_sq_km\": null,\n        \"timezone\": \"Africa/Lagos\",\n        \"currency_code\": \"NGN\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"matched_at\": null,\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"pin_code\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"driver_id\": null,\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"is_scheduled\": true,\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"scheduled\": {\n        \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n        \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n        \"can_edit\": true,\n        \"reminder_sent_at\": null,\n        \"dispatched_at\": null,\n        \"cancelled_at\": null,\n        \"dispatch_failure_reason\": null,\n        \"reservation_fee\": 0,\n        \"reserved_driver\": {\n          \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n          \"first_name\": \"Bayo\",\n          \"profile_photo_url\": null,\n          \"rating\": null,\n          \"vehicle\": {\n            \"make\": \"Toyota\",\n            \"model\": \"Corolla\",\n            \"colour\": \"Silver\",\n            \"plate_number\": \"LND-482KJ\"\n          }\n        },\n        \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"reserved_by_operations\": false,\n        \"reservation_released_reason\": null,\n        \"cancellation_fee_if_cancelled_now\": 0,\n        \"late_cancellation_fee\": null,\n        \"late_cancellation_fee_status\": null\n      },\n      \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n      \"fare_estimate_amount\": \"6500.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"co2_saved_kg\": 2.16,\n      \"payment_method\": \"card\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"city\": {\n        \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n        \"name\": \"Lagos\",\n        \"slug\": \"lagos\",\n        \"state\": \"Lagos\",\n        \"region\": \"South-West\",\n        \"boundary\": {\n          \"type\": \"Point\",\n          \"radius_km\": 40,\n          \"coordinates\": [\n            3.3792,\n            6.5244\n          ]\n        },\n        \"area_sq_km\": null,\n        \"timezone\": \"Africa/Lagos\",\n        \"currency_code\": \"NGN\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"matched_at\": null,\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"pin_code\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -3120,15 +3120,15 @@
                     "scheduled"
                   ]
                 },
-                "description": "Changes a booking before `scheduled.dispatch_at`. Send only what changes: `scheduled_pickup_at`, a new pickup (`pickup_lat`, `pickup_lng`, `pickup_address` together), a new destination (`destination_*` together) or `payment_method`. The fare is quoted again and any promo re-checked.\n\n422 `errors.ride` once dispatch is near; `errors.scheduled_pickup_at` for the same limits as booking.",
+                "description": "Changes a booking before `scheduled.dispatch_at`. Send only what changes: `scheduled_pickup_at`, a new pickup (`pickup_lat`, `pickup_lng`, `pickup_address` together), a new destination (`destination_*` together) or `payment_method`. The fare is quoted again and any promo re-checked.\n\n422 `errors.ride` once dispatch is near; `errors.scheduled_pickup_at` for the same limits as booking.\n\nChanging `scheduled_pickup_at` or the pickup releases a driver who reserved the booking; a new destination or payment method keeps them.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"scheduled_pickup_at\": \"2026-10-20T06:00:00+01:00\",\n  \"payment_method\": \"cash\"\n}"
+                  "raw": "{\n  \"payment_method\": \"wallet\"\n}"
                 }
               },
               "response": [
                 {
-                  "name": "200 \u2014 Updated",
+                  "name": "200 \u2014 Updated (reservation kept)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3137,7 +3137,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Scheduled ride updated.\",\n  \"ride\": {\n    \"id\": \"01a1427a-b3a5-7375-bb86-799cd1308dd2\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n    \"vehicle_class_id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n    \"passenger_id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:45:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null\n    },\n    \"share_token\": \"jC5DlZQa4UzHw9f4bhu09Z6mfK6KtjVA\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Scheduled ride updated.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"wallet\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Too Close to Dispatch",
@@ -3182,7 +3182,7 @@
                     "scheduled"
                   ]
                 },
-                "description": "Cancels a booking before it is dispatched (free). Optional `reason` / `reason_details` as for Cancel Ride. Once dispatched, use **Cancel Ride** (`POST /rides/{ride}/cancel`).",
+                "description": "Cancels a booking before it is dispatched. Optional `reason` / `reason_details`. Free unless the late-cancellation fee is on **and** a driver has reserved the booking **and** pickup is within the late window (60 min); `emergency`, `safety_concern`, `vehicle_mismatch` and `driver_no_show` are never charged. Show `scheduled.cancellation_fee_if_cancelled_now` before confirming. The response's `scheduled.late_cancellation_fee` / `late_cancellation_fee_status` (`pending`, `charged`, `waived`, `failed`) show the outcome. Once dispatched, use **Cancel Ride**.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"changed_mind\"\n}"
@@ -3190,7 +3190,7 @@
               },
               "response": [
                 {
-                  "name": "200 \u2014 Cancelled",
+                  "name": "200 \u2014 Cancelled (free)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3199,7 +3199,19 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a1427a-b3a5-7375-bb86-799cd1308dd2\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n    \"vehicle_class_id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n    \"passenger_id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:45:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-19T08:36:00.000000Z\",\n      \"dispatch_failure_reason\": null\n    },\n    \"share_token\": \"jC5DlZQa4UzHw9f4bhu09Z6mfK6KtjVA\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:36:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0db4-7179-8319-072b731094df\",\n    \"reference_number\": \"TRP-NG-000003\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": null,\n      \"reserved_at\": null,\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": \"admin_released\",\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"ONg1k5otPmy16CwR2KuEjoiLeMgXLQbh\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-20T04:16:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Cancelled Late (fee charged to wallet)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": 1500,\n      \"late_cancellation_fee_status\": \"charged\"\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"wallet\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Already Dispatched",
@@ -3212,6 +3224,51 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Only a scheduled ride that has not started can be cancelled here.\",\n  \"current_status\": \"searching\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show Scheduled Ride \u2014 Cancellation Fee Preview",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{scheduled_ride_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{scheduled_ride_id}}"
+                  ]
+                },
+                "description": "`GET /rides/{ride}` for a booking a driver has reserved, inside the late-cancellation window, with the fee switched on: `scheduled.reserved_driver` shows the driver and `scheduled.cancellation_fee_if_cancelled_now` what cancelling would cost."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Reserved Booking with Fee Preview",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 1500,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Bronze\",\n      \"captured_at\": \"2026-10-19T08:00:00+00:00\",\n      \"distance_km\": 18,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-18T08:00:00+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"reservation_fee\": 0,\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 35,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a142a2-0cf1-711e-a117-42100826724f\",\n      \"priority_matching\": false,\n      \"waiting_time_rate\": \"52.04\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 0\n    },\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"payment_method\": \"wallet\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"payment\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"driver\": null,\n    \"cancelled_by\": null,\n    \"state_transitions\": [],\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -7634,6 +7691,209 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Driver \u2014 Scheduled Rides",
+          "item": [
+            {
+              "name": "List Scheduled Rides Available to Reserve",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/scheduled-rides/available",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "scheduled-rides",
+                    "available"
+                  ]
+                },
+                "description": "Bookings in the driver's city and vehicle class that nobody has reserved and whose matching has not started, soonest first (`per_page` 1\u201350). Driver-facing: trip, times, fare, passenger first name and rating; no phone. Run **Book Scheduled Ride** first."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Available Bookings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"fare_estimate_amount\": \"6500.00\",\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"payment_method\": \"card\",\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"passenger\": {\n        \"first_name\": \"Ade\",\n        \"rating\": null\n      },\n      \"reserved_by_me\": false,\n      \"reserved_at\": null\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reserve a Scheduled Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/scheduled-rides/{{scheduled_ride_id}}/reserve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "scheduled-rides",
+                    "{{scheduled_ride_id}}",
+                    "reserve"
+                  ]
+                },
+                "description": "Commits the driver to the booking (Uber Reserve model). At `dispatch_at` the ride is assigned straight to them if they are online (location < 2 min old), free and eligible; otherwise it goes to normal matching. No on-demand offers in the 60 minutes before the reserved pickup. 422 `errors.ride` explains a refusal (taken, within 60 min of another reservation, limit of 5, wrong class/city, negative balance, too late)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Reserved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride reserved. Be online by the dispatch time to take it.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"fare_estimate_amount\": \"6500.00\",\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"payment_method\": \"card\",\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"first_name\": \"Ade\",\n      \"rating\": null\n    },\n    \"reserved_by_me\": true,\n    \"reserved_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Too Close to Another Reservation",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You already have a reserved pickup within 60 minutes of this one.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"ride\": [\n      \"You already have a reserved pickup within 60 minutes of this one.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List My Reservations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/scheduled-rides",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "scheduled-rides"
+                  ]
+                },
+                "description": "The driver's upcoming reservations, soonest first."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 My Reservations",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"fare_estimate_amount\": \"6500.00\",\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"payment_method\": \"card\",\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"passenger\": {\n        \"first_name\": \"Ade\",\n        \"rating\": null\n      },\n      \"reserved_by_me\": true,\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Release a Reservation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/scheduled-rides/{{scheduled_ride_id}}/release",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "scheduled-rides",
+                    "{{scheduled_ride_id}}",
+                    "release"
+                  ]
+                },
+                "description": "Gives the booking back before dispatch; the passenger is told and it returns to the available list."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Released",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Reservation released.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"fare_estimate_amount\": \"6500.00\",\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"payment_method\": \"wallet\",\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"reserved_by_me\": false,\n    \"reserved_at\": null\n  }\n}"
+                }
+              ]
+            }
+          ],
+          "description": "Drivers reserving passengers' scheduled rides in advance. Middleware: `user.type:driver`."
         },
         {
           "name": "Driver \u2014 Compliance & Flags",
@@ -14665,7 +14925,7 @@
                     }
                   ]
                 },
-                "description": "Operations view: every booking still in `scheduled` status, soonest pickup first, with the passenger. Filters: `city_id`, `vehicle_class_id`, `from` / `to` (pickup time), `per_page` (1\u2013100, default 25). Role: operations."
+                "description": "Operations view: every booking still in `scheduled` status, soonest pickup first, with the passenger and `scheduled.reserved_driver`. Filters: `city_id`, `vehicle_class_id`, `from` / `to` (pickup time), `reserved` (true/false), `per_page` (1\u2013100, default 25). Role: operations."
               },
               "response": [
                 {
@@ -14678,7 +14938,105 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a1427a-b3fb-7099-86ed-5a92918d6e21\",\n      \"reference_number\": \"TRP-NG-000003\",\n      \"city_id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n      \"vehicle_class_id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n      \"passenger_id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n      \"driver_id\": null,\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"is_scheduled\": true,\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"scheduled\": {\n        \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n        \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n        \"can_edit\": true,\n        \"reminder_sent_at\": null,\n        \"dispatched_at\": null,\n        \"cancelled_at\": null,\n        \"dispatch_failure_reason\": null\n      },\n      \"share_token\": \"RbnRoQxek6XLuPW26ETqz1uZcgY7eCWH\",\n      \"fare_estimate_amount\": \"6500.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"co2_saved_kg\": 2.16,\n      \"payment_method\": \"card\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"city\": {\n        \"id\": \"01a1427a-b381-73fb-ab9a-5e228d14e3de\",\n        \"name\": \"Lagos\",\n        \"slug\": \"lagos\",\n        \"state\": \"Lagos\",\n        \"region\": \"South-West\",\n        \"boundary\": {\n          \"type\": \"Point\",\n          \"radius_km\": 40,\n          \"coordinates\": [\n            3.3792,\n            6.5244\n          ]\n        },\n        \"area_sq_km\": null,\n        \"timezone\": \"Africa/Lagos\",\n        \"currency_code\": \"NGN\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"01a1427a-b382-70eb-8971-6ac9b9b61b26\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"passenger\": {\n        \"id\": \"01a1427a-b37a-7304-b34e-6efc1eaa8d72\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"matched_at\": null,\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"created_at\": \"2026-10-19T08:36:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:36:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 25,\n    \"total\": 1\n  }\n}"
+                  "body": "{\n  \"rides\": [\n    {\n      \"id\": \"01a142a2-0d7f-73b3-b9ce-88fcc5ec3dff\",\n      \"reference_number\": \"TRP-NG-000002\",\n      \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"driver_id\": null,\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"is_scheduled\": true,\n      \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n      \"scheduled\": {\n        \"scheduled_pickup_at\": \"2026-10-20T05:00:00.000000Z\",\n        \"dispatch_at\": \"2026-10-20T04:45:00.000000Z\",\n        \"can_edit\": true,\n        \"reminder_sent_at\": null,\n        \"dispatched_at\": null,\n        \"cancelled_at\": null,\n        \"dispatch_failure_reason\": null,\n        \"reservation_fee\": 0,\n        \"reserved_driver\": null,\n        \"reserved_at\": null,\n        \"reserved_by_operations\": false,\n        \"reservation_released_reason\": null,\n        \"cancellation_fee_if_cancelled_now\": 0,\n        \"late_cancellation_fee\": null,\n        \"late_cancellation_fee_status\": null\n      },\n      \"share_token\": \"yeXJduprlNK0YpKRuxEyrnEXOsRgHylX\",\n      \"fare_estimate_amount\": \"6500.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"co2_saved_kg\": 2.16,\n      \"payment_method\": \"card\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"city\": {\n        \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n        \"name\": \"Lagos\",\n        \"slug\": \"lagos\",\n        \"state\": \"Lagos\",\n        \"region\": \"South-West\",\n        \"boundary\": {\n          \"type\": \"Point\",\n          \"radius_km\": 40,\n          \"coordinates\": [\n            3.3792,\n            6.5244\n          ]\n        },\n        \"area_sq_km\": null,\n        \"timezone\": \"Africa/Lagos\",\n        \"currency_code\": \"NGN\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"passenger\": {\n        \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"matched_at\": null,\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"created_at\": \"2026-10-20T03:50:00.000000Z\",\n      \"updated_at\": \"2026-10-20T03:50:00.000000Z\"\n    },\n    {\n      \"id\": \"01a142a2-0db4-7179-8319-072b731094df\",\n      \"reference_number\": \"TRP-NG-000003\",\n      \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"driver_id\": null,\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.5774000\",\n        \"lng\": \"3.3210000\",\n        \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"is_scheduled\": true,\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"scheduled\": {\n        \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n        \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n        \"can_edit\": true,\n        \"reminder_sent_at\": null,\n        \"dispatched_at\": null,\n        \"cancelled_at\": null,\n        \"dispatch_failure_reason\": null,\n        \"reservation_fee\": 0,\n        \"reserved_driver\": {\n          \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n          \"first_name\": \"Bayo\",\n          \"profile_photo_url\": null,\n          \"rating\": null,\n          \"vehicle\": {\n            \"make\": \"Toyota\",\n            \"model\": \"Corolla\",\n            \"colour\": \"Silver\",\n            \"plate_number\": \"LND-482KJ\"\n          }\n        },\n        \"reserved_at\": \"2026-10-20T04:16:00.000000Z\",\n        \"reserved_by_operations\": true,\n        \"reservation_released_reason\": null,\n        \"cancellation_fee_if_cancelled_now\": 0,\n        \"late_cancellation_fee\": null,\n        \"late_cancellation_fee_status\": null\n      },\n      \"share_token\": \"ONg1k5otPmy16CwR2KuEjoiLeMgXLQbh\",\n      \"fare_estimate_amount\": \"6500.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 18,\n      \"duration_minutes\": 35,\n      \"co2_saved_kg\": 2.16,\n      \"payment_method\": \"card\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"city\": {\n        \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n        \"name\": \"Lagos\",\n        \"slug\": \"lagos\",\n        \"state\": \"Lagos\",\n        \"region\": \"South-West\",\n        \"boundary\": {\n          \"type\": \"Point\",\n          \"radius_km\": 40,\n          \"coordinates\": [\n            3.3792,\n            6.5244\n          ]\n        },\n        \"area_sq_km\": null,\n        \"timezone\": \"Africa/Lagos\",\n        \"currency_code\": \"NGN\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\",\n        \"capacity\": 4,\n        \"icon\": \"lite\",\n        \"description\": \"Affordable rides for everyday trips.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"passenger\": {\n        \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"matched_at\": null,\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"created_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 25,\n    \"total\": 2\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Assign Driver to Scheduled Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/scheduled-rides/{{scheduled_ride_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "scheduled-rides",
+                    "{{scheduled_ride_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Reserves the booking for a driver before dispatch (posting again with another driver moves it). Same rules as a driver reserving except the on/off switch. Driver and passenger are notified. Body: `driver_id` = the driver's **user** id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"driver_id\": \"{{driver_user_id}}\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Assigned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver assigned to the scheduled ride.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0db4-7179-8319-072b731094df\",\n    \"reference_number\": \"TRP-NG-000003\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"reserved_by_operations\": true,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"ONg1k5otPmy16CwR2KuEjoiLeMgXLQbh\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-10-20T04:16:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Remove Driver from Scheduled Ride",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/scheduled-rides/{{scheduled_ride_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "scheduled-rides",
+                    "{{scheduled_ride_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Drops the reserved driver; the booking returns to the pool. Both are told."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver removed from the scheduled ride.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0db4-7179-8319-072b731094df\",\n    \"reference_number\": \"TRP-NG-000003\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": null,\n      \"reserved_at\": null,\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": \"admin_released\",\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"ONg1k5otPmy16CwR2KuEjoiLeMgXLQbh\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-10-20T04:16:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -14724,7 +15082,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
                 }
               ]
             },
@@ -14757,10 +15115,10 @@
                     "scheduled-rides"
                   ]
                 },
-                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440). Changes are audit-logged. Role: operations.",
+                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440), `driver_reservations_enabled`, `max_reservations_per_driver` (1\u201350), `driver_reservation_gap_minutes` (0\u20131440), `driver_reservation_buffer_minutes` (0\u2013240), `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off), `late_cancellation_window_minutes` (0\u20131440). Changes are audit-logged. Role: operations. Defaults and reasons: doc/client/SCHEDULED_RIDES_DECISIONS.md.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"dispatch_lead_minutes\": 20,\n  \"reminder_minutes\": 90\n}"
+                  "raw": "{\n  \"dispatch_lead_minutes\": 20,\n  \"reminder_minutes\": 90,\n  \"late_cancellation_fee\": 1500\n}"
                 }
               },
               "response": [
@@ -14774,7 +15132,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Scheduled ride settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20,\n    \"reminder_minutes\": 90,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30\n  }\n}"
+                  "body": "{\n  \"message\": \"Scheduled ride settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20,\n    \"reminder_minutes\": 90,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Reminder Before Dispatch",
@@ -14791,7 +15149,7 @@
               ]
             }
           ],
-          "description": "Scheduled rides (Phase 2): upcoming bookings and the scheduling settings. Role: operations (and super_admin)."
+          "description": "Scheduled rides (Phase 2): upcoming bookings, driver pre-assignment and the scheduling settings. Role: operations (and super_admin)."
         },
         {
           "name": "Admin \u2014 Dispute Management",

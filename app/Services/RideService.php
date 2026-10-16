@@ -41,6 +41,7 @@ class RideService
         private PromoValidationService $promoValidationService,
         private PromoApplicationService $promoApplicationService,
         private TierGateService $tierGateService,
+        private ScheduledRideCancellationFeeService $cancellationFeeService,
     ) {}
 
     /**
@@ -138,6 +139,7 @@ class RideService
                     'booking_fee_discount_pct' => $bookingFeeDiscountPct,
                     'tier_name' => $tierBenefits['tier_name'],
                     'priority_matching' => (bool) $tierBenefits['priority_matching'],
+                    ...($scheduledPickupAt ? ['reservation_fee' => $estimate['reservation_fee']] : []),
                 ],
                 'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,
@@ -221,6 +223,12 @@ class RideService
                 'cancellation_reason' => $reason,
                 'cancellation_details' => $reasonDetails,
             ]);
+
+            // A scheduled booking a driver reserved may carry a late-cancellation fee.
+            $scheduled = ScheduledRide::where('ride_id', $ride->id)->lockForUpdate()->first();
+            if ($scheduled !== null) {
+                $this->cancellationFeeService->assess($ride->fresh(), $scheduled, $cancelledBy);
+            }
 
             $triggeredByType = match (true) {
                 $cancelledBy->isAdmin() => 'admin',
@@ -398,6 +406,33 @@ class RideService
         $this->matchingService->cleanupRideCache($result);
 
         return ['success' => true, 'ride' => $result, 'error' => null];
+    }
+
+    /**
+     * Give a ride that has just entered `searching` to a scheduled ride's
+     * reserved driver: `searching → matched → driver_en_route`, with no
+     * offer round. Must run inside the caller's transaction, with the ride
+     * locked. Returns false, changing nothing, when the driver is already on
+     * another ride.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function assignReservedDriver(Ride $ride, User $driver, array $metadata = []): bool
+    {
+        if ($this->driverHasOtherActiveRide($driver, $ride)) {
+            return false;
+        }
+
+        $ride->driver_id = $driver->id;
+        $ride->save();
+
+        $meta = ['assigned_driver_id' => $driver->id, 'reserved_driver' => true, ...$metadata];
+        $this->stateMachine->transitionTo($ride, RideStatus::Matched, null, 'system', $meta);
+        $this->stateMachine->transitionTo($ride, RideStatus::DriverEnRoute, null, 'system', $meta);
+
+        AuditLog::record($ride, 'ride_assigned_to_reserved_driver', null, null, ['driver_user_id' => $driver->id]);
+
+        return true;
     }
 
     /**
@@ -651,7 +686,9 @@ class RideService
             (float) ($snapshot['booking_fee_discount_pct'] ?? 0),
         );
 
-        $rawFare = $adjusted['fare'];
+        // A scheduled ride's reservation fee was part of the quote.
+        $reservationFee = (float) ($snapshot['reservation_fee'] ?? 0);
+        $rawFare = round($adjusted['fare'] + $reservationFee, 2);
         $finalFare = $rawFare;
         $discountAmount = null;
         $promoSnapshot = null;
@@ -728,6 +765,7 @@ class RideService
                 'surge_amount' => round($adjusted['surged_fare'] - $meteredFare, 2),
                 'booking_fee_discount' => $adjusted['booking_fee_discount'],
                 'promo_discount' => $discountAmount,
+                'reservation_fee' => $reservationFee,
             ],
         ];
     }

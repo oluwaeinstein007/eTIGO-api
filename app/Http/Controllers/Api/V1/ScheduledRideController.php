@@ -36,7 +36,7 @@ class ScheduledRideController extends Controller
             ->join('scheduled_rides', 'scheduled_rides.ride_id', '=', 'rides.id')
             ->orderBy('scheduled_rides.scheduled_pickup_at')
             ->select('rides.*')
-            ->with(['city', 'vehicleClass', 'promoCode', 'scheduledRide'])
+            ->with(['city', 'vehicleClass', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle'])
             ->paginate($this->perPage($request, 15, 50));
 
         return response()->json([
@@ -57,7 +57,7 @@ class ScheduledRideController extends Controller
         }
 
         $ride = $this->scheduledRideService->update($ride, $request->user(), $request->validated());
-        $ride->load(['city', 'vehicleClass', 'promoCode', 'scheduledRide']);
+        $ride->load(['city', 'vehicleClass', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
         return response()->json([
             'message' => 'Scheduled ride updated.',

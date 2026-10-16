@@ -22,7 +22,7 @@
 > - **Matching:** radius tiers 3 → 7 → 15 km, 20 s offers, one automatic retry wave after 10 s, overall timeout 300 s per search. Stale drivers (no location for 2 min) and drivers holding another offer are skipped.
 > - **Payouts:** on-demand with finance approval, plus an opt-in weekly auto-payout (`weekly_auto`, Monday 06:00 Lagos).
 > - **Product decisions taken (15 Oct 2026):** EV reservations are limited to plug-in vehicles via a new vehicle `fuel_type` (BE-EV-09/10); the EV reservation fee is collected from driver earnings when a stall is held (refund within 2 minutes, kept on no-show); priority matching (G-05) keeps distance first and gives Gold+ passengers precedence for scarce drivers plus an extra retry wave; wallet rides can be tipped from the wallet. Payouts whose outcome is unknown are reconciled against Paystack (scheduled + finance "check status"). Follow-ups (16 Oct 2026): demand-based surge measures live demand/supply per city and class; bank-transfer rides can be tipped from the wallet or card; fuel type is required for new vehicles, and `vehicles:request-fuel-types` asks owners of older vehicles to set it; payouts held by Paystack for an OTP are flagged at once.
-> - **Phase 2 — Scheduled rides (16 Oct 2026):** built (section 23). A new `scheduled` ride status that is not "active"; booking via `POST /rides` + `scheduled_pickup_at`; minute-by-minute dispatcher; operations settings at `/admin/settings/scheduled-rides`.
+> - **Phase 2 — Scheduled rides (16 Oct 2026):** built (section 23). A new `scheduled` ride status that is not "active"; booking via `POST /rides` + `scheduled_pickup_at`; drivers can reserve bookings in advance and operations can pre-assign; minute-by-minute dispatcher; reservation and late-cancellation fees built but off; operations settings at `/admin/settings/scheduled-rides`. Decisions: `doc/client/SCHEDULED_RIDES_DECISIONS.md`.
 - **Audit fixes** (branch `fix/phase1-audit-hardening`): bugs and edge cases fixed across rides, matching, pricing, payments, wallet/ledger, payouts, refunds, webhooks, reconciliation, auth, KYC, SOS, sanctions, EV and fleet — see the commit history and the edge-case test suites listed in TECHNICAL.md §17.
 
 ---
@@ -921,7 +921,7 @@
 
 **PRD refs:** B-27, P-20–P-22, D-12, A-33, NF-11
 
-> **Built (16 Oct 2026).** Industry-standard model (Uber Reserve / Bolt): price locked at booking for the pickup time, matching starts shortly before pickup and searches until a grace period after it. Design: [TECHNICAL.md §6.1](../TECHNICAL.md#61-scheduled-rides-phase-2); endpoints: [API reference — Scheduled Rides](../API_REFERENCE.md#scheduled-rides). Defaults chosen by us, not yet confirmed by the client (all operations-editable): pickup 30 min – 7 days ahead, dispatch 15 min before, reminder 60 min before, search until 10 min after pickup, 5 upcoming bookings per passenger, 30 min apart. Not built: drivers accepting a reservation in advance, and scheduled-ride fees.
+> **Built (16 Oct 2026).** Industry-standard model (Uber Reserve / Bolt / Lyft): price locked at booking for the pickup time, drivers can reserve a booking in advance, matching (or the hand-over to the reserved driver) starts shortly before pickup and searches until a grace period after it. Design: [TECHNICAL.md §6.1](../TECHNICAL.md#61-scheduled-rides-phase-2); endpoints: [API reference — Scheduled Rides](../API_REFERENCE.md#scheduled-rides); **every default, its industry benchmark and the open client questions: [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md)**; app changes: [FRONTEND_UPDATE_SCHEDULED_RIDES.md](../FRONTEND_UPDATE_SCHEDULED_RIDES.md). Defaults (operations-editable, not yet client-confirmed): pickup 30 min – 7 days ahead, dispatch 15 min before, reminder 60 min before, search until 10 min after pickup, 5 upcoming bookings per passenger 30 min apart, 5 reservations per driver 60 min apart, reservation and late-cancellation fees ₦0 (off, per OQ-05).
 
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
@@ -934,6 +934,12 @@
 | BE2-SCH-07 | `[x]` Create `ScheduledRideController@update` — `PUT /api/v1/rides/{ride}/scheduled`: edit time, pickup, destination before dispatch | P-22 | BE2-SCH-06 | Also payment method. Allowed until `dispatch_at`; re-quotes the fare and re-checks the promo |
 | BE2-SCH-08 | `[x]` Create `ScheduledRideController@cancel` — `DELETE /api/v1/rides/{ride}/scheduled`: cancel before dispatch | P-22 | BE2-SCH-06 | `ScheduledRideController@destroy`; `POST /rides/{ride}/cancel` works too |
 | BE2-SCH-09 | `[x]` Create `AdminScheduledRideConfigController@update` — `PUT /api/v1/admin/config/scheduled-rides`: set lead-time window and reminder timing | A-33 | SETUP-52 | Built as `AdminScheduledRideController` at `GET/PUT /admin/settings/scheduled-rides` (operations), alongside the other settings endpoints. Covers enable/disable, booking window, dispatch lead, reminder, search grace, wave delay and per-passenger limits. Booking rules also in `GET /config` |
+| BE2-SCH-10 | `[x]` Driver advance reservations — `GET /driver/scheduled-rides/available`, `GET /driver/scheduled-rides`, `POST /driver/scheduled-rides/{ride}/reserve`, `POST /driver/scheduled-rides/{ride}/release` (`ScheduledRideReservationService`) | D-12, B-27 | BE2-SCH-04 | Uber Reserve model. Same city and class, ≤ 5 reservations, 60 min apart, until `dispatch_at`. Passenger sees the driver; a new pickup time/place releases it |
+| BE2-SCH-11 | `[x]` Dispatch straight to the reserved driver when online, fresh location, free and eligible; otherwise release and fall back to matching (`RideService::assignReservedDriver`) | B-27 | BE2-SCH-10 | No offer round; `driver_unavailable` release notifies both |
+| BE2-SCH-12 | `[x]` Protect reserved pickups: no on-demand offers to a driver within 60 min of their reserved pickup; driver reminder 60 min before | B-27 | BE2-SCH-10 | `driver_reservation_buffer_minutes` |
+| BE2-SCH-13 | `[x]` Admin pre-assignment — `POST/DELETE /admin/scheduled-rides/{ride}/assign` | A-33 | BE2-SCH-10 | Assign, move or remove a driver before dispatch |
+| BE2-SCH-14 | `[x]` Reservation fee added to scheduled quotes and the final fare | B-27 | BE2-SCH-03 | ₦0 (off) by default: Bolt and Lyft charge none; client to decide (SR-3) |
+| BE2-SCH-15 | `[x]` Late-cancellation fee on reserved bookings (`ScheduledRideCancellationFeeService`, `ChargeScheduledRideCancellationFeeJob`) | B-27 | BE2-SCH-10 | ₦0 (off) by default per OQ-05. Within 60 min of pickup; driver gets it in full; wallet/card only (cash waived); safety reasons exempt; shown in advance as `cancellation_fee_if_cancelled_now` |
 
 ---
 
@@ -1073,6 +1079,7 @@
 | OQ-20 | Driver scheduling: shift scheduling or availability planning? | BE2-SHIFT-01 | `[ ]` Unresolved |
 | OQ-21 | Dispute escalation tiers and ownership? | BE2-DISP-05 | `[ ]` Unresolved |
 | OQ-22 | Which cities are being activated and target date? | BE2-CITY-01 | `[ ]` Unresolved |
+| SR-1–SR-7 | Scheduled rides: booking window, dispatch timing, reservation fee, late-cancellation fee (exception to OQ-05?), cash late-cancel handling, driver release penalties, per-passenger/driver limits | BE2-SCH-* | `[~]` Built with industry-standard defaults, fees off; awaiting client confirmation — see [SCHEDULED_RIDES_DECISIONS.md §6](../../client/SCHEDULED_RIDES_DECISIONS.md#6-decisions-needed-from-the-client) |
 
 ---
 
