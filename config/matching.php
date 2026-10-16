@@ -95,15 +95,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Silent Driver Offline Minutes
+    | Silent Drivers
     |--------------------------------------------------------------------------
     |
-    | An online driver whose app has sent no location for this long (and who
-    | went online at least this long ago) is set offline and told to go
-    | online again. Matching cannot find a driver without a location, so
-    | leaving them "online" only hides the problem.
+    | An online driver whose app has sent no location for the warning time
+    | gets one push saying we cannot see them (matching cannot find them).
+    | After the offline time a driver who is not on a trip is set offline and
+    | told so. A driver on a trip is only ever warned.
     |
     */
-    'silent_driver_offline_minutes' => (int) env('MATCHING_SILENT_DRIVER_OFFLINE_MINUTES', 10),
+    'silent_driver_warning_minutes' => (int) env('MATCHING_SILENT_DRIVER_WARNING_MINUTES', 5),
+
+    'silent_driver_offline_minutes' => (int) env('MATCHING_SILENT_DRIVER_OFFLINE_MINUTES', 30),
 
 ];

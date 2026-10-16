@@ -44,6 +44,16 @@ class Driver extends Model
         return 'D-';
     }
 
+    protected static function booted(): void
+    {
+        // When the driver last went online, for the silent-driver check.
+        static::saving(function (Driver $driver) {
+            if ($driver->isDirty('is_online')) {
+                $driver->online_since = $driver->is_online ? now() : null;
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -52,6 +62,7 @@ class Driver extends Model
             'vehicle_ownership_type' => VehicleOwnershipType::class,
             'payout_preference' => PayoutPreference::class,
             'is_online' => 'boolean',
+            'online_since' => 'datetime',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
             'kyc_verified_at' => 'datetime',
