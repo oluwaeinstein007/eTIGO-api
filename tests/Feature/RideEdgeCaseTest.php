@@ -397,6 +397,7 @@ it('bills the actual trip time when the trip runs significantly longer', functio
 });
 
 it('caps the billed trip time when a trip is left running', function () {
+    $this->freezeTime();
     $booking = bookRide($this)->assertCreated();
     $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 180);
     completeTrip($this, $ride)->assertOk();

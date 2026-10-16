@@ -15,6 +15,8 @@ use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Notifications\Channels\SmsChannel;
 use App\Notifications\PayoutAccountChangedNotification;
+use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 
@@ -171,6 +173,7 @@ it('requires a verification code to add the first payout bank account', function
 
 it('sends a bank account code to a driver with no account on file', function () {
     $driver = Driver::factory()->approved()->create();
+    $this->app->instance(WalletGateway::class, Mockery::mock(WalletGateway::class));
 
     $this->actingAs($driver->user)
         ->postJson('/api/v1/driver/bank-account/otp')
@@ -283,6 +286,28 @@ it('does not alert the driver when the bank account is not saved', function () {
         ->assertUnprocessable();
 
     Notification::assertNothingSent();
+});
+
+it('keeps the saved bank account when the change alert cannot be queued', function () {
+    Exceptions::fake();
+    $driver = Driver::factory()->approved()->create();
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldReceive('resolveAccountNumber')->once()
+        ->andReturn(['account_number' => '0987654321', 'account_name' => 'ADA OBI']);
+    $this->app->instance(WalletGateway::class, $gateway);
+
+    $this->actingAs($driver->user)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+
+    $dispatcher = Mockery::mock(NotificationDispatcher::class);
+    $dispatcher->shouldReceive('send')->andThrow(new RuntimeException('Queue unavailable'));
+    $this->app->instance(NotificationDispatcher::class, $dispatcher);
+
+    $this->actingAs($driver->user)
+        ->postJson('/api/v1/driver/bank-account', ['bank_code' => '044', 'account_number' => '0987654321', 'otp_code' => '123456'])
+        ->assertCreated();
+
+    expect($driver->bankAccounts()->where('account_number', '0987654321')->exists())->toBeTrue();
+    Exceptions::assertReported(RuntimeException::class);
 });
 
 it('words the payout account alert without the full account number', function () {
