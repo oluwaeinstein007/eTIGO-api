@@ -9,6 +9,7 @@ How the E-tiGo API is built: architecture, business rules, invariants and the re
 | Servers, background processes, scheduled jobs | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Task status per feature | [task-breakdowns/E-Tigo_Backend_Task_Breakdown.md](task-breakdowns/E-Tigo_Backend_Task_Breakdown.md) |
 | Mobile KYC integration | [MOBILE_KYC_GUIDE.md](MOBILE_KYC_GUIDE.md) |
+| Client reports (PDF) | Edit the `.md` in `doc/client/`, then rebuild the PDF: `python3 doc/tools/build_client_pdf.py doc/client/<NAME>.md` (setup: `pip install -r doc/tools/requirements.txt`) |
 
 ---
 
