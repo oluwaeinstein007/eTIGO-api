@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Status:** Implemented (PR #91). All values below are defaults chosen by engineering to match industry practice. **None has been confirmed by the client yet.** Operations can change every one of them at any time, without a release, from **Admin › Settings › Scheduled rides** (`PUT /api/v1/admin/settings/scheduled-rides`).
+**Status:** Implemented (PR #91). Values marked **client** were set by the client on 16 October 2026 (latest pickup 3 days ahead; 3 upcoming bookings per passenger). All other values are defaults chosen by engineering to match industry practice and **have not been confirmed by the client yet**. Operations can change every one of them at any time, without a release, from **Admin › Settings › Scheduled rides** (`PUT /api/v1/admin/settings/scheduled-rides`).
 
 ---
 
@@ -33,8 +33,8 @@ Competitor terms vary by country and change over time. The figures below come fr
 | Decision | Industry practice | E-tiGo default | Why |
 |----------|-------------------|----------------|-----|
 | Earliest pickup | Uber: 30 minutes to 2 hours ahead, depending on market | **30 minutes** after booking | Long enough for a driver to commit and for dispatch to start on time; short enough to cover "later today" trips |
-| Latest pickup | Lyft: 7 days. Bolt: 3 days (London launch), 72 hours (South Africa), 90 days (New Zealand). Uber: 30–90 days | **7 days** ahead | The price is locked at booking, so a short horizon keeps it close to current rates. Matches Lyft and the middle of Bolt's range |
-| Upcoming bookings per passenger | Not published | **5** | Stops one account from holding many slots (and many reserved drivers) speculatively |
+| Latest pickup | Lyft: 7 days. Bolt: 3 days (London launch), 72 hours (South Africa), 90 days (New Zealand). Uber: 30–90 days | **3 days** ahead (**client**) | Set by the client. Matches Bolt's London and South Africa launches; the short horizon also keeps the locked price close to current rates |
+| Upcoming bookings per passenger | Not published | **3** (**client**) | Set by the client. Stops one account from holding many slots (and many reserved drivers) speculatively |
 | Gap between one passenger's bookings | Not published | **30 minutes** | Catches accidental double bookings without blocking a return trip |
 | Booking while on a trip | Allowed by all three | **Allowed** | A scheduled booking is not an active ride, so it never blocks riding now, and riding now never blocks booking for later |
 | Timezone | — | Pickup time must carry a UTC offset | Avoids a pickup silently shifting by an hour |
@@ -104,13 +104,13 @@ Rules for the late-cancellation fee (they follow the Cancellation Fee Proposal):
 
 | # | Question | Our default |
 |---|----------|-------------|
-| SR-1 | Confirm the booking window: 30 minutes to 7 days ahead? | 30 min – 7 days |
+| SR-1 | Booking window | **Partly decided:** at most **3 days** ahead (client). Still to confirm: earliest pickup 30 min |
 | SR-2 | Confirm dispatch 15 minutes before pickup, searching until 10 minutes after? | 15 / 10 |
 | SR-3 | Charge a reservation fee for booking ahead? If yes, how much? | No (₦0) |
 | SR-4 | Charge a late-cancellation fee on reserved bookings (an exception to the Phase 1 no-fee rule)? If yes, how much and from how long before pickup? | No (₦0); window 60 min |
 | SR-5 | Cash passengers who cancel late: waive (current) or record a balance due on their next ride? | Waive |
 | SR-6 | Should drivers who often give up reservations lose the ability to reserve (Bolt does this)? | Not built; tracked in the audit log |
-| SR-7 | Limits per passenger (5 bookings, 30 min apart) and per driver (5 reservations, 60 min apart)? | As stated |
+| SR-7 | Limits per passenger and per driver | **Partly decided:** **3 upcoming bookings** per passenger (client). Still to confirm: 30 min between a passenger's bookings; 5 reservations per driver, 60 min apart |
 
 ## 7. Settings Reference
 
@@ -120,12 +120,12 @@ All values can be changed at runtime by operations (`GET`/`PUT /api/v1/admin/set
 |---------|---------|
 | `enabled` | true |
 | `min_lead_minutes` | 30 |
-| `max_advance_days` | 7 |
+| `max_advance_days` | 3 (client) |
 | `dispatch_lead_minutes` | 15 |
 | `reminder_minutes` | 60 |
 | `matching_grace_minutes` | 10 |
 | `retry_wave_delay_seconds` | 30 |
-| `max_upcoming_per_passenger` | 5 |
+| `max_upcoming_per_passenger` | 3 (client) |
 | `min_minutes_between_bookings` | 30 |
 | `driver_reservations_enabled` | true |
 | `max_reservations_per_driver` | 5 |
