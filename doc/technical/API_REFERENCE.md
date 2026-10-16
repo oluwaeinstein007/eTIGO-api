@@ -698,10 +698,10 @@ No authentication required. Returns database and Redis connectivity status.
 {
   "status": "healthy",
   "checks": {
-    "database": true,
-    "redis": true
+    "database": { "status": "ok" },
+    "redis": { "status": "ok" }
   },
-  "timestamp": "2026-10-06T14:00:00.000000Z"
+  "timestamp": "2026-10-16T00:38:48+00:00"
 }
 ```
 
@@ -710,10 +710,10 @@ No authentication required. Returns database and Redis connectivity status.
 {
   "status": "degraded",
   "checks": {
-    "database": true,
-    "redis": false
+    "database": { "status": "ok" },
+    "redis": { "status": "error", "message": "Redis connection failed" }
   },
-  "timestamp": "2026-10-06T14:00:00.000000Z"
+  "timestamp": "2026-10-16T00:38:48+00:00"
 }
 ```
 
@@ -1694,7 +1694,7 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
 | `lng` | float | Yes | Between -180 and 180 |
 | `heading` | float | No | Between 0 and 360 (degrees from north) |
 | `speed` | float | No | >= 0 (km/h) |
-| `timestamp` | string | No | Valid date/time |
+| `timestamp` | string | No | Valid date/time. Accepted but not used: the server's time is recorded |
 
 **Response 200:**
 ```json
@@ -2642,6 +2642,7 @@ The driver must have provided all required onboarding data:
 |-------|--------|----------|----------------------------------------------------------------|
 | notes | string | No       | Optional audit note or justification (max 500 characters)      |
 | nin   | string | No       | Optional NIN number to record on the NIN verification (max 20) |
+| vehicle_ownership_type | string | No | `own_vehicle` or `fleet_vehicle`. Sets it for a driver who never chose one. When omitted, the driver's own choice is used, or it is inferred from their vehicle (fleet vehicle → `fleet_vehicle`) |
 
 **Response 200:**
 ```json
@@ -4391,27 +4392,16 @@ No authentication required. Returns Nigeria's six geopolitical zones with their 
 GET /lookup/states
 ```
 
-No authentication required. Returns all 36 Nigerian states plus the Federal Capital Territory (FCT), each with its capital and geopolitical zone.
+No authentication required. Returns all 36 Nigerian states plus the Federal Capital Territory (37 entries, alphabetical), each with a two-letter code and its geopolitical zone (`region`). The FCT is named `FCT`. Use `name` as the `state` when creating a city.
 
 **Response 200:**
 ```json
 {
   "states": [
-    {
-      "name": "Lagos",
-      "capital": "Ikeja",
-      "region": "South-West"
-    },
-    {
-      "name": "Abuja",
-      "capital": "Abuja",
-      "region": "North-Central"
-    },
-    {
-      "name": "Rivers",
-      "capital": "Port Harcourt",
-      "region": "South-South"
-    }
+    { "code": "AB", "name": "Abia", "region": "South-East" },
+    { "code": "FC", "name": "FCT", "region": "North-Central" },
+    { "code": "LA", "name": "Lagos", "region": "South-West" },
+    { "code": "RI", "name": "Rivers", "region": "South-South" }
   ]
 }
 ```
@@ -5331,6 +5321,7 @@ GET /rides/{ride}
     "payment_method": "cash",
     "payment_status": "pending",
     "tip_amount": null,
+    "co2_saved_kg": 1.2,
     "cancellation_reason": null,
     "city": { "...": "..." },
     "vehicle_class": { "...": "..." },
@@ -5445,7 +5436,9 @@ The other party is notified with who cancelled — the passenger, the driver, or
 | Field          | Type   | Required | Description                                    |
 |----------------|--------|----------|------------------------------------------------|
 | reason         | string | No       | Cancellation reason (see `CancellationReason` enum) |
-| reason_details | string | No       | Additional details (max 500 chars)             |
+| reason_details | string | No       | Additional details (max 500 chars). Send the free text for a reason with `allows_custom_description` here |
+
+`custom_description`, `custom_reason` and `description` (strings, max 500) are also accepted, but they are **not stored**. Only `reason_details` is saved and shown to the other party.
 
 **Response 200:**
 ```json
@@ -7395,7 +7388,7 @@ Only the owner can delete it.
 | Wallet | `wallet` | Auto-debited from passenger wallet at ride completion |
 | Bank Transfer | `bank_transfer` | Paystack checkout link generated at ride completion (supports bank transfer, USSD, card). Passenger completes payment via the link. OPay users transfer to the generated temporary account. Confirmed via Paystack webhook. |
 
-When a ride completes with `payment_method=card` and the passenger has no saved card, or with `payment_method=bank_transfer`, the payment response includes a `payment_link` field. The mobile app should present this link to the passenger to complete payment. The payment status updates from `pending` to `captured` automatically when the Paystack webhook confirms the transaction. A saved card is **not** required to select `card` as the payment method — new users can pay with a one-time card entry.
+When a ride completes with `payment_method=card` and the passenger has no saved card, or with `payment_method=bank_transfer`, the payment response includes a `payment_link` field. The mobile app should present this link to the passenger to complete payment. The payment status updates from `pending` to `captured` automatically when the Paystack webhook confirms the transaction. A saved card is **not** required to select `card` as the payment method — new users can pay with a one-time card entry. Payment objects shown to admins also carry `gateway_transaction_id` (the Paystack or Flutterwave transaction ID); passengers and drivers never see it.
 
 ---
 
@@ -9011,6 +9004,7 @@ Returns the authenticated passenger's promo code redemption history, paginated.
   "max_order_count": 5 (optional, for new-user promos),
   "peak_only": false,
   "off_peak_only": false,
+  "is_active": true (optional, default true),
   "geo_fence": {
     "center_lat": 9.0579,
     "center_lng": 7.4951,
@@ -9018,6 +9012,8 @@ Returns the authenticated passenger's promo code redemption history, paginated.
   }
 }
 ```
+
+`geo_fence` is either a circle (`center_lat`, `center_lng`, `radius_km` 0.1–500) or a polygon: `"polygon": [{"lat": 6.45, "lng": 3.38}, ...]` with at least 3 points. `per_user_limit` defaults to 1 (max 100). Create the promo with `is_active: false` to save it without making it usable.
 
 **Response (201):**
 ```json
@@ -9278,7 +9274,57 @@ Returns active SOS incidents prioritized by severity (escalated first).
 
 `GET /api/v1/admin/sos/{incident}`
 
-Returns full incident details with event logs and ride information.
+Returns full incident details with event logs and ride information. Admin-only fields: `vehicle_details`, `telemetry_data`, `operator_id`, `operator_notes`, `operator` and `event_logs`.
+
+**Response (200):**
+```json
+{
+  "message": "SOS incident details retrieved.",
+  "incident": {
+    "id": "uuid",
+    "ride_id": "uuid",
+    "triggered_by_user_id": "uuid",
+    "trigger_type": "passenger",
+    "trigger_type_label": "Passenger",
+    "status": "operator_assigned",
+    "status_label": "Operator Assigned",
+    "gps_lat": "9.0579000",
+    "gps_lng": "7.4951000",
+    "vehicle_details": { "plate_number": "AB-123-CD", "make": "Toyota", "model": "Corolla", "color": "White" },
+    "telemetry_data": { "ride_status": "in_progress", "passenger_id": "uuid", "driver_id": "uuid" },
+    "check_in_sent_at": "2026-10-11T12:00:00.000000Z",
+    "check_in_acknowledged_at": null,
+    "escalated_at": "2026-10-11T12:01:00.000000Z",
+    "operator_id": "uuid",
+    "operator_notes": "Called the passenger, police dispatched",
+    "resolved_at": null,
+    "triggered_by": { "id": "uuid", "first_name": "Ade", ... },
+    "operator": { "id": "uuid", "first_name": "Kemi", ... },
+    "ride": { ... },
+    "event_logs": [
+      {
+        "id": "uuid",
+        "event_type": "triggered",
+        "actor_id": "uuid",
+        "actor": { "id": "uuid", "first_name": "Ade", ... },
+        "metadata": { "trigger_type": "passenger", "gps_lat": 9.0579, "gps_lng": 7.4951 },
+        "created_at": "2026-10-11T12:00:00.000000Z"
+      },
+      {
+        "id": "uuid",
+        "event_type": "transition:escalated->operator_assigned",
+        "actor_id": "uuid",
+        "actor": { "id": "uuid", "first_name": "Kemi", ... },
+        "metadata": null,
+        "created_at": "2026-10-11T12:03:00.000000Z"
+      }
+    ],
+    "created_at": "2026-10-11T12:00:00.000000Z"
+  }
+}
+```
+
+`event_type` is `triggered`, `operator_reassigned` (metadata carries `previous_operator_id`), or `transition:{from}->{to}` for every status change.
 
 ### Incident History
 
@@ -9442,6 +9488,43 @@ List flagged trips with optional filters and pagination.
 `GET /api/v1/admin/offline-flags/{flag}`
 
 Get detailed information about a specific flag including detection data, ride details, and resolution info.
+
+`detection_data` is shown to admins only. `dispute_notes` (the driver's dispute text) and `dispute_outcome` appear once the flag is disputed.
+
+**Response 200:**
+```json
+{
+  "message": "Offline trip flag details retrieved.",
+  "flag": {
+    "id": "01a1421f-5780-713b-bdf4-12d4d03db70e",
+    "ride_id": "01a1421f-577c-7028-b24c-f7167281c568",
+    "driver_id": "01a1421f-577e-7227-8b4a-ca82c7b227a5",
+    "passenger_id": "01a1421f-577f-73fb-a6d8-e2de98403cb2",
+    "sanction_tier": { "value": 1, "label": "Warning" },
+    "sanction_action": "warning_issued",
+    "is_disputed": true,
+    "dispute_outcome": { "value": "pending", "label": "Pending" },
+    "dispute_notes": "The passenger is my brother; we were travelling together after the trip ended.",
+    "detection_data": {
+      "flagged": true,
+      "collocation_points": 8,
+      "total_trajectory_points": 10,
+      "route_match_percentage": 80.0,
+      "average_distance_meters": 42.5,
+      "point_distances": [38.2, 41.0, 55.7, 36.9, 47.3, 40.1, 39.8, 44.6, 260.4, 410.3],
+      "threshold_meters": 200,
+      "min_points_required": 3,
+      "match_percentage_required": 60
+    },
+    "flagged_at": "2026-10-16T00:31:52.000000Z",
+    "resolved_at": null,
+    "driver": { "id": "01a1421f-577e-7227-8b4a-ca82c7b227a5", "first_name": "Emeka", "...": "..." },
+    "passenger": { "id": "01a1421f-577f-73fb-a6d8-e2de98403cb2", "first_name": "Bisi", "...": "..." },
+    "ride": { "id": "01a1421f-577c-7028-b24c-f7167281c568", "reference_number": "TRP-NG-000001", "...": "..." },
+    "created_at": "2026-10-16T00:31:52.000000Z"
+  }
+}
+```
 
 ### Review Disputed Flag
 
@@ -9610,10 +9693,21 @@ GET /ev-stations/{station}
     "status": { "value": "active", "label": "Active" },
     "availability": { ... },
     "city": { ... },
-    "stalls": [ ... ]
+    "stalls": [
+      {
+        "id": "uuid",
+        "stall_number": 1,
+        "status": { "value": "occupied", "label": "Occupied" },
+        "occupied_since": "2026-10-11T09:40:00.000000Z",
+        "estimated_departure_at": "2026-10-11T10:15:00.000000Z",
+        "updated_at": "2026-10-11T09:40:00.000000Z"
+      }
+    ]
   }
 }
 ```
+
+Admins also get `current_driver` (the driver on the stall) on each stall, when loaded.
 
 ---
 
@@ -9721,15 +9815,40 @@ Three possible outcomes:
     "station_id": "uuid",
     "stall_id": "uuid",
     "status": { "value": "reserved", "label": "Reserved" },
+    "type": "charging",
+    "battery_level": 18,
+    "requested_date": "2026-10-11",
+    "requested_time": "10:00",
+    "notes": null,
+    "approver_name": null,
+    "confirmed_slot": null,
+    "check_in_time": null,
+    "queue_position": null,
+    "queue_ahead_count": null,
+    "queue_ahead_description": null,
+    "estimated_available_at": null,
     "fee_amount": "500.00",
     "fee_waived": false,
     "fee_charged_at": "2026-10-11T10:00:00.000000Z",
     "fee_refunded_at": null,
     "free_cancellation_until": "2026-10-11T10:02:00.000000Z",
-    "reserved_at": "2026-10-11T10:00:00.000000Z"
+    "reserved_at": "2026-10-11T10:00:00.000000Z",
+    "activated_at": null,
+    "completed_at": null,
+    "vehicle_name": "Hyundai Kona Electric",
+    "vehicle_plate": "LND-482-KJ",
+    "vehicle_color": "White",
+    "station_name": "Lekki Phase 1 Charging Hub",
+    "station_address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+    "assigned_bay": "Bay 3 · DC fast charger",
+    "submitted_at": "2026-10-11T09:58:00.000000Z",
+    "updated_at": "2026-10-11T10:00:00.000000Z",
+    "created_at": "2026-10-11T09:58:00.000000Z"
   }
 }
 ```
+
+Every reservation response has this shape. `approver_name`, `confirmed_slot` and `check_in_time` are set when an operator confirms a charge request. `queue_position`, `queue_ahead_count` and `queue_ahead_description` are set while queued. `vehicle_*` comes from the driver's vehicle, `station_name`/`station_address` from the station, and `assigned_bay` from the stall (`null` until one is assigned). `station`, `stall` and `driver` objects are included when loaded.
 
 **Response 200 — Queued:**
 ```json
@@ -10163,15 +10282,18 @@ GET /passenger/wallet
 Authorization: Bearer {passenger_token}
 ```
 
+The wallet is created on first call. Amounts are in kobo. `available` is `balance` minus active holds (`held`), which ride bookings place for the fare estimate. `status` is `active`, `frozen` or `closed`.
+
 **Response 200:**
 ```json
 {
   "wallet": {
-    "id": "uuid",
-    "balance": 500000,
-    "balance_formatted": "₦5,000.00",
+    "id": "01a1421a-2a78-73a4-b9f4-bfde68c5d57f",
+    "currency": "NGN",
     "status": "active",
-    "currency": "NGN"
+    "balance": 500000,
+    "available": 500000,
+    "held": 0
   }
 }
 ```
@@ -10179,11 +10301,51 @@ Authorization: Bearer {passenger_token}
 ### Wallet Transaction History
 
 ```
-GET /passenger/wallet/transactions?per_page=20
+GET /passenger/wallet/transactions?type=credit&from=2026-10-01&to=2026-10-16&page=1
 Authorization: Bearer {passenger_token}
 ```
 
-Returns paginated ledger entries for the passenger's wallet.
+The passenger's wallet entries, newest first, 20 per page (the page size is fixed).
+
+| Query | Type | Rules | Description |
+|---|---|---|---|
+| `type` | string | `debit` or `credit` | Only money out (`debit`) or in (`credit`) |
+| `from` | date | Date | Entries on or after this date |
+| `to` | date | Date | Entries up to the end of this date |
+| `page` | integer | — | Page number |
+
+`source_type` is `ride` or `payout` when the entry belongs to one (`source_id` is its ID), otherwise `null`. Top-ups and refunds carry their reference in `journal.metadata`.
+
+**Response 200:**
+```json
+{
+  "transactions": [
+    {
+      "id": "01a1421a-2a89-7164-a0a1-cecba93c911d",
+      "type": "credit",
+      "type_label": "Credit",
+      "amount": 500000,
+      "running_balance": 500000,
+      "created_at": "2026-10-16T00:26:13+00:00",
+      "source_type": null,
+      "source_id": null,
+      "journal": {
+        "id": "01a1421a-2a7e-73c3-9106-95a5a776ceeb",
+        "reference": "JRN-OF9URBRSSFAR-261016",
+        "description": "Wallet top-up via Paystack",
+        "metadata": { "tx_ref": "TOPUP-8F2K4M9Q1ZXA" },
+        "posted_at": "2026-10-16T00:26:13+00:00"
+      }
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
 
 ### Initialize Top-up
 
@@ -10987,11 +11149,46 @@ Wallet and ledger endpoints use granular role-based access. Super Admin always h
 ### List Wallets
 
 ```
-GET /admin/wallets?search=john&status=active&per_page=20
+GET /admin/wallets?search=ada&status=active&min_balance=100000&page=1
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance, Support
+
+Passenger wallets, newest first, 20 per page (fixed).
+
+| Query | Description |
+|---|---|
+| `search` | Passenger first name, last name, email or phone (partial match) |
+| `status` | `active`, `frozen` or `closed` |
+| `min_balance` / `max_balance` | Balance bounds in kobo |
+| `page` | Page number |
+
+**Response 200:**
+```json
+{
+  "wallets": [
+    {
+      "id": "01a1421a-2a78-73a4-b9f4-bfde68c5d57f",
+      "type": "passenger_wallet",
+      "type_label": "Passenger Wallet",
+      "currency": "NGN",
+      "status": "active",
+      "status_label": "Active",
+      "balance": 500000,
+      "available_balance": 500000,
+      "held": 0,
+      "created_at": "2026-10-16T00:26:13+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
 
 ### View Wallet
 
@@ -11002,6 +11199,46 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance, Support
 
+The wallet, its active holds and its 20 most recent entries. Each hold has `id`, `ride_id`, `amount`, `status`, `status_label`, `expires_at`, `created_at`, and `captured_at` / `released_at` once settled.
+
+**Response 200:**
+```json
+{
+  "wallet": {
+    "id": "01a1421a-2a78-73a4-b9f4-bfde68c5d57f",
+    "type": "passenger_wallet",
+    "type_label": "Passenger Wallet",
+    "currency": "NGN",
+    "status": "active",
+    "status_label": "Active",
+    "balance": 500000,
+    "available_balance": 500000,
+    "held": 0,
+    "created_at": "2026-10-16T00:26:13+00:00"
+  },
+  "active_holds": [],
+  "recent_transactions": [
+    {
+      "id": "01a1421a-2a89-7164-a0a1-cecba93c911d",
+      "type": "credit",
+      "type_label": "Credit",
+      "amount": 500000,
+      "running_balance": 500000,
+      "created_at": "2026-10-16T00:26:13+00:00",
+      "source_type": null,
+      "source_id": null,
+      "journal": {
+        "id": "01a1421a-2a7e-73c3-9106-95a5a776ceeb",
+        "reference": "JRN-OF9URBRSSFAR-261016",
+        "description": "Wallet top-up via Paystack",
+        "metadata": { "tx_ref": "TOPUP-8F2K4M9Q1ZXA" },
+        "posted_at": "2026-10-16T00:26:13+00:00"
+      }
+    }
+  ]
+}
+```
+
 ### Freeze Wallet
 
 ```
@@ -11011,11 +11248,22 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
+A frozen wallet cannot be topped up or used to pay. The action is audit-logged with the reason.
+
 **Request Body:**
 
-| Field    | Type   | Required | Rules          |
-|----------|--------|----------|----------------|
-| `reason` | string | Yes      | Max 500 chars  |
+| Field    | Type   | Required | Rules                |
+|----------|--------|----------|----------------------|
+| `reason` | string | Yes      | 10–2000 characters   |
+
+**Response 200:**
+```json
+{
+  "message": "Wallet frozen successfully."
+}
+```
+
+**Response 422:** `"Only passenger wallets can be frozen."` or `"Wallet is already frozen."`
 
 ### Unfreeze Wallet
 
@@ -11028,29 +11276,193 @@ Authorization: Bearer {admin_token}
 
 **Request Body:**
 
-| Field    | Type   | Required | Rules          |
-|----------|--------|----------|----------------|
-| `reason` | string | Yes      | Max 500 chars  |
+| Field    | Type   | Required | Rules                |
+|----------|--------|----------|----------------------|
+| `reason` | string | Yes      | 10–2000 characters   |
+
+**Response 200:**
+```json
+{
+  "message": "Wallet unfrozen successfully."
+}
+```
+
+**Response 422:** `"Only passenger wallets can be unfrozen."` or `"Wallet is not frozen."`
 
 ### Driver Ledgers
 
 ```
-GET /admin/driver-ledgers
+GET /admin/driver-ledgers?search=tunde&page=1
 GET /admin/driver-ledgers/{account}
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance, Support
 
+The list returns drivers' available-earnings accounts, newest first, 20 per page (fixed). `search` matches the driver's first name, last name or email.
+
+**Response 200 (list):**
+```json
+{
+  "driver_ledgers": [
+    {
+      "id": "01a1421a-2a8d-736d-9cfb-7ca4c7072353",
+      "type": "driver_earnings_available",
+      "type_label": "Driver Earnings (Available)",
+      "currency": "NGN",
+      "status": "active",
+      "status_label": "Active",
+      "balance": 320000,
+      "available_balance": 320000,
+      "held": 0,
+      "created_at": "2026-10-16T00:26:13+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
+The detail returns the account, its 20 most recent entries and the driver's 10 most recent payouts, newest first. Each payout is the admin payout object (see **Payouts** below) with `bank_account` included; `driver` and `approved_by` are not loaded here, so those keys are absent. `failure_reason`, `approved_at` and `paid_at` appear only once set. Once #87 is merged, payouts also carry `bank_account_block`.
+
+**Response 200 (detail):**
+```json
+{
+  "driver_ledger": {
+    "id": "01a1421a-2a8d-736d-9cfb-7ca4c7072353",
+    "type": "driver_earnings_available",
+    "type_label": "Driver Earnings (Available)",
+    "currency": "NGN",
+    "status": "active",
+    "status_label": "Active",
+    "balance": 320000,
+    "available_balance": 320000,
+    "held": 0,
+    "created_at": "2026-10-16T00:26:13+00:00"
+  },
+  "recent_transactions": [
+    {
+      "id": "01a1421a-2a99-701d-828d-810ef81d2773",
+      "type": "credit",
+      "type_label": "Credit",
+      "amount": 320000,
+      "running_balance": 320000,
+      "created_at": "2026-10-16T00:26:13+00:00",
+      "source_type": "ride",
+      "source_id": "01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b",
+      "journal": {
+        "id": "01a1421a-2a91-73fb-acee-15037173c114",
+        "reference": "JRN-NBLNKONVEL3X-261016",
+        "description": "Card ride settlement for ride 01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b",
+        "metadata": { "ride_id": "01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b" },
+        "posted_at": "2026-10-16T00:26:13+00:00"
+      }
+    }
+  ],
+  "recent_payouts": [
+    {
+      "id": "01a14229-a599-7360-9d61-373f196f59cf",
+      "amount": 200000,
+      "status": "paid",
+      "status_label": "Paid",
+      "requested_at": "2026-10-15T00:43:08+00:00",
+      "approved_at": "2026-10-15T00:43:08+00:00",
+      "paid_at": "2026-10-15T00:45:08+00:00",
+      "bank_account": {
+        "id": "01a14229-a575-70c3-8c6f-a455de44365c",
+        "bank_code": "058",
+        "bank_name": "Guaranty Trust Bank",
+        "account_number": "******0473",
+        "account_name": "TUNDE BELLO",
+        "is_verified": true,
+        "is_primary": true,
+        "created_at": "2026-10-16T00:43:08+00:00"
+      },
+      "gateway_transfer_id": "1043901125",
+      "needs_attention": false,
+      "attention_reason": null,
+      "provider_status": "success",
+      "created_at": "2026-10-15T00:43:08+00:00"
+    }
+  ]
+}
+```
+
 ### Ledger Explorer
 
 ```
-GET /admin/ledger?per_page=50
-GET /admin/ledger/export?format=csv
+GET /admin/ledger?reference=JRN-B25R&from=2026-10-01&to=2026-10-16&page=1
+GET /admin/ledger/export?from=2026-10-01&to=2026-10-16
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance
+
+**List:** journals newest first, 20 per page (fixed), each with its entries (every entry repeats its journal).
+
+| Query | Required | Description |
+|---|---|---|
+| `reference` | No | Journal reference, partial and case-insensitive (references look like `JRN-B25RAULM5HB3-261016`) |
+| `from` | No | Journals posted on or after this date |
+| `to` | No | Journals posted up to the end of this date |
+| `page` | No | Page number |
+
+**Response 200:**
+```json
+{
+  "journals": [
+    {
+      "id": "01a1421a-6c66-7103-b8dd-4c4e7313f430",
+      "reference": "JRN-B25RAULM5HB3-261016",
+      "description": "Wallet top-up via Paystack",
+      "metadata": { "tx_ref": "TOPUP-8F2K4M9Q1ZXA" },
+      "posted_at": "2026-10-16T00:26:30+00:00",
+      "entries": [
+        {
+          "id": "01a1421a-6c6c-7391-85cd-845f855956eb",
+          "type": "debit",
+          "type_label": "Debit",
+          "amount": 500000,
+          "running_balance": -500000,
+          "created_at": "2026-10-16T00:26:30+00:00",
+          "source_type": null,
+          "source_id": null,
+          "journal": { "id": "01a1421a-6c66-7103-b8dd-4c4e7313f430", "reference": "JRN-B25RAULM5HB3-261016", "...": "..." }
+        },
+        {
+          "id": "01a1421a-6c6f-7210-adca-4f16034d13ab",
+          "type": "credit",
+          "type_label": "Credit",
+          "amount": 500000,
+          "running_balance": 500000,
+          "created_at": "2026-10-16T00:26:30+00:00",
+          "source_type": null,
+          "source_id": null,
+          "journal": { "id": "01a1421a-6c66-7103-b8dd-4c4e7313f430", "reference": "JRN-B25RAULM5HB3-261016", "...": "..." }
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
+**Export:** a CSV download (`ledger-export-YYYY-MM-DD.csv`) of every entry posted between `from` and `to`, both **required** (`422` without them). One row per entry, including the account it hit:
+
+```csv
+Reference,Description,"Account ID","Account Type","Entry Type","Amount (kobo)","Running Balance","Posted At"
+JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a41-73c5-856e-064baa04724b,psp_clearing,debit,500000,-500000,2026-10-16T00:26:13+00:00
+JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a78-73a4-b9f4-bfde68c5d57f,passenger_wallet,credit,500000,500000,2026-10-16T00:26:13+00:00
+```
 
 ### Adjustments
 
@@ -11085,6 +11497,45 @@ A credit is funded from the `refunds` system account; a debit goes to `platform_
 | 200 | `"Adjustment approved and posted."` / `"Adjustment rejected."` |
 | 403 | `"Approver must differ from creator."` |
 | 422 | `"Adjustment is not pending."`, or the ledger refused the posting (e.g. the account is frozen: `"Account … is frozen, cannot post."`) — the adjustment stays `pending` |
+
+`GET /admin/adjustments?status=pending` lists adjustments newest first, 20 per page (fixed). `status` is `pending`, `approved` or `rejected`. Create, approve and reject return the adjustment under `adjustment` with their message. `approved_by` and `approved_at` appear once an adjustment has been approved.
+
+**Response 200 (approve):**
+```json
+{
+  "message": "Adjustment approved and posted.",
+  "adjustment": {
+    "id": "01a1421f-574d-7397-9535-0b816a98b438",
+    "account_id": "01a1421f-572d-7176-a118-adc96379603d",
+    "type": "credit",
+    "type_label": "Credit",
+    "amount": 150000,
+    "reason": "Goodwill credit for a cancelled trip",
+    "status": "approved",
+    "status_label": "Approved",
+    "created_by": {
+      "id": "01a1421f-5721-7088-a20f-868013afdd6c",
+      "first_name": "Ngozi",
+      "last_name": "Eze",
+      "type": "admin",
+      "admin_role": "finance",
+      "...": "..."
+    },
+    "approved_by": {
+      "id": "01a1421f-5724-73c7-b071-85cf1df56c5c",
+      "first_name": "Kunle",
+      "last_name": "Adeyemi",
+      "type": "admin",
+      "admin_role": "finance",
+      "...": "..."
+    },
+    "approved_at": "2026-10-16T00:31:52+00:00",
+    "created_at": "2026-10-16T00:31:52+00:00"
+  }
+}
+```
+
+The list wraps the same objects as `{ "adjustments": [ ... ], "meta": { "current_page", "last_page", "per_page", "total" } }`.
 
 ### Payouts
 
@@ -11312,6 +11763,49 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
+`GET` returns the global rate (0.20 when none is set) and the active per-driver overrides.
+
+**Response 200:**
+```json
+{
+  "global_rate": 0.18,
+  "overrides": [
+    {
+      "id": "01a1421a-2b41-73c6-a95e-8bfbec8048c5",
+      "rate": 0.15,
+      "driver_id": "01a1421a-2a72-73e2-afb3-c114f8d4f4e2",
+      "is_global": false,
+      "is_active": true,
+      "created_at": "2026-10-16T00:26:13+00:00"
+    }
+  ]
+}
+```
+
+`PUT` sets the global rate, or a driver's override when `driver_id` is sent. It is audit-logged.
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `rate` | number | Yes | 0–1 (e.g. `0.18` = 18%) |
+| `driver_id` | string (UUID) | No | An existing driver; omit or `null` for the global rate |
+
+**Response 200:**
+```json
+{
+  "message": "Global commission rate updated.",
+  "commission": {
+    "id": "01a1421a-2b39-7229-8fe6-e00823649ada",
+    "rate": 0.18,
+    "driver_id": null,
+    "is_global": true,
+    "is_active": true,
+    "created_at": "2026-10-16T00:26:13+00:00"
+  }
+}
+```
+
+With `driver_id`, the message is `"Driver commission override updated."` and `is_global` is `false`.
+
 ### Wallet Settings
 
 ```
@@ -11519,6 +12013,22 @@ Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance
+
+Live totals from the ledger, in kobo: money held in passenger wallets, commission collected, driver earnings still owed, and payouts sent.
+
+**Response 200:**
+```json
+{
+  "reconciliation": {
+    "currency": "NGN",
+    "wallet_liability": 500000,
+    "commission_collected": 0,
+    "driver_earnings_payable": 320000,
+    "total_payouts_processed": 0,
+    "generated_at": "2026-10-16T00:26:13+00:00"
+  }
+}
+```
 
 ---
 
