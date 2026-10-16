@@ -2,7 +2,7 @@
 
 **Phase 1 & Phase 2 Backend — Decision Record for All Outstanding Questions**
 
-**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.1 | **Status:** All Phase 1 decisions resolved and implemented; Phase 2 scheduled-ride defaults and Phase 2 recommendations awaiting client confirmation
+**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.2 | **Status:** All Phase 1 decisions resolved and implemented; Phase 2 scheduled-ride booking limits set by the client; other scheduled-ride defaults and Phase 2 recommendations awaiting client confirmation
 
 ---
 
@@ -14,7 +14,7 @@ This document records the decisions for all **26 Phase 1 open questions** identi
 
 Phase 1 questions are grouped into five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (9). Phase 2 adds **Scheduled Rides** (7 questions, built with industry-standard defaults and awaiting client confirmation) and **5 other Phase 2 questions** (OQ-18 to OQ-22), which now have engineering recommendations awaiting client confirmation.
 
-Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026); in version 4.1 (16 October 2026) the five open Phase 2 questions OQ-18 to OQ-22 received recommendations. All other decisions are unchanged.
+Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026); in version 4.1 (16 October 2026) the five open Phase 2 questions OQ-18 to OQ-22 received recommendations; in version 4.2 (16 October 2026) the client set the scheduled-ride booking limits (SR-1 and SR-7: 3 days ahead, 3 upcoming bookings). All other decisions are unchanged.
 
 </div>
 
@@ -431,9 +431,9 @@ Does E-tiGo need a separate PSP or MMO license to hold customer funds in its clo
 
 <h2 class="section">F. Phase 2 — Scheduled Rides <span class="badge new">NEW</span></h2>
 
-Scheduled rides were built on 16 October 2026 (Uber Reserve / Bolt / Lyft model): passengers book up to 7 days ahead at a price locked at booking, drivers can reserve a booking in advance, and the ride is dispatched 15 minutes before pickup. Every value below is an engineering default chosen to match industry practice; **all are awaiting client confirmation** and all can be changed by operations at any time without a release (`PUT /api/v1/admin/settings/scheduled-rides`). Full reasoning and sources: [Scheduled Rides — Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
+Scheduled rides were built on 16 October 2026 (Uber Reserve / Bolt / Lyft model): passengers book up to 3 days ahead at a price locked at booking, drivers can reserve a booking in advance, and the ride is dispatched 15 minutes before pickup. The client set the booking limits on 16 October 2026 (at most 3 days ahead, 3 upcoming bookings per passenger). Every other value below is an engineering default chosen to match industry practice and **awaiting client confirmation**. All can be changed by operations at any time without a release (`PUT /api/v1/admin/settings/scheduled-rides`). Full reasoning and sources: [Scheduled Rides — Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
 
-### SR-1 — Booking Window <span class="badge new">NEW</span>
+### SR-1 — Booking Window <span class="badge updated">UPDATED</span>
 
 #### Question
 How far ahead can a passenger book, and how soon before pickup?
@@ -441,8 +441,10 @@ How far ahead can a passenger book, and how soon before pickup?
 #### Industry Benchmark
 Uber Reserve: 30 minutes to 2 hours minimum, up to 30–90 days ahead depending on the market. Lyft: up to 7 days. Bolt: 3 days (London launch), 72 hours (South Africa), up to 90 days (New Zealand).
 
-#### Engineering Default
-> **30 minutes to 7 days ahead.** At most 5 upcoming bookings per passenger, at least 30 minutes apart. The price is locked at booking, so a short horizon keeps it close to current rates.
+#### Decision
+> **At most 3 days ahead, at most 3 upcoming bookings per passenger** — set by the client (Augustus Opara, 16 October 2026). This matches Bolt's London and South Africa launches (3 days / 72 hours) and keeps the price locked at booking close to current rates.
+>
+> Still an engineering default, awaiting confirmation: the earliest pickup is 30 minutes after booking, and one passenger's bookings must be at least 30 minutes apart.
 
 ### SR-2 — Dispatch Timing <span class="badge new">NEW</span>
 
@@ -609,7 +611,7 @@ Which cities are being activated, and on what target date?
 | OQ-31 | Payout schedule | On-demand + admin approval | Implemented |
 | OQ-32 | Tips in wallet | Tips follow the payment method; wallet tips supported | Implemented — awaiting client confirmation |
 | OQ-33 | Wallet regulatory | Paystack sub-wallet / PSP license | Aligned |
-| SR-1 | Scheduled booking window | 30 min – 7 days; 5 bookings, 30 min apart | Built — awaiting client confirmation |
+| SR-1 | Scheduled booking window | Up to **3 days** ahead, **3** upcoming bookings (client); from 30 min ahead, 30 min apart | Limits decided by client; 30-min values awaiting confirmation |
 | SR-2 | Scheduled dispatch timing | 15 min before; search until 10 min after | Built — awaiting client confirmation |
 | SR-3 | Reservation fee | Built, ₦0 (off) | Client decision needed |
 | SR-4 | Late-cancellation fee | Built, ₦0 (off); 60-min window | Client decision needed |
@@ -630,7 +632,7 @@ Which cities are being activated, and on what target date?
 |---|----------|--------|-------|----------|
 | 1 | HIGH | Execute the formal sub-wallet partnership agreement with Paystack confirming regulatory coverage | Legal / BD | Before public launch |
 | 2 | HIGH | Set up `WHATSAPP_SAFETY_NUMBER` and create the `sos_emergency_alert` WhatsApp template in Meta Business Manager | Ops / Eng | Before public launch |
-| 3 | HIGH | Confirm or change the scheduled-ride defaults SR-1, SR-2 and SR-7, and decide on the fees SR-3 to SR-6 | Client / Product | Before scheduled rides are announced |
+| 3 | HIGH | Confirm or change the remaining scheduled-ride defaults (SR-1's 30-minute values, SR-2, SR-7), and decide on the fees SR-3 to SR-6. The booking limits (3 days, 3 bookings) were decided on 16 October 2026 | Client / Product | Before scheduled rides are announced |
 | 4 | HIGH | Confirm the OQ-18 to OQ-21 recommendations (or pick another option in the Phase 2 Decisions report) and give the target date for each new city (OQ-22) | Client / Product | Before Phase 2 build (Week 9); defaults are built if no answer |
 | 5 | MED | Coordinate with the mobile teams: (a) 112 auto-dial via `auto_dial_emergency`, (b) force-update gate via `/api/v1/config`, (c) the new `scheduled` ride status and scheduled-ride screens (see FRONTEND_UPDATE_SCHEDULED_RIDES.md) | Mobile Team | Next sprint |
 | 6 | MED | Confirm the wallet-tips change (OQ-32) | Client / Product | Next review |
@@ -641,4 +643,4 @@ Which cities are being activated, and on what target date?
 
 ---
 
-<p class="footer">E-tiGo — Open Questions Decision Report v4.1 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | 7 scheduled-ride questions awaiting confirmation | 5 Phase 2 recommendations awaiting confirmation</p>
+<p class="footer">E-tiGo — Open Questions Decision Report v4.2 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | Scheduled-ride booking limits decided; 7 scheduled-ride questions still open in part | 5 Phase 2 recommendations awaiting confirmation</p>

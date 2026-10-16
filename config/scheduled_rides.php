@@ -20,9 +20,10 @@ return [
     // The pickup must be at least this many minutes after booking.
     'min_lead_minutes' => (int) env('SCHEDULED_RIDES_MIN_LEAD_MINUTES', 30),
 
-    // The pickup can be at most this many days after booking. The quote is
-    // locked at booking, so a short horizon keeps it close to current pricing.
-    'max_advance_days' => (int) env('SCHEDULED_RIDES_MAX_ADVANCE_DAYS', 7),
+    // The pickup can be at most this many days after booking. Set to 3 by
+    // the client (16 Oct 2026). The quote is locked at booking, so a short
+    // horizon keeps it close to current pricing.
+    'max_advance_days' => (int) env('SCHEDULED_RIDES_MAX_ADVANCE_DAYS', 3),
 
     // Matching starts this many minutes before the pickup time, so a driver
     // can reach the pickup on time.
@@ -43,7 +44,8 @@ return [
     'retry_wave_delay_seconds' => (int) env('SCHEDULED_RIDES_RETRY_WAVE_DELAY_SECONDS', 30),
 
     // Upcoming (not yet dispatched) bookings a passenger may hold at once.
-    'max_upcoming_per_passenger' => (int) env('SCHEDULED_RIDES_MAX_UPCOMING', 5),
+    // Set to 3 by the client (16 Oct 2026).
+    'max_upcoming_per_passenger' => (int) env('SCHEDULED_RIDES_MAX_UPCOMING', 3),
 
     // Two bookings by the same passenger must be at least this far apart.
     'min_minutes_between_bookings' => (int) env('SCHEDULED_RIDES_MIN_GAP_MINUTES', 30),

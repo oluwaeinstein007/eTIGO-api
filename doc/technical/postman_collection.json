@@ -333,7 +333,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60,\n    \"driver_reservations_enabled\": true\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 20,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60,\n    \"driver_reservations_enabled\": true\n  }\n}"
             }
           ]
         },
@@ -3001,7 +3001,7 @@
                     "rides"
                   ]
                 },
-                "description": "Books a ride for later: `POST /rides` plus `scheduled_pickup_at` (ISO 8601 **with a UTC offset**). **Sets `{{scheduled_ride_id}}`.** Change the time in the body to one 30 minutes to 7 days from now before sending.\n\n- The ride is created in `scheduled` status: no PIN (`pin_code` is `null`), no wallet hold, no matching yet. Matching starts `scheduled.dispatch_at` (15 min before pickup); the PIN appears on the ride then.\n- The fare is quoted and locked now, with the surge in effect **at the pickup time** (time-based/manual rules; never demand surge). A promo code must be valid at the pickup time.\n- Wallet bookings: the balance must cover the quote now; it is held at dispatch.\n- Limits (operations-editable, see `GET /config` \u2192 `scheduled_rides`): 30 min to 7 days ahead, 5 upcoming bookings, 30 min apart.\n- Booking for later works while the passenger is on another ride.",
+                "description": "Books a ride for later: `POST /rides` plus `scheduled_pickup_at` (ISO 8601 **with a UTC offset**). **Sets `{{scheduled_ride_id}}`.** Change the time in the body to one 30 minutes to 3 days from now before sending.\n\n- The ride is created in `scheduled` status: no PIN (`pin_code` is `null`), no wallet hold, no matching yet. Matching starts `scheduled.dispatch_at` (15 min before pickup); the PIN appears on the ride then.\n- The fare is quoted and locked now, with the surge in effect **at the pickup time** (time-based/manual rules; never demand surge). A promo code must be valid at the pickup time.\n- Wallet bookings: the balance must cover the quote now; it is held at dispatch.\n- Limits (operations-editable, see `GET /config` \u2192 `scheduled_rides`): 30 min to 3 days ahead, 3 upcoming bookings, 30 min apart.\n- Booking for later works while the passenger is on another ride.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"vehicle_class_id\": \"{{economy_class_id}}\",\n  \"pickup_lat\": 6.5244,\n  \"pickup_lng\": 3.3792,\n  \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n  \"destination_lat\": 6.5774,\n  \"destination_lng\": 3.321,\n  \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\",\n  \"payment_method\": \"card\",\n  \"scheduled_pickup_at\": \"2026-10-20T05:30:00+01:00\"\n}"
@@ -15082,7 +15082,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 3,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
                 }
               ]
             },
@@ -15115,7 +15115,7 @@
                     "scheduled-rides"
                   ]
                 },
-                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440), `driver_reservations_enabled`, `max_reservations_per_driver` (1\u201350), `driver_reservation_gap_minutes` (0\u20131440), `driver_reservation_buffer_minutes` (0\u2013240), `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off), `late_cancellation_window_minutes` (0\u20131440). Changes are audit-logged. Role: operations. Defaults and reasons: doc/client/SCHEDULED_RIDES_DECISIONS.md.",
+                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390, default 3), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440), `driver_reservations_enabled`, `max_reservations_per_driver` (1\u201350), `driver_reservation_gap_minutes` (0\u20131440), `driver_reservation_buffer_minutes` (0\u2013240), `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off), `late_cancellation_window_minutes` (0\u20131440). Changes are audit-logged. Role: operations. Defaults and reasons: doc/client/SCHEDULED_RIDES_DECISIONS.md.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"dispatch_lead_minutes\": 20,\n  \"reminder_minutes\": 90,\n  \"late_cancellation_fee\": 1500\n}"
@@ -15132,7 +15132,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Scheduled ride settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 7,\n    \"dispatch_lead_minutes\": 20,\n    \"reminder_minutes\": 90,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 5,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
+                  "body": "{\n  \"message\": \"Scheduled ride settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 20,\n    \"reminder_minutes\": 90,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 3,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Reminder Before Dispatch",

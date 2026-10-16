@@ -41,7 +41,7 @@ Every ride object also has three new fields (all `false`/`null` for rides booked
 ## Passenger App
 
 ### Booking for later
-- `GET /config` → `scheduled_rides`: `enabled`, `min_lead_minutes` (30), `max_advance_days` (7), `dispatch_lead_minutes` (15), `reservation_fee`, `late_cancellation_fee`, `late_cancellation_window_minutes`, `driver_reservations_enabled`. Hide **Schedule** when `enabled` is false. Offer pickup times from `min_lead_minutes` from now up to `max_advance_days` ahead.
+- `GET /config` → `scheduled_rides`: `enabled`, `min_lead_minutes` (30), `max_advance_days` (3), `dispatch_lead_minutes` (15), `reservation_fee`, `late_cancellation_fee`, `late_cancellation_window_minutes`, `driver_reservations_enabled`. Hide **Schedule** when `enabled` is false. Offer pickup times from `min_lead_minutes` from now up to `max_advance_days` ahead.
 - Quote: `POST /rides/estimate` with `scheduled_pickup_at`. Prices then reflect the pickup time. Each estimate has `reservation_fee` (currently 0) already included in `fare_estimate`.
 - Book: `POST /rides` with `scheduled_pickup_at`. **Send it in ISO 8601 with a UTC offset**, e.g. `2026-10-20T07:30:00+01:00`; without one you get 422. The response has `status: "scheduled"`, `message: "Ride scheduled successfully."` and **`pin_code: null`**: the PIN comes later.
 - 422 messages on `scheduled_pickup_at` explain the limits (too soon, too far, too many bookings, clash with another booking, scheduling off). Show them as they are.

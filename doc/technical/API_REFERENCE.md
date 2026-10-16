@@ -741,7 +741,7 @@ No authentication required. Returns app configuration including minimum version 
   "scheduled_rides": {
     "enabled": true,
     "min_lead_minutes": 30,
-    "max_advance_days": 7,
+    "max_advance_days": 3,
     "dispatch_lead_minutes": 15,
     "reservation_fee": 0,
     "late_cancellation_fee": 0,
@@ -6114,7 +6114,7 @@ A passenger can book a ride for a later time (Phase 2, PRD P-20–P-22, B-27). B
 
 **How a booking works**
 
-1. **Booking** — the pickup must be at least `min_lead_minutes` (default 30) and at most `max_advance_days` (default 7) ahead. A passenger can hold `max_upcoming_per_passenger` (default 5) upcoming bookings, at least `min_minutes_between_bookings` (default 30) apart. The ride is created in `scheduled` status.
+1. **Booking** — the pickup must be at least `min_lead_minutes` (default 30) and at most `max_advance_days` (default 3, set by the client) ahead. A passenger can hold `max_upcoming_per_passenger` (default 3, set by the client) upcoming bookings, at least `min_minutes_between_bookings` (default 30) apart. The ride is created in `scheduled` status.
 2. **Price** — quoted and locked at booking for the pickup time: time-based and manual surge rules in effect at the pickup time apply; demand-based surge does not (live demand says nothing about a later time). A promo code must be valid at the pickup time, and peak/off-peak rules follow the pickup time.
 3. **Payment** — a wallet ride's balance must cover the quote when booking, but nothing is held until dispatch. Card, cash and bank transfer work as for on-demand rides.
 4. **Reminder** — `reminder_minutes` (default 60) before pickup the passenger gets a `scheduled_ride_reminder` push. If the wallet would not cover the fare it says so, so there is time to top up. A booking made inside that window gets no separate reminder.
@@ -6233,8 +6233,8 @@ Same as [Create Ride](#create-ride) plus `scheduled_pickup_at`.
 |---------|------|
 | `The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.` | No offset in the time |
 | `The pickup time must be at least 30 minutes from now.` | Too soon (`min_lead_minutes`) |
-| `The pickup time can be at most 7 days from now.` | Too far ahead (`max_advance_days`) |
-| `You can have at most 5 upcoming scheduled rides.` | Too many upcoming bookings |
+| `The pickup time can be at most 3 days from now.` | Too far ahead (`max_advance_days`) |
+| `You can have at most 3 upcoming scheduled rides.` | Too many upcoming bookings |
 | `You already have a scheduled ride within 30 minutes of this time.` | Clashes with another booking |
 | `Scheduled rides are not available right now.` | Operations switched scheduling off |
 
@@ -6364,12 +6364,12 @@ PUT /admin/settings/scheduled-rides
 |-------|------|---------|-------|-------------|
 | enabled | boolean | `true` | — | Accept new bookings. Existing bookings still dispatch when off |
 | min_lead_minutes | integer | 30 | 5–1440 | Earliest pickup after booking |
-| max_advance_days | integer | 7 | 1–90 | Latest pickup after booking |
+| max_advance_days | integer | 3 | 1–90 | Latest pickup after booking (set by the client) |
 | dispatch_lead_minutes | integer | 15 | 5–120 | Matching starts this long before pickup. Cannot exceed `min_lead_minutes` |
 | reminder_minutes | integer | 60 | 0–1440 | Reminder push before pickup; `0` turns it off. Otherwise must exceed `dispatch_lead_minutes` |
 | matching_grace_minutes | integer | 10 | 0–60 | Keep searching this long after the pickup time |
 | retry_wave_delay_seconds | integer | 30 | 10–300 | Pause between matching waves for a scheduled ride |
-| max_upcoming_per_passenger | integer | 5 | 1–50 | Upcoming bookings per passenger |
+| max_upcoming_per_passenger | integer | 3 | 1–50 | Upcoming bookings per passenger (set by the client) |
 | min_minutes_between_bookings | integer | 30 | 0–1440 | Minimum gap between one passenger's bookings |
 | driver_reservations_enabled | boolean | `true` | — | Drivers can reserve bookings in advance (operations can always assign) |
 | max_reservations_per_driver | integer | 5 | 1–50 | Upcoming reservations one driver may hold |
@@ -6388,12 +6388,12 @@ The defaults and why they were chosen are in `doc/client/SCHEDULED_RIDES_DECISIO
   "settings": {
     "enabled": true,
     "min_lead_minutes": 30,
-    "max_advance_days": 7,
+    "max_advance_days": 3,
     "dispatch_lead_minutes": 15,
     "reminder_minutes": 60,
     "matching_grace_minutes": 10,
     "retry_wave_delay_seconds": 30,
-    "max_upcoming_per_passenger": 5,
+    "max_upcoming_per_passenger": 3,
     "min_minutes_between_bookings": 30,
     "driver_reservations_enabled": true,
     "max_reservations_per_driver": 5,

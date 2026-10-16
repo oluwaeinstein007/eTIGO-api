@@ -140,9 +140,11 @@ it('rejects a pickup time too soon or too far ahead', function () {
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['scheduled_pickup_at' => 'at least 30 minutes']);
 
-    ($this->book)(['scheduled_pickup_at' => now()->addDays(8)->toIso8601String()])
+    ($this->book)(['scheduled_pickup_at' => now()->addDays(3)->addMinute()->toIso8601String()])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['scheduled_pickup_at' => 'at most 7 days']);
+        ->assertJsonValidationErrors(['scheduled_pickup_at' => 'at most 3 days']);
+
+    ($this->book)(['scheduled_pickup_at' => now()->addDays(3)->toIso8601String()])->assertCreated();
 });
 
 it('rejects new bookings while scheduling is switched off', function () {
@@ -154,7 +156,8 @@ it('rejects new bookings while scheduling is switched off', function () {
 });
 
 it('limits upcoming bookings and keeps them apart', function () {
-    AppSetting::setValue('scheduled_rides.max_upcoming_per_passenger', 2, 'scheduled_rides');
+    // Default set by the client: 3 upcoming bookings per passenger.
+    ($this->book)(['scheduled_pickup_at' => now()->addHours(12)->toIso8601String()])->assertCreated();
 
     ($this->book)(['scheduled_pickup_at' => now()->addHours(3)->toIso8601String()])->assertCreated();
 
@@ -166,7 +169,7 @@ it('limits upcoming bookings and keeps them apart', function () {
 
     ($this->book)(['scheduled_pickup_at' => now()->addHours(8)->toIso8601String()])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['scheduled_pickup_at' => 'at most 2 upcoming']);
+        ->assertJsonValidationErrors(['scheduled_pickup_at' => 'at most 3 upcoming']);
 });
 
 it('lets a passenger book for later during a ride and ride now with a booking pending', function () {
