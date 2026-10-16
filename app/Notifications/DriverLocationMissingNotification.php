@@ -29,7 +29,7 @@ class DriverLocationMissingNotification extends Notification implements ShouldQu
             'title' => NotificationType::DriverLocationMissing->label(),
             'body' => $this->onTrip
                 ? "Your app has stopped sharing your location, so your passenger can't see where you are. Open the app to continue the trip."
-                : "Your app has stopped sharing your location, so you won't get ride requests. Open the app to keep receiving them, or you'll be set offline after {$this->offlineAfterMinutes} minutes.",
+                : "Your app has stopped sharing your location, so you won't get ride requests. Open the app to keep receiving them. If your location is missing for {$this->offlineAfterMinutes} minutes in total, you'll be set offline.",
             'on_trip' => $this->onTrip,
         ];
     }

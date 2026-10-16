@@ -26,7 +26,7 @@ beforeEach(function () {
 function driverOnlineFor(int $minutes): Driver
 {
     $driver = Driver::factory()->approved()->for(User::factory()->driver())->create(['is_online' => true]);
-    Driver::whereKey($driver->id)->update(['updated_at' => now()->subMinutes($minutes)]);
+    Driver::whereKey($driver->id)->update(['online_since' => now()->subMinutes($minutes)]);
 
     return $driver->refresh();
 }
@@ -131,4 +131,63 @@ it('ignores drivers who are already offline', function () {
     runSilentDriversJob();
 
     Notification::assertNothingSent();
+});
+
+it('warns a driver on a long silent trip only once', function () {
+    $driver = driverOnlineFor(minutes: 300);
+    $silentSince = now()->subMinutes(10);
+    $this->locationService->shouldReceive('lastSeenAt')->with($driver->id)->andReturn($silentSince);
+    Ride::factory()->create(['driver_id' => $driver->user_id, 'status' => RideStatus::InProgress]);
+
+    runSilentDriversJob();
+    $this->travel(3)->hours();
+    runSilentDriversJob();
+
+    Notification::assertSentToTimes($driver->user, DriverLocationMissingNotification::class, 1);
+});
+
+it('does not set offline a driver whose app comes back during the check', function () {
+    $driver = driverOnlineFor(minutes: 60);
+    $this->locationService->shouldReceive('lastSeenAt')->with($driver->id)
+        ->andReturn(now()->subMinutes(45), now()->subSeconds(5));
+    $this->locationService->shouldNotReceive('removeDriver');
+
+    runSilentDriversJob();
+
+    expect($driver->refresh()->is_online)->toBeTrue();
+    Notification::assertNotSentTo($driver->user, DriverSetOfflineNotification::class);
+});
+
+it('does not set offline a driver given a ride during the check', function () {
+    $driver = driverOnlineFor(minutes: 60);
+    $calls = 0;
+    $this->locationService->shouldReceive('lastSeenAt')->with($driver->id)
+        ->andReturnUsing(function () use ($driver, &$calls) {
+            if (++$calls === 2) {
+                Ride::factory()->create(['driver_id' => $driver->user_id, 'status' => RideStatus::Matched]);
+            }
+
+            return now()->subMinutes(45);
+        });
+    $this->locationService->shouldNotReceive('removeDriver');
+
+    runSilentDriversJob();
+
+    expect($driver->refresh()->is_online)->toBeTrue();
+});
+
+it('records when a driver went online, unaffected by other changes', function () {
+    $driver = Driver::factory()->approved()->for(User::factory()->driver())->create(['is_online' => false]);
+    expect($driver->online_since)->toBeNull();
+
+    $driver->update(['is_online' => true]);
+    $wentOnline = $driver->online_since;
+    expect($wentOnline)->not->toBeNull();
+
+    $this->travel(20)->minutes();
+    $driver->update(['payout_preference' => 'weekly_auto']);
+    expect($driver->refresh()->online_since->equalTo($wentOnline))->toBeTrue();
+
+    $driver->update(['is_online' => false]);
+    expect($driver->refresh()->online_since)->toBeNull();
 });
