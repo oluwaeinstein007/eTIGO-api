@@ -27,7 +27,7 @@ class PaystackWalletGateway implements WalletGateway
             'currency' => $data['currency'] ?? 'NGN',
             'email' => $data['customer']['email'] ?? $data['email'] ?? '',
             'callback_url' => $data['redirect_url'] ?? '',
-            'channels' => ['card', 'bank_transfer', 'ussd'],
+            'channels' => $data['channels'] ?? ['card', 'bank_transfer', 'ussd'],
         ];
 
         if (! empty($data['meta'])) {
@@ -47,11 +47,20 @@ class PaystackWalletGateway implements WalletGateway
         $response = $this->request('get', "/transaction/verify/{$transactionId}");
 
         $data = $response['data'];
+        $authorization = $data['authorization'] ?? [];
 
         return [
             'status' => $data['status'] === 'success' ? 'successful' : $data['status'],
             'amount' => (int) $data['amount'],
             'tx_ref' => $data['reference'],
+            'currency' => $data['currency'] ?? 'NGN',
+            'channel' => $authorization['channel'] ?? $data['channel'] ?? null,
+            'card_last_four' => $authorization['last4'] ?? null,
+            'card_brand' => isset($authorization['brand']) ? trim((string) $authorization['brand']) : null,
+            'card_expiry_month' => isset($authorization['exp_month']) ? (int) $authorization['exp_month'] : null,
+            'card_expiry_year' => isset($authorization['exp_year']) ? (int) $authorization['exp_year'] : null,
+            'authorization_code' => $authorization['authorization_code'] ?? null,
+            'reusable' => (bool) ($authorization['reusable'] ?? false),
         ];
     }
 

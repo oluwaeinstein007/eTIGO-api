@@ -15,6 +15,7 @@ class WalletTransaction extends Model
         'account_id',
         'reference',
         'amount',
+        'save_card',
         'status',
         'gateway_transaction_id',
         'journal_id',
@@ -26,6 +27,7 @@ class WalletTransaction extends Model
     {
         return [
             'amount' => 'integer',
+            'save_card' => 'boolean',
             'status' => WalletTransactionStatus::class,
             'completed_at' => 'datetime',
             'abandoned_at' => 'datetime',

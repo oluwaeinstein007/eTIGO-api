@@ -95,6 +95,7 @@ class WalletTopupController extends Controller
             'account_id' => $account->id,
             'reference' => $txRef,
             'amount' => $amountKobo,
+            'save_card' => $request->boolean('save_card'),
             'status' => WalletTransactionStatus::Pending,
         ]);
 

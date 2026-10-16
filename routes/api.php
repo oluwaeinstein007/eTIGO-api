@@ -204,7 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/notification-preferences', [NotificationPreferenceController::class, 'update']);
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
-    Route::post('/payments/initialize', [PaymentMethodController::class, 'initialize']);
+    Route::post('/payments/initialize', [PaymentMethodController::class, 'initialize'])->middleware('throttle:10,1');
     Route::get('/payments/{transactionId}/verify', [PaymentMethodController::class, 'verify']);
     Route::patch('/payment-methods/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
     Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);

@@ -7805,27 +7805,35 @@ Returns available payment methods for the authenticated user. Cash is always inc
 
 ---
 
-### Initialize Payment
+### Initialize Payment (add a card)
 ```
 POST /payments/initialize
 ```
 
-Starts a Paystack checkout, used to save a card for later rides (channels default to `card`; `bank_transfer` and `ussd` can be requested — OPay users pay by bank transfer to the generated account). Users without an email on their account are supported: a stable placeholder (`{user_id}@rider.etigo.ng`) is sent to Paystack and remembered with the saved card. Pass the returned `tx_ref` to **Verify Payment**.
+Starts adding a card. The passenger pays a small amount by card through Paystack; **that payment is a wallet top-up**: it is credited to their wallet and the card is saved once it succeeds. The amount is set by the server (admin wallet setting `card_verification_amount`, default ₦100) and returned in the response so the app can tell the passenger (e.g. "₦100 will be added to your wallet"). Channels default to `card`; `bank_transfer` and `ussd` can be requested (OPay users pay by bank transfer to the generated account), in which case the wallet is credited but no card is saved. Users without an email on their account are supported: a stable placeholder (`{user_id}@rider.etigo.ng`) is sent to Paystack and remembered with the saved card. Pass the returned `tx_ref` to **Verify Payment**.
+
+The ₦100 is credited even when the wallet is frozen or at its maximum balance; it is the passenger's money either way. It does not use up any of the 5-per-hour / 10-per-day top-up attempts, but it does count towards the daily top-up total.
 
 | Field        | Type   | Required | Description                       |
 |--------------|--------|----------|-----------------------------------|
-| amount       | number | Yes      | Amount (≥1)                       |
-| currency     | string | Yes      | 3-letter currency code (e.g. `NGN`) |
 | redirect_url | string | Yes      | URL to redirect after payment     |
-| channels     | array  | No       | Payment channels, default `["card"]` |
+| channels     | array  | No       | `card`, `bank_transfer`, `ussd`; default `["card"]` |
+| amount       | number | No       | **Ignored** (the server sets the amount); still accepted from older app builds |
+| currency     | string | No       | **Ignored** (always `NGN`)        |
+
+Rate limit: 10 requests per minute.
 
 **Response 200:**
 ```json
 {
   "payment_link": "https://checkout.paystack.com/abc123def456",
-  "tx_ref": "ETIGO-ABCDEFGHIJKL"
+  "tx_ref": "TOPUP-ABCDEFGHIJKL",
+  "amount": 100,
+  "currency": "NGN"
 }
 ```
+
+**Response 502:** `"Unable to initialize payment. Please try again."`
 
 ---
 
@@ -7833,17 +7841,37 @@ Starts a Paystack checkout, used to save a card for later rides (channels defaul
 ```
 GET /payments/{transactionId}/verify
 ```
-Verifies a checkout started with **Initialize Payment**; `{transactionId}` is its `tx_ref`. If successful and card details are present, the card is saved as a payment method (the first saved card becomes the default). Only the user who started the checkout can verify it — anyone else gets **403** `"Transaction does not belong to this user."`.
+Confirms a checkout started with **Initialize Payment**; `{transactionId}` is its `tx_ref` (Paystack also appends it to the callback URL as `reference`). When the payment succeeded:
+
+- the amount Paystack collected is credited to the passenger's wallet, once: calling this again, or the Paystack webhook arriving too, never credits twice. The passenger gets the usual "Top-up Successful" notification;
+- the card is saved as a payment method if it was paid by a card Paystack lets us charge again (the first saved card becomes the default). Adding a card that is already saved refreshes it instead of duplicating it.
+
+If the app never calls this (closed mid-checkout), the webhook (or the stuck top-up sweeper) still credits the wallet and saves the card.
+
+Only the user who started the checkout can verify it: anyone else, or an unknown `tx_ref`, gets **403** `"Transaction does not belong to this user."`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | `successful`, `failed`, `abandoned`, … (Paystack's status) |
+| `amount` | number | Amount paid (naira) |
+| `payment_type` | string\|null | `card`, `bank_transfer`, `ussd`, … |
+| `card_saved` | boolean | Whether a card was saved (or refreshed) |
+| `payment_method_id` | string\|null | ID of the saved card in **List Payment Methods** |
+| `wallet_credit` | number | Naira credited to the wallet (0 unless successful). The credit is applied within a few seconds |
 
 **Response 200:**
 ```json
 {
   "status": "successful",
-  "tx_ref": "ETIGO-ABCDEFGHIJKL",
-  "amount": 100.00,
+  "tx_ref": "TOPUP-ABCDEFGHIJKL",
+  "amount": 100,
   "currency": "NGN",
+  "payment_type": "card",
   "card_last_four": "4081",
-  "card_brand": "visa"
+  "card_brand": "visa",
+  "card_saved": true,
+  "payment_method_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+  "wallet_credit": 100
 }
 ```
 
@@ -7851,13 +7879,19 @@ Verifies a checkout started with **Initialize Payment**; `{transactionId}` is it
 ```json
 {
   "status": "failed",
-  "tx_ref": "ETIGO-ABCDEFGHIJKL",
-  "amount": 100.00,
+  "tx_ref": "TOPUP-ABCDEFGHIJKL",
+  "amount": 100,
   "currency": "NGN",
+  "payment_type": "card",
   "card_last_four": null,
-  "card_brand": null
+  "card_brand": null,
+  "card_saved": false,
+  "payment_method_id": null,
+  "wallet_credit": 0
 }
 ```
+
+**Response 502:** `"Unable to verify transaction."` (Paystack could not be reached; retry later.)
 
 ---
 
@@ -10893,6 +10927,7 @@ Initializes a Paystack payment for wallet top-up. Amounts are in kobo. The passe
 |----------------|---------|----------|--------------------------------------|
 | `amount`       | integer | Yes      | Min: 50000 (₦500)                   |
 | `callback_url` | string  | Yes      | Valid URL for redirect after payment |
+| `save_card`    | boolean | No       | Save the card this top-up is paid with as a payment method (default `false`). Only saved if paid by a card Paystack lets us charge again |
 
 **Example Request:**
 ```json
@@ -12474,6 +12509,7 @@ Returns current wallet configuration (merged from database overrides and config 
     "min_topup": 50000,
     "max_balance": 50000000,
     "daily_topup_cap": 10000000,
+    "card_verification_amount": 10000,
     "min_payout": 100000,
     "settlement_delay": "instant",
     "max_negative_balance": -500000,
@@ -12492,6 +12528,7 @@ Returns current wallet configuration (merged from database overrides and config 
 | `min_topup` | integer | Minimum top-up amount (kobo) |
 | `max_balance` | integer | Maximum wallet balance (kobo) |
 | `daily_topup_cap` | integer | Daily top-up limit per user (kobo) |
+| `card_verification_amount` | integer | Charged when a passenger adds a card, and credited to their wallet (kobo, default 10000 = ₦100) |
 | `min_payout` | integer | Minimum payout amount (kobo) |
 | `settlement_delay` | string | `instant`, `24h`, or `weekly` |
 | `max_negative_balance` | integer | Max negative balance for driver cash-ride commission (kobo, ≤ 0) |
@@ -12518,6 +12555,7 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 | `min_topup` | integer | Min: 1000. Cannot exceed `max_balance` or `daily_topup_cap` |
 | `max_balance` | integer | Min: 100000 |
 | `daily_topup_cap` | integer | Min: 100000 |
+| `card_verification_amount` | integer | 5000–100000 (₦50–₦1,000) |
 | `min_payout` | integer | Min: 10000 |
 | `settlement_delay` | string | `instant`, `24h`, or `weekly` |
 | `max_negative_balance` | integer | Max: 0 (must be ≤ 0) |
