@@ -11122,6 +11122,56 @@ Each action locks the payout, so two admins acting at once cannot approve, rejec
 ```
 Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, `payouts_held_until`): use it to disable **Approve**/**Retry** and link to the account. The weekly auto-payout skips drivers whose account is blocked and pays them in a later week.
 
+**Response 200 (list):** paginated, newest first, with `meta` (`current_page`, `last_page`, `per_page`, `total`). Approve, reject and retry return the same payout object as `payout`.
+```json
+{
+  "payouts": [
+    {
+      "id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+      "amount": 500000,
+      "status": "paid",
+      "status_label": "Paid",
+      "requested_at": "2026-10-15T09:00:00+00:00",
+      "approved_at": "2026-10-15T09:20:00+00:00",
+      "paid_at": "2026-10-15T09:21:30+00:00",
+      "bank_account": {
+        "id": "01a14039-5be7-7169-8042-492e20edeb4f",
+        "bank_code": "058",
+        "bank_name": "Guaranty Trust Bank",
+        "account_number": "******6789",
+        "account_name": "BAYO AKINOLA",
+        "is_verified": true,
+        "is_primary": true,
+        "payouts_held_until": null,
+        "name_match_status": "matched",
+        "review_status": null,
+        "created_at": "2026-10-14T18:00:00+00:00"
+      },
+      "driver": { "id": "uuid", "user": { "first_name": "Bayo", "last_name": "Akinola", "...": "..." }, "...": "..." },
+      "approved_by": { "id": "uuid", "first_name": "Finance", "last_name": "Admin", "...": "..." },
+      "gateway_transfer_id": "476948",
+      "needs_attention": false,
+      "attention_reason": null,
+      "provider_status": "success",
+      "bank_account_block": null,
+      "created_at": "2026-10-15T09:00:00+00:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+| Field | Notes |
+|-------|-------|
+| `failure_reason` | Only present when set (failed, rejected or reversed payouts) |
+| `approved_at`, `paid_at` | Only present once the payout was approved / paid |
+| `driver`, `approved_by` | Admin only; `approved_by` only when an admin approved it (absent for weekly auto-payouts) |
+| `gateway_transfer_id` | Admin only: Paystack's transfer id (numeric, as a string), `null` until the transfer is created; use it to find the transfer in the Paystack dashboard |
+| `needs_attention`, `attention_reason`, `provider_status` | Admin only, see below |
+| `bank_account_block` | Admin only, see the 409 above |
+
+Drivers (`GET /driver/payouts`) see the same object without the admin-only fields.
+
 Admin payout objects include **`needs_attention: true`** when a payout has been `approved` for more than 10 minutes without being sent, or `processing` for more than 30 minutes without a result — show the **check status** action for those. They also carry:
 
 - `attention_reason`: `awaiting_otp` (Paystack is holding the transfer for an OTP: turn off transfer OTP in the Paystack dashboard, then check status), `not_sent`, `unconfirmed`, or `null`. `awaiting_otp` is flagged immediately, not after the delay.
