@@ -11260,7 +11260,7 @@ The list returns drivers' available-earnings accounts, newest first, 20 per page
 }
 ```
 
-The detail returns the account, its 20 most recent entries and the driver's 10 most recent payouts (same shape as **Payouts** below).
+The detail returns the account, its 20 most recent entries and the driver's 10 most recent payouts, newest first. Each payout is the admin payout object (see **Payouts** below) with `bank_account` included; `driver` and `approved_by` are not loaded here, so those keys are absent. `failure_reason`, `approved_at` and `paid_at` appear only once set. Once #87 is merged, payouts also carry `bank_account_block`.
 
 **Response 200 (detail):**
 ```json
@@ -11296,7 +11296,32 @@ The detail returns the account, its 20 most recent entries and the driver's 10 m
       }
     }
   ],
-  "recent_payouts": []
+  "recent_payouts": [
+    {
+      "id": "01a14229-a599-7360-9d61-373f196f59cf",
+      "amount": 200000,
+      "status": "paid",
+      "status_label": "Paid",
+      "requested_at": "2026-10-15T00:43:08+00:00",
+      "approved_at": "2026-10-15T00:43:08+00:00",
+      "paid_at": "2026-10-15T00:45:08+00:00",
+      "bank_account": {
+        "id": "01a14229-a575-70c3-8c6f-a455de44365c",
+        "bank_code": "058",
+        "bank_name": "Guaranty Trust Bank",
+        "account_number": "******0473",
+        "account_name": "TUNDE BELLO",
+        "is_verified": true,
+        "is_primary": true,
+        "created_at": "2026-10-16T00:43:08+00:00"
+      },
+      "gateway_transfer_id": "1043901125",
+      "needs_attention": false,
+      "attention_reason": null,
+      "provider_status": "success",
+      "created_at": "2026-10-15T00:43:08+00:00"
+    }
+  ]
 }
 ```
 
