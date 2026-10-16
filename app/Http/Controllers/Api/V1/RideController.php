@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
+use App\Services\PassengerBalanceService;
 use App\Services\RidePinService;
 use App\Services\RideService;
 use App\Services\ScheduledRideService;
@@ -38,12 +39,25 @@ class RideController extends Controller
         private DriverEarningsService $earningsService,
         private RidePinService $pinService,
         private ScheduledRideService $scheduledRideService,
+        private PassengerBalanceService $balanceService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
     {
         $user = $request->user();
         $scheduledPickupAt = $request->scheduledPickupAt();
+
+        // An unpaid late-cancellation fee or wallet fare must be settled first.
+        if (($owed = $this->balanceService->blockingTotal($user)) !== null) {
+            $message = 'You have an outstanding balance of ₦'.number_format($owed, 2).'. Pay it to book a ride.';
+
+            return response()->json([
+                'message' => $message,
+                'error_code' => 'BALANCE_DUE',
+                'balance_due' => $owed,
+                'errors' => ['balance_due' => [$message]],
+            ], 422);
+        }
 
         try {
             $result = DB::transaction(function () use ($user, $request, $scheduledPickupAt) {

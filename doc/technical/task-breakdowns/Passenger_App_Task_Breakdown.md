@@ -196,7 +196,8 @@
 | FE2-PSR-03 | `[ ]` Build edit scheduled ride screen: modify time, pickup, destination before dispatch window | P-22 | 📡 BE2-SCH-07 | API ready: `PUT /rides/{ride}/scheduled` (also payment method) until `scheduled.dispatch_at`; the response has the new fare |
 | FE2-PSR-04 | `[ ]` Build scheduled ride reminder notification handler: push notification → deep link to ride detail | P-21 | 📡 Push notification | Types: `scheduled_ride_reminder`, `scheduled_ride_dispatched`, `scheduled_ride_reserved`, `scheduled_ride_reservation_released`; a booking the system had to cancel arrives as `ride_cancelled` with the reason in the body |
 | FE2-PSR-06 | `[ ]` Show the reserved driver on an upcoming booking (`scheduled.reserved_driver`: name, photo, rating, vehicle) | P-22 | 📡 BE2-SCH-10 | — |
-| FE2-PSR-07 | `[ ]` Show the cancellation fee before cancelling when `scheduled.cancellation_fee_if_cancelled_now` > 0; show `reservation_fee` in the quote when > 0 | P-22 | 📡 BE2-SCH-14, BE2-SCH-15 | Both fees ₦0 until the client decides |
+| FE2-PSR-07 | `[ ]` Show the cancellation fee before cancelling when `scheduled.cancellation_fee_if_cancelled_now` > 0 (the city's economy base fare, within 30 min of a reserved ride) | P-22 | 📡 BE2-SCH-15 | No reservation fee (client) |
+| FE2-PSR-09 | `[ ]` Build **Balance due** screen: show `GET /passenger/balance-due` (total and items); pay with `POST /passenger/balance-due/pay` (wallet or card); open it on 422 `BALANCE_DUE` from booking and on the `balance_due` notification | P-22 | 📡 BE2-SCH-16 | Covers late-cancellation fees and wallet fare shortfalls |
 | FE2-PSR-08 | `[ ]` Handle the new ride status `scheduled` everywhere `status` is read (enum decoding, history, filters) | P-22 | 📡 BE2-SCH-03 | **Breaking** — see FRONTEND_UPDATE_SCHEDULED_RIDES.md |
 | FE2-PSR-05 | `[ ]` Build scheduled ride dispatch transition: when scheduled ride dispatches, transition to standard searching → matched flow seamlessly | P-22 | 📡 BE2-SCH-04 | On `scheduled_ride_dispatched` (or `ride.status.updated` to `searching`) open the normal searching screen; the PIN is on the ride (`pin_code`) from then on |
 
@@ -238,7 +239,7 @@
 | OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
 | OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[~]` **Recommended (16 Oct 2026):** both rider (WhatsApp/SMS + tracking link) and booker (in app); admin-switchable. Awaiting client confirmation |
 | OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[ ]` Unresolved |
-| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[ ]` Unresolved |
+| OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[x]` Resolved — the wallet pays what it can; the rest is a balance due the passenger pays before booking again (FE2-PSR-09) |
 | OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[ ]` Unresolved |
 
 ---

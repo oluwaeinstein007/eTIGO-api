@@ -127,6 +127,8 @@ class AdminScheduledRideController extends Controller
             'driver_reservation_gap_minutes' => ['sometimes', 'integer', 'min:0', 'max:1440'],
             'driver_reservation_buffer_minutes' => ['sometimes', 'integer', 'min:0', 'max:240'],
             'reservation_fee' => ['sometimes', 'numeric', 'min:0', 'max:100000'],
+            'late_cancellation_fee_basis' => ['sometimes', 'string', 'in:economy_base_fare,flat,off'],
+            'late_cancellation_fee_vehicle_class' => ['sometimes', 'string', 'exists:vehicle_classes,name'],
             'late_cancellation_fee' => ['sometimes', 'numeric', 'min:0', 'max:100000'],
             'late_cancellation_window_minutes' => ['sometimes', 'integer', 'min:0', 'max:1440'],
         ]);

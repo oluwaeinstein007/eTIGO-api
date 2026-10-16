@@ -51,7 +51,7 @@ class AppSetting extends Model
     }
 
     /**
-     * @return array{min_topup: int, max_balance: int, daily_topup_cap: int, min_payout: int, settlement_delay: string, max_negative_balance: int, hold_expiry_hours: int, abandoned_topup_minutes: int, payout_account_hold_hours: int, payout_account_hold_first_account: bool, payout_account_name_check: string}
+     * @return array{min_topup: int, max_balance: int, daily_topup_cap: int, min_payout: int, settlement_delay: string, max_negative_balance: int, hold_expiry_hours: int, abandoned_topup_minutes: int, payout_account_hold_hours: int, payout_account_hold_first_account: bool, payout_account_name_check: string, block_booking_with_balance_due: bool}
      */
     public static function getWalletSettings(): array
     {
@@ -69,6 +69,7 @@ class AppSetting extends Model
             'payout_account_hold_hours' => (int) ($settings['wallet.payout_account_hold_hours'] ?? config('wallet.payout_account_hold_hours')),
             'payout_account_hold_first_account' => filter_var($settings['wallet.payout_account_hold_first_account'] ?? config('wallet.payout_account_hold_first_account'), FILTER_VALIDATE_BOOLEAN),
             'payout_account_name_check' => (string) ($settings['wallet.payout_account_name_check'] ?? config('wallet.payout_account_name_check')),
+            'block_booking_with_balance_due' => filter_var($settings['wallet.block_booking_with_balance_due'] ?? config('wallet.block_booking_with_balance_due'), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
@@ -76,7 +77,7 @@ class AppSetting extends Model
      * Scheduled-ride settings: the admin's runtime overrides
      * (PUT /admin/settings/scheduled-rides) over config/scheduled_rides.php.
      *
-     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reminder_minutes: int, matching_grace_minutes: int, retry_wave_delay_seconds: int, max_upcoming_per_passenger: int, min_minutes_between_bookings: int, driver_reservations_enabled: bool, max_reservations_per_driver: int, driver_reservation_gap_minutes: int, driver_reservation_buffer_minutes: int, reservation_fee: float, late_cancellation_fee: float, late_cancellation_window_minutes: int}
+     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reminder_minutes: int, matching_grace_minutes: int, retry_wave_delay_seconds: int, max_upcoming_per_passenger: int, min_minutes_between_bookings: int, driver_reservations_enabled: bool, max_reservations_per_driver: int, driver_reservation_gap_minutes: int, driver_reservation_buffer_minutes: int, reservation_fee: float, late_cancellation_fee_basis: string, late_cancellation_fee_vehicle_class: string, late_cancellation_fee: float, late_cancellation_window_minutes: int}
      */
     public static function scheduledRides(): array
     {
@@ -98,6 +99,8 @@ class AppSetting extends Model
             'driver_reservation_gap_minutes' => (int) $value('driver_reservation_gap_minutes'),
             'driver_reservation_buffer_minutes' => (int) $value('driver_reservation_buffer_minutes'),
             'reservation_fee' => round((float) $value('reservation_fee'), 2),
+            'late_cancellation_fee_basis' => (string) $value('late_cancellation_fee_basis'),
+            'late_cancellation_fee_vehicle_class' => (string) $value('late_cancellation_fee_vehicle_class'),
             'late_cancellation_fee' => round((float) $value('late_cancellation_fee'), 2),
             'late_cancellation_window_minutes' => (int) $value('late_cancellation_window_minutes'),
         ];

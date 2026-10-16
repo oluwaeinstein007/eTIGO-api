@@ -32,6 +32,7 @@ class AdminWalletSettingsController extends Controller
                 'payout_account_hold_hours' => $settings['payout_account_hold_hours'],
                 'payout_account_hold_first_account' => $settings['payout_account_hold_first_account'],
                 'payout_account_name_check' => $settings['payout_account_name_check'],
+                'block_booking_with_balance_due' => $settings['block_booking_with_balance_due'],
             ],
         ]);
     }
@@ -50,10 +51,13 @@ class AdminWalletSettingsController extends Controller
             'payout_account_hold_hours' => ['sometimes', 'integer', 'min:0', 'max:168'],
             'payout_account_hold_first_account' => ['sometimes', 'boolean'],
             'payout_account_name_check' => ['sometimes', 'string', Rule::enum(PayoutAccountNameCheck::class)],
+            'block_booking_with_balance_due' => ['sometimes', 'boolean'],
         ]);
 
-        if (array_key_exists('payout_account_hold_first_account', $validated)) {
-            $validated['payout_account_hold_first_account'] = $request->boolean('payout_account_hold_first_account');
+        foreach (['payout_account_hold_first_account', 'block_booking_with_balance_due'] as $flag) {
+            if (array_key_exists($flag, $validated)) {
+                $validated[$flag] = $request->boolean($flag);
+            }
         }
 
         $current = AppSetting::getWalletSettings();

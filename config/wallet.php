@@ -82,6 +82,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Balance Due
+    |--------------------------------------------------------------------------
+    |
+    | Money a passenger owes that could not be collected at the time (a
+    | scheduled ride's late-cancellation fee, or the part of a wallet fare the
+    | wallet could not cover) is recorded as a balance due. While one is
+    | outstanding, new bookings are refused until it is paid from the wallet
+    | or a card (the Uber/Bolt practice). Finance can turn the block off.
+    |
+    */
+
+    'block_booking_with_balance_due' => (bool) env('WALLET_BLOCK_BOOKING_WITH_BALANCE_DUE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Fraud Guardrails
     |--------------------------------------------------------------------------
     */

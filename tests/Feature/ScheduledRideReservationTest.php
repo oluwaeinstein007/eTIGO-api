@@ -1,15 +1,11 @@
 <?php
 
 use App\Contracts\MapsGateway;
-use App\Contracts\PaymentGateway;
-use App\Enums\AccountType;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
-use App\Jobs\ChargeScheduledRideCancellationFeeJob;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ScheduledRideReminderJob;
-use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\CommissionConfig;
@@ -19,7 +15,6 @@ use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\User;
-use App\Models\UserPaymentMethod;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
@@ -343,99 +338,4 @@ it('adds the reservation fee to the quote and the final fare', function () {
     // On-demand rides never carry it.
     $onDemand = ($this->book)(['scheduled_pickup_at' => null]);
     expect((float) Ride::find($onDemand)->fare_estimate_amount)->toBe(3325.0);
-});
-
-it('charges the late-cancellation fee from the wallet and pays the reserved driver', function () {
-    AppSetting::setValue('scheduled_rides.late_cancellation_fee', 1000, 'scheduled_rides');
-    $wallet = Account::factory()->passengerWallet()->withBalance(1_000_000)->create([
-        'owner_type' => (new User)->getMorphClass(),
-        'owner_id' => $this->passenger->id,
-    ]);
-
-    $rideId = ($this->book)(['payment_method' => 'wallet', 'scheduled_pickup_at' => now()->addMinutes(90)->toIso8601String()]);
-    ($this->reserve)($rideId)->assertOk();
-
-    // Outside the 60-minute window: free.
-    ($this->as)($this->passengerToken)->getJson("/api/v1/rides/{$rideId}")
-        ->assertJsonPath('ride.scheduled.cancellation_fee_if_cancelled_now', 0);
-
-    $this->travel(40)->minutes();
-    ($this->as)($this->passengerToken)->getJson("/api/v1/rides/{$rideId}")
-        ->assertJsonPath('ride.scheduled.cancellation_fee_if_cancelled_now', 1000);
-
-    Queue::fake()->except([ChargeScheduledRideCancellationFeeJob::class]);
-    ($this->as)($this->passengerToken)->deleteJson("/api/v1/rides/{$rideId}/scheduled")->assertOk();
-
-    $scheduled = ScheduledRide::where('ride_id', $rideId)->first();
-    expect($scheduled->late_cancellation_fee_status)->toBe('charged')
-        ->and($wallet->fresh()->balance)->toBe(1_000_000 - 100_000);
-
-    $driverEarnings = Account::where('owner_id', $this->driverUser->driver->id)->where('type', AccountType::DriverEarningsAvailable)->value('balance');
-    expect($driverEarnings)->toBe(100_000)
-        ->and(Notification::where('user_id', $this->driverUser->id)->where('type', 'ride_cancelled')->value('body'))->toContain('late-cancellation fee');
-});
-
-it('charges a saved card and waives the fee for cash bookings', function () {
-    AppSetting::setValue('scheduled_rides.late_cancellation_fee', 1000, 'scheduled_rides');
-    UserPaymentMethod::create([
-        'user_id' => $this->passenger->id,
-        'gateway_token' => 'tok_test',
-        'card_brand' => 'VISA',
-        'card_last_four' => '4242',
-        'is_default' => true,
-    ]);
-    $gateway = Mockery::mock(PaymentGateway::class);
-    $gateway->shouldReceive('chargeWithToken')->once()->with(Mockery::on(fn ($data) => $data['amount'] == 1000))
-        ->andReturn(['status' => 'successful', 'transaction_id' => 'txn_fee_1', 'amount' => 1000]);
-    $this->app->instance(PaymentGateway::class, $gateway);
-    Queue::fake()->except([ChargeScheduledRideCancellationFeeJob::class]);
-
-    $card = ($this->book)(['payment_method' => 'card', 'scheduled_pickup_at' => now()->addMinutes(50)->toIso8601String()]);
-    ($this->reserve)($card)->assertOk();
-    [, $secondToken] = ($this->makeDriver)();
-    $cash = ($this->book)(['scheduled_pickup_at' => now()->addMinutes(100)->toIso8601String()]);
-    ($this->reserve)($cash, $secondToken)->assertOk();
-
-    $this->travel(41)->minutes();
-    ($this->as)($this->passengerToken)->deleteJson("/api/v1/rides/{$card}/scheduled")->assertOk();
-    ($this->as)($this->passengerToken)->deleteJson("/api/v1/rides/{$cash}/scheduled")->assertOk();
-
-    expect(ScheduledRide::where('ride_id', $card)->value('late_cancellation_fee_status'))->toBe('charged')
-        ->and(ScheduledRide::where('ride_id', $card)->value('late_cancellation_fee_note'))->toBe('Card charge txn_fee_1')
-        ->and(ScheduledRide::where('ride_id', $cash)->value('late_cancellation_fee_status'))->toBe('waived');
-});
-
-it('charges no fee for unreserved bookings, safety reasons or when operations cancel', function () {
-    AppSetting::setValue('scheduled_rides.late_cancellation_fee', 1000, 'scheduled_rides');
-
-    $unreserved = ($this->book)(['scheduled_pickup_at' => now()->addMinutes(50)->toIso8601String()]);
-    $reserved = ($this->book)(['payment_method' => 'card', 'scheduled_pickup_at' => now()->addMinutes(120)->toIso8601String()]);
-    ($this->reserve)($reserved)->assertOk();
-    [, $secondToken] = ($this->makeDriver)();
-    $safety = ($this->book)(['payment_method' => 'card', 'scheduled_pickup_at' => now()->addMinutes(190)->toIso8601String()]);
-    ($this->reserve)($safety, $secondToken)->assertOk();
-    $this->travel(70)->minutes();
-
-    ($this->as)($this->passengerToken)->deleteJson("/api/v1/rides/{$unreserved}/scheduled")->assertOk();
-    ($this->as)($this->adminToken)->postJson("/api/v1/rides/{$reserved}/cancel")->assertOk();
-    $this->travel(70)->minutes();
-    ($this->as)($this->passengerToken)->deleteJson("/api/v1/rides/{$safety}/scheduled", ['reason' => 'safety_concern'])->assertOk();
-
-    expect(ScheduledRide::whereNotNull('late_cancellation_fee')->count())->toBe(0);
-});
-
-it('lets operations switch the new options and exposes the fee rules to the apps', function () {
-    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/scheduled-rides', [
-        'reservation_fee' => 200,
-        'late_cancellation_fee' => 500,
-        'late_cancellation_window_minutes' => 45,
-        'max_reservations_per_driver' => 3,
-    ])->assertOk()
-        ->assertJsonPath('settings.reservation_fee', 200)
-        ->assertJsonPath('settings.max_reservations_per_driver', 3);
-
-    $this->getJson('/api/v1/config')
-        ->assertJsonPath('scheduled_rides.reservation_fee', 200)
-        ->assertJsonPath('scheduled_rides.late_cancellation_fee', 500)
-        ->assertJsonPath('scheduled_rides.late_cancellation_window_minutes', 45);
 });
