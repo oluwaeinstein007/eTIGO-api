@@ -433,10 +433,24 @@ it('checks existing accounts and sends mismatches for review only with --apply',
         ->assertSuccessful();
     expect($mismatched->fresh()->name_match_status)->toBeNull();
 
-    $this->artisan('payout-accounts:check-names --apply')->assertSuccessful();
+    $this->artisan('payout-accounts:check-names --apply')
+        ->expectsOutputToContain('waiting for review')
+        ->assertSuccessful();
 
     expect($matching->fresh()->name_match_status)->toBe(BankAccountNameMatch::Matched)
         ->and($matching->fresh()->review_status)->toBeNull()
         ->and($mismatched->fresh()->name_match_status)->toBe(BankAccountNameMatch::Mismatch)
         ->and($mismatched->fresh()->review_status)->toBe(BankAccountReviewStatus::Pending);
+});
+
+it('does not claim accounts are waiting for review when every account matched', function () {
+    $account = BankAccount::factory()->create(['driver_id' => $this->driver->id, 'account_name' => 'ADA OBI', 'is_primary' => true]);
+
+    $this->artisan('payout-accounts:check-names --apply')
+        ->expectsOutputToContain('Checked 1 account(s): 0 mismatch(es).')
+        ->expectsOutputToContain('every account matched, so no payouts were paused')
+        ->doesntExpectOutputToContain('waiting for review')
+        ->assertSuccessful();
+
+    expect($account->fresh()->name_match_status)->toBe(BankAccountNameMatch::Matched);
 });
