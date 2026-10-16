@@ -13,7 +13,7 @@ Request and response details are in `API_REFERENCE.md`; every new response has a
 | App | Must do (breaking) | Should do |
 |-----|--------------------|-----------|
 | Passenger | Verify top-ups with `tx_ref`; send the same `type` you verified with at registration | Tip wallet and bank-transfer rides (wallet/card choice); show the card-tip messages; optional priority-matching perk; PIN regenerate |
-| Driver | Bank-account change needs an OTP; `fuel_type` required when registering a vehicle; EV charging only when `vehicle.can_charge` | Fuel type picker and prompt; EV fee and free-cancellation countdown; payout statuses; `ev_reservation_cancelled` and `vehicle_fuel_type_required` notifications |
+| Driver | Adding or changing the bank account needs an OTP; `fuel_type` required when registering a vehicle; EV charging only when `vehicle.can_charge` | Fuel type picker and prompt; EV fee and free-cancellation countdown; payout statuses; `ev_reservation_cancelled`, `vehicle_fuel_type_required` and `payout_account_changed` notifications |
 | Admin dashboard | `fuel_type` required on fleet vehicle creation | Payout **Check status** button with `needs_attention` / `attention_reason`; Retry for `reversed`; fuel type on drivers and fleet; live surge demand |
 | All | New error codes; session expiry (app 30 days, admin 8 hours) | |
 
@@ -25,9 +25,11 @@ Request and response details are in `API_REFERENCE.md`; every new response has a
 
 `POST /passenger/wallet/topup` returns `payment_link` and `tx_ref`. After the passenger returns from the Paystack checkout, call `GET /passenger/wallet/topup/{tx_ref}/verify` with that `tx_ref` (not Paystack's transaction id). Another passenger's reference returns 404. Calling it twice is safe ("Top-up has already been credited."), and Paystack's webhook credits the top-up even if the app never calls it.
 
-### 2. Changing the payout bank account needs a code (driver)
+### 2. Adding or changing the payout bank account needs a code (driver)
 
-Replacing an existing bank account requires `otp_code`. Request it with `POST /driver/bank-account/otp` (3 per minute), then send it with `POST /driver/bank-account`.
+Every `POST /driver/bank-account` requires `otp_code`, including the driver's **first** account (updated after the first version of this guide, which exempted the first account). Request it with `POST /driver/bank-account/otp` (3 per minute), then send it with `POST /driver/bank-account`. Without it the request returns 422 `errors.otp_code`. Use one flow: resolve → confirm the name → send the code → enter the code → save. If Paystack cannot verify the account on save, the code is not used up: let the driver fix the details and retry with the same code (while it is still valid, 5 minutes).
+
+After every save the driver gets a **new notification** `payout_account_changed` (in-app and push, data: `bank_account_id`, `replaced_another`) and a WhatsApp/SMS message that is sent whatever their notification settings are. On tap, open the bank account screen.
 
 ### 3. Registration is bound to the verified type (both apps)
 

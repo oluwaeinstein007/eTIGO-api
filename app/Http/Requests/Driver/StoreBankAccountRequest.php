@@ -16,7 +16,14 @@ class StoreBankAccountRequest extends FormRequest
         return [
             'bank_code' => ['required', 'string', 'max:10'],
             'account_number' => ['required', 'string', 'digits:10'],
-            'otp_code' => ['nullable', 'string', 'digits:6'],
+            'otp_code' => ['required', 'string', 'digits:6'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'otp_code.required' => 'Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.',
         ];
     }
 }
