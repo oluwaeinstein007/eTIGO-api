@@ -450,6 +450,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/', [AdminPricingController::class, 'index']);
         Route::post('/', [AdminPricingController::class, 'store']);
         Route::get('/current', [AdminPricingController::class, 'current']);
+        Route::get('/gaps', [AdminPricingController::class, 'gaps']);
         Route::get('/{pricingConfig}', [AdminPricingController::class, 'show']);
     });
 

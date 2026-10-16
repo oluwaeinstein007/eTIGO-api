@@ -13602,7 +13602,7 @@
                     "pricing"
                   ]
                 },
-                "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. free_waiting_minutes defaults to 5 if omitted. Returns 201."
+                "description": "Admin-only. Creates a new pricing config for a city + vehicle class. Version is auto-incremented. free_waiting_minutes defaults to 5 if omitted. Returns 201.\n\nThe response includes a warnings array: reasons this config won't be used for fares yet (vehicle class turned off, class not offered in the city, or nothing in effect until effective_from). Warnings never block the change."
               },
               "response": [
                 {
@@ -13615,7 +13615,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Pricing config created successfully.\",\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": false,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n    \"effective_until\": null\n  }\n}"
+                  "body": "{\n  \"message\": \"Pricing config created successfully.\",\n  \"pricing_config\": {\n    \"id\": \"d0e1f2a3-b4c5-6789-defa-890123456789\",\n    \"city_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vehicle_class_id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n    \"base_fare\": 500.0,\n    \"per_km_rate\": 100.0,\n    \"per_minute_rate\": 20.0,\n    \"minimum_fare\": 700.0,\n    \"waiting_time_rate\": 15.0,\n    \"free_waiting_minutes\": 5,\n    \"is_current\": false,\n    \"effective_from\": \"2026-10-01T00:00:00.000000Z\",\n    \"effective_until\": null\n  },\n  \"warnings\": []\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -13841,6 +13841,61 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"No pricing config found for the specified city and vehicle class.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Pricing Coverage Gaps",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/pricing/gaps?city_id={{city_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "pricing",
+                    "gaps"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "{{city_id}}",
+                      "description": "Optional: only gaps in this city"
+                    },
+                    {
+                      "key": "vehicle_class_id",
+                      "value": "{{vehicle_class_id}}",
+                      "description": "Optional: only gaps for this vehicle class",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Admin-only. Lists vehicle classes that are offered in a city (active overall and turned on for the city) but have no pricing config in effect, so fare estimates leave them out. next_effective_from is the earliest scheduled config, or null when none is scheduled."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Gaps",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"gaps\": [\n    {\n      \"city_id\": \"01a14034-2ff9-71fc-952d-b178fdfd604a\",\n      \"city_name\": \"Lekki Test\",\n      \"city_is_active\": true,\n      \"vehicle_class_id\": \"7d6e10db-aedf-4442-9453-c9fb9b29778e\",\n      \"vehicle_class_name\": \"Comfort\",\n      \"next_effective_from\": null\n    }\n  ],\n  \"total\": 1\n}"
                 }
               ]
             },

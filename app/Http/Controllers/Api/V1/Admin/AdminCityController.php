@@ -11,6 +11,7 @@ use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Services\AppCacheService;
+use App\Services\PricingCoverageService;
 use App\Support\NigerianStates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class AdminCityController extends Controller
 {
     public function __construct(
         private AppCacheService $cache,
+        private PricingCoverageService $coverage,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -46,6 +48,9 @@ class AdminCityController extends Controller
         $query->withCount(['vehicleClasses', 'drivers']);
 
         $cities = $query->latest()->paginate($this->perPage($request));
+
+        $gapCounts = $this->coverage->gaps($cities->getCollection()->modelKeys())->countBy('city_id');
+        $cities->getCollection()->each(fn (City $city) => $city->unpriced_vehicle_classes_count = $gapCounts->get($city->id, 0));
 
         return response()->json([
             'cities' => CityResource::collection($cities),
@@ -110,6 +115,7 @@ class AdminCityController extends Controller
         return response()->json([
             'message' => 'City created successfully.',
             'city' => new CityResource($city->load('vehicleClasses')),
+            'warnings' => $this->coverage->warningsForCity($city),
         ], 201);
     }
 
@@ -133,6 +139,7 @@ class AdminCityController extends Controller
 
         return response()->json([
             'city' => new CityResource($city),
+            'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }
 
@@ -188,6 +195,7 @@ class AdminCityController extends Controller
         return response()->json([
             'message' => 'City updated successfully.',
             'city' => new CityResource($city->fresh()->load('vehicleClasses')),
+            'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }
 
@@ -213,6 +221,7 @@ class AdminCityController extends Controller
         return response()->json([
             'message' => $city->is_active ? 'City activated successfully.' : 'City deactivated successfully.',
             'city' => new CityResource($city),
+            'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }
 }

@@ -8,6 +8,7 @@ use App\Models\City;
 use App\Models\PricingConfig;
 use App\Models\SurgeRule;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Log;
 
 class FareEstimationService
 {
@@ -219,6 +220,15 @@ class FareEstimationService
                 'booking_fee_discount' => $adjusted['booking_fee_discount'],
                 ...($pickupAt ? ['reservation_fee' => $reservationFee] : []),
             ];
+        }
+
+        if ($estimates === []) {
+            // The city offers classes but none is priced: a setup gap that
+            // admins see in pricing warnings and pricing:check-coverage.
+            Log::warning('Fare estimate found no pricing for any vehicle class in the city.', [
+                'city_id' => $cityId,
+                'vehicle_class_ids' => $vehicleClassIds,
+            ]);
         }
 
         return [
