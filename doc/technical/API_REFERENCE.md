@@ -13476,6 +13476,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
+| Set offline | Driver | `driver_set_offline` | The driver's app sent no location for 10 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`), so they were set offline and get no ride requests; open the home screen so they can go online again (which restarts location updates). Not sent to drivers on a trip |
 
 **Wallet and payout notifications** (stored in-app — see `GET /notifications` — and pushed):
 
