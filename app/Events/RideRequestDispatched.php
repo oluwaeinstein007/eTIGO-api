@@ -30,6 +30,8 @@ class RideRequestDispatched implements ShouldBroadcastNow
         public ?float $passengerRating,
         public ?float $distanceKm,
         public ?float $durationMinutes,
+        // Set for a scheduled ride: the pickup time the passenger booked.
+        public ?string $scheduledPickupAt = null,
     ) {}
 
     /**
@@ -69,6 +71,7 @@ class RideRequestDispatched implements ShouldBroadcastNow
             'passenger_rating' => $this->passengerRating,
             'distance_km' => $this->distanceKm,
             'duration_minutes' => $this->durationMinutes,
+            'scheduled_pickup_at' => $this->scheduledPickupAt,
         ];
     }
 }

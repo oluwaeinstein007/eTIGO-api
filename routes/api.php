@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminReconciliationController;
 use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
+use App\Http\Controllers\Api\V1\Admin\AdminScheduledRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
@@ -80,6 +81,7 @@ use App\Http\Controllers\Api\V1\RideRatingController;
 use App\Http\Controllers\Api\V1\RideReceiptController;
 use App\Http\Controllers\Api\V1\RideShareController;
 use App\Http\Controllers\Api\V1\RideTipController;
+use App\Http\Controllers\Api\V1\ScheduledRideController;
 use App\Http\Controllers\Api\V1\SosController;
 use App\Http\Controllers\Api\V1\TipSettingsController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWebhookController;
@@ -244,7 +246,10 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::get('/', [RideController::class, 'index']);
     Route::get('/cancellation-reasons', [RideCancellationReasonController::class, 'index']);
     Route::get('/tip-settings', [TipSettingsController::class, 'show']);
+    Route::get('/scheduled', [ScheduledRideController::class, 'index'])->middleware('user.type:passenger');
     Route::get('/{ride}', [RideController::class, 'show']);
+    Route::put('/{ride}/scheduled', [ScheduledRideController::class, 'update'])->middleware('user.type:passenger');
+    Route::delete('/{ride}/scheduled', [ScheduledRideController::class, 'destroy'])->middleware('user.type:passenger');
     Route::post('/{ride}/rebroadcast', [RideController::class, 'rebroadcast'])
         ->middleware(['user.type:passenger', 'throttle:3,1']);
     Route::post('/{ride}/cancel', [RideController::class, 'cancel']);
@@ -450,6 +455,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/active-rides', [AdminMonitoringController::class, 'activeRides']);
         Route::get('/online-drivers', [AdminMonitoringController::class, 'onlineDrivers']);
         Route::get('/rides/{ride}', [AdminMonitoringController::class, 'rideDetail']);
+    });
+
+    Route::middleware('admin.role:operations')->group(function () {
+        Route::get('/scheduled-rides', [AdminScheduledRideController::class, 'index']);
+        Route::get('/settings/scheduled-rides', [AdminScheduledRideController::class, 'showSettings']);
+        Route::put('/settings/scheduled-rides', [AdminScheduledRideController::class, 'updateSettings']);
     });
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {

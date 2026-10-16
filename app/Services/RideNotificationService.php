@@ -16,6 +16,7 @@ class RideNotificationService
     public function notifyTransition(Ride $ride, RideStatus $from, RideStatus $to): void
     {
         match ($to) {
+            RideStatus::Searching => $from === RideStatus::Scheduled ? $this->notifyScheduledRideDispatched($ride) : null,
             RideStatus::Matched => $this->notifyDriverMatched($ride),
             RideStatus::DriverEnRoute => $this->notifyDriverEnRoute($ride),
             RideStatus::DriverArrived => $this->notifyDriverArrived($ride),
@@ -25,6 +26,17 @@ class RideNotificationService
             RideStatus::NoDriverFound => $this->notifyNoDriverFound($ride),
             default => null,
         };
+    }
+
+    private function notifyScheduledRideDispatched(Ride $ride): void
+    {
+        $this->notificationService->send(
+            userId: $ride->passenger_id,
+            type: NotificationType::ScheduledRideDispatched,
+            title: 'Finding Your Driver',
+            body: "We're finding a driver for your scheduled ride from {$ride->pickup_address}.",
+            data: ['ride_id' => (string) $ride->id],
+        );
     }
 
     private function notifyDriverMatched(Ride $ride): void
@@ -124,6 +136,11 @@ class RideNotificationService
             : null;
 
         $body = "{$cancellerLabel} cancelled the ride.".($reasonLabel ? " Reason: {$reasonLabel}." : '');
+
+        // The scheduled-ride dispatcher records a passenger-facing explanation.
+        if ($ride->cancellation_reason === CancellationReason::ScheduledDispatchFailed->value && $ride->cancellation_details) {
+            $body = $ride->cancellation_details;
+        }
 
         if ($ride->cancelled_by !== $ride->passenger_id) {
             $this->notificationService->send(

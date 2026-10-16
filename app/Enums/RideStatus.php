@@ -4,6 +4,9 @@ namespace App\Enums;
 
 enum RideStatus: string
 {
+    // Booked ahead of time; becomes searching when the dispatcher starts
+    // matching shortly before the pickup time. Not an active ride.
+    case Scheduled = 'scheduled';
     case Requested = 'requested';
     case Searching = 'searching';
     case Matched = 'matched';
@@ -17,6 +20,7 @@ enum RideStatus: string
     public function label(): string
     {
         return match ($this) {
+            self::Scheduled => 'Scheduled',
             self::Requested => 'Requested',
             self::Searching => 'Searching for Driver',
             self::Matched => 'Driver Matched',
@@ -61,6 +65,7 @@ enum RideStatus: string
     public function isCancellable(): bool
     {
         return in_array($this, [
+            self::Scheduled,
             self::Requested,
             self::Searching,
             self::Matched,

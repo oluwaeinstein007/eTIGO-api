@@ -40,27 +40,31 @@ class RideController extends Controller
     public function store(StoreRideRequest $request): JsonResponse
     {
         $user = $request->user();
+        $scheduledPickupAt = $request->scheduledPickupAt();
 
         try {
-            $result = DB::transaction(function () use ($user, $request) {
+            $result = DB::transaction(function () use ($user, $request, $scheduledPickupAt) {
                 User::lockForUpdate()->find($user->id);
 
-                $timeoutSeconds = config('matching.matching_timeout', 300);
-                $staleRides = Ride::where('passenger_id', $user->id)
-                    ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
-                    ->where('created_at', '<', now()->subSeconds($timeoutSeconds))
-                    ->get();
+                // A booking for later does not compete with a ride happening now.
+                if ($scheduledPickupAt === null) {
+                    $staleRides = Ride::where('passenger_id', $user->id)
+                        ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
+                        ->with('scheduledRide')
+                        ->get()
+                        ->filter(fn (Ride $ride) => $this->matchingService->searchDeadline($ride)->isPast());
 
-                foreach ($staleRides as $staleRide) {
-                    $this->rideService->expireStaleSearch($staleRide);
-                }
+                    foreach ($staleRides as $staleRide) {
+                        $this->rideService->expireStaleSearch($staleRide);
+                    }
 
-                $activeRide = Ride::where('passenger_id', $user->id)
-                    ->whereIn('status', RideStatus::activeStatuses())
-                    ->exists();
+                    $activeRide = Ride::where('passenger_id', $user->id)
+                        ->whereIn('status', RideStatus::activeStatuses())
+                        ->exists();
 
-                if ($activeRide) {
-                    return null;
+                    if ($activeRide) {
+                        return null;
+                    }
                 }
 
                 return $this->rideService->createRide(
@@ -75,6 +79,7 @@ class RideController extends Controller
                     destinationAddress: $request->input('destination_address'),
                     paymentMethod: PaymentMethod::from($request->input('payment_method')),
                     promoCode: $request->input('promo_code'),
+                    scheduledPickupAt: $scheduledPickupAt,
                 );
             });
         } catch (\DomainException $e) {
@@ -90,10 +95,10 @@ class RideController extends Controller
             ], 409);
         }
 
-        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode']);
+        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide']);
 
         return response()->json([
-            'message' => 'Ride created successfully.',
+            'message' => $scheduledPickupAt ? 'Ride scheduled successfully.' : 'Ride created successfully.',
             'ride' => new RideResource($ride),
             'pin_code' => $result['pin_code'],
         ], 201);
@@ -107,7 +112,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode', 'scheduledRide']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),
@@ -155,7 +160,7 @@ class RideController extends Controller
 
         $perPage = $this->perPage($request, 15, 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores', 'scheduledRide'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -192,7 +197,7 @@ class RideController extends Controller
             $request->input('reason_details'),
         );
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride cancelled successfully.',

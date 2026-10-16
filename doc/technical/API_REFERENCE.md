@@ -737,11 +737,19 @@ No authentication required. Returns app configuration including minimum version 
   "force_update": false,
   "emergency_number": "112",
   "support_phone": null,
-  "support_email": null
+  "support_email": null,
+  "scheduled_rides": {
+    "enabled": true,
+    "min_lead_minutes": 30,
+    "max_advance_days": 7,
+    "dispatch_lead_minutes": 15
+  }
 }
 ```
 
 **Usage:** Mobile clients should check `min_app_version` on every launch. If the installed version is below the minimum, show a force-update screen with a link to the App Store / Play Store. When `force_update` is `true`, block usage entirely until updated.
+
+`scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. See [Scheduled Rides](#scheduled-rides).
 
 ---
 
@@ -4940,6 +4948,7 @@ POST /rides/estimate
 | pickup_lng      | number | Yes      | Pickup longitude (-180 to 180)|
 | destination_lat | number | Yes      | Destination latitude       |
 | destination_lng | number | Yes      | Destination longitude      |
+| scheduled_pickup_at | string (ISO 8601) | No | Quote a [scheduled ride](#scheduled-rides) for this pickup time. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`) and be in the future. Surge is then the surge in effect **at that time**: time-based and manual rules covering it apply, demand-based surge never does. |
 
 **Validation rules:**
 - `city_id` must reference an **active** city — inactive cities return 422
@@ -5067,6 +5076,8 @@ POST /rides
 
 Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
 
+**Booking for later:** send `scheduled_pickup_at` to book a [scheduled ride](#scheduled-rides) instead. The ride is created in `scheduled` status with no PIN (`pin_code` is `null`), no wallet hold and no matching; the message is `"Ride scheduled successfully."`. A passenger on an active ride can still book for later, and a pending booking does not stop them from riding now.
+
 **What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
 
 **PIN:** valid for 6 hours (the whole pickup phase). If the driver uses up the 3 attempts, the passenger can issue a new PIN with `POST /rides/{ride}/pin/regenerate`.
@@ -5084,6 +5095,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
 | payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
+| scheduled_pickup_at | string (ISO 8601) | No | Book for later. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`). See [Scheduled Rides](#scheduled-rides) for the limits. |
 | promo_code         | string  | No       | Promo code to apply (max 50 chars). **All** rules are checked at booking against this ride (user eligibility, city, vehicle class, pickup geo-fence, minimum fare vs. the estimate, peak/off-peak in the city's timezone) — an invalid code returns `422` on `promo_code`. The discount is applied to the final fare at completion; the code's validity window and peak rules are honoured as they were at booking. |
 
 **Response 201:**
@@ -5108,6 +5120,9 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
     },
     "status": "searching",
     "status_label": "Searching for Driver",
+    "is_scheduled": false,
+    "scheduled_pickup_at": null,
+    "scheduled": null,
     "share_token": "abc123xyz789def456ghi012jkl345mno",
     "fare_estimate_amount": "3750.00",
     "final_fare_amount": null,
@@ -5181,7 +5196,9 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 }
 ```
 
-Other `422` validation messages: `vehicle_class_id` — `"This vehicle class is not available in the selected city."` (inactive in the city or deactivated platform-wide) or `"Pricing is not yet configured for this vehicle class in the selected city."`; `promo_code` — the promo's rejection reason (e.g. `"This promo code is not valid in your city."`); `payment_method` — wallet problems such as `"Insufficient wallet balance."`.
+Other `422` validation messages: `vehicle_class_id` — `"This vehicle class is not available in the selected city."` (inactive in the city or deactivated platform-wide) or `"Pricing is not yet configured for this vehicle class in the selected city."`; `promo_code` — the promo's rejection reason (e.g. `"This promo code is not valid in your city."`); `payment_method` — wallet problems such as `"Insufficient wallet balance."`; `scheduled_pickup_at` — see [Scheduled Rides](#scheduled-rides).
+
+**Ride responses** (`POST /rides`, `GET /rides`, `GET /rides/{ride}`, active ride) carry `is_scheduled`, `scheduled_pickup_at` and a `scheduled` object for rides booked ahead (all `false`/`null` otherwise). They stay on the ride after it is dispatched, so the apps can still show "Scheduled for 7:30 AM" on the trip.
 
 ---
 
@@ -5429,7 +5446,7 @@ GET /rides/{ride}
 POST /rides/{ride}/cancel
 ```
 
-**Auth required.** Cancels a ride that is in a cancellable state (`requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived`, `no_driver_found`). Passengers can dismiss a ride that found no driver. In-progress and completed rides cannot be cancelled. Any wallet hold is released.
+**Auth required.** Cancels a ride that is in a cancellable state (`scheduled`, `requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived`, `no_driver_found`). Passengers can dismiss a ride that found no driver. In-progress and completed rides cannot be cancelled. Any wallet hold is released.
 
 The other party is notified with who cancelled — the passenger, the driver, or E-tiGo support (admin) — and the human-readable reason.
 
@@ -5818,6 +5835,8 @@ When a ride is created (`POST /rides`) or re-sent (`POST /rides/{ride}/rebroadca
 4. **Expands** to the next radius tier when no candidate is left in the current one; after the last tier it waits `auto_retry_delay_seconds` and starts a new wave (`max_auto_retries` times).
 5. **Gives up** — `MatchingTimeoutJob` moves the ride to `no_driver_found` after `matching_timeout` (default 300 s) from the start of the current search. A passenger retry starts a fresh window; timers from an earlier search are ignored.
 
+**Scheduled rides** start matching `dispatch_lead_minutes` (default 15) before pickup and keep searching until `matching_grace_minutes` (default 10) after the pickup time: waves repeat every `retry_wave_delay_seconds` (default 30) instead of stopping after `max_auto_retries`, and a driver who declined is not offered the ride again for `matching_timeout`. Offers for a scheduled ride carry `scheduled_pickup_at`.
+
 **Eligibility** — a driver is offered a ride only if they are:
 - Online (`is_online = true`) and approved (`status = approved`)
 - Reporting their location (last update within 2 minutes — drivers whose app stopped reporting are skipped and pruned from the geo index)
@@ -5845,9 +5864,12 @@ Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), in
   "fare_estimate": 3750.00,
   "currency": "NGN",
   "vehicle_class": "Economy",
-  "response_timeout_seconds": 20
+  "response_timeout_seconds": 20,
+  "scheduled_pickup_at": null
 }
 ```
+
+`scheduled_pickup_at` is the booked pickup time (ISO 8601) when the offer is for a [scheduled ride](#scheduled-rides), otherwise `null`. The push notification's `data` carries it too, only for scheduled rides.
 
 **Configuration** (`config/matching.php`, via environment variables):
 
@@ -6082,6 +6104,230 @@ GET /rides/{ride}/share/{token}
 
 ---
 
+## Scheduled Rides
+
+A passenger can book a ride for a later time (Phase 2, PRD P-20–P-22, B-27). Book with `POST /rides` plus `scheduled_pickup_at`; manage upcoming bookings with the endpoints below.
+
+**How a booking works**
+
+1. **Booking** — the pickup must be at least `min_lead_minutes` (default 30) and at most `max_advance_days` (default 7) ahead. A passenger can hold `max_upcoming_per_passenger` (default 5) upcoming bookings, at least `min_minutes_between_bookings` (default 30) apart. The ride is created in `scheduled` status.
+2. **Price** — quoted and locked at booking for the pickup time: time-based and manual surge rules in effect at the pickup time apply; demand-based surge does not (live demand says nothing about a later time). A promo code must be valid at the pickup time, and peak/off-peak rules follow the pickup time.
+3. **Payment** — a wallet ride's balance must cover the quote when booking, but nothing is held until dispatch. Card, cash and bank transfer work as for on-demand rides.
+4. **Reminder** — `reminder_minutes` (default 60) before pickup the passenger gets a `scheduled_ride_reminder` push. If the wallet would not cover the fare it says so, so there is time to top up. A booking made inside that window gets no separate reminder.
+5. **Dispatch** — `dispatch_lead_minutes` (default 15) before pickup the dispatcher places the wallet hold, issues the PIN and moves the ride to `searching` (`scheduled_ride_dispatched` push). From there it is a normal ride; the PIN appears on the ride for the passenger (`pin_code` in `GET /passenger/active-ride` or `GET /rides/{ride}`). Matching keeps trying until `matching_grace_minutes` (default 10) after the pickup time before `no_driver_found`.
+6. **When dispatch cannot happen** — the booking is cancelled with `cancellation_reason` `scheduled_dispatch_failed`, a passenger-facing `cancellation_details`, and a `ride_cancelled` push carrying the same text. Reasons (`scheduled.dispatch_failure_reason`): `insufficient_wallet_balance`, `wallet_unavailable` (frozen wallet), `account_suspended`, `service_unavailable` (city or vehicle class withdrawn), `missed_dispatch_window` (the pickup plus grace period passed, e.g. the passenger was still on another trip). While the passenger is on another ride the dispatcher waits and tries again each minute until then.
+
+The dispatcher is a database-driven sweep that the scheduler runs every minute (`ProcessScheduledRidesJob`), so bookings survive restarts and deploys. The scheduler cron must be running (see DEPLOYMENT.md).
+
+**The `scheduled` object** (on every ride response; `null` for on-demand rides):
+
+| Field | Description |
+|-------|-------------|
+| `scheduled_pickup_at` | Booked pickup time (UTC) |
+| `dispatch_at` | When matching starts; the booking can be edited until then |
+| `can_edit` | `true` while the booking is upcoming and before `dispatch_at` |
+| `reminder_sent_at` | When the reminder went out (set at booking when booked inside the reminder window) |
+| `dispatched_at` | When matching started |
+| `cancelled_at` | When the booking was cancelled before dispatch |
+| `dispatch_failure_reason` | Why the dispatcher cancelled it (see above), else `null` |
+
+### Book a Scheduled Ride
+```
+POST /rides
+```
+
+Same as [Create Ride](#create-ride) plus `scheduled_pickup_at`.
+
+**Request:**
+```json
+{
+  "city_id": "7c6b5a49-3827-4165-9f0e-d1c2b3a4f5e6",
+  "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+  "pickup_lat": 6.5244,
+  "pickup_lng": 3.3792,
+  "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+  "destination_lat": 6.5774,
+  "destination_lng": 3.3210,
+  "destination_address": "Murtala Muhammed International Airport, Ikeja",
+  "payment_method": "card",
+  "scheduled_pickup_at": "2026-10-20T05:30:00+01:00"
+}
+```
+
+**Response 201** (abridged — the full ride object as in Create Ride):
+```json
+{
+  "message": "Ride scheduled successfully.",
+  "ride": {
+    "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "status": "scheduled",
+    "status_label": "Scheduled",
+    "is_scheduled": true,
+    "scheduled_pickup_at": "2026-10-20T04:30:00.000000Z",
+    "scheduled": {
+      "scheduled_pickup_at": "2026-10-20T04:30:00.000000Z",
+      "dispatch_at": "2026-10-20T04:15:00.000000Z",
+      "can_edit": true,
+      "reminder_sent_at": null,
+      "dispatched_at": null,
+      "cancelled_at": null,
+      "dispatch_failure_reason": null
+    },
+    "fare_estimate_amount": "5600.00",
+    "payment_method": "card"
+  },
+  "pin_code": null
+}
+```
+
+**Response 422** (`errors.scheduled_pickup_at`):
+
+| Message | When |
+|---------|------|
+| `The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.` | No offset in the time |
+| `The pickup time must be at least 30 minutes from now.` | Too soon (`min_lead_minutes`) |
+| `The pickup time can be at most 7 days from now.` | Too far ahead (`max_advance_days`) |
+| `You can have at most 5 upcoming scheduled rides.` | Too many upcoming bookings |
+| `You already have a scheduled ride within 30 minutes of this time.` | Clashes with another booking |
+| `Scheduled rides are not available right now.` | Operations switched scheduling off |
+
+`payment_method`: `Insufficient wallet balance.` / `Wallet is frozen or closed.` for a wallet booking.
+
+---
+
+### List Upcoming Scheduled Rides
+```
+GET /rides/scheduled
+```
+
+**Auth required. Middleware:** `user.type:passenger`
+
+The passenger's bookings still in `scheduled` status, soonest pickup first. Dispatched, completed and cancelled ones appear in `GET /rides` (filter `status=scheduled` there to get the same rides).
+
+| Query | Type | Description |
+|-------|------|-------------|
+| per_page | integer | 1–50, default 15 |
+
+**Response 200:**
+```json
+{
+  "rides": [
+    {
+      "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+      "status": "scheduled",
+      "is_scheduled": true,
+      "scheduled_pickup_at": "2026-10-20T04:30:00.000000Z",
+      "scheduled": { "dispatch_at": "2026-10-20T04:15:00.000000Z", "can_edit": true },
+      "pickup": { "lat": "6.5244000", "lng": "3.3792000", "address": "123 Herbert Macaulay Way, Yaba, Lagos" },
+      "destination": { "lat": "6.5774000", "lng": "3.3210000", "address": "Murtala Muhammed International Airport, Ikeja" },
+      "fare_estimate_amount": "5600.00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 }
+}
+```
+
+---
+
+### Update a Scheduled Ride
+```
+PUT /rides/{ride}/scheduled
+```
+
+**Auth required. Middleware:** `user.type:passenger` (own rides only)
+
+Change the pickup time, pickup, destination or payment method of a booking before `scheduled.dispatch_at`. Send only what changes; a new place needs its `_lat`, `_lng` and `_address` together. The fare is quoted again for the new trip and time, and a promo code on the booking is checked again.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| scheduled_pickup_at | string (ISO 8601) | New pickup time, with a UTC offset; same limits as booking |
+| pickup_lat / pickup_lng / pickup_address | number / number / string | New pickup |
+| destination_lat / destination_lng / destination_address | number / number / string | New destination |
+| payment_method | string | `cash`, `card`, `wallet` or `bank_transfer` |
+
+**Response 200:** `{ "message": "Scheduled ride updated.", "ride": { ... } }`
+
+**Errors:** `403` not your ride. `422` `errors.ride` — `This ride is about to start looking for a driver and can no longer be changed. Cancel it and book again instead.` (at or after `dispatch_at`) or `Only a scheduled ride that has not started can be changed.`; `errors.scheduled_pickup_at` — as for booking; `errors.promo_code` — the code no longer applies to the changed trip; `errors.payment_method` — wallet cannot cover the new quote.
+
+---
+
+### Cancel a Scheduled Ride
+```
+DELETE /rides/{ride}/scheduled
+```
+
+**Auth required. Middleware:** `user.type:passenger` (own rides only)
+
+Cancels a booking before it is dispatched. Free (no cancellation fees in Phase 1). Optional body: `reason` and `reason_details`, as for [Cancel Ride](#cancel-ride). `POST /rides/{ride}/cancel` also cancels a `scheduled` ride (and is the endpoint for admins and for rides already dispatched).
+
+**Response 200:** `{ "message": "Scheduled ride cancelled.", "ride": { "status": "cancelled", ... } }`
+
+**Response 422:** `{ "message": "Only a scheduled ride that has not started can be cancelled here.", "current_status": "searching" }`
+
+---
+
+### List Upcoming Scheduled Rides (Admin)
+```
+GET /admin/scheduled-rides
+```
+
+**Auth required. Admin role:** `operations` (and `super_admin`)
+
+Every booking still in `scheduled` status, soonest pickup first, with the passenger.
+
+| Query | Type | Description |
+|-------|------|-------------|
+| city_id | string (UUID) | Filter by city |
+| vehicle_class_id | string (UUID) | Filter by vehicle class |
+| from / to | string (date/time) | Pickup time range |
+| per_page | integer | 1–100, default 25 |
+
+**Response 200:** `{ "rides": [ ...ride objects with "passenger"... ], "meta": { ... } }`
+
+---
+
+### Scheduled Ride Settings (Admin)
+```
+GET /admin/settings/scheduled-rides
+PUT /admin/settings/scheduled-rides
+```
+
+**Auth required. Admin role:** `operations` (and `super_admin`). Changes are audit-logged. Defaults come from `config/scheduled_rides.php` (`SCHEDULED_RIDES_*` environment variables).
+
+| Field | Type | Default | Range | Description |
+|-------|------|---------|-------|-------------|
+| enabled | boolean | `true` | — | Accept new bookings. Existing bookings still dispatch when off |
+| min_lead_minutes | integer | 30 | 5–1440 | Earliest pickup after booking |
+| max_advance_days | integer | 7 | 1–90 | Latest pickup after booking |
+| dispatch_lead_minutes | integer | 15 | 5–120 | Matching starts this long before pickup. Cannot exceed `min_lead_minutes` |
+| reminder_minutes | integer | 60 | 0–1440 | Reminder push before pickup; `0` turns it off. Otherwise must exceed `dispatch_lead_minutes` |
+| matching_grace_minutes | integer | 10 | 0–60 | Keep searching this long after the pickup time |
+| retry_wave_delay_seconds | integer | 30 | 10–300 | Pause between matching waves for a scheduled ride |
+| max_upcoming_per_passenger | integer | 5 | 1–50 | Upcoming bookings per passenger |
+| min_minutes_between_bookings | integer | 30 | 0–1440 | Minimum gap between one passenger's bookings |
+
+**PUT** accepts any subset. **Response 200:**
+```json
+{
+  "message": "Scheduled ride settings updated.",
+  "settings": {
+    "enabled": true,
+    "min_lead_minutes": 30,
+    "max_advance_days": 7,
+    "dispatch_lead_minutes": 15,
+    "reminder_minutes": 60,
+    "matching_grace_minutes": 10,
+    "retry_wave_delay_seconds": 30,
+    "max_upcoming_per_passenger": 5,
+    "min_minutes_between_bookings": 30
+  }
+}
+```
+
+**Response 422:** `dispatch_lead_minutes cannot be more than min_lead_minutes.` or `reminder_minutes must be more than dispatch_lead_minutes (or 0 to turn reminders off).`, plus the range checks above.
+
+---
+
 ## Admin — Live Monitoring
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
@@ -6298,7 +6544,7 @@ GET /admin/rides/pending
 
 By default returns rides waiting for a driver — `requested`, `searching` or `no_driver_found` with no driver. Pass `status` to include matched rides too. Ordered **oldest first**.
 
-`no_driver_found` rides are listed (and counted) only for **24 hours** after they were requested (`MATCHING_MANUAL_ASSIGNMENT_WINDOW_HOURS`); after that the passenger has long gone and the ride drops off.
+`no_driver_found` rides are listed (and counted) only for **24 hours** after they were requested (`MATCHING_MANUAL_ASSIGNMENT_WINDOW_HOURS`); after that the passenger has long gone and the ride drops off. For a [scheduled ride](#scheduled-rides) the 24 hours count from its pickup time, not from when it was booked. Rides still in `scheduled` status are not listed here; see [List Upcoming Scheduled Rides (Admin)](#list-upcoming-scheduled-rides-admin).
 
 | Param            | Type    | Description |
 |------------------|---------|-------------|
@@ -12532,6 +12778,7 @@ Super Admins always bypass role checks and have full access.
 ### Ride Status
 | Value             | Description                                      |
 |-------------------|--------------------------------------------------|
+| `scheduled`       | Booked for later; matching has not started (not an active ride) |
 | `requested`       | Ride requested by passenger                      |
 | `searching`       | Searching for available drivers                  |
 | `matched`         | Driver matched to ride                           |
@@ -12543,6 +12790,7 @@ Super Admins always bypass role checks and have full access.
 | `no_driver_found` | No driver could be matched                       |
 
 **State transitions:**
+- `scheduled` -> `searching` (the dispatcher starts matching), `cancelled` (passenger, admin, or the dispatcher when the ride cannot start)
 - `requested` -> `searching`, `cancelled`
 - `searching` -> `matched`, `no_driver_found`, `cancelled`
 - `matched` -> `driver_en_route`, `cancelled`
@@ -12637,6 +12885,7 @@ A transition that is no longer allowed — usually because another request chang
 | `safety_concern`     | Safety concern                           |
 | `other`              | Other reason                             |
 | `system_timeout`     | System timeout                           |
+| `scheduled_dispatch_failed` | A scheduled ride could not start; `cancellation_details` explains why to the passenger. Set by the system only, never offered as a choice |
 
 ### Tier Level
 | Value | Name       | Points Required | Booking Discount | Priority Matching | EV Fee Waived |
@@ -12713,6 +12962,9 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Ride completed     | Driver     | `ride_completed`     | Trip finished                                  |
 | Ride cancelled     | Other party| `ride_cancelled`     | Cancellation by passenger/driver/admin         |
 | No driver found    | Passenger  | `no_driver_found`    | No nearby drivers available                    |
+| Scheduled ride reminder | Passenger | `scheduled_ride_reminder` | Sent `reminder_minutes` before pickup (data: `ride_id`, `scheduled_pickup_at`); warns a wallet passenger whose balance would not cover the fare |
+| Scheduled ride dispatched | Passenger | `scheduled_ride_dispatched` | Matching has started for a scheduled ride; fetch the ride for its PIN |
+| Scheduled ride could not start | Passenger | `ride_cancelled` | The body explains why (e.g. wallet could not cover the fare) |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |

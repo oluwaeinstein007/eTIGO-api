@@ -7,6 +7,7 @@ use App\Jobs\ExpireEvReservationsJob;
 use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
+use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ProcessWeeklyAutoPayoutJob;
 use App\Jobs\ReconcilePayoutsJob;
 use App\Jobs\RemittanceShortfallAlertJob;
@@ -30,6 +31,8 @@ Schedule::job(new ReconcilePayoutsJob)->everyFifteenMinutes()->withoutOverlappin
 Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
+// Scheduled rides: start matching shortly before pickup and send reminders.
+Schedule::job(new ProcessScheduledRidesJob)->everyMinute()->withoutOverlapping();
 Schedule::job(new LiftExpiredComplianceSuspensionsJob)->hourly()->withoutOverlapping();
 Schedule::command('model:prune', ['--model' => [Notification::class]])->daily();
 Schedule::command('demo:simulate-drivers')

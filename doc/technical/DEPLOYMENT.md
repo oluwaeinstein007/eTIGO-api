@@ -104,7 +104,7 @@ Three long-running pieces must be up for the platform to work, besides Nginx and
 | Process | How it runs | What breaks without it |
 |---------|-------------|------------------------|
 | Queue workers | Supervisor `etigo-worker` (2 processes, `queue:work database`) | Driver matching and offer timeouts, final fare, push/in-app notifications, payout transfers, webhook processing, SOS check-ins and alerts |
-| Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
+| Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, scheduled-ride dispatch and reminders, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
 | Reverb | Supervisor `etigo-reverb` (`php artisan reverb:start`), proxied by Nginx | Live ride updates, driver offers over WebSocket and the admin SOS console (push notifications and polling endpoints still work) |
 | Telemetry gateway (optional) | `php artisan telemetry:serve start` under Supervisor, port `TELEMETRY_SERVER_PORT` (8081) behind Nginx | High-frequency driver GPS over WebSocket. Without it drivers report location through `POST /driver/location`. `deploy.sh` restarts it (Supervisor `etigo-telemetry`) — it is long-running and would otherwise keep old code |
 
@@ -116,6 +116,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 
 | Schedule | Job | Purpose |
 |----------|-----|---------|
+| Every minute | `ProcessScheduledRidesJob` | Scheduled rides: start matching for bookings whose dispatch time has come and send pickup reminders (queues `ScheduledRideDispatchJob` / `ScheduledRideReminderJob`). Needs the scheduler **and** a queue worker; without them scheduled rides never start |
 | Every minute (local and staging only) | `demo:simulate-drivers` | Keep the demo drivers from `MonitoringDemoSeeder` reporting their location (does nothing when none are seeded) |
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |

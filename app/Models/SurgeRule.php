@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SurgeType;
+use Carbon\CarbonInterface;
 use Database\Factories\SurgeRuleFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -56,13 +57,19 @@ class SurgeRule extends Model
         return $this->belongsTo(User::class, 'created_by_admin_id');
     }
 
-    public function scopeActive($query)
+    /**
+     * Rules switched on and in effect at the given moment (now by default;
+     * a scheduled ride's quote passes its pickup time).
+     */
+    public function scopeActive($query, ?CarbonInterface $at = null)
     {
+        $at ??= now();
+
         return $query->where('is_active', true)
-            ->where('effective_from', '<=', now())
-            ->where(function ($q) {
+            ->where('effective_from', '<=', $at)
+            ->where(function ($q) use ($at) {
                 $q->whereNull('effective_until')
-                    ->orWhere('effective_until', '>=', now());
+                    ->orWhere('effective_until', '>=', $at);
             });
     }
 

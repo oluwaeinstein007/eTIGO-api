@@ -58,6 +58,44 @@ class WalletPaymentService
     }
 
     /**
+     * Check, without holding anything, that the passenger's wallet could pay
+     * this amount now. Used when booking a scheduled ride: the hold is only
+     * placed when the ride is dispatched.
+     *
+     * @throws \DomainException when the wallet is frozen or cannot cover the amount
+     */
+    public function assertCanCover(User $passenger, int $amountKobo): void
+    {
+        $account = $this->ledgerService->findOrCreateAccount(
+            $passenger->getMorphClass(),
+            $passenger->id,
+            AccountType::PassengerWallet,
+        );
+
+        if (! $account->isActive()) {
+            throw new \DomainException('Wallet is frozen or closed.');
+        }
+
+        if ($account->availableBalance() < $amountKobo) {
+            throw new \DomainException('Insufficient wallet balance.');
+        }
+    }
+
+    /**
+     * The passenger's spendable wallet balance in kobo (0 with no wallet).
+     */
+    public function availableBalance(User $passenger): int
+    {
+        $account = Account::query()
+            ->where('owner_type', $passenger->getMorphClass())
+            ->where('owner_id', $passenger->id)
+            ->where('type', AccountType::PassengerWallet)
+            ->first();
+
+        return $account?->isActive() ? $account->availableBalance() : 0;
+    }
+
+    /**
      * Pay a tip from the passenger's wallet straight to the driver, in full
      * (tips carry no commission), as one journal.
      *

@@ -7,6 +7,7 @@ use App\Http\Requests\Ride\EstimateRideRequest;
 use App\Services\FareEstimationService;
 use App\Services\TierGateService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
 
 class RideEstimateController extends Controller
 {
@@ -27,6 +28,7 @@ class RideEstimateController extends Controller
             $validated['destination_lat'],
             $validated['destination_lng'],
             $user->isPassenger() ? $this->tierGateService->getBookingFeeDiscount($user->id) : 0.0,
+            $request->filled('scheduled_pickup_at') ? Carbon::parse($validated['scheduled_pickup_at']) : null,
         );
 
         if (empty($result['estimates'])) {

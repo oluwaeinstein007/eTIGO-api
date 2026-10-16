@@ -71,4 +71,28 @@ class AppSetting extends Model
             'payout_account_name_check' => (string) ($settings['wallet.payout_account_name_check'] ?? config('wallet.payout_account_name_check')),
         ];
     }
+
+    /**
+     * Scheduled-ride settings: the admin's runtime overrides
+     * (PUT /admin/settings/scheduled-rides) over config/scheduled_rides.php.
+     *
+     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reminder_minutes: int, matching_grace_minutes: int, retry_wave_delay_seconds: int, max_upcoming_per_passenger: int, min_minutes_between_bookings: int}
+     */
+    public static function scheduledRides(): array
+    {
+        $settings = static::where('group', 'scheduled_rides')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["scheduled_rides.{$key}"] ?? config("scheduled_rides.{$key}");
+
+        return [
+            'enabled' => filter_var($value('enabled'), FILTER_VALIDATE_BOOLEAN),
+            'min_lead_minutes' => (int) $value('min_lead_minutes'),
+            'max_advance_days' => (int) $value('max_advance_days'),
+            'dispatch_lead_minutes' => (int) $value('dispatch_lead_minutes'),
+            'reminder_minutes' => (int) $value('reminder_minutes'),
+            'matching_grace_minutes' => (int) $value('matching_grace_minutes'),
+            'retry_wave_delay_seconds' => (int) $value('retry_wave_delay_seconds'),
+            'max_upcoming_per_passenger' => (int) $value('max_upcoming_per_passenger'),
+            'min_minutes_between_bookings' => (int) $value('min_minutes_between_bookings'),
+        ];
+    }
 }

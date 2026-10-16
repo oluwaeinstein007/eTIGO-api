@@ -40,6 +40,7 @@ enum NotificationType: string
 
     // Scheduled ride events
     case ScheduledRideReminder = 'scheduled_ride_reminder';
+    case ScheduledRideDispatched = 'scheduled_ride_dispatched';
 
     // Lost & Found events
     case LostItemReport = 'lost_item_report';
@@ -79,6 +80,7 @@ enum NotificationType: string
             self::DisputeUpdate => 'Dispute Update',
             self::KycStatusChanged => 'KYC Status Changed',
             self::ScheduledRideReminder => 'Scheduled Ride Reminder',
+            self::ScheduledRideDispatched => 'Finding Your Driver',
             self::LostItemReport => 'Lost Item Report',
             self::TopupSuccess => 'Top-up Successful',
             self::TopupFailed => 'Top-up Failed',
@@ -105,7 +107,8 @@ enum NotificationType: string
             self::RideCompleted,
             self::NoDriverFound,
             self::RideAssigned,
-            self::ScheduledRideReminder => NotificationCategory::RideUpdates,
+            self::ScheduledRideReminder,
+            self::ScheduledRideDispatched => NotificationCategory::RideUpdates,
 
             self::SosCheckIn,
             self::SosEscalated => NotificationCategory::Safety,

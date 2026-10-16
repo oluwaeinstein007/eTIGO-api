@@ -76,9 +76,10 @@ class PromoApplicationService
                 fareAmount: $fareAmount,
                 // The ride being settled is already completed and must not count
                 // against "first N rides" rules, and the time-window/peak rules
-                // are honoured as they stood when the passenger booked.
+                // are honoured as they stood when the passenger booked (for a
+                // scheduled ride, at the pickup time it was booked for).
                 excludeRideId: $ride->id,
-                evaluatedAt: $ride->created_at,
+                evaluatedAt: $ride->scheduledRide?->scheduled_pickup_at ?? $ride->created_at,
             );
 
             if (! $validation['valid']) {

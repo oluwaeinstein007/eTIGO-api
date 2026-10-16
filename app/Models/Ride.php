@@ -128,6 +128,11 @@ class Ride extends Model
         return $this->hasOne(PromoRedemption::class);
     }
 
+    public function scheduledRide(): HasOne
+    {
+        return $this->hasOne(ScheduledRide::class);
+    }
+
     public function stateTransitions(): HasMany
     {
         return $this->hasMany(RideStateTransition::class)->orderBy('created_at');
@@ -161,6 +166,16 @@ class Ride extends Model
     public function carbonScores(): HasMany
     {
         return $this->hasMany(TripCarbonScore::class);
+    }
+
+    /**
+     * Whether the ride was booked ahead of time (whatever its status now).
+     */
+    public function isScheduledBooking(): bool
+    {
+        return $this->relationLoaded('scheduledRide')
+            ? $this->scheduledRide !== null
+            : $this->scheduledRide()->exists();
     }
 
     public function isActive(): bool

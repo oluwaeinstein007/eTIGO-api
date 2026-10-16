@@ -336,7 +336,7 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-ASR-01 | `[ ]` Build scheduled rides Admin config page: set dispatch lead time, reminder timing | A-33 | 📡 BE2-SCH-09 | — |
+| FE2-ASR-01 | `[ ]` Build scheduled rides Admin config page: set dispatch lead time, reminder timing | A-33 | 📡 BE2-SCH-09 | API ready: `GET/PUT /admin/settings/scheduled-rides` (operations role; all 9 settings). Upcoming bookings list: `GET /admin/scheduled-rides` |
 | FE2-A3P-01 | `[ ]` Build third-party booking config page: set PIN recipient and tracking recipient policies | A-34 | 📡 BE2-3P-05 | — |
 | FE2-ALF-01 | `[ ]` Build lost & found Admin queue: list of reports with trip, category, status; intervention form | A-35 | 📡 BE2-LF-07, BE2-LF-08 | — |
 | FE2-ADIS-01 | `[ ]` Build advanced dispute view: evidence viewer (photos), escalation tier badge, escalate action | A-36, A-37 | 📡 BE2-DISP-03, BE2-DISP-05 | ⚠ OQ-21: Escalation tiers TBD |

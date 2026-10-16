@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
+use App\Models\AppSetting;
 use App\Models\Driver;
 use App\Models\Ride;
+use App\Models\RideStateTransition;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -271,8 +274,63 @@ class DriverMatchingService
         return (int) Cache::get(sprintf(self::AUTO_RETRY_KEY, $ride->id), 0);
     }
 
+    /**
+     * When the current search gives up: matching_timeout after the search
+     * began, or, for a scheduled ride the dispatcher started, the end of the
+     * grace period after its pickup time if that is later.
+     */
+    public function searchDeadline(Ride $ride): Carbon
+    {
+        $searchStartedAt = RideStateTransition::query()
+            ->where('ride_id', $ride->id)
+            ->where('to_state', RideStatus::Searching->value)
+            ->latest('created_at')
+            ->value('created_at') ?? $ride->created_at;
+
+        $deadline = Carbon::parse($searchStartedAt)->addSeconds((int) config('matching.matching_timeout', 300));
+        $graceEnd = $this->scheduledGraceEnd($ride);
+
+        return $graceEnd !== null && $graceEnd->gt($deadline) ? $graceEnd : $deadline;
+    }
+
+    /**
+     * For a scheduled ride the dispatcher started: the pickup time plus the
+     * matching grace period. Null for on-demand rides.
+     */
+    public function scheduledGraceEnd(Ride $ride): ?Carbon
+    {
+        $scheduled = $ride->scheduledRide;
+
+        if ($scheduled === null || $scheduled->dispatched_at === null) {
+            return null;
+        }
+
+        return $scheduled->scheduled_pickup_at->copy()
+            ->addMinutes(AppSetting::scheduledRides()['matching_grace_minutes']);
+    }
+
+    /**
+     * A scheduled ride keeps searching in waves until its grace period ends,
+     * rather than stopping after the on-demand retry allowance.
+     */
+    private function isInScheduledSearchWindow(Ride $ride): bool
+    {
+        return $this->scheduledGraceEnd($ride)?->isFuture() ?? false;
+    }
+
+    public function autoRetryDelaySeconds(Ride $ride): int
+    {
+        return $this->isInScheduledSearchWindow($ride)
+            ? AppSetting::scheduledRides()['retry_wave_delay_seconds']
+            : (int) config('matching.auto_retry_delay_seconds', 10);
+    }
+
     public function canAutoRetry(Ride $ride): bool
     {
+        if ($this->isInScheduledSearchWindow($ride)) {
+            return true;
+        }
+
         // Priority matching: Gold+ searches get extra automatic retry waves.
         $maxRetries = (int) config('matching.max_auto_retries', 1)
             + ($this->isPriorityRide($ride) ? (int) config('matching.priority_extra_auto_retries', 1) : 0);
@@ -288,6 +346,11 @@ class DriverMatchingService
         Cache::put(sprintf(self::AUTO_RETRY_KEY, $ride->id), $currentRetries + 1, $timeout);
         Cache::forget(sprintf(self::RADIUS_STEP_KEY, $ride->id));
         $this->clearDispatchedDriver($ride);
-        Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
+
+        // A scheduled ride runs many waves; a driver who declined is not
+        // offered it again until their rejection expires (matching_timeout).
+        if (! $this->isInScheduledSearchWindow($ride)) {
+            Cache::forget(sprintf(self::REJECTED_DRIVERS_KEY, $ride->id));
+        }
     }
 }
