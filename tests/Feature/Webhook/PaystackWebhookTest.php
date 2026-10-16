@@ -102,6 +102,24 @@ test('transfer.failed webhook dispatches ProcessPayoutWebhookJob', function () {
     Queue::assertPushed(ProcessPayoutWebhookJob::class);
 });
 
+test('transfer.rejected webhook fails the payout', function () {
+    $payload = [
+        'event' => 'transfer.rejected',
+        'data' => [
+            'id' => 99004,
+            'reference' => 'PAYOUT-REJECTED',
+            'status' => 'rejected',
+        ],
+    ];
+
+    $this->postJson('/api/v1/webhooks/paystack', $payload, [
+        'x-paystack-signature' => paystackSignature($payload),
+    ])->assertOk();
+
+    Queue::assertPushed(ProcessPayoutWebhookJob::class, fn (ProcessPayoutWebhookJob $job) => $job->transferCode === '99004'
+        && $job->status === 'failed');
+});
+
 test('duplicate webhook events are deduplicated', function () {
     $payload = [
         'event' => 'charge.success',

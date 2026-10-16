@@ -81,7 +81,7 @@ class PaystackWebhookController extends Controller
         match ($eventType) {
             'charge.success' => $this->handleChargeSuccess($data, $webhookEvent),
             'transfer.success' => $this->handleTransferEvent($payload, $webhookEvent, 'paid'),
-            'transfer.failed', 'transfer.reversed' => $this->handleTransferEvent($payload, $webhookEvent, 'failed'),
+            'transfer.failed', 'transfer.reversed', 'transfer.rejected' => $this->handleTransferEvent($payload, $webhookEvent, 'failed'),
             default => Log::info("Paystack webhook: unhandled event type {$eventType}"),
         };
 

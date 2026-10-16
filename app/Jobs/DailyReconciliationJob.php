@@ -2,8 +2,11 @@
 
 namespace App\Jobs;
 
+use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
+use App\Enums\PayoutStatus;
+use App\Models\Payout;
 use App\Models\ReconciliationReport;
 use App\Models\WebhookEvent;
 use Carbon\CarbonInterface;
@@ -58,7 +61,7 @@ class DailyReconciliationJob implements ShouldQueue
         $gatewayTransfersTotal = $this->gatewayTotalKobo($startOfDay, $endOfDay, [
             'paystack' => ['transfer.success'],
             'flutterwave' => ['transfer.completed'],
-        ]);
+        ]) + $this->paidWithoutWebhookKobo($startOfDay, $endOfDay);
 
         $ledgerPayoutsTotal = (int) DB::table('payouts')
             ->where('status', 'paid')
@@ -144,6 +147,48 @@ class DailyReconciliationJob implements ShouldQueue
 
                 $amount = (float) ($data['amount'] ?? 0);
                 $total += $event->provider === 'flutterwave' ? (int) round($amount * 100) : (int) $amount;
+            });
+
+        return $total;
+    }
+
+    /**
+     * Total, in kobo, that Paystack reports for the day's paid payouts whose
+     * success webhook never arrived. Such a payout was settled by asking
+     * Paystack about the transfer (an admin's verify, or the payout sweep),
+     * so Paystack is asked again here. A payout Paystack does not confirm
+     * adds nothing and shows up as a mismatch.
+     */
+    private function paidWithoutWebhookKobo(CarbonInterface $from, CarbonInterface $to): int
+    {
+        $total = 0;
+
+        Payout::where('status', PayoutStatus::Paid)
+            ->whereBetween('paid_at', [$from, $to])
+            ->whereNotNull('gateway_reference')
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('webhook_events')
+                    ->whereNotNull('processed_at')
+                    ->whereIn('event_type', ['transfer.success', 'transfer.completed'])
+                    ->whereRaw("webhook_events.payload->'data'->>'reference' = payouts.gateway_reference");
+            })
+            ->lazyById()
+            ->each(function (Payout $payout) use (&$total) {
+                try {
+                    $transfer = app(WalletGateway::class)->verifyTransfer($payout->gateway_reference);
+                } catch (\Throwable $e) {
+                    Log::warning('Reconciliation could not check a payout with Paystack', [
+                        'payout_id' => $payout->id,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return;
+                }
+
+                if ($transfer !== null && strtolower((string) $transfer['status']) === 'success') {
+                    $total += (int) $transfer['amount'];
+                }
             });
 
         return $total;

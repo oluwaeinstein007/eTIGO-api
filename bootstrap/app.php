@@ -37,6 +37,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             LogRequests::class,
         ]);
+
+        // There is no login page to send guests to: an unauthenticated request
+        // gets a 401, even without a JSON Accept header (a link preview, say).
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
