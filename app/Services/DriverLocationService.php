@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Redis\Connections\Connection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Redis;
 
 class DriverLocationService
@@ -12,6 +13,11 @@ class DriverLocationService
     private const DRIVER_KEY_PREFIX = 'driver:%s:location';
 
     private const LOCATION_TTL = 300;
+
+    /** When the driver's app last sent a location; outlives the location itself. */
+    private const LAST_SEEN_KEY_PREFIX = 'driver:%s:last_seen';
+
+    private const LAST_SEEN_TTL = 86400;
 
     /**
      * Drivers whose last location report is older than this are not offered
@@ -42,6 +48,7 @@ class DriverLocationService
         $key = sprintf(self::DRIVER_KEY_PREFIX, $driverId);
         $conn->hmset($key, $data);
         $conn->expire($key, self::LOCATION_TTL);
+        $conn->setex(sprintf(self::LAST_SEEN_KEY_PREFIX, $driverId), self::LAST_SEEN_TTL, $data['timestamp']);
 
         if ($userId !== null && $userId !== $driverId) {
             $userKey = sprintf(self::DRIVER_KEY_PREFIX, $userId);
@@ -127,5 +134,18 @@ class DriverLocationService
             'speed' => (float) ($data['speed'] ?? 0),
             'timestamp' => (int) ($data['timestamp'] ?? 0),
         ];
+    }
+
+    /**
+     * When the driver's app last sent a location, kept for a day; null if
+     * it has not sent one since. Falls back to the live location, which a
+     * driver may have without the last-seen key (sent before it existed).
+     */
+    public function lastSeenAt(string $driverId): ?Carbon
+    {
+        $timestamp = $this->redis()->get(sprintf(self::LAST_SEEN_KEY_PREFIX, $driverId))
+            ?: $this->getDriverLocation($driverId)['timestamp'] ?? null;
+
+        return $timestamp ? Carbon::createFromTimestamp((int) $timestamp) : null;
     }
 }

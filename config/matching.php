@@ -93,4 +93,17 @@ return [
     */
     'demo_driver_email_domain' => env('MATCHING_DEMO_DRIVER_EMAIL_DOMAIN', 'ops-demo.etigo.com'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Silent Driver Offline Minutes
+    |--------------------------------------------------------------------------
+    |
+    | An online driver whose app has sent no location for this long (and who
+    | went online at least this long ago) is set offline and told to go
+    | online again. Matching cannot find a driver without a location, so
+    | leaving them "online" only hides the problem.
+    |
+    */
+    'silent_driver_offline_minutes' => (int) env('MATCHING_SILENT_DRIVER_OFFLINE_MINUTES', 10),
+
 ];
