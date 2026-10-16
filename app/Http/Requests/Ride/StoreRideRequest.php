@@ -5,7 +5,9 @@ namespace App\Http\Requests\Ride;
 use App\Enums\PaymentMethod;
 use App\Models\City;
 use App\Models\PricingConfig;
+use App\Services\ScheduledRideService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -33,7 +35,32 @@ class StoreRideRequest extends FormRequest
             'destination_address' => ['required', 'string', 'max:500'],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
             'promo_code' => ['nullable', 'string', 'max:50'],
+            // Book for later (Phase 2): ISO 8601 with a UTC offset, e.g.
+            // 2026-10-20T07:30:00+01:00. Omit to request a ride now.
+            'scheduled_pickup_at' => self::pickupTimeRules(),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function pickupTimeRules(): array
+    {
+        return ['nullable', 'date', 'regex:/(Z|[+-]\d{2}:?\d{2})$/'];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'scheduled_pickup_at.regex' => 'The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.',
+        ];
+    }
+
+    public function scheduledPickupAt(): ?Carbon
+    {
+        return $this->filled('scheduled_pickup_at')
+            ? Carbon::parse($this->input('scheduled_pickup_at'))->utc()
+            : null;
     }
 
     /**
@@ -77,6 +104,12 @@ class StoreRideRequest extends FormRequest
 
                 if (! PricingConfig::currentFor($this->input('city_id'), $this->input('vehicle_class_id'))) {
                     $validator->errors()->add('vehicle_class_id', 'Pricing is not yet configured for this vehicle class in the selected city.');
+                }
+
+                if ($pickupAt = $this->scheduledPickupAt()) {
+                    foreach (app(ScheduledRideService::class)->pickupTimeErrors($this->user(), $pickupAt) as $error) {
+                        $validator->errors()->add('scheduled_pickup_at', $error);
+                    }
                 }
             },
         ];

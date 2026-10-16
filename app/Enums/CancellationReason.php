@@ -18,6 +18,7 @@ enum CancellationReason: string
     case SafetyConcern = 'safety_concern';
     case Other = 'other';
     case SystemTimeout = 'system_timeout';
+    case ScheduledDispatchFailed = 'scheduled_dispatch_failed';
 
     public function title(): string
     {
@@ -36,6 +37,7 @@ enum CancellationReason: string
             self::SafetyConcern => 'Safety concern',
             self::Other => 'Other',
             self::SystemTimeout => 'System timeout',
+            self::ScheduledDispatchFailed => 'Scheduled ride could not start',
         };
     }
 
@@ -61,6 +63,7 @@ enum CancellationReason: string
             self::SafetyConcern => 'I feel unsafe or uncomfortable proceeding with this ride.',
             self::Other => 'Provide a custom reason if none of the options above apply.',
             self::SystemTimeout => 'The request timed out before a driver could accept the trip.',
+            self::ScheduledDispatchFailed => 'The scheduled ride could not start looking for a driver (for example, the wallet could not cover the fare).',
         };
     }
 
@@ -85,6 +88,14 @@ enum CancellationReason: string
             self::SafetyConcern,
             self::Other,
         ]);
+    }
+
+    /**
+     * Reasons only the platform records; nobody picks them when cancelling.
+     */
+    public function isSystemReason(): bool
+    {
+        return in_array($this, [self::SystemTimeout, self::ScheduledDispatchFailed], true);
     }
 
     public function isDriverReason(): bool
@@ -142,7 +153,7 @@ enum CancellationReason: string
             'passenger' => self::forPassenger(),
             default => array_values(array_filter(
                 self::cases(),
-                fn (self $reason) => $reason !== self::SystemTimeout,
+                fn (self $reason) => ! $reason->isSystemReason(),
             )),
         };
     }

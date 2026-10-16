@@ -32,6 +32,11 @@ class RideDetailResource extends JsonResource
             ],
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
+            'is_scheduled' => $this->scheduledRide !== null,
+            'scheduled_pickup_at' => $this->scheduledRide?->scheduled_pickup_at,
+            'scheduled' => $this->scheduledRide
+                ? new ScheduledRideResource($this->scheduledRide, $this->resource)
+                : null,
             'share_token' => $this->share_token,
             'fare_estimate_amount' => $this->fare_estimate_amount,
             'final_fare_amount' => $this->final_fare_amount,

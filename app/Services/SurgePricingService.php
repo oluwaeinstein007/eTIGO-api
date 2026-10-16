@@ -9,6 +9,7 @@ use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\SurgeRule;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -18,12 +19,17 @@ class SurgePricingService
     public function __construct(private ?DriverLocationService $locations = null) {}
 
     /**
+     * The surge in effect now, or at a future pickup time ($at) for a
+     * scheduled ride. A future quote applies manual and time-based rules in
+     * effect at that time but never demand-based ones: demand is measured
+     * live and says nothing about the pickup time.
+     *
      * @return array{multiplier: float, rule: SurgeRule|null}
      */
-    public function getCurrentMultiplier(string $cityId, ?string $vehicleClassId = null): array
+    public function getCurrentMultiplier(string $cityId, ?string $vehicleClassId = null, ?CarbonInterface $at = null): array
     {
         $rules = SurgeRule::with('city')
-            ->active()
+            ->active($at)
             ->forCity($cityId)
             ->forVehicleClass($vehicleClassId)
             ->orderByDesc('priority')
@@ -33,7 +39,7 @@ class SurgePricingService
             return ['multiplier' => 1.0, 'rule' => null];
         }
 
-        $matchingRule = $this->findMatchingRule($rules);
+        $matchingRule = $this->findMatchingRule($rules, $at);
 
         if (! $matchingRule) {
             return ['multiplier' => 1.0, 'rule' => null];
@@ -45,7 +51,7 @@ class SurgePricingService
         ];
     }
 
-    private function findMatchingRule(Collection $rules): ?SurgeRule
+    private function findMatchingRule(Collection $rules, ?CarbonInterface $at = null): ?SurgeRule
     {
         $bestRule = null;
         $bestPriority = -1;
@@ -57,8 +63,8 @@ class SurgePricingService
 
             $matches = match ($rule->type) {
                 SurgeType::Manual => true,
-                SurgeType::TimeBased => $this->matchesTimeSchedule($rule->conditions, $rule->city?->timezone),
-                SurgeType::DemandBased => $this->matchesDemandThreshold($rule),
+                SurgeType::TimeBased => $this->matchesTimeSchedule($rule->conditions, $rule->city?->timezone, $at),
+                SurgeType::DemandBased => $at === null && $this->matchesDemandThreshold($rule),
             };
 
             if ($matches && $rule->priority >= $bestPriority) {
@@ -72,9 +78,9 @@ class SurgePricingService
         return $bestRule;
     }
 
-    private function matchesTimeSchedule(array $conditions, ?string $timezone = null): bool
+    private function matchesTimeSchedule(array $conditions, ?string $timezone = null, ?CarbonInterface $at = null): bool
     {
-        $now = Carbon::now($timezone);
+        $now = $at === null ? Carbon::now($timezone) : Carbon::instance($at)->setTimezone($timezone ?? config('app.timezone'));
         $daysOfWeek = $conditions['days_of_week'] ?? [];
         $startTime = $conditions['start_time'] ?? null;
         $endTime = $conditions['end_time'] ?? null;
@@ -150,6 +156,8 @@ class SurgePricingService
             ->where('city_id', $cityId)
             ->when($vehicleClassId, fn ($q) => $q->where('vehicle_class_id', $vehicleClassId))
             ->where('created_at', '>=', now()->subMinutes($window))
+            // A booking for later is not demand for a driver now.
+            ->whereDoesntHave('scheduledRide')
             ->distinct()
             ->count('passenger_id');
 
@@ -219,10 +227,10 @@ class SurgePricingService
     /**
      * @return array<int|null, array{multiplier: float, rule: SurgeRule|null}>
      */
-    public function getMultipliersForCity(string $cityId, array $vehicleClassIds): array
+    public function getMultipliersForCity(string $cityId, array $vehicleClassIds, ?CarbonInterface $at = null): array
     {
         $allRules = SurgeRule::with('city')
-            ->active()
+            ->active($at)
             ->forCity($cityId)
             ->where(function ($q) use ($vehicleClassIds) {
                 $q->whereNull('vehicle_class_id')
@@ -238,7 +246,7 @@ class SurgePricingService
                 fn (SurgeRule $r) => $r->vehicle_class_id === null || $r->vehicle_class_id === $vcId,
             );
 
-            $matchingRule = $this->findMatchingRule($applicable);
+            $matchingRule = $this->findMatchingRule($applicable, $at);
 
             $results[$vcId] = [
                 'multiplier' => $matchingRule ? (float) $matchingRule->multiplier : 1.0,

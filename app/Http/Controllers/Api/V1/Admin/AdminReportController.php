@@ -97,7 +97,8 @@ class AdminReportController extends Controller
             'city_id' => ['sometimes', 'uuid', 'exists:cities,id'],
         ]);
 
-        $query = Ride::query();
+        // Bookings still waiting for their pickup time have no outcome yet.
+        $query = Ride::query()->where('rides.status', '!=', RideStatus::Scheduled);
         $this->applyDateFilter($query, $request);
         $this->applyCityFilter($query, $request);
 
@@ -163,7 +164,7 @@ class AdminReportController extends Controller
 
         $prev = $this->previousPeriodDates($request);
         if ($prev) {
-            $prevQuery = Ride::query();
+            $prevQuery = Ride::query()->where('rides.status', '!=', RideStatus::Scheduled);
             $prevQuery->whereDate('rides.created_at', '>=', $prev['from'])
                 ->whereDate('rides.created_at', '<=', $prev['to']);
             $this->applyCityFilter($prevQuery, $request);

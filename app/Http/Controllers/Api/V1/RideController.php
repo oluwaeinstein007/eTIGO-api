@@ -19,9 +19,11 @@ use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\RidePinService;
 use App\Services\RideService;
+use App\Services\ScheduledRideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RideController extends Controller
 {
@@ -35,32 +37,47 @@ class RideController extends Controller
         private DriverLocationService $locationService,
         private DriverEarningsService $earningsService,
         private RidePinService $pinService,
+        private ScheduledRideService $scheduledRideService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
     {
         $user = $request->user();
+        $scheduledPickupAt = $request->scheduledPickupAt();
 
         try {
-            $result = DB::transaction(function () use ($user, $request) {
+            $result = DB::transaction(function () use ($user, $request, $scheduledPickupAt) {
                 User::lockForUpdate()->find($user->id);
 
-                $timeoutSeconds = config('matching.matching_timeout', 300);
-                $staleRides = Ride::where('passenger_id', $user->id)
-                    ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
-                    ->where('created_at', '<', now()->subSeconds($timeoutSeconds))
-                    ->get();
+                // Checked again under the passenger lock so two bookings sent
+                // together cannot both slip past the limits.
+                if ($scheduledPickupAt !== null) {
+                    $errors = $this->scheduledRideService->pickupTimeErrors($user, $scheduledPickupAt);
 
-                foreach ($staleRides as $staleRide) {
-                    $this->rideService->expireStaleSearch($staleRide);
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages(['scheduled_pickup_at' => $errors]);
+                    }
                 }
 
-                $activeRide = Ride::where('passenger_id', $user->id)
-                    ->whereIn('status', RideStatus::activeStatuses())
-                    ->exists();
+                // A booking for later does not compete with a ride happening now.
+                if ($scheduledPickupAt === null) {
+                    $staleRides = Ride::where('passenger_id', $user->id)
+                        ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
+                        ->with('scheduledRide')
+                        ->get()
+                        ->filter(fn (Ride $ride) => $this->matchingService->searchDeadline($ride)->isPast());
 
-                if ($activeRide) {
-                    return null;
+                    foreach ($staleRides as $staleRide) {
+                        $this->rideService->expireStaleSearch($staleRide);
+                    }
+
+                    $activeRide = Ride::where('passenger_id', $user->id)
+                        ->whereIn('status', RideStatus::activeStatuses())
+                        ->exists();
+
+                    if ($activeRide) {
+                        return null;
+                    }
                 }
 
                 return $this->rideService->createRide(
@@ -75,6 +92,7 @@ class RideController extends Controller
                     destinationAddress: $request->input('destination_address'),
                     paymentMethod: PaymentMethod::from($request->input('payment_method')),
                     promoCode: $request->input('promo_code'),
+                    scheduledPickupAt: $scheduledPickupAt,
                 );
             });
         } catch (\DomainException $e) {
@@ -90,10 +108,10 @@ class RideController extends Controller
             ], 409);
         }
 
-        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode']);
+        $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
         return response()->json([
-            'message' => 'Ride created successfully.',
+            'message' => $scheduledPickupAt ? 'Ride scheduled successfully.' : 'Ride created successfully.',
             'ride' => new RideResource($ride),
             'pin_code' => $result['pin_code'],
         ], 201);
@@ -107,7 +125,7 @@ class RideController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'stateTransitions', 'cancelledByUser', 'payment', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
         return response()->json([
             'ride' => new RideDetailResource($ride),
@@ -155,7 +173,7 @@ class RideController extends Controller
 
         $perPage = $this->perPage($request, 15, 50);
 
-        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores'])
+        $rides = $query->with(['city', 'vehicleClass', 'payment.paymentMethod', 'driver.driver.vehicle', 'promoCode', 'carbonScores', 'scheduledRide.reservedDriver.driver.vehicle'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -192,7 +210,7 @@ class RideController extends Controller
             $request->input('reason_details'),
         );
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'cancelledByUser', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride cancelled successfully.',
@@ -216,7 +234,7 @@ class RideController extends Controller
         }
 
         $ride = $this->rideService->rebroadcastRide($ride, $passenger);
-        $ride->load(['city', 'vehicleClass', 'passenger']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride request sent again.',
@@ -297,7 +315,7 @@ class RideController extends Controller
         }
 
         $ride = $this->rideService->driverArrived($ride, $user);
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'stateTransitions', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Driver arrival confirmed. Waiting for passenger PIN verification.',
@@ -347,7 +365,7 @@ class RideController extends Controller
             ], 422);
         }
 
-        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver', 'scheduledRide']);
 
         return response()->json([
             'message' => 'PIN verified. Ride started.',
@@ -376,7 +394,7 @@ class RideController extends Controller
 
         FinalFareCalculationJob::dispatch($ride->id);
 
-        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'promoCode']);
+        $ride->load(['city', 'vehicleClass', 'passenger', 'driver', 'promoCode', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride completed successfully.',
@@ -425,7 +443,7 @@ class RideController extends Controller
             return response()->json(['message' => $result['error']], 409);
         }
 
-        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver']);
+        $result['ride']->load(['city', 'vehicleClass', 'passenger', 'driver', 'scheduledRide']);
 
         return response()->json([
             'message' => 'Ride accepted.',

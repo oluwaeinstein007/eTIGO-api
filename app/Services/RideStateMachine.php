@@ -24,6 +24,7 @@ class RideStateMachine
      * @var array<string, list<RideStatus>>
      */
     private const TRANSITIONS = [
+        'scheduled' => [RideStatus::Searching, RideStatus::Cancelled],
         'requested' => [RideStatus::Searching, RideStatus::Cancelled],
         'searching' => [RideStatus::Matched, RideStatus::NoDriverFound, RideStatus::Cancelled],
         'matched' => [RideStatus::DriverEnRoute, RideStatus::Cancelled],

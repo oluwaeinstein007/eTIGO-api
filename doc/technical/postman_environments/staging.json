@@ -171,6 +171,12 @@
         "enabled": true
       },
       {
+        "key": "scheduled_ride_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
         "key": "payout_id",
         "value": "",
         "type": "default",

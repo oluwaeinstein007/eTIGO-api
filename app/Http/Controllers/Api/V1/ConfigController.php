@@ -22,6 +22,28 @@ class ConfigController extends Controller
             'emergency_number' => '112',
             'support_phone' => AppSetting::getValue('general.support_phone'),
             'support_email' => AppSetting::getValue('general.support_email'),
+            'scheduled_rides' => self::scheduledRideBookingRules(),
         ]);
+    }
+
+    /**
+     * What the booking screen needs to offer a valid pickup time.
+     *
+     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reservation_fee: float, late_cancellation_fee: float, late_cancellation_window_minutes: int, driver_reservations_enabled: bool}
+     */
+    private static function scheduledRideBookingRules(): array
+    {
+        $settings = AppSetting::scheduledRides();
+
+        return [
+            'enabled' => $settings['enabled'],
+            'min_lead_minutes' => $settings['min_lead_minutes'],
+            'max_advance_days' => $settings['max_advance_days'],
+            'dispatch_lead_minutes' => $settings['dispatch_lead_minutes'],
+            'reservation_fee' => $settings['reservation_fee'],
+            'late_cancellation_fee' => $settings['late_cancellation_fee'],
+            'late_cancellation_window_minutes' => $settings['late_cancellation_window_minutes'],
+            'driver_reservations_enabled' => $settings['driver_reservations_enabled'],
+        ];
     }
 }

@@ -17,8 +17,10 @@ use App\Models\Driver;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\RideStateTransition;
+use App\Models\ScheduledRide;
 use App\Models\User;
 use App\Notifications\RideCompletedNotification;
+use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -39,10 +41,16 @@ class RideService
         private PromoValidationService $promoValidationService,
         private PromoApplicationService $promoApplicationService,
         private TierGateService $tierGateService,
+        private ScheduledRideCancellationFeeService $cancellationFeeService,
     ) {}
 
     /**
-     * @return array{ride: Ride, pin_code: string}
+     * Book a ride now, or for later when $scheduledPickupAt is given. A
+     * scheduled ride is quoted for its pickup time and waits in `scheduled`:
+     * no PIN, wallet hold or matching until the dispatcher starts it shortly
+     * before pickup (ScheduledRideService::dispatch).
+     *
+     * @return array{ride: Ride, pin_code: string|null}
      */
     public function createRide(
         User $passenger,
@@ -56,6 +64,7 @@ class RideService
         string $destinationAddress,
         PaymentMethod $paymentMethod,
         ?string $promoCode = null,
+        ?CarbonInterface $scheduledPickupAt = null,
     ): array {
         $pricing = PricingConfig::currentFor($cityId, $vehicleClassId);
 
@@ -72,6 +81,7 @@ class RideService
             $destinationLat, $destinationLng,
             $pricing->city->currency_code ?? 'NGN',
             $bookingFeeDiscountPct,
+            $scheduledPickupAt,
         );
 
         $validatedPromoId = null;
@@ -87,6 +97,9 @@ class RideService
                 pickupLat: $pickupLat,
                 pickupLng: $pickupLng,
                 fareAmount: (float) $estimate['fare_estimate'],
+                // A scheduled ride is judged at its pickup time: a code must
+                // still be valid then, and peak rules follow the trip.
+                evaluatedAt: $scheduledPickupAt,
             );
             if (! $validation['valid']) {
                 throw ValidationException::withMessages([
@@ -101,7 +114,7 @@ class RideService
             $pickupLat, $pickupLng, $pickupAddress,
             $destinationLat, $destinationLng, $destinationAddress,
             $paymentMethod, $estimate, $validatedPromoId,
-            $bookingFeeDiscountPct, $tierBenefits,
+            $bookingFeeDiscountPct, $tierBenefits, $scheduledPickupAt,
         ) {
             $ride = Ride::create([
                 'city_id' => $cityId,
@@ -113,7 +126,7 @@ class RideService
                 'destination_lat' => $destinationLat,
                 'destination_lng' => $destinationLng,
                 'destination_address' => $destinationAddress,
-                'status' => RideStatus::Requested,
+                'status' => $scheduledPickupAt ? RideStatus::Scheduled : RideStatus::Requested,
                 'share_token' => Str::random(32),
                 'fare_estimate_amount' => $estimate['fare_estimate'],
                 'fare_currency' => $estimate['currency'],
@@ -126,11 +139,30 @@ class RideService
                     'booking_fee_discount_pct' => $bookingFeeDiscountPct,
                     'tier_name' => $tierBenefits['tier_name'],
                     'priority_matching' => (bool) $tierBenefits['priority_matching'],
+                    ...($scheduledPickupAt ? ['reservation_fee' => $estimate['reservation_fee']] : []),
                 ],
                 'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,
                 'payment_status' => PaymentStatus::Pending,
             ]);
+
+            if ($scheduledPickupAt) {
+                if ($paymentMethod === PaymentMethod::Wallet) {
+                    $this->walletPaymentService->assertCanCover($passenger, (int) round($ride->fare_estimate_amount * 100));
+                }
+
+                ScheduledRide::create([
+                    'ride_id' => $ride->id,
+                    'scheduled_pickup_at' => $scheduledPickupAt,
+                    'reminder_sent_at' => ScheduledRideService::reminderAlreadyCovered($scheduledPickupAt) ? now() : null,
+                ]);
+
+                AuditLog::record($ride, 'scheduled_ride_booked', $passenger, null, [
+                    'scheduled_pickup_at' => $scheduledPickupAt->toIso8601String(),
+                ]);
+
+                return ['ride' => $ride->fresh('scheduledRide'), 'pin_code' => null];
+            }
 
             $pin = $this->pinService->generatePin($ride);
 
@@ -151,14 +183,26 @@ class RideService
             return ['ride' => $ride->fresh(), 'pin_code' => $pin['pin_code']];
         });
 
-        DispatchRideRequestJob::dispatch($result['ride']->id)->afterCommit();
+        if ($scheduledPickupAt) {
+            return $result;
+        }
 
-        $timeout = config('matching.matching_timeout', 300);
-        MatchingTimeoutJob::dispatch($result['ride']->id, $result['ride']->searchAttemptCount())
-            ->delay(now()->addSeconds($timeout))
-            ->afterCommit();
+        $this->startMatching($result['ride']);
 
         return $result;
+    }
+
+    /**
+     * Queue the first matching wave and the safety-net timeout for a ride
+     * that has just entered `searching`.
+     */
+    public function startMatching(Ride $ride): void
+    {
+        DispatchRideRequestJob::dispatch($ride->id)->afterCommit();
+
+        MatchingTimeoutJob::dispatch($ride->id, $ride->searchAttemptCount())
+            ->delay($this->matchingService->searchDeadline($ride))
+            ->afterCommit();
     }
 
     public function cancelRide(
@@ -179,6 +223,12 @@ class RideService
                 'cancellation_reason' => $reason,
                 'cancellation_details' => $reasonDetails,
             ]);
+
+            // A scheduled booking a driver reserved may carry a late-cancellation fee.
+            $scheduled = ScheduledRide::where('ride_id', $ride->id)->lockForUpdate()->first();
+            if ($scheduled !== null) {
+                $this->cancellationFeeService->assess($ride->fresh(), $scheduled, $cancelledBy);
+            }
 
             $triggeredByType = match (true) {
                 $cancelledBy->isAdmin() => 'admin',
@@ -203,6 +253,11 @@ class RideService
             if ($ride->payment_method === PaymentMethod::Wallet) {
                 $this->walletPaymentService->releaseHold($ride);
             }
+
+            ScheduledRide::where('ride_id', $ride->id)
+                ->whereNull('dispatched_at')
+                ->whereNull('cancelled_at')
+                ->update(['cancelled_at' => now()]);
 
             $this->matchingService->cleanupRideCache($ride);
             Cache::forget("ride:{$ride->id}:pin_code");
@@ -301,10 +356,7 @@ class RideService
             return $ride->fresh();
         });
 
-        DispatchRideRequestJob::dispatch($ride->id)->afterCommit();
-        MatchingTimeoutJob::dispatch($ride->id, $ride->searchAttemptCount())
-            ->delay(now()->addSeconds(config('matching.matching_timeout', 300)))
-            ->afterCommit();
+        $this->startMatching($ride);
 
         return $ride;
     }
@@ -354,6 +406,33 @@ class RideService
         $this->matchingService->cleanupRideCache($result);
 
         return ['success' => true, 'ride' => $result, 'error' => null];
+    }
+
+    /**
+     * Give a ride that has just entered `searching` to a scheduled ride's
+     * reserved driver: `searching → matched → driver_en_route`, with no
+     * offer round. Must run inside the caller's transaction, with the ride
+     * locked. Returns false, changing nothing, when the driver is already on
+     * another ride.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function assignReservedDriver(Ride $ride, User $driver, array $metadata = []): bool
+    {
+        if ($this->driverHasOtherActiveRide($driver, $ride)) {
+            return false;
+        }
+
+        $ride->driver_id = $driver->id;
+        $ride->save();
+
+        $meta = ['assigned_driver_id' => $driver->id, 'reserved_driver' => true, ...$metadata];
+        $this->stateMachine->transitionTo($ride, RideStatus::Matched, null, 'system', $meta);
+        $this->stateMachine->transitionTo($ride, RideStatus::DriverEnRoute, null, 'system', $meta);
+
+        AuditLog::record($ride, 'ride_assigned_to_reserved_driver', null, null, ['driver_user_id' => $driver->id]);
+
+        return true;
     }
 
     /**
@@ -607,7 +686,9 @@ class RideService
             (float) ($snapshot['booking_fee_discount_pct'] ?? 0),
         );
 
-        $rawFare = $adjusted['fare'];
+        // A scheduled ride's reservation fee was part of the quote.
+        $reservationFee = (float) ($snapshot['reservation_fee'] ?? 0);
+        $rawFare = round($adjusted['fare'] + $reservationFee, 2);
         $finalFare = $rawFare;
         $discountAmount = null;
         $promoSnapshot = null;
@@ -684,6 +765,7 @@ class RideService
                 'surge_amount' => round($adjusted['surged_fare'] - $meteredFare, 2),
                 'booking_fee_discount' => $adjusted['booking_fee_discount'],
                 'promo_discount' => $discountAmount,
+                'reservation_fee' => $reservationFee,
             ],
         ];
     }

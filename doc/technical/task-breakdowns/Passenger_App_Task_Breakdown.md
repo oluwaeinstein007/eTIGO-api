@@ -191,11 +191,14 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-PSR-01 | `[ ]` Add "Schedule" toggle to booking flow: date/time picker for future pickup; validate minimum lead time; submit as scheduled ride | P-20 | 📡 BE2-SCH-03 | Integrated into existing booking flow, not separate screen |
-| FE2-PSR-02 | `[ ]` Build upcoming scheduled rides list: card for each with date, time, pickup, destination, "Edit" and "Cancel" actions | P-22 | 📡 BE2-SCH-06 | Accessible from home screen |
-| FE2-PSR-03 | `[ ]` Build edit scheduled ride screen: modify time, pickup, destination before dispatch window | P-22 | 📡 BE2-SCH-07 | — |
-| FE2-PSR-04 | `[ ]` Build scheduled ride reminder notification handler: push notification → deep link to ride detail | P-21 | 📡 Push notification | — |
-| FE2-PSR-05 | `[ ]` Build scheduled ride dispatch transition: when scheduled ride dispatches, transition to standard searching → matched flow seamlessly | P-22 | 📡 BE2-SCH-04 | — |
+| FE2-PSR-01 | `[ ]` Add "Schedule" toggle to booking flow: date/time picker for future pickup; validate minimum lead time; submit as scheduled ride | P-20 | 📡 BE2-SCH-03 | Integrated into existing booking flow, not separate screen. API ready: `POST /rides` with `scheduled_pickup_at` (ISO 8601 with offset); picker limits from `GET /config` → `scheduled_rides`; quote with `POST /rides/estimate` + `scheduled_pickup_at`. No PIN at booking |
+| FE2-PSR-02 | `[ ]` Build upcoming scheduled rides list: card for each with date, time, pickup, destination, "Edit" and "Cancel" actions | P-22 | 📡 BE2-SCH-06 | Accessible from home screen. API ready: `GET /rides/scheduled`; show "Edit" only while `scheduled.can_edit`; cancel with `DELETE /rides/{ride}/scheduled` |
+| FE2-PSR-03 | `[ ]` Build edit scheduled ride screen: modify time, pickup, destination before dispatch window | P-22 | 📡 BE2-SCH-07 | API ready: `PUT /rides/{ride}/scheduled` (also payment method) until `scheduled.dispatch_at`; the response has the new fare |
+| FE2-PSR-04 | `[ ]` Build scheduled ride reminder notification handler: push notification → deep link to ride detail | P-21 | 📡 Push notification | Types: `scheduled_ride_reminder`, `scheduled_ride_dispatched`, `scheduled_ride_reserved`, `scheduled_ride_reservation_released`; a booking the system had to cancel arrives as `ride_cancelled` with the reason in the body |
+| FE2-PSR-06 | `[ ]` Show the reserved driver on an upcoming booking (`scheduled.reserved_driver`: name, photo, rating, vehicle) | P-22 | 📡 BE2-SCH-10 | — |
+| FE2-PSR-07 | `[ ]` Show the cancellation fee before cancelling when `scheduled.cancellation_fee_if_cancelled_now` > 0; show `reservation_fee` in the quote when > 0 | P-22 | 📡 BE2-SCH-14, BE2-SCH-15 | Both fees ₦0 until the client decides |
+| FE2-PSR-08 | `[ ]` Handle the new ride status `scheduled` everywhere `status` is read (enum decoding, history, filters) | P-22 | 📡 BE2-SCH-03 | **Breaking** — see FRONTEND_UPDATE_SCHEDULED_RIDES.md |
+| FE2-PSR-05 | `[ ]` Build scheduled ride dispatch transition: when scheduled ride dispatches, transition to standard searching → matched flow seamlessly | P-22 | 📡 BE2-SCH-04 | On `scheduled_ride_dispatched` (or `ride.status.updated` to `searching`) open the normal searching screen; the PIN is on the ride (`pin_code`) from then on |
 
 ---
 

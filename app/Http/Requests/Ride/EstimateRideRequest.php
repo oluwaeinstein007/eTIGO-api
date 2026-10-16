@@ -24,6 +24,15 @@ class EstimateRideRequest extends FormRequest
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
             'destination_lat' => ['required', 'numeric', 'between:-90,90'],
             'destination_lng' => ['required', 'numeric', 'between:-180,180'],
+            // Quote a scheduled ride: surge is evaluated for this pickup time.
+            'scheduled_pickup_at' => [...StoreRideRequest::pickupTimeRules(), 'after:now'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'scheduled_pickup_at.regex' => 'The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.',
         ];
     }
 

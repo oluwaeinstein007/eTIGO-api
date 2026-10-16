@@ -128,6 +128,11 @@ class Ride extends Model
         return $this->hasOne(PromoRedemption::class);
     }
 
+    public function scheduledRide(): HasOne
+    {
+        return $this->hasOne(ScheduledRide::class);
+    }
+
     public function stateTransitions(): HasMany
     {
         return $this->hasMany(RideStateTransition::class)->orderBy('created_at');

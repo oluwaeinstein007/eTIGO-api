@@ -232,6 +232,9 @@ requested → searching → matched → driver_en_route → driver_arrived → i
                 │
                 └──→ no_driver_found ──→ searching (retry / admin assignment)
                                      └─→ cancelled (passenger dismisses)
+
+scheduled ──→ searching (dispatcher, shortly before pickup)
+          └─→ cancelled (passenger, admin, or the dispatcher when the ride cannot start)
 ```
 
 Each transition locks the ride, validates the edge, writes an append-only `ride_state_transitions` row and sets the timestamps (`matched_at`, `started_at`, `completed_at`). Push notifications and the `ride.status.updated` broadcast are published **after commit**. An illegal transition — usually a race, such as a passenger cancelling while the driver accepts — throws `InvalidStateTransitionException` and the client receives 409.
@@ -248,6 +251,29 @@ Each transition locks the ride, validates the edge, writes an append-only `ride_
 | Complete | `FinalFareCalculationJob` computes the final fare (§5), redeems the promo, processes payment (§9) and settles the driver (§10). |
 | Cancel | Allowed until the trip starts (and from `no_driver_found`). The wallet hold is released, the other party is notified with who cancelled (passenger, driver or E-tiGo support) and the reason, and a driver cancellation near the pickup starts off-app trip monitoring (§14). |
 | Admin assignment | `requested`, `searching` or `no_driver_found`; for `no_driver_found` the passenger must not have booked again, and a wallet hold is re-placed. |
+| Book for later | `POST /rides` with `scheduled_pickup_at` creates a `scheduled` ride (§6.1). Not an active ride: it does not block riding now, and an active ride does not block booking for later. |
+
+### 6.1 Scheduled rides (Phase 2)
+
+Modelled on Uber Reserve and Bolt scheduled rides: the passenger books a pickup time, the price is locked at booking, and matching starts shortly before pickup. `ScheduledRideService` holds the logic; `scheduled_rides` (one row per booked ride) records the pickup time and what the dispatcher did. The ride's own `status` (`scheduled` until dispatch) is the state. Settings are `AppSetting::scheduledRides()`: operations' overrides (`PUT /admin/settings/scheduled-rides`) over `config/scheduled_rides.php`.
+
+| Step | Rules |
+|------|-------|
+| Book | Pickup `min_lead_minutes` (30) to `max_advance_days` (7) ahead, with an explicit UTC offset; at most `max_upcoming_per_passenger` (5) upcoming bookings, `min_minutes_between_bookings` (30) apart. No PIN, no hold, no matching. A wallet booking must be affordable now (`WalletPaymentService::assertCanCover`), but nothing is held. |
+| Quote | Locked at booking, like any upfront fare. Surge is evaluated **at the pickup time** (`SurgePricingService` `$at`): manual and time-based rules in effect then apply; demand-based rules never do, since live demand says nothing about later. Scheduled bookings are also left out of the live demand count. Promo validity and peak rules are checked at the pickup time, both at booking and at settlement. |
+| Edit | `PUT /rides/{ride}/scheduled` until `dispatch_at` (pickup − `dispatch_lead_minutes`): time, places, payment method. The fare is quoted again and any promo re-checked. |
+| Cancel | `DELETE /rides/{ride}/scheduled` or `POST /rides/{ride}/cancel`; free. `RideService::cancelRide` stamps `scheduled_rides.cancelled_at`. |
+| Remind | `reminder_minutes` (60) before pickup, once (`reminder_sent_at`); warns a wallet passenger whose balance is short. Booked inside that window → no separate reminder. |
+| Dispatch | At pickup − `dispatch_lead_minutes` (15): place the wallet hold, issue the PIN, `scheduled → searching`, then the normal matching flow (`RideService::startMatching`). The passenger gets `scheduled_ride_dispatched`. |
+| Search window | Until pickup + `matching_grace_minutes` (10), never shorter than the normal `MATCHING_TIMEOUT` (so a late or re-broadcast search still gets a full window): `DriverMatchingService::searchDeadline` takes the later of the two, waves repeat every `retry_wave_delay_seconds` (30) with no retry cap, and a driver who declined is not offered it again for `MATCHING_TIMEOUT`. |
+| Driver reservation | `ScheduledRideReservationService`. Until `dispatch_at` an approved driver in the same city and class (no excessive negative balance, ≤ `max_reservations_per_driver` (5), pickups ≥ `driver_reservation_gap_minutes` (60) apart) can reserve; operations can assign or move one (`reserved_by_admin_id`). A new pickup time or place releases it (`pickup_changed`). Drivers holding a pickup within `driver_reservation_buffer_minutes` (60) get no on-demand offers (`DriverMatchingService::driversKeptForReservedPickups`). The reserved driver gets a reminder (`driver_reminder_sent_at`). |
+| Dispatch to the reserved driver | If the reserved driver is approved, online with a location under 2 minutes old, still in the class, not negative and not on a trip, `RideService::assignReservedDriver` takes the ride `searching → matched → driver_en_route` in the dispatch transaction (no offer round). Otherwise the reservation is cleared (`driver_unavailable`) and normal matching starts. |
+| Fees | Both ₦0 (off) by default; the client decided no cancellation fees in Phase 1 (OQ-05). `reservation_fee`: added to the scheduled quote (`pricing_snapshot.reservation_fee`) and to the final fare before promo. `late_cancellation_fee` (`ScheduledRideCancellationFeeService`): a passenger cancelling a reserved booking within `late_cancellation_window_minutes` (60) of pickup, except for emergency, safety, vehicle-mismatch or driver-no-show reasons. Wallet/saved-card bookings are charged by `ChargeScheduledRideCancellationFeeJob` (one attempt; ledger journal payer → driver earnings in full, idempotency key `scheduled-cancel-fee-{id}`); cash and bank transfer are waived. |
+| Cannot start | Cancelled by the system with `cancellation_reason` `scheduled_dispatch_failed`, a passenger-facing `cancellation_details` (sent as the `ride_cancelled` push), and `scheduled_rides.dispatch_failure_reason`: `insufficient_wallet_balance`, `wallet_unavailable`, `account_suspended`, `service_unavailable` (city or class withdrawn), `missed_dispatch_window`. A passenger still on another ride is retried each minute until pickup + grace. |
+
+**Durability:** nothing waits in memory or in a long-delayed queue job. `ProcessScheduledRidesJob` runs every minute from the scheduler and queues `ScheduledRideDispatchJob` / `ScheduledRideReminderJob` per due booking (unique per booking, idempotent under the row lock), so a restart, deploy or edited pickup time is picked up on the next sweep. If the scheduler was down past a booking's pickup + grace, the booking is cancelled as `missed_dispatch_window` rather than sending a driver late.
+
+**Decisions:** every default above, the industry benchmark behind it and the open client questions are in `doc/client/SCHEDULED_RIDES_DECISIONS.md`. Not built: a "balance due" for cash passengers who cancel late (they are waived), and penalties for drivers who often release reservations (tracked in the audit log only).
 
 The driver's live location is shared with the passenger only while the ride is active (`GET /rides/{ride}/location`); afterwards only admins see it. Share links (`/rides/{ride}/share/{token}`) expire one hour after the trip ends.
 
@@ -270,6 +296,8 @@ Per-ride matching state lives in the cache with the matching timeout as TTL: `ri
 - Every ride, priority or not, is offered its **nearest** eligible driver first.
 - **Precedence under scarcity:** a priority ride waiting for its next search (between radius tiers or retry waves, with no offer outstanding) keeps the driver it would be offered next, its nearest free driver within its current radius, instead of that driver being offered to a standard ride. Only that one driver is held per waiting priority ride (earliest booking first); every other driver stays available to everyone.
 - **Persistence:** priority searches get `MATCHING_PRIORITY_EXTRA_RETRIES` (1) extra automatic retry waves before `no_driver_found`.
+
+**Scheduled rides** search longer: until their pickup time plus the grace period (§6.1).
 
 ---
 
@@ -503,6 +531,7 @@ vendor/bin/pint --dirty --format agent         # format changed files
 - Queues run synchronously in tests. External providers are faked through their contracts (`Mockery::mock(WalletGateway::class)`, `FakePaymentGateway`, `FakeKycGateway`, `LogPushGateway`).
 - Tests that need Redis (GEO search) are skipped when the `phpredis` extension is missing.
 - When switching bearer tokens within one test, call `app('auth')->forgetGuards()` (Sanctum caches the resolved user).
+- Scheduled rides: `ScheduledRideTest` (booking limits, future-time surge and promo, edit/cancel, dispatch and its failures, reminders, admin settings) and `ScheduledRideReservationTest` (driver reservations, dispatch to the reserved driver, admin assignment, reservation and late-cancellation fees).
 - Edge-case suites per area: `RideEdgeCaseTest`, `MatchingEdgeCaseTest`, `WalletPayoutEdgeCaseTest`, `AccountSafetyEdgeCaseTest`, `OperationsEdgeCaseTest`, `ApiErrorHandlingTest`.
 - CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.4 and 8.5 with PostgreSQL 16 and Redis 7 for every pull request to `staging`; both must pass before a push to `staging` deploys.
 
@@ -521,6 +550,7 @@ The complete list is in `.env.example`. The ones that change behaviour:
 | Wallet | `WALLET_MIN_TOPUP`, `WALLET_MAX_BALANCE`, `WALLET_DAILY_TOPUP_CAP`, `WALLET_MIN_PAYOUT`, `WALLET_SETTLEMENT_DELAY`, `WALLET_MAX_NEGATIVE_BALANCE`, `WALLET_DEFAULT_COMMISSION_RATE`, `WALLET_HOLD_EXPIRY_HOURS`, `WALLET_MAX_CASH_OVERPAYMENT` (kobo; finance can override most at runtime) |
 | Matching | `MATCHING_RADIUS_TIER_1_KM`/`_2_KM`/`_3_KM`, `MATCHING_DRIVER_RESPONSE_TIMEOUT`, `MATCHING_TIMEOUT`, `MATCHING_MAX_AUTO_RETRIES`, `MATCHING_PRIORITY_EXTRA_RETRIES`, `MATCHING_AUTO_RETRY_DELAY`, `MATCHING_MAX_CANDIDATES` |
 | Surge | `SURGE_DEMAND_WINDOW_MINUTES` (10), `SURGE_DEMAND_MIN_REQUESTS` (5), `SURGE_DEMAND_CACHE_SECONDS` (60) |
+| Scheduled rides | `SCHEDULED_RIDES_DRIVER_RESERVATIONS`, `SCHEDULED_RIDES_MAX_RESERVATIONS_PER_DRIVER` (5), `SCHEDULED_RIDES_DRIVER_GAP_MINUTES` (60), `SCHEDULED_RIDES_DRIVER_BUFFER_MINUTES` (60), `SCHEDULED_RIDES_RESERVATION_FEE` (0), `SCHEDULED_RIDES_LATE_CANCELLATION_FEE` (0), `SCHEDULED_RIDES_LATE_CANCELLATION_WINDOW_MINUTES` (60), `SCHEDULED_RIDES_ENABLED`, `SCHEDULED_RIDES_MIN_LEAD_MINUTES` (30), `SCHEDULED_RIDES_MAX_ADVANCE_DAYS` (7), `SCHEDULED_RIDES_DISPATCH_LEAD_MINUTES` (15), `SCHEDULED_RIDES_REMINDER_MINUTES` (60), `SCHEDULED_RIDES_MATCHING_GRACE_MINUTES` (10), `SCHEDULED_RIDES_RETRY_WAVE_DELAY_SECONDS` (30), `SCHEDULED_RIDES_MAX_UPCOMING` (5), `SCHEDULED_RIDES_MIN_GAP_MINUTES` (30) — operations can override at runtime |
 | Upfront fares | `PRICING_TRIP_TIME_TOLERANCE_PCT` (25), `PRICING_TRIP_TIME_TOLERANCE_MIN_MINUTES` (10), `PRICING_MAX_BILLED_TIME_MULTIPLIER` (3) |
 | KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `KYC_SKIP_VERIFICATION` |
 | Push | `FIREBASE_CREDENTIALS_PATH` (path or raw JSON), `FIREBASE_PROJECT_ID` |

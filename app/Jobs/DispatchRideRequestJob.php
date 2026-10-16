@@ -12,7 +12,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class DispatchRideRequestJob implements ShouldQueue
@@ -29,7 +28,7 @@ class DispatchRideRequestJob implements ShouldQueue
         DriverMatchingService $matchingService,
         PushNotificationGateway $pushGateway,
     ): void {
-        $ride = Ride::with(['vehicleClass', 'city', 'passenger'])
+        $ride = Ride::with(['vehicleClass', 'city', 'passenger', 'scheduledRide'])
             ->find($this->rideId);
 
         if (! $ride || $ride->status !== RideStatus::Searching) {
@@ -41,17 +40,11 @@ class DispatchRideRequestJob implements ShouldQueue
 
         if (empty($candidates)) {
             if ($matchingService->hasReachedMaxRadius($ride)) {
-                $maxTimeoutSeconds = config('matching.matching_timeout', 300);
-                $searchStartedAt = $ride->stateTransitions()
-                    ->where('to_state', RideStatus::Searching->value)
-                    ->latest('created_at')
-                    ->value('created_at') ?? $ride->created_at;
-                $isWithinTimeoutWindow = $searchStartedAt !== null
-                    && Carbon::parse($searchStartedAt)->diffInSeconds(now()) < $maxTimeoutSeconds;
+                $isWithinTimeoutWindow = $matchingService->searchDeadline($ride)->isFuture();
 
                 if ($matchingService->canAutoRetry($ride) && $isWithinTimeoutWindow) {
                     $matchingService->resetForAutoRetry($ride);
-                    $retryDelay = (int) config('matching.auto_retry_delay_seconds', 10);
+                    $retryDelay = $matchingService->autoRetryDelaySeconds($ride);
                     Log::info('Auto-retrying matching for ride after expanding through all tiers', [
                         'ride_id' => $this->rideId,
                         'retry_count' => $matchingService->getAutoRetryCount($ride),
@@ -103,6 +96,7 @@ class DispatchRideRequestJob implements ShouldQueue
                 durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
                     ? (float) $ride->pricing_snapshot['duration_minutes']
                     : null,
+                scheduledPickupAt: $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String(),
             );
         } catch (\Throwable $e) {
             // The push notification below and the response timeout must still
@@ -122,6 +116,7 @@ class DispatchRideRequestJob implements ShouldQueue
                     'type' => 'ride_request',
                     'ride_id' => (string) $ride->id,
                     'response_timeout' => $timeout,
+                    ...($ride->scheduledRide ? ['scheduled_pickup_at' => $ride->scheduledRide->scheduled_pickup_at->toIso8601String()] : []),
                 ],
             ]);
         } catch (\Throwable $e) {
