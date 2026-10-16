@@ -10264,7 +10264,20 @@ Fallback for a missed or delayed Paystack webhook. `{reference}` is the `tx_ref`
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
 
-Typical flow: **List Supported Banks** → **Resolve Bank Account** (show the account name for confirmation) → **Request Bank Account Code** → **Add Bank Account** with the code. The code is required for the first account and for every later change.
+Typical flow: **List Supported Banks** → **Resolve Bank Account** (show the account name and any `name_check` / `payout_hold` message for confirmation) → **Request Bank Account Code** → **Add Bank Account** with the code. The code is required for the first account and for every later change.
+
+**Payout safeguards** (configured by finance in **Wallet Settings**):
+- **Name check.** The account name from Paystack is compared with the driver's verified name (their profile name, checked against their NIN at KYC, plus the NIN middle name). Word order, case, punctuation and titles are ignored and a one-letter spelling difference in a longer name is accepted; the surname and at least one given name must appear. On a mismatch, depending on `payout_account_name_check`: `review` (default) saves the account but pauses payouts to it until finance approves it; `block` refuses to save it; `off` only records the result.
+- **Hold after a change.** Payouts to an account that **replaces** another wait `payout_account_hold_hours` (default 24) after it is saved; a first account is not held unless `payout_account_hold_first_account` is on. Finance can release a hold early.
+- `payout_eligibility` (on **Add** and **View**) tells the app whether the driver can request a payout now and, if not, why:
+
+| `code` | Meaning | Suggested app behaviour |
+|--------|---------|-------------------------|
+| `null` (`can_request_payouts: true`) | Payouts allowed | — |
+| `payout_account_on_hold` | Recently changed; `payouts_held_until` says when payouts start | Show `message` with a countdown; disable **Withdraw** until then |
+| `payout_account_under_review` | Name did not match; finance is checking | Show `message`; disable **Withdraw**; the driver gets `payout_account_reviewed` when it is done |
+| `payout_account_rejected` | Finance rejected the account | Show `message` and an **Add another account** button |
+| `no_payout_account` | No account on file (View only returns 404 instead) | Show **Add bank account** |
 
 ### List Supported Banks
 
@@ -10305,9 +10318,28 @@ Looks up the account holder's name so the driver can confirm it before saving. N
 {
   "bank_code": "058",
   "account_number": "0123456789",
-  "account_name": "JOHN DOE"
+  "account_name": "JOHN DOE",
+  "name_check": {
+    "status": "mismatch",
+    "verified_name": "Ada Chioma Obi",
+    "outcome": "review",
+    "message": "This account is in the name JOHN DOE, which does not match your verified name Ada Chioma Obi. You can still save it, but payouts will be paused until E-tiGo checks it. Use an account in your own name to be paid without delay."
+  },
+  "payout_hold": {
+    "applies": true,
+    "hours": 24,
+    "message": "For your security, payouts to this account will start 24 hours after you save it."
+  }
 }
 ```
+
+Show these **before** asking for the code:
+
+| Field | Values |
+|-------|--------|
+| `name_check.status` | `matched` or `mismatch` |
+| `name_check.outcome` | `ok` (nothing to show), `review` (can save; payouts wait for E-tiGo — show `message` and let the driver continue or pick another account), `blocked` (cannot save — show `message` and ask for an account in their own name) |
+| `payout_hold.applies` | `true` when saving this account will hold payouts for `hours`; show `message` |
 
 **Response 422:**
 ```json
@@ -10356,6 +10388,8 @@ The account is resolved **before** the code is checked, so a Paystack failure do
 | `bank_code`      | string | Yes      | Valid bank code     |
 | `otp_code`       | string | Yes      | 6-digit code from **Request Bank Account Code** |
 
+The name check runs before the code is checked: in `block` mode a mismatch is refused without using up the code. When payouts are held or under review, the alert says so (*"Payouts to it start 17 Oct 2026, 2:05 PM (Lagos time)."* or *"Payouts to it are paused until E-tiGo checks the account name."*).
+
 **Response 201:**
 ```json
 {
@@ -10365,10 +10399,30 @@ The account is resolved **before** the code is checked, so a Paystack failure do
     "bank_code": "058",
     "bank_name": "GTBank",
     "account_number": "******6789",
-    "account_name": "JOHN DOE",
+    "account_name": "ADA OBI",
     "is_verified": true,
-    "is_primary": true
+    "is_primary": true,
+    "payouts_held_until": "2026-10-17T13:05:00+00:00",
+    "name_match_status": "matched",
+    "review_status": null
+  },
+  "payout_eligibility": {
+    "can_request_payouts": false,
+    "code": "payout_account_on_hold",
+    "message": "For your security, payouts to a newly added bank account start 17 Oct 2026, 2:05 PM (Lagos time).",
+    "payouts_held_until": "2026-10-17T13:05:00+00:00"
   }
+}
+```
+
+`review_status` is `null` (no review needed), `pending`, `approved` or `rejected`.
+
+**Response 422 (name mismatch, `block` mode):**
+```json
+{
+  "message": "This account is in the name JOHN DOE, which does not match your verified name Ada Obi. Payouts can only go to a bank account in your own name.",
+  "code": "payout_account_name_mismatch",
+  "errors": { "account_number": ["This account is in the name JOHN DOE, which does not match your verified name Ada Obi. Payouts can only go to a bank account in your own name."] }
 }
 ```
 
@@ -10389,7 +10443,7 @@ GET /driver/bank-account
 Authorization: Bearer {driver_token}
 ```
 
-**Response 200:** Returns the driver's primary bank account (account number masked).
+**Response 200:** `bank_account` (the primary account, number masked, same shape as **Add Bank Account**) and `payout_eligibility`.
 **Response 404:** No bank account on file.
 
 ---
@@ -10881,6 +10935,15 @@ Requests a withdrawal from available driver earnings to the driver's primary ban
 
 **Response 422:** one of:
 - `"No verified bank account on file. Please add a bank account first."`
+- the account's payout safeguard, with `code` and `payouts_held_until` (see **Driver — Bank Account**):
+  ```json
+  {
+    "code": "payout_account_on_hold",
+    "message": "For your security, payouts to a newly added bank account start 17 Oct 2026, 2:05 PM (Lagos time).",
+    "payouts_held_until": "2026-10-17T13:05:00+00:00"
+  }
+  ```
+  `code` can also be `payout_account_under_review` or `payout_account_rejected`.
 - `"Insufficient available balance."`
 - `"You already have a pending payout request."` (one `requested`, `approved` or `processing` payout at a time)
 - a validation error on `amount` (below the minimum)
@@ -11048,6 +11111,67 @@ Each action locks the payout, so two admins acting at once cannot approve, rejec
 
 **Response 422:** `"Payout is not in requested status."` (approve/reject), `"Only failed or reversed payouts can be retried."` (retry), or `"Only approved or processing payouts can be checked with the payment provider."` with `current_status` (verify).
 
+**Response 409 (approve, retry):** the payout's bank account is on hold, under review or rejected (see **Payout Accounts**). Resolve it there first:
+```json
+{
+  "message": "Payouts to this bank account are blocked: it was added recently and is on hold until 2026-10-17T13:05:00+00:00. Release the hold under payout accounts if the driver confirmed the change.",
+  "code": "payout_account_on_hold",
+  "bank_account_id": "uuid",
+  "payouts_held_until": "2026-10-17T13:05:00+00:00"
+}
+```
+Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, `payouts_held_until`): use it to disable **Approve**/**Retry** and link to the account. The weekly auto-payout skips drivers whose account is blocked and pays them in a later week. The account is checked once more just before the transfer is sent: if it was blocked after approval, the payout fails with the block's message as `failure_reason` and the money goes back to the driver. Finance can retry it once the account is resolved.
+
+**Response 200 (list):** paginated, newest first, with `meta` (`current_page`, `last_page`, `per_page`, `total`). Approve, reject and retry return the same payout object as `payout`.
+```json
+{
+  "payouts": [
+    {
+      "id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+      "amount": 500000,
+      "status": "paid",
+      "status_label": "Paid",
+      "requested_at": "2026-10-15T09:00:00+00:00",
+      "approved_at": "2026-10-15T09:20:00+00:00",
+      "paid_at": "2026-10-15T09:21:30+00:00",
+      "bank_account": {
+        "id": "01a14039-5be7-7169-8042-492e20edeb4f",
+        "bank_code": "058",
+        "bank_name": "Guaranty Trust Bank",
+        "account_number": "******6789",
+        "account_name": "BAYO AKINOLA",
+        "is_verified": true,
+        "is_primary": true,
+        "payouts_held_until": null,
+        "name_match_status": "matched",
+        "review_status": null,
+        "created_at": "2026-10-14T18:00:00+00:00"
+      },
+      "driver": { "id": "uuid", "user": { "first_name": "Bayo", "last_name": "Akinola", "...": "..." }, "...": "..." },
+      "approved_by": { "id": "uuid", "first_name": "Finance", "last_name": "Admin", "...": "..." },
+      "gateway_transfer_id": "476948",
+      "needs_attention": false,
+      "attention_reason": null,
+      "provider_status": "success",
+      "bank_account_block": null,
+      "created_at": "2026-10-15T09:00:00+00:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+| Field | Notes |
+|-------|-------|
+| `failure_reason` | Only present when set (failed, rejected or reversed payouts) |
+| `approved_at`, `paid_at` | Only present once the payout was approved / paid |
+| `driver`, `approved_by` | Admin only; `approved_by` only when an admin approved it (absent for weekly auto-payouts) |
+| `gateway_transfer_id` | Admin only: Paystack's transfer id (numeric, as a string), `null` until the transfer is created; use it to find the transfer in the Paystack dashboard |
+| `needs_attention`, `attention_reason`, `provider_status` | Admin only, see below |
+| `bank_account_block` | Admin only, see the 409 above |
+
+Drivers (`GET /driver/payouts`) see the same object without the admin-only fields.
+
 Admin payout objects include **`needs_attention: true`** when a payout has been `approved` for more than 10 minutes without being sent, or `processing` for more than 30 minutes without a result — show the **check status** action for those. They also carry:
 
 - `attention_reason`: `awaiting_otp` (Paystack is holding the transfer for an OTP: turn off transfer OTP in the Paystack dashboard, then check status), `not_sent`, `unconfirmed`, or `null`. `awaiting_otp` is flagged immediately, not after the delay.
@@ -11082,6 +11206,65 @@ Asks Paystack about the payout's transfer reference and settles the payout accor
 **Response 502:** `"Could not reach the payment provider. Try again shortly."` — nothing is changed.
 
 `export` streams a CSV (`from` and `to` dates are required) with payout ID, driver, bank code, masked account number, amount (kobo), status, requested and paid times.
+
+### Payout Accounts
+
+```
+GET  /admin/payout-accounts?review_status=pending&name_match_status=mismatch&on_hold=1&search=obi&per_page=20
+GET  /admin/payout-accounts/{bank_account_id}
+POST /admin/payout-accounts/{bank_account_id}/approve
+POST /admin/payout-accounts/{bank_account_id}/reject
+POST /admin/payout-accounts/{bank_account_id}/release-hold
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance; Support can list and view only.
+
+Drivers' payout bank accounts with their payout safeguards: accounts whose name did not match the driver's verified name wait here for review (listed first), and recently changed accounts are on hold. Every action is audited (`bank_account.review_approved`, `bank_account.review_rejected`, `bank_account.hold_released`) and approve/reject notify the driver (`payout_account_reviewed`).
+
+**Filters:** `review_status` (`pending`, `approved`, `rejected`), `name_match_status` (`matched`, `mismatch`), `on_hold` (`1` held now, `0` not held), `search` (account name, driver name or phone).
+
+**Response 200 (list):**
+```json
+{
+  "payout_accounts": [
+    {
+      "id": "uuid",
+      "bank_code": "058",
+      "bank_name": "Guaranty Trust Bank",
+      "account_number": "******4321",
+      "account_name": "JOHN DOE",
+      "is_verified": true,
+      "is_primary": true,
+      "payouts_held_until": "2026-10-17T13:05:00+00:00",
+      "name_match_status": "mismatch",
+      "review_status": "pending",
+      "created_at": "2026-10-16T13:05:00+00:00",
+      "verified_name": "Ada Chioma Obi",
+      "review_note": null,
+      "reviewed_at": null,
+      "reviewed_by": null,
+      "payout_block": { "code": "payout_account_under_review", "message": "…", "payouts_held_until": null },
+      "driver": { "id": "uuid", "name": "Ada Obi", "phone": "+2348012345678", "kyc_status": "verified" }
+    }
+  ],
+  "summary": { "pending_review": 1, "on_hold": 3 },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+Use `summary.pending_review` for a badge on the finance menu.
+
+| Action | Body | Allowed when | Result |
+|--------|------|--------------|--------|
+| `approve` | `note` (optional, max 500) | `review_status` is `pending` or `rejected` | `approved`: payouts allowed (any hold still applies). Driver told *"Your bank account ending 4321 has been approved for payouts."* |
+| `reject` | `reason` (required, 10–500) | any account not already rejected, including one whose name matched | `rejected`: payouts refused until the driver adds another account. Driver told the reason. |
+| `release-hold` | `reason` (required, 10–500), e.g. how the driver confirmed the change | the account is on hold | Hold ends now. Use it after confirming the change with the driver. |
+
+**Response 200:** `message` and `payout_account` (same shape as a list item).
+**Response 422:** `"Only a bank account waiting for review or rejected can be approved."`, `"This bank account is already rejected."` (with `review_status`) or `"This bank account is not on hold."`
+
+**Existing accounts:** accounts saved before the name check have `name_match_status: null`. `php artisan payout-accounts:check-names` reports how they compare; with `--apply` it records the result and, in `review` mode, sends mismatches to this queue (their payouts pause until reviewed).
 
 ### Refund to Wallet
 
@@ -11152,7 +11335,10 @@ Returns current wallet configuration (merged from database overrides and config 
     "settlement_delay": "instant",
     "max_negative_balance": -500000,
     "hold_expiry_hours": 4,
-    "abandoned_topup_minutes": 30
+    "abandoned_topup_minutes": 30,
+    "payout_account_hold_hours": 24,
+    "payout_account_hold_first_account": false,
+    "payout_account_name_check": "review"
   }
 }
 ```
@@ -11167,6 +11353,9 @@ Returns current wallet configuration (merged from database overrides and config 
 | `max_negative_balance` | integer | Max negative balance for driver cash-ride commission (kobo, ≤ 0) |
 | `hold_expiry_hours` | integer | Hours before an unreleased hold expires (1–48) |
 | `abandoned_topup_minutes` | integer | Minutes before a pending top-up is marked abandoned (5–1440) |
+| `payout_account_hold_hours` | integer | Hours payouts wait after a driver replaces their bank account (0 = no hold) |
+| `payout_account_hold_first_account` | boolean | Also hold a driver's first bank account |
+| `payout_account_name_check` | string | What a bank account name mismatch does: `off` (record only), `review` (save, pause payouts until finance approves), `block` (refuse the account) |
 
 ```
 PUT /admin/settings/wallet
@@ -11189,6 +11378,9 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 | `max_negative_balance` | integer | Max: 0 (must be ≤ 0) |
 | `hold_expiry_hours` | integer | 1–48 |
 | `abandoned_topup_minutes` | integer | 5–1440 |
+| `payout_account_hold_hours` | integer | 0–168 (applies to accounts saved after the change) |
+| `payout_account_hold_first_account` | boolean | |
+| `payout_account_name_check` | string | `off`, `review` or `block` (applies to accounts saved after the change; use `payout-accounts:check-names` for existing ones) |
 
 **Response 200:**
 ```json
@@ -12025,7 +12217,8 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Cash change credited to wallet | Passenger | `cash_change_credit` |
 | Payout approved / paid / failed | Driver | `payout_approved` / `payout_paid` / `payout_failed` |
 | Payout request rejected (with reason) | Driver | `payout_rejected` |
-| Payout bank account added or changed (data: `bank_account_id`, `replaced_another`); also sent by WhatsApp/SMS regardless of preferences | Driver | `payout_account_changed` |
+| Payout bank account added or changed (data: `bank_account_id`, `replaced_another`); also sent by WhatsApp/SMS regardless of preferences. Says when payouts start or that they are paused for review | Driver | `payout_account_changed` |
+| Finance approved or rejected a payout account after the name check (data: `bank_account_id`, `review_status`) | Driver | `payout_account_reviewed` |
 
 **Payload format:**
 ```json

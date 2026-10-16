@@ -229,6 +229,11 @@
       "key": "monitoring_ride_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "payout_account_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -8038,7 +8043,7 @@
                     "bank-account"
                   ]
                 },
-                "description": "Returns the driver's primary verified bank account."
+                "description": "Returns the driver's primary verified bank account. Includes `payout_eligibility`: when `can_request_payouts` is false, disable Withdraw and show `message` (`payout_account_on_hold`, `payout_account_under_review` or `payout_account_rejected`)."
               },
               "response": [
                 {
@@ -8051,7 +8056,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"bank_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******6789\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"created_at\": \"2026-10-15T15:41:03+00:00\"\n  }\n}"
+                  "body": "{\n  \"bank_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******6789\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": null,\n    \"name_match_status\": \"matched\",\n    \"review_status\": null,\n    \"created_at\": \"2026-10-15T15:41:03+00:00\"\n  },\n  \"payout_eligibility\": {\n    \"can_request_payouts\": true,\n    \"code\": null,\n    \"message\": null,\n    \"payouts_held_until\": null\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 No Account",
@@ -8095,7 +8100,7 @@
                     "bank-account"
                   ]
                 },
-                "description": "Resolves the account with Paystack and saves it as the driver's primary payout account.\n\nEvery save needs `otp_code`, the first account included: call **Request Bank Account Code** first (non-production code: `123456`). Without it \u2192 422 `errors.otp_code`; a wrong or expired code \u2192 422 `errors.otp_code` with the reason.\n\nPaystack resolves the account before the code is checked, so a resolve failure does not use up the code. Each save notifies the driver (`payout_account_changed`, in-app and push) and sends a WhatsApp/SMS alert regardless of preferences.",
+                "description": "Resolves the account with Paystack and saves it as the driver's primary payout account.\n\nEvery save needs `otp_code`, the first account included: call **Request Bank Account Code** first (non-production code: `123456`). Without it \u2192 422 `errors.otp_code`; a wrong or expired code \u2192 422 `errors.otp_code` with the reason.\n\nPaystack resolves the account before the code is checked, so a resolve failure does not use up the code. Each save notifies the driver (`payout_account_changed`, in-app and push) and sends a WhatsApp/SMS alert regardless of preferences.\n\nPayout safeguards: the response has `payout_eligibility` (`can_request_payouts`, `code`, `message`, `payouts_held_until`). A replacement account is held for the `payout_account_hold_hours` wallet setting (default 24); a name mismatch is saved for finance review (default) or refused in `block` mode (422 `code: payout_account_name_mismatch`, code not used up). **Sets `{{payout_account_id}}`.**",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"otp_code\": \"123456\"\n}"
@@ -8112,7 +8117,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******6789\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"created_at\": \"2026-10-15T15:41:03+00:00\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******6789\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": \"2026-10-17T13:05:00+00:00\",\n    \"name_match_status\": \"matched\",\n    \"review_status\": null,\n    \"created_at\": \"2026-10-15T15:41:03+00:00\"\n  },\n  \"payout_eligibility\": {\n    \"can_request_payouts\": false,\n    \"code\": \"payout_account_on_hold\",\n    \"message\": \"For your security, payouts to a newly added bank account start 17 Oct 2026, 2:05 PM (Lagos time).\",\n    \"payouts_held_until\": \"2026-10-17T13:05:00+00:00\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Code Required",
@@ -8125,6 +8130,35 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.\",\n  \"errors\": {\n    \"otp_code\": [\n      \"Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Name Mismatch (block mode)",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This account is in the name JOHN DOE, which does not match your verified name Bayo Akinola. Payouts can only go to a bank account in your own name.\",\n  \"code\": \"payout_account_name_mismatch\",\n  \"errors\": {\n    \"account_number\": [\n      \"This account is in the name JOHN DOE, which does not match your verified name Bayo Akinola. Payouts can only go to a bank account in your own name.\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('payout_account_id', data.bank_account.id); } catch (e) {}"
+                    ]
+                  }
                 }
               ]
             },
@@ -8203,7 +8237,7 @@
                     "resolve"
                   ]
                 },
-                "description": "Looks up the account holder's name for a bank code + 10-digit account number so the driver can confirm it before saving. Nothing is stored. Rate limited to 30 requests per minute.",
+                "description": "Looks up the account holder's name for a bank code + 10-digit account number so the driver can confirm it before saving. Nothing is stored. Rate limited to 30 requests per minute.\n\nAlso returns `name_check` (the account name compared with the driver's verified name; `outcome` `ok`, `review` or `blocked`, with a `message` to show) and `payout_hold` (whether saving this account holds payouts, for how many hours). Show both before asking for the code.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\"\n}"
@@ -8220,7 +8254,19 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"account_name\": \"BAYO AKINOLA\"\n}"
+                  "body": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"account_name\": \"BAYO AKINOLA\",\n  \"name_check\": {\n    \"status\": \"matched\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"outcome\": \"ok\",\n    \"message\": null\n  },\n  \"payout_hold\": {\n    \"applies\": true,\n    \"hours\": 24,\n    \"message\": \"For your security, payouts to this account will start 24 hours after you save it.\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Name Mismatch (review mode)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"account_name\": \"JOHN DOE\",\n  \"name_check\": {\n    \"status\": \"mismatch\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"outcome\": \"review\",\n    \"message\": \"This account is in the name JOHN DOE, which does not match your verified name Bayo Akinola. You can still save it, but payouts will be paused until E-tiGo checks it. Use an account in your own name to be paid without delay.\"\n  },\n  \"payout_hold\": {\n    \"applies\": false,\n    \"hours\": 0,\n    \"message\": null\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Cannot Resolve",
@@ -8681,7 +8727,7 @@
                     "payouts"
                   ]
                 },
-                "description": "Driver requests a withdrawal (kobo, at least the `min_payout` wallet setting, default 100000 = \u20a61,000) to their verified bank account. **Sets `{{payout_id}}`.**\n\nLifecycle: `requested` \u2192 `approved` (finance) \u2192 `processing` (transfer sent) \u2192 `paid`, or `rejected` / `failed` / `reversed`. The money leaves the available balance when the transfer is sent; a failed or reversed transfer returns it. If Paystack cannot be reached, answers with a server error or never confirms, the payout stays `approved` or `processing` with the money reserved until Paystack's answer is known (checked automatically every 15 minutes); it is never lost or paid twice. One open payout at a time (422), rate limit 3/min.",
+                "description": "Driver requests a withdrawal (kobo, at least the `min_payout` wallet setting, default 100000 = \u20a61,000) to their verified bank account. **Sets `{{payout_id}}`.**\n\nLifecycle: `requested` \u2192 `approved` (finance) \u2192 `processing` (transfer sent) \u2192 `paid`, or `rejected` / `failed` / `reversed`. The money leaves the available balance when the transfer is sent; a failed or reversed transfer returns it. If Paystack cannot be reached, answers with a server error or never confirms, the payout stays `approved` or `processing` with the money reserved until Paystack's answer is known (checked automatically every 15 minutes); it is never lost or paid twice. One open payout at a time (422), rate limit 3/min. Blocked by a payout safeguard on the bank account \u2192 422 with `code` (`payout_account_on_hold`, `payout_account_under_review`, `payout_account_rejected`) and `payouts_held_until`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"amount\": 500000\n}"
@@ -8711,6 +8757,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"You already have a pending payout request.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Bank Account On Hold",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"code\": \"payout_account_on_hold\",\n  \"message\": \"For your security, payouts to a newly added bank account start 17 Oct 2026, 2:05 PM (Lagos time).\",\n  \"payouts_held_until\": \"2026-10-17T13:05:00+00:00\"\n}"
                 }
               ],
               "event": [
@@ -16881,7 +16939,7 @@
                     }
                   ]
                 },
-                "description": "Paginated payout requests. Filters: `status`, `search` (driver name/email), `from`/`to` (date range).\n\n`needs_attention` is `true` when the transfer outcome has been unconfirmed for longer than usual: approved for over 10 minutes without being sent, or processing for over 30 minutes without Paystack's confirmation. Show a **Check status** button for those payouts that calls *Check Payout Status (Paystack)*.\n\n`attention_reason` explains the flag: `awaiting_otp` (Paystack is holding the transfer for an OTP; turn off transfer OTP in the Paystack dashboard, then check status; flagged immediately), `not_sent` or `unconfirmed`. `provider_status` is Paystack's last reported status for the transfer."
+                "description": "Paginated payout requests. Filters: `status`, `search` (driver name/email), `from`/`to` (date range).\n\n`needs_attention` is `true` when the transfer outcome has been unconfirmed for longer than usual: approved for over 10 minutes without being sent, or processing for over 30 minutes without Paystack's confirmation. Show a **Check status** button for those payouts that calls *Check Payout Status (Paystack)*.\n\n`attention_reason` explains the flag: `awaiting_otp` (Paystack is holding the transfer for an OTP; turn off transfer OTP in the Paystack dashboard, then check status; flagged immediately), `not_sent` or `unconfirmed`. `provider_status` is Paystack's last reported status for the transfer. Each payout has `bank_account_block` (`null` or `code`, `message`, `payouts_held_until`): disable Approve/Retry when set."
               },
               "response": [
                 {
@@ -17004,7 +17062,7 @@
                     "approve"
                   ]
                 },
-                "description": "Finance approves a `requested` payout; the transfer is queued and the driver notified. The payout is locked, so two admins cannot approve it twice. Not `requested` \u2192 422."
+                "description": "Finance approves a `requested` payout; the transfer is queued and the driver notified. The payout is locked, so two admins cannot approve it twice. Not `requested` \u2192 422. Refused with 409 while the payout's bank account is on hold, under review or rejected (`code`): resolve it under **Payout Accounts** first."
               },
               "response": [
                 {
@@ -17030,6 +17088,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Payout is not in requested status.\"\n}"
+                },
+                {
+                  "name": "409 \u2014 Bank Account Under Review",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"code\": \"payout_account_under_review\",\n  \"bank_account_id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n  \"payouts_held_until\": null,\n  \"message\": \"Payouts to this bank account are blocked: its name does not match the driver's verified name. Review it under payout accounts first.\"\n}"
                 }
               ]
             },
@@ -17126,7 +17196,7 @@
                     "retry"
                   ]
                 },
-                "description": "Finance retries a `failed` or `reversed` payout; in both cases the money is back in the driver's balance. The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again. Otherwise the money is sent again under a new transfer reference (`PAYOUT-{id}-2`, `-3`, \u2026), as Paystack advises after a definite failure. Any other status \u2192 422.\n\nFor a payout stuck in `approved` or `processing`, use *Check Payout Status (Paystack)* instead."
+                "description": "Finance retries a `failed` or `reversed` payout; in both cases the money is back in the driver's balance. The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again. Otherwise the money is sent again under a new transfer reference (`PAYOUT-{id}-2`, `-3`, \u2026), as Paystack advises after a definite failure. Any other status \u2192 422.\n\nFor a payout stuck in `approved` or `processing`, use *Check Payout Status (Paystack)* instead. Refused with 409 while the payout's bank account is on hold, under review or rejected (`code`): resolve it under **Payout Accounts** first."
               },
               "response": [
                 {
@@ -17152,6 +17222,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Only failed or reversed payouts can be retried.\"\n}"
+                },
+                {
+                  "name": "409 \u2014 Bank Account Under Review",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payouts to this bank account are blocked: its name does not match the driver's verified name. Review it under payout accounts first.\",\n  \"code\": \"payout_account_under_review\",\n  \"bank_account_id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n  \"payouts_held_until\": null\n}"
                 }
               ]
             },
@@ -17259,6 +17341,289 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Could not reach the payment provider. Try again shortly.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 Finance: Payout Accounts",
+          "description": "Driver payout bank accounts and their safeguards: name-check review queue (pending first) and payout holds after an account change. Finance acts; Support can list and view. All actions are audited; approve/reject notify the driver (`payout_account_reviewed`).",
+          "item": [
+            {
+              "name": "List Payout Accounts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payout-accounts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payout-accounts"
+                  ]
+                },
+                "description": "Accounts with their safeguards, pending reviews first. Filters: `review_status` (pending, approved, rejected), `name_match_status` (matched, mismatch), `on_hold` (1/0), `search` (account name, driver name or phone), `per_page`. `summary.pending_review` is the badge count. **Sets `{{payout_account_id}}`** to the first account."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Accounts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payout_accounts\": [\n    {\n      \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n      \"bank_code\": \"058\",\n      \"bank_name\": \"Guaranty Trust Bank\",\n      \"account_number\": \"******4321\",\n      \"account_name\": \"JOHN DOE\",\n      \"is_verified\": true,\n      \"is_primary\": true,\n      \"payouts_held_until\": null,\n      \"name_match_status\": \"mismatch\",\n      \"review_status\": \"pending\",\n      \"created_at\": \"2026-10-16T13:05:00+00:00\",\n      \"verified_name\": \"Bayo Akinola\",\n      \"review_note\": null,\n      \"reviewed_at\": null,\n      \"reviewed_by\": null,\n      \"payout_block\": {\n        \"code\": \"payout_account_under_review\",\n        \"message\": \"Payouts to this account are paused while E-tiGo checks that the account name matches your verified name. We'll notify you when it's done.\",\n        \"payouts_held_until\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+2348200000001\",\n        \"kyc_status\": \"verified\"\n      }\n    }\n  ],\n  \"summary\": {\n    \"pending_review\": 1,\n    \"on_hold\": 3\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('payout_account_id', data.payout_accounts[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Payout Account",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payout-accounts/{{payout_account_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payout-accounts",
+                    "{{payout_account_id}}"
+                  ]
+                },
+                "description": "One account with its safeguards."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Account",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payout_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******4321\",\n    \"account_name\": \"JOHN DOE\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": null,\n    \"name_match_status\": \"mismatch\",\n    \"review_status\": \"pending\",\n    \"created_at\": \"2026-10-16T13:05:00+00:00\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"review_note\": null,\n    \"reviewed_at\": null,\n    \"reviewed_by\": null,\n    \"payout_block\": {\n      \"code\": \"payout_account_under_review\",\n      \"message\": \"Payouts to this account are paused while E-tiGo checks that the account name matches your verified name. We'll notify you when it's done.\",\n      \"payouts_held_until\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"kyc_status\": \"verified\"\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Approve Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payout-accounts/{{payout_account_id}}/approve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payout-accounts",
+                    "{{payout_account_id}}",
+                    "approve"
+                  ]
+                },
+                "description": "Confirms the account belongs to the driver (e.g. after speaking to them) so payouts can go to it; also reinstates a rejected account. Allowed when `review_status` is `pending` or `rejected` (else 422). Any hold still applies.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"note\": \"Joint account, confirmed by phone\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Bank account approved for payouts.\",\n  \"payout_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******4321\",\n    \"account_name\": \"JOHN DOE\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": null,\n    \"name_match_status\": \"mismatch\",\n    \"review_status\": \"approved\",\n    \"created_at\": \"2026-10-16T13:05:00+00:00\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"review_note\": \"Joint account, confirmed by phone\",\n    \"reviewed_at\": \"2026-10-16T15:00:00+00:00\",\n    \"reviewed_by\": {\n      \"id\": \"01a14039-5583-7117-91da-1400463c53eb\",\n      \"name\": \"Finance Admin\"\n    },\n    \"payout_block\": null,\n    \"driver\": {\n      \"id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"kyc_status\": \"verified\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Not Awaiting Review",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Only a bank account waiting for review or rejected can be approved.\",\n  \"review_status\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reject Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payout-accounts/{{payout_account_id}}/reject",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payout-accounts",
+                    "{{payout_account_id}}",
+                    "reject"
+                  ]
+                },
+                "description": "Refuses payouts to the account until the driver adds another. Works on any account not already rejected, including one whose name matched. `reason` (10\u2013500 chars) is shown to the driver.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"The account belongs to someone else.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Rejected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Bank account rejected.\",\n  \"payout_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******4321\",\n    \"account_name\": \"JOHN DOE\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": null,\n    \"name_match_status\": \"mismatch\",\n    \"review_status\": \"rejected\",\n    \"created_at\": \"2026-10-16T13:05:00+00:00\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"review_note\": \"The account belongs to someone else.\",\n    \"reviewed_at\": null,\n    \"reviewed_by\": null,\n    \"payout_block\": {\n      \"code\": \"payout_account_rejected\",\n      \"message\": \"E-tiGo could not confirm that this bank account is in your name. Add a bank account in your own name to receive payouts.\",\n      \"payouts_held_until\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"kyc_status\": \"verified\"\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Release Payout Hold",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payout-accounts/{{payout_account_id}}/release-hold",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payout-accounts",
+                    "{{payout_account_id}}",
+                    "release-hold"
+                  ]
+                },
+                "description": "Ends the hold on a recently changed account early, once the driver has confirmed the change. `reason` (10\u2013500 chars) is audited. Not on hold \u2192 422.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Driver confirmed the change by phone\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Released",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Payout hold released.\",\n  \"payout_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******4321\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"payouts_held_until\": null,\n    \"name_match_status\": \"matched\",\n    \"review_status\": null,\n    \"created_at\": \"2026-10-16T13:05:00+00:00\",\n    \"verified_name\": \"Bayo Akinola\",\n    \"review_note\": null,\n    \"reviewed_at\": null,\n    \"reviewed_by\": null,\n    \"payout_block\": null,\n    \"driver\": {\n      \"id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"kyc_status\": \"verified\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Not On Hold",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This bank account is not on hold.\"\n}"
                 }
               ]
             }
@@ -18460,7 +18825,7 @@
                     "wallet"
                   ]
                 },
-                "description": "Returns wallet configuration: top-up limits, balance caps, payout minimums, settlement delays, and hold expiry."
+                "description": "Returns wallet configuration: top-up limits, balance caps, payout minimums, settlement delays, and hold expiry. Includes the payout account safeguards: `payout_account_hold_hours` (0 = no hold), `payout_account_hold_first_account`, `payout_account_name_check` (`off`, `review`, `block`)."
               },
               "response": [
                 {
@@ -18473,7 +18838,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\"\n  }\n}"
                 }
               ]
             },
@@ -18506,7 +18871,7 @@
                     "wallet"
                   ]
                 },
-                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values.",
+                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values. Payout account safeguards: `payout_account_hold_hours` (0\u2013168), `payout_account_hold_first_account` (boolean), `payout_account_name_check` (`off`, `review`, `block`); they apply to accounts saved afterwards.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"min_topup\": 100000,\n  \"max_balance\": 100000000,\n  \"settlement_delay\": \"instant\"\n}"
@@ -18523,7 +18888,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Wallet settings updated.\",\n  \"settings\": {\n    \"min_topup\": 100000,\n    \"max_balance\": 100000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30\n  }\n}"
+                  "body": "{\n  \"message\": \"Wallet settings updated.\",\n  \"settings\": {\n    \"min_topup\": 100000,\n    \"max_balance\": 100000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Inconsistent Limits",

@@ -10,6 +10,7 @@ use App\Jobs\ProcessPayoutTransferJob;
 use App\Models\AuditLog;
 use App\Models\Payout;
 use App\Notifications\PayoutStatusNotification;
+use App\Services\PayoutAccountSafeguards;
 use App\Services\PayoutReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,8 +65,12 @@ class AdminPayoutController extends Controller
         ]);
     }
 
-    public function approve(Request $request, Payout $payout): JsonResponse
+    public function approve(Request $request, Payout $payout, PayoutAccountSafeguards $safeguards): JsonResponse
     {
+        if ($blocked = $this->blockedByAccount($payout, $safeguards)) {
+            return $blocked;
+        }
+
         $approved = DB::transaction(function () use ($request, $payout) {
             $payout = Payout::lockForUpdate()->find($payout->id);
 
@@ -137,8 +142,12 @@ class AdminPayoutController extends Controller
         return response()->json(['message' => 'Payout rejected.']);
     }
 
-    public function retry(Request $request, Payout $payout): JsonResponse
+    public function retry(Request $request, Payout $payout, PayoutAccountSafeguards $safeguards): JsonResponse
     {
+        if ($blocked = $this->blockedByAccount($payout, $safeguards)) {
+            return $blocked;
+        }
+
         $retried = DB::transaction(function () use ($request, $payout) {
             $payout = Payout::lockForUpdate()->find($payout->id);
 
@@ -243,5 +252,29 @@ class AdminPayoutController extends Controller
         }, 'payouts-export-'.now()->format('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
         ]);
+    }
+
+    /**
+     * Money must not go to an account that is on hold, waiting for its name
+     * check or rejected. Finance resolves that under /admin/payout-accounts first.
+     */
+    private function blockedByAccount(Payout $payout, PayoutAccountSafeguards $safeguards): ?JsonResponse
+    {
+        $block = $payout->bankAccount ? $safeguards->blockFor($payout->bankAccount) : null;
+
+        if (! $block) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Payouts to this bank account are blocked: '.match ($block['code']) {
+                PayoutAccountSafeguards::ON_HOLD => 'it was added recently and is on hold until '.$block['payouts_held_until'].'. Release the hold under payout accounts if the driver confirmed the change.',
+                PayoutAccountSafeguards::UNDER_REVIEW => 'its name does not match the driver\'s verified name. Review it under payout accounts first.',
+                default => 'it was rejected in the name check.',
+            },
+            'code' => $block['code'],
+            'bank_account_id' => $payout->bank_account_id,
+            'payouts_held_until' => $block['payouts_held_until'],
+        ], 409);
     }
 }
