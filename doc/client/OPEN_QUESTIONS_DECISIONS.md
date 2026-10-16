@@ -2,7 +2,7 @@
 
 **Phase 1 & Phase 2 Backend — Decision Record for All Outstanding Questions**
 
-**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.0 | **Status:** All Phase 1 decisions resolved and implemented; Phase 2 scheduled-ride defaults awaiting client confirmation
+**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.1 | **Status:** All Phase 1 decisions resolved and implemented; Phase 2 scheduled-ride defaults and Phase 2 recommendations awaiting client confirmation
 
 ---
 
@@ -12,9 +12,9 @@
 
 This document records the decisions for all **26 Phase 1 open questions** identified during E-tiGo backend development, and the **Phase 2 questions** raised so far. Every Phase 1 question has been resolved and the corresponding code has been implemented and verified.
 
-Phase 1 questions are grouped into five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (9). Phase 2 adds **Scheduled Rides** (7 questions, built with industry-standard defaults and awaiting client confirmation) and **5 other Phase 2 questions** that are still open.
+Phase 1 questions are grouped into five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (9). Phase 2 adds **Scheduled Rides** (7 questions, built with industry-standard defaults and awaiting client confirmation) and **5 other Phase 2 questions** (OQ-18 to OQ-22), which now have engineering recommendations awaiting client confirmation.
 
-Items tagged <span class="badge new">NEW</span> are new in this version (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026). All other decisions are unchanged.
+Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026); in version 4.1 (16 October 2026) the five open Phase 2 questions OQ-18 to OQ-22 received recommendations. All other decisions are unchanged.
 
 </div>
 
@@ -55,8 +55,12 @@ Items tagged <span class="badge new">NEW</span> are new in this version (16 Octo
     - OQ-33 — Regulatory Compliance
 6. **Phase 2 — Scheduled Rides** <span class="badge new">NEW</span>
     - SR-1 to SR-7
-7. **Phase 2 — Other Open Questions** <span class="badge new">NEW</span>
-    - OQ-18 to OQ-22
+7. **Phase 2 — Other Questions** <span class="badge updated">UPDATED</span>
+    - OQ-18 — Third-Party Bookings: PIN and Tracking
+    - OQ-19 — Vehicle Charging & Maintenance Scope
+    - OQ-20 — Driver Scheduling Model
+    - OQ-21 — Dispute Escalation Tiers and Ownership
+    - OQ-22 — Cities and Target Dates
 8. **Decision Summary Matrix**
 9. **Action Items & Next Steps**
 
@@ -496,17 +500,82 @@ How many bookings can one driver reserve, and how is the reserved pickup protect
 
 ---
 
-<h2 class="section">G. Phase 2 — Other Open Questions <span class="badge new">NEW</span></h2>
+<h2 class="section">G. Phase 2 — Other Questions <span class="badge updated">UPDATED</span></h2>
 
-These were listed in the PRD for Phase 2 and are still **unresolved**. Each must be decided before its feature is built.
+These five questions were listed in the PRD for Phase 2 and blocked their features. Engineering has now answered each one with an industry-standard default that operations can change later as a setting. **All five are recommendations awaiting client confirmation.** Please confirm or change them before the Phase 2 build starts (Week 9); if there is no answer by then, engineering builds to these defaults, which remain changeable settings. OQ-22 also needs the client's target dates: no new city goes live without one. Options, intervals and the full list of edge cases: [Phase 2 Decisions — Quick Reference](PHASE2_DECISIONS.md).
 
-| # | Question | Affects |
-|---|----------|---------|
-| OQ-18 | Who receives the PIN and live tracking for third-party bookings (booker, rider or both)? | Third-party bookings (BE2-3P-04) |
-| OQ-19 | Vehicle charging and maintenance: EV-specific, general, or both? | Vehicle maintenance (BE2-VEH-01) |
-| OQ-20 | Driver scheduling: shift scheduling or availability planning? | Driver shifts (BE2-SHIFT-01) |
-| OQ-21 | Dispute escalation tiers and ownership? | Advanced disputes (BE2-DISP-05) |
-| OQ-22 | Which cities are being activated, and on what target date? | Multi-city support (BE2-CITY-01) |
+### OQ-18 — Third-Party Bookings: PIN and Tracking <span class="badge updated">UPDATED</span>
+
+#### Question
+When a passenger books a ride for someone else, who receives the ride PIN and the live tracking: the booker, the rider, or both?
+
+#### Industry Benchmark
+Uber: the rider gets a text with the driver's details and a tracking link and does not need the app; the booker follows the trip in their own app. Bolt reports that 2–6% of its rides are booked for someone else.
+
+#### Engineering Recommendation
+> **Both receive the PIN and the tracking** (operations can switch either to rider-only or booker-only).
+>
+> - The rider gets a WhatsApp message (SMS fallback) with the booker's first name, the driver, car and plate, the PIN and a tracking link that works without the app
+> - The booker sees the same PIN and live map in the app
+> - If the rider's message cannot be delivered, the booker is always shown the PIN, so the ride can still start
+> - The booker pays by wallet or card only (cash off by default, because the payer is not in the car); up to 2 active third-party rides per booker; 10 different rider numbers per booker per day
+> - The setting is saved on each ride at booking, so a change never affects rides already booked
+
+### OQ-19 — Vehicle Charging & Maintenance Scope <span class="badge updated">UPDATED</span>
+
+#### Question
+Should vehicle charging and maintenance tracking be EV-specific, general, or both?
+
+#### Engineering Recommendation
+> **Both, chosen automatically from the vehicle's fuel type.**
+>
+> - Every vehicle: routine service (every 5,000 km or 3 months), tyres and brakes (6 months), and the expiry of insurance, roadworthiness and vehicle licence
+> - Electric and plug-in hybrid vehicles also get a yearly battery health check and charging status
+> - Records belong to the vehicle, not the driver, so they follow the car if it changes hands
+> - Overdue service only warns. Expired legal papers block going online after a 7-day grace period, never during a trip
+
+### OQ-20 — Driver Scheduling Model <span class="badge updated">UPDATED</span>
+
+#### Question
+Should driver scheduling be assigned shifts or availability planning?
+
+#### Industry Benchmark
+Uber and Bolt do not schedule drivers. DoorDash lets independent couriers book time slots voluntarily, and they can still work without one.
+
+#### Engineering Recommendation
+> **Availability planning for all drivers; assigned shifts only for E-tiGo fleet cars shared between drivers.**
+>
+> - Planning is voluntary: no penalty for skipping a plan, and drivers can always go online. Operations use plans to spot gaps
+> - Shift mode is switched on per fleet car. The driver can go online 15 minutes before their shift; new offers stop 15 minutes before it ends; a shift not started within 30 minutes is marked missed and operations are alerted (no automatic fine)
+> - Forcing shifts on independent drivers would make them look like employees, a legal risk
+
+### OQ-21 — Dispute Escalation Tiers and Ownership <span class="badge updated">UPDATED</span>
+
+#### Question
+What are the dispute escalation tiers, and who owns each?
+
+#### Engineering Recommendation
+> **Three tiers, with a fast track for safety.**
+>
+> - Tier 1, Support agent: all new disputes; refunds up to ₦5,000
+> - Tier 2, Support lead (a new admin role): escalations, appeals, missed deadlines, refunds up to ₦50,000
+> - Tier 3, Super admin: larger refunds, permanent deactivation, legal and press cases, final appeals
+> - Safety concerns go straight to the Safety team with a 1-hour first-response target
+> - Tier 1 cases not resolved in 72 hours escalate automatically. No admin approves their own refund. One appeal within 7 days, to a different reviewer one tier up
+
+### OQ-22 — Cities and Target Dates <span class="badge updated">UPDATED</span>
+
+#### Question
+Which cities are being activated, and on what target date?
+
+#### Engineering Recommendation
+> **Lagos → Abuja → Port Harcourt → Ibadan, each launched when it passes a readiness checklist. The dates are the client's decision.**
+>
+> - Checklist: map boundary with no overlaps, prices for every class, at least 30 approved drivers, support and safety cover, state permits, charging stations for EV classes
+> - Suggested: Abuja no earlier than 6 weeks after Lagos is stable; Port Harcourt the following quarter
+> - Replace the city on/off switch with three states (onboarding, live, paused) so drivers can be recruited before passengers can book
+> - Pausing a city lets trips in progress finish and, by default, still serves scheduled bookings
+> - No database changes are needed: all Nigerian cities share Lagos time and the naira
 
 ---
 
@@ -547,11 +616,11 @@ These were listed in the PRD for Phase 2 and are still **unresolved**. Each must
 | SR-5 | Late cancel, cash bookings | Waived | Client decision needed |
 | SR-6 | Driver release penalties | None; tracked | Client decision needed |
 | SR-7 | Driver reservation limits | 5 per driver, 60 min apart, 60-min protection | Built — awaiting client confirmation |
-| OQ-18 | Third-party PIN/tracking | — | Open |
-| OQ-19 | Vehicle maintenance scope | — | Open |
-| OQ-20 | Driver scheduling model | — | Open |
-| OQ-21 | Dispute escalation tiers | — | Open |
-| OQ-22 | Cities and target date | — | Open |
+| OQ-18 | Third-party PIN/tracking | Both rider and booker; wallet/card only | Recommended — awaiting client confirmation |
+| OQ-19 | Vehicle maintenance scope | Both: general for all, EV items by fuel type | Recommended — awaiting client confirmation |
+| OQ-20 | Driver scheduling model | Voluntary availability; shifts for shared fleet cars | Recommended — awaiting client confirmation |
+| OQ-21 | Dispute escalation tiers | 3 tiers + safety fast track; ₦5k / ₦50k refund limits | Recommended — awaiting client confirmation |
+| OQ-22 | Cities and target date | Abuja → Port Harcourt → Ibadan, gated by checklist | Client to set dates |
 
 ---
 
@@ -562,12 +631,14 @@ These were listed in the PRD for Phase 2 and are still **unresolved**. Each must
 | 1 | HIGH | Execute the formal sub-wallet partnership agreement with Paystack confirming regulatory coverage | Legal / BD | Before public launch |
 | 2 | HIGH | Set up `WHATSAPP_SAFETY_NUMBER` and create the `sos_emergency_alert` WhatsApp template in Meta Business Manager | Ops / Eng | Before public launch |
 | 3 | HIGH | Confirm or change the scheduled-ride defaults SR-1, SR-2 and SR-7, and decide on the fees SR-3 to SR-6 | Client / Product | Before scheduled rides are announced |
-| 4 | MED | Coordinate with the mobile teams: (a) 112 auto-dial via `auto_dial_emergency`, (b) force-update gate via `/api/v1/config`, (c) the new `scheduled` ride status and scheduled-ride screens (see FRONTEND_UPDATE_SCHEDULED_RIDES.md) | Mobile Team | Next sprint |
-| 5 | MED | Confirm the wallet-tips change (OQ-32) | Client / Product | Next review |
-| 6 | LOW | Design the Phase 2 "apply to charge" onboarding form for external EV station partners | Product | Phase 2 planning |
-| 7 | LOW | Decide the on-demand cancellation fee for Phase 2 (OQ-05 recommendation: ₦300–₦500 flat after a 60-second grace window) | Product | Phase 2 planning |
-| 8 | LOW | Decide OQ-18 to OQ-22 before building the corresponding Phase 2 features | Client / Product | Phase 2 planning |
+| 4 | HIGH | Confirm the OQ-18 to OQ-21 recommendations (or pick another option in the Phase 2 Decisions report) and give the target date for each new city (OQ-22) | Client / Product | Before Phase 2 build (Week 9); defaults are built if no answer |
+| 5 | MED | Coordinate with the mobile teams: (a) 112 auto-dial via `auto_dial_emergency`, (b) force-update gate via `/api/v1/config`, (c) the new `scheduled` ride status and scheduled-ride screens (see FRONTEND_UPDATE_SCHEDULED_RIDES.md) | Mobile Team | Next sprint |
+| 6 | MED | Confirm the wallet-tips change (OQ-32) | Client / Product | Next review |
+| 7 | MED | Name the Support Lead(s) for dispute tier 2 and say which fleet cars are shared between drivers | Operations | Before Phase 2 build |
+| 8 | MED | Confirm the state permits needed in Abuja (FCT) and Rivers State | Legal | Before each city launch |
+| 9 | LOW | Design the Phase 2 "apply to charge" onboarding form for external EV station partners | Product | Phase 2 planning |
+| 10 | LOW | Decide the on-demand cancellation fee for Phase 2 (OQ-05 recommendation: ₦300–₦500 flat after a 60-second grace window) | Product | Phase 2 planning |
 
 ---
 
-<p class="footer">E-tiGo — Open Questions Decision Report v4.0 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | 7 scheduled-ride questions awaiting confirmation | 5 Phase 2 questions open</p>
+<p class="footer">E-tiGo — Open Questions Decision Report v4.1 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | 7 scheduled-ride questions awaiting confirmation | 5 Phase 2 recommendations awaiting confirmation</p>
