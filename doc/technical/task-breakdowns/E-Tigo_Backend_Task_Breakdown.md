@@ -938,7 +938,7 @@
 | BE2-SCH-11 | `[x]` Dispatch straight to the reserved driver when online, fresh location, free and eligible; otherwise release and fall back to matching (`RideService::assignReservedDriver`) | B-27 | BE2-SCH-10 | No offer round; `driver_unavailable` release notifies both |
 | BE2-SCH-12 | `[x]` Protect reserved pickups: no on-demand offers to a driver within 60 min of their reserved pickup; driver reminder 60 min before | B-27 | BE2-SCH-10 | `driver_reservation_buffer_minutes` |
 | BE2-SCH-13 | `[x]` Admin pre-assignment — `POST/DELETE /admin/scheduled-rides/{ride}/assign` | A-33 | BE2-SCH-10 | Assign, move or remove a driver before dispatch |
-| BE2-SCH-14 | `[x]` Reservation fee added to scheduled quotes and the final fare | B-27 | BE2-SCH-03 | ₦0 (off) by default: Bolt and Lyft charge none; client to decide (SR-3) |
+| BE2-SCH-14 | `[x]` Reservation fee added to scheduled quotes and the final fare | B-27 | BE2-SCH-03 | ₦0 (off) by default: Uber Reserve charges one, but we found none for Bolt or Lyft; client to decide (SR-3) |
 | BE2-SCH-15 | `[x]` Late-cancellation fee on reserved bookings (`ScheduledRideCancellationFeeService`, `ChargeScheduledRideCancellationFeeJob`) | B-27 | BE2-SCH-10 | ₦0 (off) by default per OQ-05. Within 60 min of pickup; driver gets it in full; wallet/card only (cash waived); safety reasons exempt; shown in advance as `cancellation_fee_if_cancelled_now` |
 
 ---
@@ -1033,7 +1033,7 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-05 | Does Phase 1 include a cancellation fee, and under what conditions? | BE-RIDE-06 | `[x]` **Resolved:** No cancellation fee in Phase 1. Riders may cancel freely at any point. `ride.free_cancellation_window_seconds` retained in config for future use when cancellation fees are introduced |
+| OQ-05 | Does Phase 1 include a cancellation fee, and under what conditions? | BE-RIDE-06 | `[x]` **Resolved:** No cancellation fee in Phase 1. Riders may cancel freely at any point. `ride.free_cancellation_window_seconds` retained in config for future use when cancellation fees are introduced. **Update (16 Oct 2026):** the scheduled-ride late-cancellation fee is built but ₦0 (off) to respect this; see SR-4 |
 | OQ-06 | How and how often are driver earnings paid out? | BE-PAY (payout logic) | `[x]` **Resolved:** On-demand payout requests by driver (`PayoutController@store`) with Admin approval (`AdminPayoutController@approve`); processed via Paystack Transfer API. Weekly auto-payout (Monday 6 AM) available as driver opt-in. Admin can configure payout frequency and thresholds via `AdminWalletSettingsController` |
 | OQ-07 | Single Admin role or role-based tiers (Ops/Support/Finance/Safety)? | SETUP-35, SETUP-52 | `[x]` **Resolved:** Role-based tiers implemented — super_admin, operations, safety_operator, support, finance; enforced via `EnsureAdminRole` middleware |
 | OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | BE-RATE-09 | `[x]` **Resolved:** `AdminRefundController@refundToWallet` — `POST /api/v1/admin/rides/{ride}/refund` issues full or partial refund to passenger wallet via `WalletRefundService`; linked to dispute if one exists; claws back driver earnings via `WalletRefundService@clawbackDriverEarnings()` |
@@ -1072,6 +1072,8 @@
 
 ### Phase 2 Decisions
 
+Phase 1 and Phase 2 decisions, with industry benchmarks, are also published for the client in [OPEN_QUESTIONS_DECISIONS.md](../../client/OPEN_QUESTIONS_DECISIONS.md) / `.pdf`; scheduled-ride reasoning in [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md) / `.pdf`.
+
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
 | OQ-18 | Who receives PIN/tracking for third-party bookings? | BE2-3P-04 | `[ ]` Unresolved |
@@ -1079,7 +1081,13 @@
 | OQ-20 | Driver scheduling: shift scheduling or availability planning? | BE2-SHIFT-01 | `[ ]` Unresolved |
 | OQ-21 | Dispute escalation tiers and ownership? | BE2-DISP-05 | `[ ]` Unresolved |
 | OQ-22 | Which cities are being activated and target date? | BE2-CITY-01 | `[ ]` Unresolved |
-| SR-1–SR-7 | Scheduled rides: booking window, dispatch timing, reservation fee, late-cancellation fee (exception to OQ-05?), cash late-cancel handling, driver release penalties, per-passenger/driver limits | BE2-SCH-* | `[~]` Built with industry-standard defaults, fees off; awaiting client confirmation — see [SCHEDULED_RIDES_DECISIONS.md §6](../../client/SCHEDULED_RIDES_DECISIONS.md#6-decisions-needed-from-the-client) |
+| SR-1 | Scheduled rides: booking window? | BE2-SCH-03 | `[~]` Built with default 30 min – 7 days ahead; 5 upcoming bookings per passenger, 30 min apart. Awaiting client confirmation |
+| SR-2 | Scheduled rides: when does matching start and how long does it search? | BE2-SCH-04 | `[~]` Built with default 15 min before pickup; search until 10 min after (never less than the standard 5 min). Awaiting client confirmation |
+| SR-3 | Reservation fee for booking ahead? | BE2-SCH-14 | `[ ]` Built, ₦0 (off). Uber Reserve charges one; we found none for Bolt or Lyft. Client to decide |
+| SR-4 | Late-cancellation fee on driver-reserved bookings (exception to OQ-05)? | BE2-SCH-15 | `[ ]` Built, ₦0 (off); 60-min window, paid in full to the driver, safety reasons exempt. Suggested ₦1,500 if enabled. Client to decide |
+| SR-5 | Late cancellations of cash/bank-transfer bookings: waive or balance due? | BE2-SCH-15 | `[ ]` Waived (wallet/card only). Client to decide |
+| SR-6 | Penalise drivers who often release reservations? | BE2-SCH-10 | `[ ]` No penalty; tracked in the audit log. Client to decide |
+| SR-7 | Driver reservation limits? | BE2-SCH-10, BE2-SCH-12 | `[~]` Built with default 5 per driver, 60 min apart, no on-demand offers 60 min before. Awaiting client confirmation |
 
 ---
 
