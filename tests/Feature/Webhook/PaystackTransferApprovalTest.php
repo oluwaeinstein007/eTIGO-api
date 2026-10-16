@@ -203,3 +203,13 @@ it('logs where things are in a rejected request but not the bank details', funct
         ])
         ->and(json_encode($critical[0]->context))->not->toContain('0123456789')->not->toContain('Ada Driver');
 });
+
+it('rejects a request too large to check fully instead of approving the transfers found first', function () {
+    $payout = payoutBeingSent();
+
+    $this->postJson('/api/v1/webhooks/paystack/transfer-approval', ['data' => [
+        approvalRequest($payout),
+        ...array_fill(0, 1000, ['padding' => [1]]),
+        approvalRequest($payout, ['reference' => 'ATTACKER-1', 'recipient' => 'RCP_attacker']),
+    ]])->assertStatus(400);
+});

@@ -39,6 +39,7 @@ class PaystackTransferApprovalController extends Controller
         $transfers = $this->transfersIn($payload);
 
         $rejection = match (true) {
+            $transfers === null => 'request too large to check',
             $transfers === [] => 'no transfer found in the request',
             count($transfers) > self::MAX_TRANSFERS => 'too many transfers in one request',
             default => null,
@@ -49,6 +50,7 @@ class PaystackTransferApprovalController extends Controller
             $rejection ??= $this->rejectionReason($transfer);
         }
 
+        $transfers ??= [];
         $first = $transfers[0] ?? [];
         $context = [
             'event' => $this->loggable($payload['event'] ?? null),
@@ -95,17 +97,19 @@ class PaystackTransferApprovalController extends Controller
      * than expected at one place: every object with a "reference", at the top
      * level, under "data" or in a list (a bulk transfer), a few levels deep.
      *
-     * @return list<array<string, mixed>>
+     * The endpoint is public, so the search is bounded. A body too big to
+     * search fully returns null: approving only the transfers found before
+     * the limit could let an unchecked one through.
+     *
+     * @return list<array<string, mixed>>|null
      */
-    private function transfersIn(array $payload): array
+    private function transfersIn(array $payload): ?array
     {
         $transfers = [];
         $queue = [[$payload, 0]];
-        $visited = 0;
 
-        // The endpoint is public: bound the work an oversized body can cause.
-        while ($queue !== [] && ++$visited <= self::MAX_NODES_VISITED) {
-            [$node, $depth] = array_shift($queue);
+        for ($next = 0; $next < count($queue); $next++) {
+            [$node, $depth] = $queue[$next];
 
             if (! array_is_list($node) && array_key_exists('reference', $node)) {
                 $transfers[] = $node;
@@ -118,9 +122,15 @@ class PaystackTransferApprovalController extends Controller
             }
 
             foreach ($node as $child) {
-                if (is_array($child)) {
-                    $queue[] = [$child, $depth + 1];
+                if (! is_array($child)) {
+                    continue;
                 }
+
+                if (count($queue) >= self::MAX_NODES_VISITED) {
+                    return null;
+                }
+
+                $queue[] = [$child, $depth + 1];
             }
         }
 
