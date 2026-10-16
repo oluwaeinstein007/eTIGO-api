@@ -502,7 +502,7 @@ How many bookings can one driver reserve, and how is the reserved pickup protect
 
 <h2 class="section">G. Phase 2 — Other Questions <span class="badge updated">UPDATED</span></h2>
 
-These five questions were listed in the PRD for Phase 2 and blocked their features. Engineering has now answered each one with an industry-standard default that operations can change later as a setting. **All five are recommendations awaiting client confirmation**; OQ-22 also needs the client's target dates. Options, intervals and the full list of edge cases: [Phase 2 Decisions — Quick Reference](PHASE2_DECISIONS.md).
+These five questions were listed in the PRD for Phase 2 and blocked their features. Engineering has now answered each one with an industry-standard default that operations can change later as a setting. **All five are recommendations awaiting client confirmation.** Please confirm or change them before the Phase 2 build starts (Week 9); if there is no answer by then, engineering builds to these defaults, which remain changeable settings. OQ-22 also needs the client's target dates: no new city goes live without one. Options, intervals and the full list of edge cases: [Phase 2 Decisions — Quick Reference](PHASE2_DECISIONS.md).
 
 ### OQ-18 — Third-Party Bookings: PIN and Tracking <span class="badge updated">UPDATED</span>
 
@@ -631,7 +631,7 @@ Which cities are being activated, and on what target date?
 | 1 | HIGH | Execute the formal sub-wallet partnership agreement with Paystack confirming regulatory coverage | Legal / BD | Before public launch |
 | 2 | HIGH | Set up `WHATSAPP_SAFETY_NUMBER` and create the `sos_emergency_alert` WhatsApp template in Meta Business Manager | Ops / Eng | Before public launch |
 | 3 | HIGH | Confirm or change the scheduled-ride defaults SR-1, SR-2 and SR-7, and decide on the fees SR-3 to SR-6 | Client / Product | Before scheduled rides are announced |
-| 4 | HIGH | Confirm the OQ-18 to OQ-21 recommendations (or pick another option in the Phase 2 Decisions report) and give the target date for each new city (OQ-22) | Client / Product | Before Phase 2 build (Week 9) |
+| 4 | HIGH | Confirm the OQ-18 to OQ-21 recommendations (or pick another option in the Phase 2 Decisions report) and give the target date for each new city (OQ-22) | Client / Product | Before Phase 2 build (Week 9); defaults are built if no answer |
 | 5 | MED | Coordinate with the mobile teams: (a) 112 auto-dial via `auto_dial_emergency`, (b) force-update gate via `/api/v1/config`, (c) the new `scheduled` ride status and scheduled-ride screens (see FRONTEND_UPDATE_SCHEDULED_RIDES.md) | Mobile Team | Next sprint |
 | 6 | MED | Confirm the wallet-tips change (OQ-32) | Client / Product | Next review |
 | 7 | MED | Name the Support Lead(s) for dispute tier 2 and say which fleet cars are shared between drivers | Operations | Before Phase 2 build |

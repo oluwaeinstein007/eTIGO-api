@@ -206,9 +206,9 @@
 
 | Section | Tasks |
 |---------|-------|
-| Phase 1 | 44 |
-| Phase 2 | 4 |
-| **Total** | **48** |
+| Phase 1 | 48 |
+| Phase 2 | 8 |
+| **Total** | **56** |
 
 ---
 

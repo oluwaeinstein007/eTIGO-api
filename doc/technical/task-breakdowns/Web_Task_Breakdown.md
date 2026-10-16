@@ -341,8 +341,8 @@
 | FE2-A3P-01 | `[ ]` Build third-party booking settings page: PIN recipient and tracking recipient (booker/rider/both, default both), allowed payment methods, per-booker limits | A-34 | 📡 BE2-3P-05 | OQ-18 recommended defaults |
 | FE2-ALF-01 | `[ ]` Build lost & found Admin queue: list of reports with trip, category, status; intervention form | A-35 | 📡 BE2-LF-07, BE2-LF-08 | — |
 | FE2-ADIS-01 | `[ ]` Build advanced dispute view: evidence viewer (photos), escalation tier badge, SLA countdown, escalate / send back (reason required), refund-request approval for higher tiers, appeal badge; Safety queue for `safety_concern` | A-36, A-37 | 📡 BE2-DISP-03, BE2-DISP-05–10 | OQ-21 recommended: 3 tiers + safety fast track. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
-| FE2-ACITY-01 | `[ ]` Build multi-city onboarding wizard: step-by-step guide for adding a new city (create city → configure pricing → activate vehicle classes → assign drivers), readiness checklist, and onboarding / live / paused state | A-38 | 📡 BE-CITY-03, BE-PRICE-02, BE-CITY-13, BE2-CITY-03, BE2-CITY-07 | OQ-22: launch gated by checklist; dates from the client |
-| FE2-ASHIFT-01 | `[ ]` Build driver shift management page: shift mode per fleet car, calendar view, assign/edit shifts, missed-shift alerts, availability-plan coverage by hour and area | A-39 | 📡 BE2-SHIFT-04, BE2-SHIFT-07 | OQ-20 recommended model |
+| FE2-ACITY-01 | `[ ]` Build multi-city onboarding wizard: step-by-step guide for adding a new city (create city → configure pricing → activate vehicle classes → assign drivers), readiness checklist, and onboarding / live / paused state | A-38 | 📡 BE-CITY-03, BE-PRICE-02, BE-CITY-13, BE2-CITY-03, BE2-CITY-07 | City rollout recommendation: launch gated by the readiness checklist; dates from the client. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) (this doc's own OQ-22 is the landing-page question) |
+| FE2-ASHIFT-01 | `[ ]` Build driver shift management page: turn shift mode on per fleet car (only cars shared by two or more drivers), calendar view, assign/edit shifts for those cars, missed-shift alerts; plus a read-only coverage view of drivers' **voluntary** availability plans by hour and area | A-39 | 📡 BE2-SHIFT-04, BE2-SHIFT-07 | OQ-20 recommended model: shifts only for shared fleet cars; availability plans never restrict drivers |
 | FE2-AVEH-01 | `[ ]` Build vehicle maintenance tracker: list of maintenance records, create/edit, overdue alerts | A-39 | 📡 BE2-VEH-04 | — |
 
 ---
@@ -399,9 +399,9 @@
 
 | App | Phase 1 Tasks | Phase 2 Tasks | Total |
 |-----|--------------|---------------|-------|
-| Admin Dashboard | 78 | 7 | 85 |
+| Admin Dashboard | 83 | 8 | 91 |
 | Landing Page | 12 | — | 12 |
-| **Total** | **90** | **7** | **97** |
+| **Total** | **95** | **8** | **103** |
 
 ---
 

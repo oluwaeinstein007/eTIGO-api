@@ -210,7 +210,7 @@
 |----|------|---------|---------|-------|
 | FE2-P3P-01 | `[ ]` Add "Book for Someone Else" toggle to booking flow: show rider name + rider phone fields when active; "rider is 18+ or accompanied" confirmation; offer only the payment methods the policy allows (wallet/card by default) | P-23 | 📡 BE2-3P-03 | Pick from contacts. Rider phone = own phone → normal ride |
 | FE2-P3P-02 | `[ ]` Build third-party ride tracking: booker's view of ride progress; show PIN and live map when the ride's policy includes the booker (default: both); show the "rider couldn't be reached — share this PIN" alert | P-24 | 📡 BE2-3P-04, BE2-3P-06 | OQ-18 recommended: PIN and tracking to both. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
-| FE2-P3P-03 | `[ ]` Build rider notification flow: WhatsApp/SMS to rider with ride details, PIN and tracking link (sent by the backend; the app shows delivery status to the booker) | P-24 | 📡 BE2-3P-04 | Messages are sent server-side; no app needed by the rider |
+| FE2-P3P-03 | `[ ]` Build rider notification flow: WhatsApp/SMS to rider with ride details, PIN and tracking link (sent by the backend); show the booker the `rider_notification_status` (pending / sent by WhatsApp / sent by SMS / delivered / failed) from the ride resource and `ride.rider_notification.updated` | P-24 | 📡 BE2-3P-04, BE2-3P-06 | Messages are sent server-side; no app needed by the rider |
 
 ---
 
@@ -247,9 +247,9 @@
 
 | Section | Tasks |
 |---------|-------|
-| Phase 1 | 70 |
-| Phase 2 | 11 |
-| **Total** | **81** |
+| Phase 1 | 66 |
+| Phase 2 | 14 |
+| **Total** | **80** |
 
 ---
 

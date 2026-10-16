@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Status:** Recommendations for the five open Phase 2 questions (OQ-18 to OQ-22). Engineering will build to these defaults unless the client picks another option. **None has been confirmed by the client yet.** Every rule is a setting operations can change later without a release, so choosing the recommended option now does not lock anything in.
+**Status:** Recommendations for the five open Phase 2 questions (OQ-18 to OQ-22). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. The exception is OQ-22: **no new city goes live without a launch date from the client.**
 
 ---
 
@@ -91,7 +91,7 @@ A passenger (the **booker**) books and pays for a ride for someone else (the **r
 |------|-----------|---------|-----------------------|
 | Routine service | All | Every **5,000 km or 3 months**, whichever comes first | Trip distance E-tiGo records, plus odometer readings the driver or workshop enters at each service |
 | Tyres & brakes check | All | Every **6 months** | Date of the last check |
-| Insurance, roadworthiness, vehicle licence | All | By **expiry date** | Uploaded document (the existing driver documents) |
+| Insurance, roadworthiness, vehicle licence | All | By **expiry date** | Uploaded document, linked to the **vehicle** (today these uploads are linked to the driver; Phase 2 links them to the car) |
 | Battery health check | Electric, plug-in hybrid | Every **12 months** | Workshop record |
 | Charging status | Electric, plug-in hybrid | Live | Charge level the driver enters when going online, plus E-tiGo charging-station sessions. A car-telematics link can come later |
 
@@ -277,7 +277,7 @@ This lets E-tiGo recruit drivers for a few weeks before passengers can book, so 
 
 | # | Action | Owner |
 |---|--------|-------|
-| 1 | Confirm or change OQ-18 to OQ-21 (pick option A, B or C for each) | Client / Product |
+| 1 | Confirm or change OQ-18 to OQ-21 (pick option A, B or C for each) before Week 9; otherwise the recommended defaults are built | Client / Product |
 | 2 | Give the target date for each new city, and confirm the driver minimum (30) | Client |
 | 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000) and who will hold the new Support Lead role | Client / Operations |
 | 4 | Say which fleet cars are shared between drivers (for shift mode) | Operations |
