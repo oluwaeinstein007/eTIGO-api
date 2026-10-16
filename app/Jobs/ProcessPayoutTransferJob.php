@@ -7,6 +7,7 @@ use App\Enums\NotificationType;
 use App\Enums\PayoutStatus;
 use App\Models\Payout;
 use App\Notifications\PayoutStatusNotification;
+use App\Services\PayoutAccountSafeguards;
 use App\Services\PayoutLedgerService;
 use App\Services\PayoutReconciliationService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -35,7 +36,7 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         return $this->payoutId;
     }
 
-    public function handle(WalletGateway $walletGateway, PayoutLedgerService $payoutLedger): void
+    public function handle(WalletGateway $walletGateway, PayoutLedgerService $payoutLedger, PayoutAccountSafeguards $safeguards): void
     {
         $payout = Payout::with(['bankAccount', 'driver.user'])->findOrFail($this->payoutId);
 
@@ -87,6 +88,13 @@ class ProcessPayoutTransferJob implements ShouldBeUnique, ShouldQueue
         }
 
         try {
+            // Checked again just before a new transfer: the account may have
+            // been put on hold, sent for review or rejected after approval,
+            // and reconciliation re-dispatches this job without asking.
+            if ($block = $safeguards->blockFor($payout->bankAccount)) {
+                throw new \DomainException($block['message']);
+            }
+
             $recipientCode = $walletGateway->createTransferRecipient(
                 $payout->bankAccount->account_number,
                 $payout->bankAccount->bank_code,

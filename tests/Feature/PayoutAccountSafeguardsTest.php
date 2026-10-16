@@ -300,6 +300,24 @@ it('refuses to retry a failed payout to an account under review', function () {
     expect($payout->fresh()->status)->toBe(PayoutStatus::Failed);
 });
 
+it('does not send an approved payout whose account was rejected before the transfer job ran', function () {
+    fundSafeguardDriver($this, 500000);
+    $account = BankAccount::factory()->create(['driver_id' => $this->driver->id, 'review_status' => BankAccountReviewStatus::Rejected]);
+    $payout = Payout::factory()->approved()->create(['driver_id' => $this->driver->id, 'bank_account_id' => $account->id, 'amount' => 200000]);
+    $gateway = Mockery::mock(WalletGateway::class);
+    $gateway->shouldNotReceive('createTransferRecipient');
+    $gateway->shouldNotReceive('initiateTransfer');
+    app()->instance(WalletGateway::class, $gateway);
+
+    app()->call([new ProcessPayoutTransferJob($payout->id), 'handle']);
+
+    $available = app(LedgerService::class)->findOrCreateAccount('App\\Models\\Driver', $this->driver->id, AccountType::DriverEarningsAvailable);
+
+    expect($payout->fresh()->status)->toBe(PayoutStatus::Failed)
+        ->and($payout->fresh()->failure_reason)->toContain('could not confirm')
+        ->and($available->availableBalance())->toBe(500000);
+});
+
 // === Finance review queue ===
 
 it('lists accounts waiting for review first, with counts', function () {
