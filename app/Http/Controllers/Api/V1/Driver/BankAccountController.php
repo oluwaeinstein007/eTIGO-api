@@ -99,6 +99,12 @@ class BankAccountController extends Controller
         ]);
     }
 
+    /**
+     * Add or replace the payout account. The account is resolved with Paystack
+     * before the code is checked, so a Paystack failure does not use up the code.
+     * Once saved, a failure to queue the change alert is reported but does not
+     * fail the request, because the account has already changed.
+     */
     public function store(StoreBankAccountRequest $request): JsonResponse
     {
         $driver = $request->user()->driver;
@@ -107,7 +113,6 @@ class BankAccountController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
-        // Resolve first: a Paystack failure must not use up the driver's code.
         try {
             $resolved = $this->walletGateway->resolveAccountNumber(
                 $request->validated('account_number'),
@@ -180,7 +185,11 @@ class BankAccountController extends Controller
             return $bankAccount;
         });
 
-        rescue(fn () => $request->user()->notify(new PayoutAccountChangedNotification($bankAccount, $replacedAnother)));
+        try {
+            $request->user()->notify(new PayoutAccountChangedNotification($bankAccount, $replacedAnother));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'message' => 'Bank account added and verified.',
