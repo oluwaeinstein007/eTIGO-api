@@ -174,9 +174,10 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-DSH-01 | `[ ]` Build shift schedule screen: calendar/list view of assigned shifts with date, start/end time, status | D-15 | 📡 BE2-SHIFT-03 | ⚠ OQ-20: UI scope depends on scheduling model decision |
+| FE2-DSH-01 | `[ ]` Build shift schedule screen (fleet cars in shift mode only): calendar/list view of assigned shifts with date, start/end time, vehicle, status; explain why going online is refused outside a shift | D-15 | 📡 BE2-SHIFT-03, BE2-SHIFT-05 | OQ-20 recommended: shifts only for shared fleet cars. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
+| FE2-DSH-03 | `[ ]` Build "My availability" screen for all drivers: add/remove planned hours and area for the coming week; clearly optional | D-15 | 📡 BE2-SHIFT-07 | Voluntary; never blocks going online |
 | FE2-DSH-02 | `[ ]` Build shift reminder notification handler | D-15 | 📡 Push notification | — |
-| FE2-DVH-01 | `[ ]` Build vehicle status/health screen: charging status (for EV), maintenance indicators (due/overdue), next service date | D-16 | 📡 BE2-VEH-03 | ⚠ OQ-19: EV-specific vs general TBD |
+| FE2-DVH-01 | `[ ]` Build vehicle status/health screen: maintenance items (service, tyres & brakes, insurance, roadworthiness, licence) with due/overdue/expired state; for electric/plug-in hybrid also battery health and charging status; charge-level prompt when going online (plug-in only); upload proof of completed maintenance | D-16 | 📡 BE2-VEH-03, BE2-VEH-04 | OQ-19 recommended: both, by fuel type. Expired papers block going online after 7-day grace |
 | FE2-DSR-01 | `[ ]` Build "Scheduled rides" screen: list bookings available to reserve (pickup time, trip, fare, passenger first name/rating) with a **Reserve** action; surface 422 reasons as returned | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides/available`, `POST /driver/scheduled-rides/{ride}/reserve`. See FRONTEND_UPDATE_SCHEDULED_RIDES.md |
 | FE2-DSR-02 | `[ ]` Build "My reservations" list with **Release**; show "be online by `dispatch_at`" | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides`, `POST /driver/scheduled-rides/{ride}/release` |
 | FE2-DSR-03 | `[ ]` Handle `scheduled_ride_reminder`, `scheduled_ride_reserved`, `scheduled_ride_reservation_released` and `ride_cancelled` (reserved booking) notifications; show `scheduled_pickup_at` on ride offers | D-12 | 📡 Push / `ride.request.dispatched` | A reserved ride arrives as a normal assigned ride at `dispatch_at` |
@@ -192,8 +193,8 @@
 | OQ-06 | How and how often are driver earnings paid out? | FE-DE-01 | `[ ]` Unresolved |
 | OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-DEV-07 | `[ ]` Unresolved |
 | OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
-| OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | FE2-DVH-01 | `[ ]` Unresolved |
-| OQ-20 | Driver scheduling: shift scheduling or availability planning? | FE2-DSH-01 | `[ ]` Unresolved |
+| OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | FE2-DVH-01 | `[~]` **Recommended (16 Oct 2026):** both — general items for all vehicles, EV items by fuel type. Awaiting client confirmation |
+| OQ-20 | Driver scheduling: shift scheduling or availability planning? | FE2-DSH-01, FE2-DSH-03 | `[~]` **Recommended (16 Oct 2026):** voluntary availability planning for all; shifts only for shared fleet cars. Awaiting client confirmation |
 | OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | FE-DEL-01 | `[ ]` Unresolved |
 | OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | FE-DEL-11 | `[ ]` Unresolved |
 | OQ-30 | Minimum payout amount for driver withdrawals? | FE-DEL-08 | `[ ]` Unresolved |

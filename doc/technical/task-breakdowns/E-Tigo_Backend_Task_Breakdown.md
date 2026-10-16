@@ -23,6 +23,7 @@
 > - **Payouts:** on-demand with finance approval, plus an opt-in weekly auto-payout (`weekly_auto`, Monday 06:00 Lagos).
 > - **Product decisions taken (15 Oct 2026):** EV reservations are limited to plug-in vehicles via a new vehicle `fuel_type` (BE-EV-09/10); the EV reservation fee is collected from driver earnings when a stall is held (refund within 2 minutes, kept on no-show); priority matching (G-05) keeps distance first and gives Gold+ passengers precedence for scarce drivers plus an extra retry wave; wallet rides can be tipped from the wallet. Payouts whose outcome is unknown are reconciled against Paystack (scheduled + finance "check status"). Follow-ups (16 Oct 2026): demand-based surge measures live demand/supply per city and class; bank-transfer rides can be tipped from the wallet or card; fuel type is required for new vehicles, and `vehicles:request-fuel-types` asks owners of older vehicles to set it; payouts held by Paystack for an OTP are flagged at once.
 > - **Phase 2 — Scheduled rides (16 Oct 2026):** built (section 23). A new `scheduled` ride status that is not "active"; booking via `POST /rides` + `scheduled_pickup_at`; drivers can reserve bookings in advance and operations can pre-assign; minute-by-minute dispatcher; reservation and late-cancellation fees built but off; operations settings at `/admin/settings/scheduled-rides`. Decisions: `doc/client/SCHEDULED_RIDES_DECISIONS.md`.
+> - **Phase 2 — open questions OQ-18 to OQ-22 (16 Oct 2026):** answered with engineering recommendations, not yet client-confirmed; the task rows in sections 24, 26, 27 and 28 now follow them. Third-party PIN and tracking to both rider and booker; vehicle maintenance for all vehicles plus EV items by fuel type; voluntary availability planning plus shifts for shared fleet cars only; three dispute tiers with a safety fast track; cities gated by a readiness checklist, dates for the client. Decisions: `doc/client/PHASE2_DECISIONS.md`.
 - **Audit fixes** (branch `fix/phase1-audit-hardening`): bugs and edge cases fixed across rides, matching, pricing, payments, wallet/ledger, payouts, refunds, webhooks, reconciliation, auth, KYC, SOS, sanctions, EV and fleet — see the commit history and the edge-case test suites listed in TECHNICAL.md §17.
 
 ---
@@ -947,13 +948,20 @@
 
 **PRD refs:** B-28, P-23, P-24, D-13, A-34
 
+> **OQ-18 answered (16 Oct 2026, engineering recommendation, not yet client-confirmed):** PIN and live tracking go to **both** the rider (WhatsApp, SMS fallback, with a no-app tracking link) and the booker (in app). Operations can switch either to rider-only or booker-only. If the rider's message fails, the booker is always shown the PIN. Booker pays by wallet or card only (cash off by default); 2 active third-party rides per booker; 10 different rider numbers per booker per day. Options and edge cases: [PHASE2_DECISIONS.md — OQ-18](../../client/PHASE2_DECISIONS.md#oq-18--third-party-bookings-who-gets-the-pin-and-tracking).
+
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE2-3P-01 | `[ ]` Create migration: add to `rides` table — booker_user_id (FK nullable), rider_name (nullable), rider_phone (nullable), is_third_party (bool default false) | B-28 | SETUP-14 | — |
-| BE2-3P-02 | `[ ]` Create migration: `third_party_configs` table — id, pin_recipient (enum: booker/rider/both), tracking_recipient (enum: booker/rider/both), updated_by_admin_id, updated_at | A-34 | SETUP-06 | ⚠ OQ-18: Must be decided before build |
-| BE2-3P-03 | `[ ]` Extend `RideController@store` — accept rider_name and rider_phone for third-party booking; set booker as authenticated user | P-23 | BE2-3P-01, BE-RIDE-03 | — |
-| BE2-3P-04 | `[ ]` Create `ThirdPartyRoutingService` — based on Admin config, route PIN and live tracking to booker, rider, or both | P-24, D-13, B-28 | BE2-3P-02, BE-RIDE-05 | Changes §9.1 PIN flow for third-party rides |
-| BE2-3P-05 | `[ ]` Create `AdminThirdPartyConfigController@update` — `PUT /api/v1/admin/config/third-party`: set PIN/tracking recipient policy | A-34 | BE2-3P-02, SETUP-52 | — |
+| BE2-3P-01 | `[ ]` Create migration: add to `rides` table — booker_user_id (FK nullable), rider_name (nullable), rider_phone (nullable, E.164), is_third_party (bool default false), pin_recipient and tracking_recipient (enum: booker/rider/both, nullable; snapshot of the policy at booking) | B-28 | SETUP-14 | Snapshot means a policy change never affects rides already booked |
+| BE2-3P-02 | `[ ]` Store the third-party policy as an AppSetting group (`third_party`), like the scheduled-ride settings, instead of a `third_party_configs` table: pin_recipient (default **both**), tracking_recipient (default **both**), allow_cash (default false), allow_bank_transfer (default false), max_active_per_booker (default 2), max_rider_numbers_per_day (default 10), enabled | A-34 | SETUP-06 | OQ-18 resolved: defaults per recommendation |
+| BE2-3P-03 | `[ ]` Extend `RideController@store` — accept rider_name and rider_phone for third-party booking; set booker as authenticated user. Validate: rider phone ≠ booker phone (else treat as normal ride); payment method allowed by policy; booker under the active and daily-number limits; booker confirms the rider is 18+ or accompanied | P-23 | BE2-3P-01, BE-RIDE-03 | A third-party ride does not count as the booker's own active ride. Never reveal whether rider_phone has an E-tiGo account |
+| BE2-3P-04 | `[ ]` Create `ThirdPartyRoutingService` — route PIN and live tracking per the ride's snapshot: send the rider a WhatsApp message (SMS fallback via the existing OTP channel chain) on driver assignment with booker first name, driver name/photo, car, plate, PIN and share link; show PIN/tracking to the booker in the ride resource when the policy includes the booker | P-24, D-13, B-28 | BE2-3P-02, BE-RIDE-05 | Changes §9.1 PIN flow for third-party rides. Reuse the existing share token link (expires 1 h after the trip) |
+| BE2-3P-05 | `[ ]` Create `AdminThirdPartyConfigController` — `GET`/`PUT /api/v1/admin/settings/third-party`: view and set the policy; audit-logged | A-34 | BE2-3P-02, SETUP-52 | Operations role, like scheduled-ride settings |
+| BE2-3P-06 | `[ ]` Delivery fallback: if both WhatsApp and SMS to the rider fail, notify the booker and expose the PIN to the booker regardless of policy | P-24 | BE2-3P-04 | Without this the ride cannot start |
+| BE2-3P-07 | `[ ]` PIN regeneration by the booker re-sends the new PIN to the rider when the policy includes the rider | P-24 | BE2-3P-04 | — |
+| BE2-3P-08 | `[ ]` Scheduled third-party rides: rider reminder 60 min before pickup (booking details, no PIN); PIN and tracking sent at dispatch | P-23 | BE2-3P-04, BE2-SCH-04 | PINs are issued at dispatch for all scheduled rides |
+| BE2-3P-09 | `[ ]` Driver view: rider first name and rider phone (callable while the trip is active) instead of the booker's; safety: booker SOS on a third-party ride includes rider name and phone in the incident | D-13 | BE2-3P-03, BE-SOS-03 | Tracking page shows "Call 112" and the safety line |
+| BE2-3P-10 | `[ ]` Tests: each policy combination, delivery failure fallback, rider = booker phone, payment restrictions, limits, scheduled third-party ride, policy change after booking | — | BE2-3P-01–09 | — |
 
 ---
 
@@ -979,13 +987,23 @@
 
 **PRD refs:** B-30, P-27, A-36, A-37, NF-12
 
+> **OQ-21 answered (16 Oct 2026, engineering recommendation, not yet client-confirmed):** three tiers. **Tier 1** support agent (all new disputes, refunds up to ₦5,000); **Tier 2** support lead, a new admin role (escalations, appeals, SLA breaches, refunds up to ₦50,000); **Tier 3** super admin (larger refunds, permanent deactivation, legal/press, final appeal). Safety concerns go straight to `safety_operator` (1 h first response). Finance approves money movement beyond a wallet refund. Tier 1 unresolved after 72 h auto-escalates; no admin approves their own refund; one appeal within 7 days to a different reviewer one tier up. Options and edge cases: [PHASE2_DECISIONS.md — OQ-21](../../client/PHASE2_DECISIONS.md#oq-21--dispute-escalation-tiers-and-ownership).
+
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | BE2-DISP-01 | `[ ]` Create migration: `dispute_evidence` table — id, dispute_id (FK), file_path, file_type, file_size_bytes, uploaded_by_user_id (FK), uploaded_at, created_at | B-30 | SETUP-19 | 🔒 Access restricted to authorised reviewers (NF-12) |
 | BE2-DISP-02 | `[ ]` Create `DisputeEvidence` Eloquent model | — | BE2-DISP-01 | — |
-| BE2-DISP-03 | `[ ]` Create `DisputeEvidenceController@store` — `POST /api/v1/disputes/{dispute}/evidence`: upload photo evidence (validate image type/size, store securely) | P-27, B-30 | BE2-DISP-02 | — |
-| BE2-DISP-04 | `[ ]` Create migration: add to `disputes` table — escalation_tier (int nullable), escalated_to_admin_id (FK nullable), escalated_at (nullable) | A-37 | SETUP-19 | — |
-| BE2-DISP-05 | `[ ]` Create `AdminDisputeController@escalate` — `POST /api/v1/admin/disputes/{dispute}/escalate`: escalate to higher-tier reviewer | A-37 | BE2-DISP-04, SETUP-52 | ⚠ OQ-21: Escalation tiers TBD |
+| BE2-DISP-03 | `[ ]` Create `DisputeEvidenceController@store` — `POST /api/v1/disputes/{dispute}/evidence`: upload photo evidence (validate image type/size, store securely). Evidence readable only by the assigned reviewer, higher tiers and Safety; every view audit-logged | P-27, B-30 | BE2-DISP-02 | 🔒 NF-12 |
+| BE2-DISP-04 | `[ ]` Create migration: add to `disputes` table — escalation_tier (int default 1), assigned_admin_id (FK nullable), escalated_by_admin_id (FK nullable), escalated_at (nullable), escalation_reason (text nullable), first_response_due_at, resolution_due_at, first_responded_at (nullable), appealed_at (nullable), appeal_of_resolver_id (FK nullable), linked_dispute_id (FK nullable) | A-37 | SETUP-19 | linked_dispute_id joins passenger and driver disputes on the same trip |
+| BE2-DISP-05 | `[ ]` Create `AdminDisputeController@escalate` — `POST /api/v1/admin/disputes/{dispute}/escalate`: move up one tier (reason required); also `@deescalate` (note required). Reject on terminal disputes and above tier 3; clear the assignee so the case lands in the new tier's queue | A-37 | BE2-DISP-04, SETUP-52 | OQ-21 resolved: tiers 1–3 |
+| BE2-DISP-06 | `[ ]` Add `support_lead` to `AdminRole`; tier-to-role map in config (`disputes.tiers`): 1 → support, 2 → support_lead, 3 → super_admin. Higher tiers can act on lower-tier cases | A-37 | SETUP-35 | Super admin can act at any tier (existing middleware rule) |
+| BE2-DISP-07 | `[ ]` Refund limits per tier (`disputes.refund_limits`, defaults ₦5,000 / ₦50,000 / none). A refund above the actor's limit becomes a pending refund request approved by a higher tier; the requester can never approve their own | A-37 | BE2-DISP-06, BE-WAL-16 | Applies to `resolve` with refund_amount and to `/admin/rides/{ride}/refund` when linked to a dispute |
+| BE2-DISP-08 | `[ ]` Safety routing: disputes with category `safety_concern` start at the Safety queue (`safety_operator`) with a 1 h first-response target and link to any SOS incident on the ride | A-36 | BE2-DISP-04 | Skips tier 1 |
+| BE2-DISP-09 | `[ ]` SLA job (every 15 min): set due dates on creation (Safety 1 h / 24 h; Tier 1 24 h / 72 h; Tier 2 24 h / 5 days); auto-escalate Tier 1 breaches to Tier 2; alert super admin on Safety and Tier 2 breaches | A-37 | BE2-DISP-04 | Targets are settings |
+| BE2-DISP-10 | `[ ]` Appeals: `POST /api/v1/disputes/{dispute}/appeal` by the reporter (passenger or driver), once, within 7 days of resolution; reopens one tier up and excludes the original resolver. If an appeal reverses a refund, claw back via `WalletRefundService` | P-27 | BE2-DISP-04 | — |
+| BE2-DISP-11 | `[ ]` When an admin is deactivated, return their open disputes to their tier queue | A-37 | BE2-DISP-04 | — |
+| BE2-DISP-12 | `[ ]` Reporter notifications on escalation and appeal ("Your case is with our senior team"), never exposing admin names | P-27 | BE2-DISP-05 | — |
+| BE2-DISP-13 | `[ ]` Tests: tier permissions, refund limits and self-approval block, safety routing, SLA auto-escalation, appeal window and reviewer exclusion, terminal-state guards | — | BE2-DISP-01–12 | — |
 
 ---
 
@@ -993,10 +1011,17 @@
 
 **PRD refs:** B-31, A-38
 
+> **OQ-22 answered in part (16 Oct 2026):** the **target dates are the client's decision**. Engineering recommendation: Lagos → Abuja → Port Harcourt → Ibadan, each launched when it passes a readiness checklist (boundary with no overlap, prices for every class, at least 30 approved drivers, support/safety cover, state permits, charging stations for EV classes); suggested Abuja no earlier than 6 weeks after Lagos is stable. Replace the city on/off switch with onboarding / live / paused states. No schema change is needed for currency or time zone inside Nigeria. Details: [PHASE2_DECISIONS.md — OQ-22](../../client/PHASE2_DECISIONS.md#oq-22--which-cities-and-when).
+
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
 | BE2-CITY-01 | `[ ]` Write integration tests verifying Phase 1 city-scoping model supports onboarding additional cities without schema changes | B-31 | BE-CITY-01 | Should hold if Phase 1 was built generically |
-| BE2-CITY-02 | `[ ]` Document city onboarding procedure: Admin steps, pricing config, vehicle class activation, driver assignment | A-38 | BE2-CITY-01 | Flag city-specific needs (currency, language, payment method) |
+| BE2-CITY-02 | `[ ]` Document city onboarding procedure: Admin steps, pricing config, vehicle class activation, driver assignment, and the readiness checklist | A-38 | BE2-CITY-01 | All Nigerian cities use Africa/Lagos and NGN. A city outside Nigeria would need the hard-coded Lagos-time rules (fleet business day, promo peaks, off-peak, weekly payouts) moved to the city time zone |
+| BE2-CITY-03 | `[ ]` Add `launch_status` to `cities` (enum: onboarding/live/paused; backfill from `is_active`). Onboarding: driver sign-up and KYC allowed, passenger booking refused (waitlist). Paused: no new rides or bookings | A-38 | BE2-CITY-01 | Keep `is_active` derived for existing clients |
+| BE2-CITY-04 | `[ ]` Guard the city toggle / pause: trips in progress finish; upcoming scheduled bookings are honoured by default, with an option to cancel them all with a notice to each passenger | A-38 | BE2-CITY-03 | Today `AdminCityController` toggles with no in-flight checks |
+| BE2-CITY-05 | `[ ]` Reject city boundaries that overlap an existing active city on create/update | A-38 | BE-CITY-01 | Keeps `CityDetectionService` deterministic |
+| BE2-CITY-06 | `[ ]` Admin driver city transfer: refuse while the driver has an active ride or upcoming scheduled-ride reservations | A-38 | BE-CITY-01 | — |
+| BE2-CITY-07 | `[ ]` City readiness endpoint `GET /api/v1/admin/cities/{city}/readiness`: reports each checklist gate (boundary, pricing per class, approved driver count vs minimum, EV stations for EV classes) | A-38 | BE2-CITY-03 | Minimum drivers is a setting (default 30) |
 
 ---
 
@@ -1004,16 +1029,27 @@
 
 **PRD refs:** B-32, D-15, D-16, A-39
 
+> **OQ-20 answered (16 Oct 2026, engineering recommendation, not yet client-confirmed):** **voluntary availability planning** for all drivers (no penalty, never blocks going online) and **assigned shifts only for fleet cars in shift mode** (cars shared between drivers). Shift drivers can go online 15 min before their shift; new offers stop 15 min before it ends; not online 30 min after start → missed, operations alerted, no automatic fine.
+>
+> **OQ-19 answered (16 Oct 2026, engineering recommendation, not yet client-confirmed):** **both**, by the vehicle's `fuel_type`. All vehicles: service (5,000 km or 3 months), tyres & brakes (6 months), insurance / roadworthiness / vehicle licence expiry. Electric and plug-in hybrid also: battery health (12 months) and charging status. Records keyed on the vehicle. Overdue service warns only; expired legal papers block going online after a 7-day grace, never mid-trip.
+>
+> Options and edge cases: [PHASE2_DECISIONS.md — OQ-19 and OQ-20](../../client/PHASE2_DECISIONS.md#oq-19--vehicle-charging--maintenance-ev-only-general-or-both).
+
 | ID | Task | PRD Ref | Deps | Notes |
 |----|------|---------|------|-------|
-| BE2-SHIFT-01 | `[ ]` Create migration: `driver_shifts` table — id, driver_id (FK), shift_date, start_time, end_time, status (enum: scheduled/active/completed/missed), created_by_admin_id (FK), created_at | B-32 | SETUP-11 | ⚠ OQ-20: Scope TBD |
+| BE2-SHIFT-01 | `[ ]` Create migration: `driver_shifts` table — id, driver_id (FK), vehicle_id (FK), starts_at, ends_at (full datetimes, so overnight shifts work), status (enum: scheduled/active/completed/missed/cancelled), created_by_admin_id (FK), created_at, updated_at; and `vehicles.shift_mode` (bool default false) | B-32 | SETUP-11 | OQ-20 resolved: shifts only for fleet cars in shift mode. Reject overlaps per vehicle and per driver |
 | BE2-SHIFT-02 | `[ ]` Create `DriverShift` Eloquent model | — | BE2-SHIFT-01 | — |
 | BE2-SHIFT-03 | `[ ]` Create `DriverShiftController@index` — `GET /api/v1/drivers/shifts`: driver views schedule | D-15 | BE2-SHIFT-02 | — |
-| BE2-SHIFT-04 | `[ ]` Create `AdminDriverShiftController@store/update` — Admin manages shift assignments | A-39 | BE2-SHIFT-02, SETUP-52 | — |
-| BE2-VEH-01 | `[ ]` Create migration: `vehicle_maintenance` table — id, driver_id (FK), maintenance_type (enum: charging/service/inspection), status (enum: scheduled/due/in_progress/completed), due_date, completed_at (nullable), notes (text nullable), created_at | B-32 | SETUP-11 | ⚠ OQ-19: EV-specific, general, or both? |
-| BE2-VEH-02 | `[ ]` Create `VehicleMaintenance` Eloquent model | — | BE2-VEH-01 | — |
-| BE2-VEH-03 | `[ ]` Create `DriverVehicleStatusController@show` — `GET /api/v1/drivers/vehicle/status`: charging status and/or maintenance indicators | D-16 | BE2-VEH-02 | — |
-| BE2-VEH-04 | `[ ]` Create `AdminVehicleMaintenanceController@store/update` — Admin manages maintenance records | A-39 | BE2-VEH-02, SETUP-52 | — |
+| BE2-SHIFT-04 | `[ ]` Create `AdminDriverShiftController@store/update` — Admin manages shift assignments; only for fleet vehicles in shift mode | A-39 | BE2-SHIFT-02, SETUP-52 | — |
+| BE2-SHIFT-05 | `[ ]` Shift enforcement for vehicles in shift mode: go online allowed from 15 min before start to end; no new offers in the last 15 min; a trip running past the end finishes and the next driver is told; scheduled-ride reservations only inside the driver's shifts | D-15 | BE2-SHIFT-01, BE-MATCH-01 | Lead and cut-off are settings |
+| BE2-SHIFT-06 | `[ ]` Job (every 5 min): mark shifts not started 30 min after `starts_at` as missed and alert operations; mark active/completed from online status | A-39 | BE2-SHIFT-01 | No automatic fine; the fleet agreement decides consequences |
+| BE2-SHIFT-07 | `[ ]` Create migration + endpoints: `driver_availability_plans` — id, driver_id (FK), city_id (FK), area_label (nullable), starts_at, ends_at; `GET/POST/DELETE /api/v1/driver/availability-plans`; admin coverage view `GET /api/v1/admin/availability-coverage?city_id&from&to` (planned drivers per hour/area) | D-15, A-39 | SETUP-11 | Voluntary; never restricts going online; never shown to passengers |
+| BE2-VEH-01 | `[ ]` Create migration: `vehicle_maintenance_items` table — id, vehicle_id (FK), type (enum: service/tyres_brakes/insurance/roadworthiness/vehicle_licence/battery_health), status (enum: ok/due_soon/overdue/expired), due_at (nullable), due_odometer_km (nullable), last_done_at (nullable), last_odometer_km (nullable), blocks_driving (bool), notes (nullable), created_at, updated_at | B-32 | SETUP-11 | OQ-19 resolved: both. Keyed on vehicle, not driver. battery_health only for electric/plug_in_hybrid |
+| BE2-VEH-02 | `[ ]` Create `VehicleMaintenanceItem` model; create the item set from `fuel_type` when a vehicle is created or its fuel type changes (add or archive EV items) | — | BE2-VEH-01 | Non-plug-in hybrid gets general items only |
+| BE2-VEH-03 | `[ ]` Create `DriverVehicleStatusController@show` — `GET /api/v1/drivers/vehicle/status`: maintenance items with due status, and for plug-in vehicles the charge level (driver-entered when going online) and any active EV reservation | D-16 | BE2-VEH-02 | Telematics integration can come later |
+| BE2-VEH-04 | `[ ]` Create `AdminVehicleMaintenanceController@store/update` — Admin records completed maintenance (fleet cars) and approves driver-submitted proof (own cars). Reject odometer readings lower than the last one | A-39 | BE2-VEH-02, SETUP-52 | Booking a workshop reuses the existing `DriverRepair` flow (`REP-` numbers) |
+| BE2-VEH-05 | `[ ]` Interval settings per item and fuel type (defaults: service 5,000 km / 3 months, tyres & brakes 6 months, battery 12 months); track km from completed trips between odometer readings | B-32 | BE2-VEH-01 | Time limit still applies to km driven off-platform |
+| BE2-VEH-06 | `[ ]` Daily job: due-soon reminders (14 days); overdue warnings to driver and operations; expired insurance/roadworthiness/licence → driver blocked from going online after a 7-day grace (settings); never ends an active trip; releases scheduled-ride reservations with a passenger notice when a block starts | B-32, D-16 | BE2-VEH-01 | Insurance expiry reuses `driver_documents.expires_at` |
 
 ---
 
@@ -1072,15 +1108,15 @@
 
 ### Phase 2 Decisions
 
-Phase 1 and Phase 2 decisions, with industry benchmarks, are also published for the client in [OPEN_QUESTIONS_DECISIONS.md](../../client/OPEN_QUESTIONS_DECISIONS.md) / `.pdf`; scheduled-ride reasoning in [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md) / `.pdf`.
+Phase 1 and Phase 2 decisions, with industry benchmarks, are also published for the client in [OPEN_QUESTIONS_DECISIONS.md](../../client/OPEN_QUESTIONS_DECISIONS.md) / `.pdf`; scheduled-ride reasoning in [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md) / `.pdf`; OQ-18 to OQ-22 options and edge cases in [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) / `.pdf`.
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-18 | Who receives PIN/tracking for third-party bookings? | BE2-3P-04 | `[ ]` Unresolved |
-| OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | BE2-VEH-01 | `[ ]` Unresolved |
-| OQ-20 | Driver scheduling: shift scheduling or availability planning? | BE2-SHIFT-01 | `[ ]` Unresolved |
-| OQ-21 | Dispute escalation tiers and ownership? | BE2-DISP-05 | `[ ]` Unresolved |
-| OQ-22 | Which cities are being activated and target date? | BE2-CITY-01 | `[ ]` Unresolved |
+| OQ-18 | Who receives PIN/tracking for third-party bookings? | BE2-3P-02, BE2-3P-04 | `[~]` **Recommended (16 Oct 2026):** both rider (WhatsApp/SMS + no-app tracking link) and booker (in app); admin can switch to rider-only or booker-only; booker always gets the PIN if the rider's message fails; wallet/card only by default; 2 active per booker. Awaiting client confirmation |
+| OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | BE2-VEH-01 | `[~]` **Recommended (16 Oct 2026):** both, by fuel type — general items (service, tyres & brakes, legal papers) for all; battery health and charging status for electric/plug-in hybrid; keyed on vehicle; expired papers block going online after 7-day grace. Awaiting client confirmation |
+| OQ-20 | Driver scheduling: shift scheduling or availability planning? | BE2-SHIFT-01, BE2-SHIFT-07 | `[~]` **Recommended (16 Oct 2026):** voluntary availability planning for all drivers; assigned shifts only for fleet cars in shift mode (shared cars). Awaiting client confirmation |
+| OQ-21 | Dispute escalation tiers and ownership? | BE2-DISP-05–07 | `[~]` **Recommended (16 Oct 2026):** Tier 1 support (refunds ≤ ₦5,000) → Tier 2 new `support_lead` role (≤ ₦50,000) → Tier 3 super admin; safety cases straight to `safety_operator`; 72 h auto-escalation; one appeal in 7 days. Awaiting client confirmation |
+| OQ-22 | Which cities are being activated and target date? | BE2-CITY-01–07 | `[~]` **Recommended order (16 Oct 2026):** Lagos → Abuja → Port Harcourt → Ibadan, each gated by a readiness checklist (≥ 30 approved drivers, pricing, boundary, permits). **Target dates: client to decide** |
 | SR-1 | Scheduled rides: booking window? | BE2-SCH-03 | `[~]` Built with default 30 min – 7 days ahead; 5 upcoming bookings per passenger, 30 min apart. Awaiting client confirmation |
 | SR-2 | Scheduled rides: when does matching start and how long does it search? | BE2-SCH-04 | `[~]` Built with default 15 min before pickup; search until 10 min after (never less than the standard 5 min). Awaiting client confirmation |
 | SR-3 | Reservation fee for booking ahead? | BE2-SCH-14 | `[ ]` Built, ₦0 (off). Uber Reserve charges one; we found none for Bolt or Lyft. Client to decide |

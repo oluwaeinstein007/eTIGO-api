@@ -208,9 +208,9 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-P3P-01 | `[ ]` Add "Book for Someone Else" toggle to booking flow: show rider name + rider phone fields when active | P-23 | 📡 BE2-3P-03 | — |
-| FE2-P3P-02 | `[ ]` Build third-party ride tracking: booker's view of ride progress depending on Admin config (may or may not receive PIN, may or may not see live tracking) | P-24 | 📡 BE2-3P-04 | ⚠ OQ-18: Routing depends on Admin config decision |
-| FE2-P3P-03 | `[ ]` Build rider notification flow: SMS notification to rider with ride details and PIN (if configured to receive) | P-24 | 📡 BE2-3P-04 | — |
+| FE2-P3P-01 | `[ ]` Add "Book for Someone Else" toggle to booking flow: show rider name + rider phone fields when active; "rider is 18+ or accompanied" confirmation; offer only the payment methods the policy allows (wallet/card by default) | P-23 | 📡 BE2-3P-03 | Pick from contacts. Rider phone = own phone → normal ride |
+| FE2-P3P-02 | `[ ]` Build third-party ride tracking: booker's view of ride progress; show PIN and live map when the ride's policy includes the booker (default: both); show the "rider couldn't be reached — share this PIN" alert | P-24 | 📡 BE2-3P-04, BE2-3P-06 | OQ-18 recommended: PIN and tracking to both. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
+| FE2-P3P-03 | `[ ]` Build rider notification flow: WhatsApp/SMS to rider with ride details, PIN and tracking link (sent by the backend; the app shows delivery status to the booker) | P-24 | 📡 BE2-3P-04 | Messages are sent server-side; no app needed by the rider |
 
 ---
 
@@ -236,7 +236,7 @@
 | OQ-12 | Auto-apply promos in Phase 1, or code-entry only? | FE-PP-02 | `[ ]` Unresolved |
 | OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-PG-06 | `[ ]` Unresolved |
 | OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
-| OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[ ]` Unresolved |
+| OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[~]` **Recommended (16 Oct 2026):** both rider (WhatsApp/SMS + tracking link) and booker (in app); admin-switchable. Awaiting client confirmation |
 | OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[ ]` Unresolved |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[ ]` Unresolved |
 | OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[ ]` Unresolved |
