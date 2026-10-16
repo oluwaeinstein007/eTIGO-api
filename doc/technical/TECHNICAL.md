@@ -83,7 +83,7 @@ Every provider sits behind a contract in `app/Contracts`. `AppServiceProvider` p
 
 | Contract | Implementation chosen | Used for |
 |----------|----------------------|----------|
-| `SmsGateway` | `TermiiGateway` when `TERMII_API_KEY` is set — sends over **WhatsApp first and falls back to DND SMS**; otherwise `LogSmsGateway` | OTP codes, bank-account change codes, SOS alerts to `ETIGO_SAFETY_NUMBER` |
+| `SmsGateway` | `TermiiGateway` when `TERMII_API_KEY` is set — sends over **WhatsApp first and falls back to DND SMS**; otherwise `LogSmsGateway` | OTP codes, bank-account codes and change alerts, SOS alerts to `ETIGO_SAFETY_NUMBER` |
 | `MapsGateway` | Google (`GOOGLE_MAPS_API_KEY` / `GOOGLE_PLACES_API_KEY`) → Mapbox (`MAPBOX_ACCESS_TOKEN`) → `HaversineMapsGateway` (straight-line estimate) | Distance/duration, geocoding |
 | `PlaceSearchGateway` | Failover chain from `PLACE_SEARCH_DRIVERS` (default `google,mapbox,geoapify,locationiq,photon`; providers without credentials are skipped) | Address autocomplete |
 | `PaymentGateway` | Paystack primary with Flutterwave failover when both keys are set (`FallbackPaymentGateway`); a single provider otherwise; `FakePaymentGateway` when `PAYSTACK_FAKE=true` | Ride card/bank-transfer payments, saved cards, tips, refunds |
@@ -168,7 +168,7 @@ The manual bypass `POST /admin/drivers/{driver}/complete-onboarding` marks every
 
 - A driver may change their own vehicle class only before submitting (`onboarding`) or after a rejection. From submission on, only an admin with driver-management access (operations or safety operator) can change it (`PUT /admin/drivers/{driver}/vehicle-class`, audited), so a driver cannot upgrade themselves into a higher-fare class.
 - Fleet drivers cannot edit the E-tiGo vehicle assigned to them.
-- Adding the first payout bank account needs no extra step. Replacing it requires a one-time code sent to the driver's phone (`POST /driver/bank-account/otp`, purpose-bound), so a stolen session cannot redirect payouts. Account names are resolved with Paystack before saving.
+- Adding the payout bank account, the first one included, and every later change require a one-time code sent to the driver's phone (`POST /driver/bank-account/otp`, purpose-bound), so a stolen session cannot direct payouts to another account. A driver can build up earnings before adding an account, so the first one is protected as well. The account is resolved before the code is checked, so a Paystack failure does not use up the code. Every save sends `PayoutAccountChangedNotification`: in-app and push (preferences apply) plus WhatsApp/SMS through `SmsChannel`, which ignores preferences so a change the driver did not make is always reported. A failed SMS is retried by the queue (3 tries). Account names are resolved with Paystack before saving.
 
 ---
 

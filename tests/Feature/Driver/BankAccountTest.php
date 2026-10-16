@@ -5,6 +5,7 @@ use App\Enums\UserType;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Notification;
 
 beforeEach(function () {
     config(['wallet.paystack.secret_key' => 'sk_test_fake_key']);
@@ -92,6 +93,8 @@ test('driver bank resolve returns 422 if account cannot be resolved', function (
 });
 
 test('driver can store verified bank account', function () {
+    Notification::fake();
+
     $mockGateway = Mockery::mock(WalletGateway::class);
     $mockGateway->shouldReceive('resolveAccountNumber')
         ->with('0123456789', '058')
@@ -102,9 +105,12 @@ test('driver can store verified bank account', function () {
         ]);
     $this->app->instance(WalletGateway::class, $mockGateway);
 
+    $this->withToken($this->token)->postJson('/api/v1/driver/bank-account/otp')->assertOk();
+
     $response = $this->withToken($this->token)->postJson('/api/v1/driver/bank-account', [
         'bank_code' => '058',
         'account_number' => '0123456789',
+        'otp_code' => '123456',
     ]);
 
     $response->assertStatus(201)

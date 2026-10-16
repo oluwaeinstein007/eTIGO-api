@@ -8095,7 +8095,7 @@
                     "bank-account"
                   ]
                 },
-                "description": "Resolves the account with Paystack and saves it as the driver's primary payout account.\n\n- First account: send `bank_code` and `account_number`.\n- Replacing an account: call **Request Bank Account Change Code** first and include `otp_code` (non-production code: `123456`). Without it \u2192 422 `errors.otp_code`.",
+                "description": "Resolves the account with Paystack and saves it as the driver's primary payout account.\n\nEvery save needs `otp_code`, the first account included: call **Request Bank Account Code** first (non-production code: `123456`). Without it \u2192 422 `errors.otp_code`; a wrong or expired code \u2192 422 `errors.otp_code` with the reason.\n\nPaystack resolves the account before the code is checked, so a resolve failure does not use up the code. Each save notifies the driver (`payout_account_changed`, in-app and push) and sends a WhatsApp/SMS alert regardless of preferences.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"bank_code\": \"058\",\n  \"account_number\": \"0123456789\",\n  \"otp_code\": \"123456\"\n}"
@@ -8115,7 +8115,7 @@
                   "body": "{\n  \"message\": \"Bank account added and verified.\",\n  \"bank_account\": {\n    \"id\": \"01a14039-5be7-7169-8042-492e20edeb4f\",\n    \"bank_code\": \"058\",\n    \"bank_name\": \"Guaranty Trust Bank\",\n    \"account_number\": \"******6789\",\n    \"account_name\": \"BAYO AKINOLA\",\n    \"is_verified\": true,\n    \"is_primary\": true,\n    \"created_at\": \"2026-10-15T15:41:03+00:00\"\n  }\n}"
                 },
                 {
-                  "name": "422 \u2014 Change Code Required",
+                  "name": "422 \u2014 Code Required",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -8124,7 +8124,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Changing your payout account requires a verification code.\",\n  \"errors\": {\n    \"otp_code\": [\n      \"Request a code with POST /driver/bank-account/otp and include it here.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.\",\n  \"errors\": {\n    \"otp_code\": [\n      \"Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -8237,7 +8237,7 @@
               ]
             },
             {
-              "name": "Request Bank Account Change Code",
+              "name": "Request Bank Account Code",
               "request": {
                 "method": "POST",
                 "header": [
@@ -8265,7 +8265,7 @@
                     "otp"
                   ]
                 },
-                "description": "Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; `123456` in non-production). The code is required to **replace** an existing payout account so a stolen session cannot redirect payouts. Not needed for the first account. Rate limited to 3 requests per minute; 60-second cooldown between codes."
+                "description": "Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; `123456` in non-production). The code is required to **add or replace** the payout account, the first one included, so a stolen session cannot direct payouts to another account. Rate limited to 3 requests per minute; 60-second cooldown between codes; codes expire after 5 minutes."
               },
               "response": [
                 {
@@ -8281,7 +8281,7 @@
                   "body": "{\n  \"message\": \"Verification code sent to your phone.\",\n  \"expires_at\": \"2026-10-15T15:46:03+00:00\"\n}"
                 },
                 {
-                  "name": "422 \u2014 No Account To Replace",
+                  "name": "422 \u2014 No Phone Number",
                   "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
@@ -8290,7 +8290,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"No bank account on file. Add one without a code.\"\n}"
+                  "body": "{\n  \"message\": \"Add a phone number to your account before adding bank details.\"\n}"
                 },
                 {
                   "name": "429 \u2014 Cooldown",

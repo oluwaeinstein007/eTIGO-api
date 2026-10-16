@@ -10264,7 +10264,7 @@ Fallback for a missed or delayed Paystack webhook. `{reference}` is the `tx_ref`
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
 
-Typical flow: **List Supported Banks** → **Resolve Bank Account** (show the account name for confirmation) → **Add Bank Account**. Replacing an existing payout account additionally requires a one-time code from **Request Bank Account Change Code**.
+Typical flow: **List Supported Banks** → **Resolve Bank Account** (show the account name for confirmation) → **Request Bank Account Code** → **Add Bank Account** with the code. The code is required for the first account and for every later change.
 
 ### List Supported Banks
 
@@ -10316,14 +10316,14 @@ Looks up the account holder's name so the driver can confirm it before saving. N
 }
 ```
 
-### Request Bank Account Change Code
+### Request Bank Account Code
 
 ```
 POST /driver/bank-account/otp
 Authorization: Bearer {driver_token}
 ```
 
-Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `123456` in local/staging). The code is required to **replace** an existing payout account, so a stolen session cannot redirect payouts. It is not needed for the first account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
+Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `123456` in local/staging). The code is required to **add or replace** the payout account, including the first one, so a stolen session cannot direct payouts to another account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
 
 **Response 200:**
 ```json
@@ -10333,7 +10333,7 @@ Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `
 }
 ```
 
-**Response 422:** `"No bank account on file. Add one without a code."` or `"Add a phone number to your account before changing bank details."`
+**Response 422:** `"Add a phone number to your account before adding bank details."`
 **Response 429:** `"Please wait before requesting another code."`
 
 ### Add Bank Account
@@ -10344,7 +10344,9 @@ Authorization: Bearer {driver_token}
 Content-Type: application/json
 ```
 
-Verifies the bank account via Paystack account resolution and saves it as the driver's primary bank account (any previous account stops being primary). Supports both traditional banks (NUBAN) and OPay accounts.
+Verifies the bank account via Paystack account resolution, checks the code, and saves it as the driver's primary bank account (any previous account stops being primary). Supports both traditional banks (NUBAN) and OPay accounts.
+
+The account is resolved **before** the code is checked, so a Paystack failure does not use up the code: the driver can correct the details and retry with the same code while it is valid. After a save the driver is notified (`payout_account_changed`, in-app and push) and sent a WhatsApp/SMS alert that ignores notification preferences: *"Your payout bank account was changed to ADA OBI, account ending 4321. If you did not do this, contact E-tiGo support immediately."* (*"set to"* for the first account).
 
 **Request Body:**
 
@@ -10352,7 +10354,7 @@ Verifies the bank account via Paystack account resolution and saves it as the dr
 |------------------|--------|----------|--------------------|
 | `account_number` | string | Yes      | 10-digit NUBAN     |
 | `bank_code`      | string | Yes      | Valid bank code     |
-| `otp_code`       | string | When replacing | 6-digit code from **Request Bank Account Change Code** |
+| `otp_code`       | string | Yes      | 6-digit code from **Request Bank Account Code** |
 
 **Response 201:**
 ```json
@@ -10370,13 +10372,15 @@ Verifies the bank account via Paystack account resolution and saves it as the dr
 }
 ```
 
-**Response 422 (replacing without a valid code):**
+**Response 422 (no code):**
 ```json
 {
-  "message": "Changing your payout account requires a verification code.",
-  "errors": { "otp_code": ["Request a code with POST /driver/bank-account/otp and include it here."] }
+  "message": "Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp.",
+  "errors": { "otp_code": ["Adding or changing your payout account requires a verification code. Request one with POST /driver/bank-account/otp."] }
 }
 ```
+
+**Response 422 (wrong or expired code):** `errors.otp_code` is `"Invalid verification code."`, `"No active verification code found. Please request a new one."` or `"Too many attempts. Please request a new code."` (5 attempts per code).
 
 ### View Bank Account
 
@@ -12021,6 +12025,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Cash change credited to wallet | Passenger | `cash_change_credit` |
 | Payout approved / paid / failed | Driver | `payout_approved` / `payout_paid` / `payout_failed` |
 | Payout request rejected (with reason) | Driver | `payout_rejected` |
+| Payout bank account added or changed (data: `bank_account_id`, `replaced_another`); also sent by WhatsApp/SMS regardless of preferences | Driver | `payout_account_changed` |
 
 **Payload format:**
 ```json
