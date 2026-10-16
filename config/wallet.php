@@ -25,6 +25,9 @@ return [
 
     'daily_topup_cap' => (int) env('WALLET_DAILY_TOPUP_CAP', 10000000), // ₦100,000
 
+    // Charged when a passenger adds a card, and credited to their wallet.
+    'card_verification_amount' => (int) env('WALLET_CARD_VERIFICATION_AMOUNT', 10000), // ₦100
+
     'max_cash_overpayment' => (int) env('WALLET_MAX_CASH_OVERPAYMENT', 200000), // ₦2,000
 
     /*

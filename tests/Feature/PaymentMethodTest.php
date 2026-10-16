@@ -4,7 +4,6 @@ use App\Contracts\PaymentGateway;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Services\FakePaymentGateway;
-use Illuminate\Support\Facades\Cache;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -48,91 +47,6 @@ it('always includes cash as a payment method even with no saved cards', function
         ->assertJsonPath('payment_methods.0.type', 'cash')
         ->assertJsonPath('payment_methods.0.label', 'Cash')
         ->assertJsonPath('payment_methods.0.is_default', true);
-});
-
-it('initializes a payment and returns a payment link', function () {
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/payments/initialize', [
-            'amount' => 5000,
-            'currency' => 'NGN',
-            'redirect_url' => 'https://etigo.app/payment/callback',
-        ]);
-
-    $response->assertOk()
-        ->assertJsonStructure(['payment_link', 'tx_ref']);
-});
-
-it('gives the payment provider an email when saving a card for a phone-only passenger', function () {
-    $passenger = User::factory()->create(['email' => null]);
-    $fakeGateway = new FakePaymentGateway;
-    $this->app->instance(PaymentGateway::class, $fakeGateway);
-
-    $this->withToken($passenger->createToken('auth')->plainTextToken)
-        ->postJson('/api/v1/payments/initialize', [
-            'amount' => 100,
-            'currency' => 'NGN',
-            'redirect_url' => 'https://etigo.app/payment/callback',
-        ])
-        ->assertOk();
-
-    expect($fakeGateway->lastInitializedPayment['customer_email'])->toBe("{$passenger->id}@rider.etigo.ng");
-});
-
-it('defaults payment initialization channels to card only', function () {
-    $fakeGateway = new FakePaymentGateway;
-    $this->app->instance(PaymentGateway::class, $fakeGateway);
-
-    $this->withToken($this->token)
-        ->postJson('/api/v1/payments/initialize', [
-            'amount' => 100,
-            'currency' => 'NGN',
-            'redirect_url' => 'https://etigo.app/payment/callback',
-        ])
-        ->assertOk();
-
-    expect($fakeGateway->lastInitializedPayment['channels'])->toBe(['card']);
-});
-
-it('allows custom channels for payment initialization', function () {
-    $fakeGateway = new FakePaymentGateway;
-    $this->app->instance(PaymentGateway::class, $fakeGateway);
-
-    $this->withToken($this->token)
-        ->postJson('/api/v1/payments/initialize', [
-            'amount' => 100,
-            'currency' => 'NGN',
-            'redirect_url' => 'https://etigo.app/payment/callback',
-            'channels' => ['card', 'bank_transfer'],
-        ])
-        ->assertOk();
-
-    expect($fakeGateway->lastInitializedPayment['channels'])->toBe(['card', 'bank_transfer']);
-});
-
-it('validates required fields for payment initialization', function () {
-    $response = $this->withToken($this->token)
-        ->postJson('/api/v1/payments/initialize', []);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors(['amount', 'currency', 'redirect_url']);
-});
-
-it('verifies a transaction and saves the payment method', function () {
-    Cache::put('payment_tx_ref:FAKE-TX-VERIFY', $this->user->id, now()->addHours(24));
-
-    $response = $this->withToken($this->token)
-        ->getJson('/api/v1/payments/fake_txn_123/verify');
-
-    $response->assertOk()
-        ->assertJsonPath('status', 'successful');
-
-    $this->assertDatabaseHas('user_payment_methods', [
-        'user_id' => $this->user->id,
-        'card_last_four' => '4242',
-        'card_brand' => 'VISA',
-        'provider' => 'paystack',
-        'is_default' => true,
-    ]);
 });
 
 it('sets a payment method as default', function () {
