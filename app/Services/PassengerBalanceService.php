@@ -190,6 +190,8 @@ class PassengerBalanceService
             throw new \DomainException('You have no balance to pay.');
         }
 
+        $txRef = 'ETIGO-BAL-'.Str::upper(Str::random(12));
+
         try {
             $result = $this->paymentGateway->chargeWithToken([
                 'token' => $card->gateway_token,
@@ -197,7 +199,7 @@ class PassengerBalanceService
                 'email' => $card->gateway_email ?? $passenger->paymentEmail(),
                 'amount' => $totalKobo / 100,
                 'currency' => $items->first()->currency ?? 'NGN',
-                'tx_ref' => 'ETIGO-BAL-'.Str::upper(Str::random(12)),
+                'tx_ref' => $txRef,
             ]);
         } catch (\Throwable $e) {
             Log::error('Balance due card charge errored', ['passenger_id' => $passenger->id, 'error' => $e->getMessage()]);
@@ -209,21 +211,80 @@ class PassengerBalanceService
             throw new \DomainException('Your card was declined. Try another card or pay from your wallet.');
         }
 
-        return DB::transaction(function () use ($items, $result) {
-            $clearing = $this->ledgerService->systemAccount(AccountType::PspClearing);
-            $paid = collect();
+        $transactionId = (string) $result['transaction_id'];
 
-            foreach ($items as $item) {
-                $item = PassengerBalanceDue::whereKey($item->id)->lockForUpdate()->first();
+        // The card has been charged: from here on the money must end up
+        // somewhere, never lost and never charged again.
+        try {
+            $paid = DB::transaction(function () use ($items, $transactionId) {
+                $clearing = $this->ledgerService->systemAccount(AccountType::PspClearing);
+                $paid = collect();
 
-                if ($item?->status === BalanceDueStatus::Outstanding) {
-                    $this->settle($item, $clearing, 'card', (string) $result['transaction_id']);
-                    $paid->push($item);
+                foreach ($items as $item) {
+                    $item = PassengerBalanceDue::whereKey($item->id)->lockForUpdate()->first();
+
+                    if ($item?->status === BalanceDueStatus::Outstanding) {
+                        $this->settle($item, $clearing, 'card', $transactionId);
+                        $paid->push($item);
+                    }
                 }
-            }
 
-            return $paid;
-        });
+                return $paid;
+            });
+        } catch (\Throwable $e) {
+            Log::critical('Balance due card payment charged but not applied', [
+                'passenger_id' => $passenger->id,
+                'transaction_id' => $transactionId,
+                'tx_ref' => $txRef,
+                'amount_kobo' => $totalKobo,
+                'error' => $e->getMessage(),
+            ]);
+            $this->creditWallet($passenger, $totalKobo, $transactionId, $txRef);
+
+            throw new \DomainException('Your card was charged but we could not apply the payment, so the amount has been added to your wallet. Pay your balance from your wallet.');
+        }
+
+        // A balance waived or paid elsewhere while the card was charged.
+        $unappliedKobo = $totalKobo - (int) $paid->sum(fn (PassengerBalanceDue $item) => $item->amountKobo());
+
+        if ($unappliedKobo > 0) {
+            $this->creditWallet($passenger, $unappliedKobo, $transactionId, $txRef);
+        }
+
+        return $paid;
+    }
+
+    /**
+     * Put card money that could not be applied to a balance into the
+     * passenger's wallet (PSP clearing → wallet), once per charge.
+     */
+    private function creditWallet(User $passenger, int $amountKobo, string $transactionId, string $txRef): void
+    {
+        try {
+            $wallet = $this->ledgerService->findOrCreateAccount($passenger->getMorphClass(), $passenger->id, AccountType::PassengerWallet);
+
+            $this->ledgerService->postJournal([
+                ['account_id' => $this->ledgerService->systemAccount(AccountType::PspClearing)->id, 'type' => LedgerEntryType::Debit->value, 'amount' => $amountKobo],
+                ['account_id' => $wallet->id, 'type' => LedgerEntryType::Credit->value, 'amount' => $amountKobo],
+            ], [
+                'description' => 'Card payment for a balance due that could not be applied, credited to the wallet',
+                'idempotency_key' => "balance-due-unapplied-{$txRef}",
+                'metadata' => [
+                    'transaction_id' => $transactionId,
+                    'tx_ref' => $txRef,
+                    'amount_kobo' => $amountKobo,
+                    'category' => 'balance_due_unapplied',
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::critical('Balance due card payment could not be credited to the wallet; refund manually', [
+                'passenger_id' => $passenger->id,
+                'transaction_id' => $transactionId,
+                'tx_ref' => $txRef,
+                'amount_kobo' => $amountKobo,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

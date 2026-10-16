@@ -26,6 +26,7 @@ use App\Models\UserPaymentMethod;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
+use App\Services\PassengerBalanceService;
 use App\Services\PaymentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -324,4 +325,29 @@ it('exposes the client defaults and lets operations change the fee basis', funct
         ->assertJsonPath('scheduled_rides.late_cancellation_fee_basis', 'flat')
         ->assertJsonPath('scheduled_rides.late_cancellation_fee', 750)
         ->assertJsonPath('scheduled_rides.late_cancellation_window_minutes', 30);
+});
+
+it('puts card money into the wallet when a balance was waived while the card was charged', function () {
+    $rideId = ($this->reservedBooking)();
+    ($this->cancel)($rideId)->assertOk();
+    $balance = PassengerBalanceDue::sole();
+
+    UserPaymentMethod::create(['user_id' => $this->passenger->id, 'gateway_token' => 'tok', 'card_brand' => 'VISA', 'card_last_four' => '4242', 'is_default' => true]);
+    $gateway = Mockery::mock(PaymentGateway::class);
+    $gateway->shouldReceive('chargeWithToken')->once()->andReturnUsing(function () use ($balance) {
+        // Finance waives it while the card charge is in flight.
+        app(PassengerBalanceService::class)->waive($balance, $this->admin, 'Goodwill');
+
+        return ['status' => 'successful', 'transaction_id' => 'txn_race', 'amount' => 400];
+    });
+    $this->app->instance(PaymentGateway::class, $gateway);
+
+    ($this->as)($this->passengerToken)->postJson('/api/v1/passenger/balance-due/pay', ['payment_method' => 'card'])
+        ->assertOk()
+        ->assertJsonCount(0, 'paid');
+
+    $wallet = Account::where('owner_id', $this->passenger->id)->where('type', AccountType::PassengerWallet)->sole();
+    expect($wallet->balance)->toBe(40_000)
+        ->and($balance->fresh()->status->value)->toBe('waived')
+        ->and(($this->driverEarnings)())->toBe(0);
 });

@@ -187,6 +187,12 @@ class ScheduledRideCancellationFeeService
                 });
             } else {
                 $reference = $this->chargeCard($ride, $scheduled, $feeKobo);
+
+                if ($reference === null) {
+                    // Another worker is charging it; leave the status to them.
+                    return;
+                }
+
                 $scheduled->late_cancellation_fee_note = "Card charge {$reference}";
 
                 try {
@@ -197,8 +203,11 @@ class ScheduledRideCancellationFeeService
                 }
             }
         } catch (\DomainException $e) {
-            $this->finish($scheduled, 'balance_due', $e->getMessage());
-            $this->recordBalanceDue($ride, $scheduled, $feeKobo);
+            // Status and balance together, so a crash can never lose the debt.
+            DB::transaction(function () use ($ride, $scheduled, $feeKobo, $e) {
+                $this->finish($scheduled, 'balance_due', $e->getMessage());
+                $this->recordBalanceDue($ride, $scheduled, $feeKobo);
+            });
 
             return;
         } catch (\RuntimeException $e) {
@@ -259,12 +268,12 @@ class ScheduledRideCancellationFeeService
     }
 
     /**
-     * @return string The gateway transaction id
+     * @return string|null The gateway transaction id, or null when another worker is already charging it
      *
      * @throws \DomainException when the passenger cannot pay by card (no card, declined)
-     * @throws \RuntimeException when the outcome is unknown or already in progress
+     * @throws \RuntimeException when the outcome is unknown
      */
-    private function chargeCard(Ride $ride, ScheduledRide $scheduled, int $feeKobo): string
+    private function chargeCard(Ride $ride, ScheduledRide $scheduled, int $feeKobo): ?string
     {
         $card = UserPaymentMethod::where('user_id', $ride->passenger_id)->where('is_default', true)->first();
 
@@ -278,7 +287,7 @@ class ScheduledRideCancellationFeeService
             ->update(['late_cancellation_fee_status' => 'charging']);
 
         if ($claimed === 0) {
-            throw new \RuntimeException('The cancellation fee is already being charged.');
+            return null;
         }
 
         try {
