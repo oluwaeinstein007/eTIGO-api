@@ -11120,7 +11120,7 @@ Each action locks the payout, so two admins acting at once cannot approve, rejec
   "payouts_held_until": "2026-10-17T13:05:00+00:00"
 }
 ```
-Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, `payouts_held_until`): use it to disable **Approve**/**Retry** and link to the account. The weekly auto-payout skips drivers whose account is blocked and pays them in a later week.
+Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, `payouts_held_until`): use it to disable **Approve**/**Retry** and link to the account. The weekly auto-payout skips drivers whose account is blocked and pays them in a later week. The account is checked once more just before the transfer is sent: if it was blocked after approval, the payout fails with the block's message as `failure_reason` and the money goes back to the driver. Finance can retry it once the account is resolved.
 
 **Response 200 (list):** paginated, newest first, with `meta` (`current_page`, `last_page`, `per_page`, `total`). Approve, reject and retry return the same payout object as `payout`.
 ```json
