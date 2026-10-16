@@ -19338,7 +19338,7 @@
                     }
                   ]
                 },
-                "description": "Daily report (generated at 02:00 for the previous day) comparing, in kobo, successful wallet top-up charges and payout transfers confirmed by Paystack/Flutterwave webhooks with the matching ledger entries. `status` is `clean` or `mismatched`, with each difference listed in `mismatches`. Optional `date` (Y-m-d, default yesterday); 404 when no report exists for that date."
+                "description": "Daily report (generated at 02:00 for the previous day) comparing, in kobo, successful wallet top-up charges and payout transfers confirmed by Paystack/Flutterwave webhooks with the matching ledger entries. A payout marked paid without a success webhook (settled by *Check Payout Status* or payout reconciliation) is counted on the gateway side at the amount Paystack's transfer verify API reports; if Paystack does not confirm it, it shows as a mismatch. `status` is `clean` or `mismatched`, with each difference listed in `mismatches`. Optional `date` (Y-m-d, default yesterday); 404 when no report exists for that date."
               },
               "response": [
                 {
@@ -21800,7 +21800,7 @@
                     "paystack"
                   ]
                 },
-                "description": "**Single Paystack webhook URL.** No auth \u2014 verified by HMAC-SHA512 (`x-paystack-signature`) with `PAYSTACK_SECRET_KEY`.\n\n- `charge.success` with a `TOPUP-` reference \u2192 wallet top-up (credited once).\n- `charge.success` (other) \u2192 ride payment: re-verified with Paystack by reference, amount and currency checked, then captured and settled.\n- `transfer.success` \u2192 payout paid; `transfer.failed` / `transfer.reversed` \u2192 payout failed and the money returned to the driver.\n\nEvents are stored per provider + event id + event type. A fully processed redelivery returns \"Already processed.\"; an event whose processing failed part-way is processed again when Paystack retries \u2014 every handler is idempotent."
+                "description": "**Single Paystack webhook URL.** No auth \u2014 verified by HMAC-SHA512 (`x-paystack-signature`) with `PAYSTACK_SECRET_KEY`.\n\n- `charge.success` with a `TOPUP-` reference \u2192 wallet top-up (credited once).\n- `charge.success` (other) \u2192 ride payment: re-verified with Paystack by reference, amount and currency checked, then captured and settled.\n- `transfer.success` \u2192 payout paid; `transfer.failed` / `transfer.reversed` / `transfer.rejected` \u2192 payout failed and the money returned to the driver.\n\nEvents are stored per provider + event id + event type. A fully processed redelivery returns \"Already processed.\"; an event whose processing failed part-way is processed again when Paystack retries \u2014 every handler is idempotent."
               },
               "response": [
                 {
