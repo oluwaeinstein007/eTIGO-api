@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Ride;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -37,8 +38,9 @@ class AdminScheduledRideController extends Controller
             ->join('scheduled_rides', 'scheduled_rides.ride_id', '=', 'rides.id')
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('rides.city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('rides.vehicle_class_id', $v))
-            ->when($request->input('from'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '>=', $v))
-            ->when($request->input('to'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '<=', $v))
+            // Pickup times are stored in UTC; an offset in the filter must count.
+            ->when($request->input('from'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '>=', Carbon::parse($v)->utc()))
+            ->when($request->input('to'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '<=', Carbon::parse($v)->utc()))
             ->orderBy('scheduled_rides.scheduled_pickup_at')
             ->select('rides.*')
             ->with(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide'])

@@ -5452,7 +5452,7 @@ The other party is notified with who cancelled — the passenger, the driver, or
 
 | Field          | Type   | Required | Description                                    |
 |----------------|--------|----------|------------------------------------------------|
-| reason         | string | No       | Cancellation reason (see `CancellationReason` enum) |
+| reason         | string | No       | Cancellation reason (see `CancellationReason` enum). The system-only `system_timeout` and `scheduled_dispatch_failed` are rejected with `422` |
 | reason_details | string | No       | Additional details (max 500 chars). Send the free text for a reason with `allows_custom_description` here |
 
 `custom_description`, `custom_reason` and `description` (strings, max 500) are also accepted, but they are **not stored**. Only `reason_details` is saved and shown to the other party.
@@ -12355,6 +12355,8 @@ Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Operations, Finance
+
+Scheduled rides still waiting for their pickup time (status `scheduled`) are left out: they have no outcome yet.
 
 **Query Parameters:**
 

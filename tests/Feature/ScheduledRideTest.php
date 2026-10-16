@@ -598,3 +598,51 @@ it('keeps the dispatcher failure reason out of the cancellation choices', functi
 
     expect($codes)->not->toContain('scheduled_dispatch_failed')->not->toContain('system_timeout');
 });
+
+it('honours the offset in the admin pickup-time filter', function () {
+    // 10:30 and 11:30 Lagos time on 19 Oct.
+    ($this->book)(['scheduled_pickup_at' => '2026-10-19T10:30:00+01:00'])->assertCreated();
+    ($this->book)(['scheduled_pickup_at' => '2026-10-19T11:30:00+01:00'])->assertCreated();
+
+    ($this->as)($this->adminToken)
+        ->getJson('/api/v1/admin/scheduled-rides?from='.urlencode('2026-10-19T11:00:00+01:00'))
+        ->assertOk()
+        ->assertJsonCount(1, 'rides');
+});
+
+it('leaves a booking cancelled before its dispatch alone', function () {
+    $rideId = ($this->book)(['scheduled_pickup_at' => now()->addMinutes(40)->toIso8601String()])->json('ride.id');
+    $scheduled = Ride::with('scheduledRide')->find($rideId);
+
+    $this->withToken($this->token)->deleteJson("/api/v1/rides/{$rideId}/scheduled")->assertOk();
+    $this->travel(26)->minutes();
+
+    expect(app(ScheduledRideService::class)->dispatch($scheduled->scheduledRide->id))->toBe('skipped')
+        ->and(Ride::find($rideId)->status)->toBe(RideStatus::Cancelled);
+});
+
+it('keeps upcoming bookings out of the completion rate', function () {
+    ($this->book)()->assertCreated();
+    Ride::factory()->create([
+        'passenger_id' => $this->passenger->id,
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => RideStatus::Completed,
+    ]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/reports/completion-rate')
+        ->assertOk()
+        ->assertJsonPath('report.total_rides', 1)
+        ->assertJsonPath('report.completion_rate', 100);
+});
+
+it('does not let anyone cancel with a system-only reason', function () {
+    $rideId = ($this->book)()->json('ride.id');
+
+    $this->withToken($this->token)->deleteJson("/api/v1/rides/{$rideId}/scheduled", [
+        'reason' => 'scheduled_dispatch_failed',
+        'reason_details' => 'Spoofed message',
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+});

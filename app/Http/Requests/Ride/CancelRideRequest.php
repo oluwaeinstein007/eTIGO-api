@@ -45,7 +45,11 @@ class CancelRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reason' => ['nullable', 'string', Rule::enum(CancellationReason::class)],
+            // System reasons are recorded by the platform only.
+            'reason' => ['nullable', 'string', Rule::enum(CancellationReason::class)->except([
+                CancellationReason::SystemTimeout,
+                CancellationReason::ScheduledDispatchFailed,
+            ])],
             'reason_details' => ['nullable', 'string', 'max:500'],
             'custom_description' => ['nullable', 'string', 'max:500'],
             'custom_reason' => ['nullable', 'string', 'max:500'],

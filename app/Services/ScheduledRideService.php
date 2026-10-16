@@ -278,15 +278,13 @@ class ScheduledRideService
         $rideId = null;
 
         $outcome = DB::transaction(function () use ($scheduledRideId, &$failure, &$rideId) {
+            // Lock the ride before its booking row, the same order as
+            // cancelling and editing, so a cancel during dispatch cannot deadlock.
+            $bookedRideId = ScheduledRide::whereKey($scheduledRideId)->value('ride_id');
+            $ride = $bookedRideId ? Ride::lockForUpdate()->with(['passenger', 'city'])->find($bookedRideId) : null;
             $scheduled = ScheduledRide::lockForUpdate()->find($scheduledRideId);
 
-            if ($scheduled === null || ! $scheduled->isUpcoming()) {
-                return 'skipped';
-            }
-
-            $ride = Ride::lockForUpdate()->with(['passenger', 'city'])->find($scheduled->ride_id);
-
-            if ($ride === null || $ride->status !== RideStatus::Scheduled) {
+            if ($ride === null || $scheduled === null || ! $scheduled->isUpcoming() || $ride->status !== RideStatus::Scheduled) {
                 return 'skipped';
             }
 

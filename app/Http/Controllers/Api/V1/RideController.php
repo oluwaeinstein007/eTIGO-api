@@ -19,9 +19,11 @@ use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\RidePinService;
 use App\Services\RideService;
+use App\Services\ScheduledRideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RideController extends Controller
 {
@@ -35,6 +37,7 @@ class RideController extends Controller
         private DriverLocationService $locationService,
         private DriverEarningsService $earningsService,
         private RidePinService $pinService,
+        private ScheduledRideService $scheduledRideService,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -45,6 +48,16 @@ class RideController extends Controller
         try {
             $result = DB::transaction(function () use ($user, $request, $scheduledPickupAt) {
                 User::lockForUpdate()->find($user->id);
+
+                // Checked again under the passenger lock so two bookings sent
+                // together cannot both slip past the limits.
+                if ($scheduledPickupAt !== null) {
+                    $errors = $this->scheduledRideService->pickupTimeErrors($user, $scheduledPickupAt);
+
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages(['scheduled_pickup_at' => $errors]);
+                    }
+                }
 
                 // A booking for later does not compete with a ride happening now.
                 if ($scheduledPickupAt === null) {

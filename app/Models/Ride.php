@@ -168,16 +168,6 @@ class Ride extends Model
         return $this->hasMany(TripCarbonScore::class);
     }
 
-    /**
-     * Whether the ride was booked ahead of time (whatever its status now).
-     */
-    public function isScheduledBooking(): bool
-    {
-        return $this->relationLoaded('scheduledRide')
-            ? $this->scheduledRide !== null
-            : $this->scheduledRide()->exists();
-    }
-
     public function isActive(): bool
     {
         return $this->status->isActive();
