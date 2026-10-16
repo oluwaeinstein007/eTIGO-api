@@ -1612,7 +1612,14 @@ Toggle driver online/offline status. No request body required.
 
 Drivers whose app stops sending locations for 2 minutes are no longer offered rides or shown on maps, even if they forgot to go offline.
 
-**Set offline automatically:** a driver who has been online for 10 minutes without the app sending a location in that time (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) is set offline by the server and gets a `driver_set_offline` notification. Drivers on a trip are not. The app should show the driver as offline and, whenever it opens or returns to the foreground with `is_online: true`, restart location updates, otherwise the driver is invisible to matching.
+**When the app stops sending locations:** an online driver without a location gets no ride requests, so the server steps in twice:
+
+| After (no location) | What happens | Setting |
+|---|---|---|
+| 5 minutes | One `driver_location_missing` push per silent spell ("we can't see your location"); `on_trip: true` when the driver is on a trip. The driver stays online | `MATCHING_SILENT_DRIVER_WARNING_MINUTES` |
+| 30 minutes | The driver is set offline (audited as `driver_went_offline`, reason `no_location`) and gets a `driver_set_offline` push. **Never done to a driver on a trip**, who is only warned | `MATCHING_SILENT_DRIVER_OFFLINE_MINUTES` |
+
+The silence counts from the last location, or from going online if none has come since. **App requirements:** keep sending locations while online even when the app is in the background (an Android foreground service with its persistent notification; iOS background location updates with "Always" permission). Whenever the app opens or returns to the foreground with `is_online: true`, restart location updates. On a `driver_location_missing` push, restart them and show a banner until a location is accepted; on `driver_set_offline`, show the driver as offline.
 
 **Response 200 (went online):**
 ```json
@@ -13479,7 +13486,8 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
-| Set offline | Driver | `driver_set_offline` | The driver's app sent no location for 10 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`), so they were set offline and get no ride requests; open the home screen so they can go online again (which restarts location updates). Not sent to drivers on a trip |
+| Location missing | Driver | `driver_location_missing` | The driver's app sent no location for 5 minutes (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`), so they get no ride requests (or, with `on_trip: true`, their passenger can't see them). Once per silent spell; the driver stays online. Restart location updates and show a banner |
+| Set offline | Driver | `driver_set_offline` | The driver's app sent no location for 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`), so they were set offline and get no ride requests; open the home screen so they can go online again (which restarts location updates). Never sent to drivers on a trip |
 
 **Wallet and payout notifications** (stored in-app — see `GET /notifications` — and pushed):
 

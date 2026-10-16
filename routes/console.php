@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\CheckSilentDriversJob;
 use App\Jobs\DailyReconciliationJob;
 use App\Jobs\DailyRemittanceSettlementJob;
 use App\Jobs\ExpireAbandonedTopupsJob;
@@ -11,7 +12,6 @@ use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ProcessWeeklyAutoPayoutJob;
 use App\Jobs\ReconcilePayoutsJob;
 use App\Jobs\RemittanceShortfallAlertJob;
-use App\Jobs\SetSilentDriversOfflineJob;
 use App\Jobs\SettleDriverEarningsJob;
 use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\Notification;
@@ -33,7 +33,7 @@ Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
 Schedule::command('pricing:check-coverage')->dailyAt('07:00')->timezone('Africa/Lagos');
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
-Schedule::job(new SetSilentDriversOfflineJob)->everyMinute()->withoutOverlapping();
+Schedule::job(new CheckSilentDriversJob)->everyMinute()->withoutOverlapping();
 // Scheduled rides: start matching shortly before pickup and send reminders.
 Schedule::job(new ProcessScheduledRidesJob)->everyMinute()->withoutOverlapping();
 Schedule::job(new LiftExpiredComplianceSuspensionsJob)->hourly()->withoutOverlapping();

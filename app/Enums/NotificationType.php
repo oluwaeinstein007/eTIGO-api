@@ -13,6 +13,7 @@ enum NotificationType: string
     case RideCompleted = 'ride_completed';
     case NoDriverFound = 'no_driver_found';
     case RideAssigned = 'ride_assigned';
+    case DriverLocationMissing = 'driver_location_missing';
     case DriverSetOffline = 'driver_set_offline';
 
     // SOS events
@@ -73,6 +74,7 @@ enum NotificationType: string
             self::RideCompleted => 'Ride Completed',
             self::NoDriverFound => 'No Driver Found',
             self::RideAssigned => 'Ride Assigned',
+            self::DriverLocationMissing => 'We Can\'t See Your Location',
             self::DriverSetOffline => 'You Are Offline',
             self::SosCheckIn => 'SOS Check-In',
             self::SosEscalated => 'SOS Escalated',
@@ -115,6 +117,7 @@ enum NotificationType: string
             self::RideCompleted,
             self::NoDriverFound,
             self::RideAssigned,
+            self::DriverLocationMissing,
             self::DriverSetOffline,
             self::ScheduledRideReminder,
             self::ScheduledRideDispatched,
