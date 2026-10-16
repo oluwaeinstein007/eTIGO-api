@@ -238,6 +238,10 @@
     {
       "key": "scheduled_ride_id",
       "value": ""
+    },
+    {
+      "key": "balance_due_id",
+      "value": ""
     }
   ],
   "item": [
@@ -333,7 +337,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 20,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 1500,\n    \"late_cancellation_window_minutes\": 60,\n    \"driver_reservations_enabled\": true\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  }\n}"
             }
           ]
         },
@@ -2910,7 +2914,7 @@
                     "rides"
                   ]
                 },
-                "description": "Passenger books a ride. Uses `{{city_id}}` and `{{economy_class_id}}` (run **Public \u2192 List Active Cities** and **List City Vehicle Classes** first). **Sets `{{ride_id}}` and `{{share_token}}`.**\n\n- Returns the ride (`reference_number` e.g. `TRP-NG-000123`) and the 4-digit `pin_code` for the driver.\n- One active ride per passenger: a second booking returns 409.\n- `payment_method`: `cash`, `card` (saved default card), `wallet` (a hold for the estimate is placed now) or `bank_transfer`.\n- The surge multiplier and tier discount in effect now are locked in for the final fare.\n- Optional `promo_code`: validated now against city, class, fare, time window, tier and usage limits \u2014 an invalid code rejects the booking with 422; the discount is applied at completion.\n- To book for later, add `scheduled_pickup_at` \u2014 see **Book Scheduled Ride**. Ride responses carry `is_scheduled`, `scheduled_pickup_at` and `scheduled` (null for rides booked for now)."
+                "description": "Passenger books a ride. Uses `{{city_id}}` and `{{economy_class_id}}` (run **Public \u2192 List Active Cities** and **List City Vehicle Classes** first). **Sets `{{ride_id}}` and `{{share_token}}`.**\n\n- Returns the ride (`reference_number` e.g. `TRP-NG-000123`) and the 4-digit `pin_code` for the driver.\n- One active ride per passenger: a second booking returns 409.\n- `payment_method`: `cash`, `card` (saved default card), `wallet` (a hold for the estimate is placed now) or `bank_transfer`.\n- The surge multiplier and tier discount in effect now are locked in for the final fare.\n- Optional `promo_code`: validated now against city, class, fare, time window, tier and usage limits \u2014 an invalid code rejects the booking with 422; the discount is applied at completion.\n- To book for later, add `scheduled_pickup_at` \u2014 see **Book Scheduled Ride**. Ride responses carry `is_scheduled`, `scheduled_pickup_at` and `scheduled` (null for rides booked for now).\n- While the passenger owes a balance (unpaid late-cancellation fee or wallet fare), booking returns 422 `BALANCE_DUE` with `balance_due`; pay it with **Passenger \u203a Balance Due \u203a Pay Balance Due**."
               },
               "response": [
                 {
@@ -2936,6 +2940,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The pickup lat field is required. (and 6 more errors)\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"pickup_lat\": [\n      \"The pickup lat field is required.\"\n    ],\n    \"pickup_lng\": [\n      \"The pickup lng field is required.\"\n    ],\n    \"pickup_address\": [\n      \"The pickup address field is required.\"\n    ],\n    \"destination_lat\": [\n      \"The destination lat field is required.\"\n    ],\n    \"destination_lng\": [\n      \"The destination lng field is required.\"\n    ],\n    \"destination_address\": [\n      \"The destination address field is required.\"\n    ],\n    \"payment_method\": [\n      \"The selected payment method is invalid.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Balance Due",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You have an outstanding balance of \u20a6600.00. Pay it to book a ride.\",\n  \"error_code\": \"BALANCE_DUE\",\n  \"balance_due\": 600,\n  \"errors\": {\n    \"balance_due\": [\n      \"You have an outstanding balance of \u20a6600.00. Pay it to book a ride.\"\n    ]\n  }\n}"
                 }
               ],
               "event": [
@@ -3182,7 +3198,7 @@
                     "scheduled"
                   ]
                 },
-                "description": "Cancels a booking before it is dispatched. Optional `reason` / `reason_details`. Free unless the late-cancellation fee is on **and** a driver has reserved the booking **and** pickup is within the late window (60 min); `emergency`, `safety_concern`, `vehicle_mismatch` and `driver_no_show` are never charged. Show `scheduled.cancellation_fee_if_cancelled_now` before confirming. The response's `scheduled.late_cancellation_fee` / `late_cancellation_fee_status` (`pending`, `charged`, `waived`, `failed`) show the outcome. Once dispatched, use **Cancel Ride**.",
+                "description": "Cancels a booking before it is dispatched. Optional `reason` / `reason_details`. Free unless a driver has reserved the booking **and** the ride is less than 30 minutes away; then the passenger pays the city's **economy base fare** (client decision), paid to the reserved driver. `emergency`, `safety_concern`, `vehicle_mismatch` and `driver_no_show` are never charged. Show `scheduled.cancellation_fee_if_cancelled_now` before confirming. Wallet and card bookings are charged at once; cash and bank-transfer bookings (or a short wallet or declined card) get a balance due (`late_cancellation_fee_status: balance_due`). Once dispatched, use **Cancel Ride**.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"changed_mind\"\n}"
@@ -3202,7 +3218,7 @@
                   "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0db4-7179-8319-072b731094df\",\n    \"reference_number\": \"TRP-NG-000003\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-21T17:00:00.000000Z\",\n      \"dispatch_at\": \"2026-10-21T16:45:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": null,\n      \"reserved_at\": null,\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": \"admin_released\",\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"ONg1k5otPmy16CwR2KuEjoiLeMgXLQbh\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-20T04:16:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
                 },
                 {
-                  "name": "200 \u2014 Cancelled Late (fee charged to wallet)",
+                  "name": "200 \u2014 Cancelled Late (cash booking: balance due)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3211,7 +3227,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-20T04:16:00.000000Z\",\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": 1500,\n      \"late_cancellation_fee_status\": \"charged\"\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"wallet\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:16:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Scheduled ride cancelled.\",\n  \"ride\": {\n    \"id\": \"01a142ed-dce0-71fc-97ef-2327192038f7\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142ed-dc8b-7131-9ded-e38f6a3ff753\",\n    \"vehicle_class_id\": \"01a142ed-dc8d-70fc-8441-5fd0d9bb029c\",\n    \"passenger_id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": false,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": \"2026-10-20T04:05:00.000000Z\",\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142ed-dca3-73c4-b7e9-c302f8a44181\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": 600,\n      \"late_cancellation_fee_status\": \"balance_due\"\n    },\n    \"share_token\": \"8czFgnFlJv7LV7ASKFFHIuQ9PtYjzAn6\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": \"changed_mind\",\n    \"city\": {\n      \"id\": \"01a142ed-dc8b-7131-9ded-e38f6a3ff753\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": null,\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142ed-dc8d-70fc-8441-5fd0d9bb029c\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Vel modi veritatis explicabo atque itaque deserunt.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"cancelled_by\": {\n      \"id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-20T04:05:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Already Dispatched",
@@ -3255,11 +3271,11 @@
                     "{{scheduled_ride_id}}"
                   ]
                 },
-                "description": "`GET /rides/{ride}` for a booking a driver has reserved, inside the late-cancellation window, with the fee switched on: `scheduled.reserved_driver` shows the driver and `scheduled.cancellation_fee_if_cancelled_now` what cancelling would cost."
+                "description": "`GET /rides/{ride}` for a booking a driver has reserved, less than 30 minutes before the ride: `scheduled.reserved_driver` shows the driver and `scheduled.cancellation_fee_if_cancelled_now` what cancelling would cost (the city's economy base fare)."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Reserved Booking with Fee Preview",
+                  "name": "200 \u2014 Reserved Booking Inside the 30-Minute Window",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -3268,7 +3284,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142a2-0cf5-705c-a16d-400256d57e81\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 1500,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Bronze\",\n      \"captured_at\": \"2026-10-19T08:00:00+00:00\",\n      \"distance_km\": 18,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-18T08:00:00+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"reservation_fee\": 0,\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 35,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a142a2-0cf1-711e-a117-42100826724f\",\n      \"priority_matching\": false,\n      \"waiting_time_rate\": \"52.04\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 0\n    },\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"payment_method\": \"wallet\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"payment\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"driver\": null,\n    \"cancelled_by\": null,\n    \"state_transitions\": [],\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"ride\": {\n    \"id\": \"01a142ed-dce0-71fc-97ef-2327192038f7\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142ed-dc8b-7131-9ded-e38f6a3ff753\",\n    \"vehicle_class_id\": \"01a142ed-dc8d-70fc-8441-5fd0d9bb029c\",\n    \"passenger_id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": {\n        \"id\": \"01a142ed-dca3-73c4-b7e9-c302f8a44181\",\n        \"first_name\": \"Bayo\",\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LND-482KJ\"\n        }\n      },\n      \"reserved_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 600,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"8czFgnFlJv7LV7ASKFFHIuQ9PtYjzAn6\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Bronze\",\n      \"captured_at\": \"2026-10-19T08:00:00+00:00\",\n      \"distance_km\": 18,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-18T08:00:00+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"reservation_fee\": 0,\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 35,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a142ed-dc93-713f-b419-1a634af69faa\",\n      \"priority_matching\": false,\n      \"waiting_time_rate\": \"45.52\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 0\n    },\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"payment\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142ed-dc8b-7131-9ded-e38f6a3ff753\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": null,\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142ed-dc8d-70fc-8441-5fd0d9bb029c\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Vel modi veritatis explicabo atque itaque deserunt.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"driver\": null,\n    \"cancelled_by\": null,\n    \"state_transitions\": [],\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -5290,6 +5306,119 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Transaction was not successful.\",\n  \"status\": \"abandoned\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Balance Due",
+          "description": "Money the passenger owes: a scheduled ride's late-cancellation fee that could not be charged, or the part of a wallet ride's fare the wallet could not cover. Booking is refused (422 `BALANCE_DUE`) until it is paid.",
+          "item": [
+            {
+              "name": "Get Balance Due",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/balance-due",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "balance-due"
+                  ]
+                },
+                "description": "Outstanding total, whether it blocks booking, and each item with its ride."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Outstanding Balance",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"total\": 600,\n  \"currency\": \"NGN\",\n  \"blocks_booking\": true,\n  \"items\": [\n    {\n      \"id\": \"01a142ed-dd38-724f-a9ba-e9a1e08397c2\",\n      \"reason\": \"late_cancellation_fee\",\n      \"reason_label\": \"Late cancellation fee\",\n      \"amount\": 600,\n      \"currency\": \"NGN\",\n      \"status\": \"outstanding\",\n      \"ride\": {\n        \"id\": \"01a142ed-dce0-71fc-97ef-2327192038f7\",\n        \"reference_number\": \"TRP-NG-000001\",\n        \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"paid_at\": null,\n      \"paid_via\": null,\n      \"waived_at\": null,\n      \"created_at\": \"2026-10-20T04:05:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Pay Balance Due",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/passenger/balance-due/pay",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "passenger",
+                    "balance-due",
+                    "pay"
+                  ]
+                },
+                "description": "Pays everything outstanding at once. `payment_method`: `wallet` (available balance must cover it) or `card` (default saved card). The money goes to the driver it is owed to. Rate limited to 10/min.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payment_method\": \"wallet\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Paid",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Balance paid. You can book again.\",\n  \"paid\": [\n    {\n      \"id\": \"01a142ed-dd38-724f-a9ba-e9a1e08397c2\",\n      \"reason\": \"late_cancellation_fee\",\n      \"reason_label\": \"Late cancellation fee\",\n      \"amount\": 600,\n      \"currency\": \"NGN\",\n      \"status\": \"paid\",\n      \"ride\": {\n        \"id\": \"01a142ed-dce0-71fc-97ef-2327192038f7\",\n        \"reference_number\": \"TRP-NG-000001\",\n        \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"passenger\": {\n        \"id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"paid_at\": \"2026-10-20T04:05:00.000000Z\",\n      \"paid_via\": \"wallet\",\n      \"waived_at\": null,\n      \"created_at\": \"2026-10-20T04:05:00.000000Z\"\n    }\n  ],\n  \"total\": 0\n}"
+                },
+                {
+                  "name": "422 \u2014 Wallet Too Low",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Your wallet balance cannot cover the \u20a6600.00 you owe. Top up or pay by card.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"payment_method\": [\n      \"Your wallet balance cannot cover the \u20a6600.00 you owe. Top up or pay by card.\"\n    ]\n  }\n}"
                 }
               ]
             }
@@ -15073,7 +15202,7 @@
               },
               "response": [
                 {
-                  "name": "200 \u2014 Settings",
+                  "name": "200 \u2014 Settings (client defaults)",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -15082,7 +15211,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 3,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 60\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reminder_minutes\": 60,\n    \"matching_grace_minutes\": 10,\n    \"retry_wave_delay_seconds\": 30,\n    \"max_upcoming_per_passenger\": 3,\n    \"min_minutes_between_bookings\": 30,\n    \"driver_reservations_enabled\": true,\n    \"max_reservations_per_driver\": 5,\n    \"driver_reservation_gap_minutes\": 60,\n    \"driver_reservation_buffer_minutes\": 60,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee_vehicle_class\": \"economy\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30\n  }\n}"
                 }
               ]
             },
@@ -15115,10 +15244,10 @@
                     "scheduled-rides"
                   ]
                 },
-                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390, default 3), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440), `driver_reservations_enabled`, `max_reservations_per_driver` (1\u201350), `driver_reservation_gap_minutes` (0\u20131440), `driver_reservation_buffer_minutes` (0\u2013240), `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off), `late_cancellation_window_minutes` (0\u20131440). Changes are audit-logged. Role: operations. Defaults and reasons: doc/client/SCHEDULED_RIDES_DECISIONS.md.",
+                "description": "Send any subset: `enabled`, `min_lead_minutes` (5\u20131440), `max_advance_days` (1\u201390, default 3), `dispatch_lead_minutes` (5\u2013120, \u2264 `min_lead_minutes`), `reminder_minutes` (0 = off, else > `dispatch_lead_minutes`), `matching_grace_minutes` (0\u201360), `retry_wave_delay_seconds` (10\u2013300), `max_upcoming_per_passenger` (1\u201350), `min_minutes_between_bookings` (0\u20131440), `driver_reservations_enabled`, `max_reservations_per_driver` (1\u201350), `driver_reservation_gap_minutes` (0\u20131440), `driver_reservation_buffer_minutes` (0\u2013240), `reservation_fee` (NGN; client: 0), `late_cancellation_fee_basis` (`economy_base_fare` (client), `flat`, `off`), `late_cancellation_fee_vehicle_class` (a vehicle class name; default `economy`), `late_cancellation_fee` (NGN, `flat` basis only), `late_cancellation_window_minutes` (0\u20131440; client: 30). Changes are audit-logged. Role: operations. Defaults and reasons: doc/client/SCHEDULED_RIDES_DECISIONS.md.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"dispatch_lead_minutes\": 20,\n  \"reminder_minutes\": 90,\n  \"late_cancellation_fee\": 1500\n}"
+                  "raw": "{\n  \"dispatch_lead_minutes\": 20,\n  \"reminder_minutes\": 90\n}"
                 }
               },
               "response": [
@@ -18491,6 +18620,114 @@
           ]
         },
         {
+          "name": "Admin \u2014 Finance: Balances Due",
+          "description": "Passenger balances due (late-cancellation fees and wallet shortfalls). Finance and support can list; finance can waive.",
+          "item": [
+            {
+              "name": "List Balances Due",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/balances-due?status=outstanding",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "balances-due"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "outstanding"
+                    }
+                  ]
+                },
+                "description": "Filters: `status` (`outstanding`, `paid`, `waived`), `reason` (`late_cancellation_fee`, `wallet_shortfall`), `passenger_id`, `per_page` (1\u2013100). `summary` = everything outstanding."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Outstanding",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"balances\": [\n    {\n      \"id\": \"01a142ed-dd38-724f-a9ba-e9a1e08397c2\",\n      \"reason\": \"late_cancellation_fee\",\n      \"reason_label\": \"Late cancellation fee\",\n      \"amount\": 600,\n      \"currency\": \"NGN\",\n      \"status\": \"outstanding\",\n      \"ride\": {\n        \"id\": \"01a142ed-dce0-71fc-97ef-2327192038f7\",\n        \"reference_number\": \"TRP-NG-000001\",\n        \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n        \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\"\n      },\n      \"passenger\": {\n        \"id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n      },\n      \"paid_at\": null,\n      \"paid_via\": null,\n      \"waived_at\": null,\n      \"waive_reason\": null,\n      \"created_at\": \"2026-10-20T04:05:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 25,\n    \"total\": 1\n  },\n  \"summary\": {\n    \"outstanding_count\": 1,\n    \"outstanding_total\": 600\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Waive Balance Due",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/balances-due/{{balance_due_id}}/waive",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "balances-due",
+                    "{{balance_due_id}}",
+                    "waive"
+                  ]
+                },
+                "description": "Writes a balance off with a `reason` (required). Nobody is paid. Finance only. Audit-logged.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Goodwill: first late cancellation\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Waived",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Balance waived.\",\n  \"balance\": {\n    \"id\": \"01a142ed-ddab-7008-9169-57157ab902ed\",\n    \"reason\": \"late_cancellation_fee\",\n    \"reason_label\": \"Late cancellation fee\",\n    \"amount\": 600,\n    \"currency\": \"NGN\",\n    \"status\": \"waived\",\n    \"ride\": {\n      \"id\": \"01a142ed-dd87-73ee-a0bd-5f480fba50f0\",\n      \"reference_number\": \"TRP-NG-000002\",\n      \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n      \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142ed-dc80-715f-af5b-828a2891ae9f\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"paid_at\": null,\n    \"paid_via\": null,\n    \"waived_at\": \"2026-10-20T05:40:00.000000Z\",\n    \"waive_reason\": \"Goodwill: first late cancellation\",\n    \"created_at\": \"2026-10-20T05:40:00.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Admin \u2014 Finance: Wallets",
           "item": [
             {
@@ -19699,7 +19936,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\"\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\",\n    \"block_booking_with_balance_due\": true\n  }\n}"
                 }
               ]
             },
@@ -19732,7 +19969,7 @@
                     "wallet"
                   ]
                 },
-                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values. Payout account safeguards: `payout_account_hold_hours` (0\u2013168), `payout_account_hold_first_account` (boolean), `payout_account_name_check` (`off`, `review`, `block`); they apply to accounts saved afterwards.",
+                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values. Payout account safeguards: `payout_account_hold_hours` (0\u2013168), `payout_account_hold_first_account` (boolean), `payout_account_name_check` (`off`, `review`, `block`); they apply to accounts saved afterwards.\n\n`block_booking_with_balance_due` (boolean): refuse new bookings while a passenger owes a balance (default true).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"min_topup\": 100000,\n  \"max_balance\": 100000000,\n  \"settlement_delay\": \"instant\"\n}"

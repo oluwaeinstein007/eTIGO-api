@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\PaymentGateway;
 use App\Enums\AccountType;
+use App\Enums\BalanceDueReason;
 use App\Enums\CancellationReason;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
@@ -13,22 +14,26 @@ use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
+use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
+use App\Models\VehicleClass;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * Late-cancellation fee for scheduled rides (Uber Reserve model): when the
- * passenger cancels a booking a driver has reserved, within the late window
- * before pickup, the fee goes to that driver in full (no commission, as in
- * the cancellation fee proposal). Emergency, safety, vehicle-mismatch and
- * driver-no-show cancellations are never charged. It is collected from the wallet or the
- * saved default card; cash and bank transfer bookings cannot be charged
- * after the fact, so the fee is waived for them. Off by default (fee 0).
+ * Late-cancellation fee for scheduled rides (Uber Reserve model), as the
+ * client decided on 16 Oct 2026: when the passenger cancels a booking a
+ * driver has reserved, within 30 minutes of the ride time, they pay the
+ * economy base fare of the ride's city, and the reserved driver receives it
+ * in full (no commission, as in the cancellation fee proposal). Emergency,
+ * safety, vehicle-mismatch and driver-no-show cancellations are never
+ * charged. Wallet and card bookings are charged at once; whatever cannot be
+ * collected that way, including every cash or bank-transfer booking,
+ * becomes a balance due (PassengerBalanceService).
  */
 class ScheduledRideCancellationFeeService
 {
@@ -45,7 +50,33 @@ class ScheduledRideCancellationFeeService
     public function __construct(
         private LedgerService $ledgerService,
         private PaymentGateway $paymentGateway,
+        private PassengerBalanceService $balanceService,
     ) {}
+
+    /**
+     * The late-cancellation fee for this ride, in NGN (0 when switched off):
+     * by default the current base fare of the economy class in the ride's
+     * city, falling back to the base fare the ride was quoted with when the
+     * city has no economy pricing.
+     */
+    public static function feeAmount(Ride $ride, ?array $settings = null): float
+    {
+        $settings ??= AppSetting::scheduledRides();
+
+        return match ($settings['late_cancellation_fee_basis']) {
+            'flat' => max(0.0, $settings['late_cancellation_fee']),
+            'economy_base_fare' => self::economyBaseFare($ride, $settings['late_cancellation_fee_vehicle_class']),
+            default => 0.0,
+        };
+    }
+
+    private static function economyBaseFare(Ride $ride, string $className): float
+    {
+        $classId = VehicleClass::where('name', $className)->value('id');
+        $pricing = $classId ? PricingConfig::currentFor($ride->city_id, $classId) : null;
+
+        return round((float) ($pricing?->base_fare ?? data_get($ride->pricing_snapshot, 'base_fare', 0)), 2);
+    }
 
     /**
      * The fee the passenger would pay by cancelling now (0 when none).
@@ -53,9 +84,8 @@ class ScheduledRideCancellationFeeService
     public static function feeIfCancelledNow(Ride $ride, ScheduledRide $scheduled): float
     {
         $settings = AppSetting::scheduledRides();
-        $fee = $settings['late_cancellation_fee'];
 
-        if ($fee <= 0
+        if ($settings['late_cancellation_fee_basis'] === 'off'
             || $scheduled->reserved_driver_id === null
             || $ride->status->isTerminal()
             || $ride->status === RideStatus::InProgress) {
@@ -69,7 +99,7 @@ class ScheduledRideCancellationFeeService
 
         $windowStart = $scheduled->scheduled_pickup_at->copy()->subMinutes($settings['late_cancellation_window_minutes']);
 
-        return now()->gte($windowStart) ? $fee : 0.0;
+        return now()->gte($windowStart) ? self::feeAmount($ride, $settings) : 0.0;
     }
 
     /**
@@ -94,19 +124,34 @@ class ScheduledRideCancellationFeeService
 
         $scheduled->update([
             'late_cancellation_fee' => $fee,
-            'late_cancellation_fee_status' => $chargeable ? 'pending' : 'waived',
-            'late_cancellation_fee_note' => $chargeable ? null : 'Cash and bank transfer bookings cannot be charged after cancellation.',
+            'late_cancellation_fee_status' => $chargeable ? 'pending' : 'balance_due',
+            'late_cancellation_fee_note' => $chargeable ? null : 'Cash and bank transfer bookings cannot be charged after cancellation; recorded as a balance due.',
         ]);
 
         AuditLog::record($ride, 'scheduled_ride_late_cancellation_fee', $cancelledBy, null, [
             'fee' => $fee,
-            'status' => $chargeable ? 'pending' : 'waived',
+            'status' => $chargeable ? 'pending' : 'balance_due',
             'driver_user_id' => $scheduled->reserved_driver_id,
         ]);
 
         if ($chargeable) {
             ChargeScheduledRideCancellationFeeJob::dispatch($scheduled->id)->afterCommit();
+
+            return;
         }
+
+        $this->recordBalanceDue($ride, $scheduled, (int) round($fee * 100));
+    }
+
+    private function recordBalanceDue(Ride $ride, ScheduledRide $scheduled, int $feeKobo): void
+    {
+        $this->balanceService->record(
+            $ride->passenger_id,
+            $ride,
+            BalanceDueReason::LateCancellationFee,
+            $feeKobo,
+            $scheduled->reserved_driver_id,
+        );
     }
 
     /**
@@ -131,6 +176,9 @@ class ScheduledRideCancellationFeeService
             return;
         }
 
+        // Paid from the wallet or card, or owed as a balance due; a card
+        // charge whose outcome is unknown is left for finance to check.
+
         try {
             if ($ride->payment_method === PaymentMethod::Wallet) {
                 DB::transaction(function () use ($ride, $scheduled, $driver, $feeKobo) {
@@ -139,10 +187,30 @@ class ScheduledRideCancellationFeeService
                 });
             } else {
                 $reference = $this->chargeCard($ride, $scheduled, $feeKobo);
+
+                if ($reference === null) {
+                    // Another worker is charging it; leave the status to them.
+                    return;
+                }
+
                 $scheduled->late_cancellation_fee_note = "Card charge {$reference}";
-                $this->post($this->ledgerService->systemAccount(AccountType::PspClearing), $ride, $scheduled, $driver, $feeKobo);
+
+                try {
+                    $this->post($this->ledgerService->systemAccount(AccountType::PspClearing), $ride, $scheduled, $driver, $feeKobo);
+                } catch (\Throwable $e) {
+                    // The card was charged: never turn this into a balance due.
+                    throw new \RuntimeException("Card charged ({$reference}) but the ledger posting failed: {$e->getMessage()}");
+                }
             }
         } catch (\DomainException $e) {
+            // Status and balance together, so a crash can never lose the debt.
+            DB::transaction(function () use ($ride, $scheduled, $feeKobo, $e) {
+                $this->finish($scheduled, 'balance_due', $e->getMessage());
+                $this->recordBalanceDue($ride, $scheduled, $feeKobo);
+            });
+
+            return;
+        } catch (\RuntimeException $e) {
             $this->finish($scheduled, 'failed', $e->getMessage());
 
             return;
@@ -200,11 +268,12 @@ class ScheduledRideCancellationFeeService
     }
 
     /**
-     * @return string The gateway transaction id
+     * @return string|null The gateway transaction id, or null when another worker is already charging it
      *
-     * @throws \DomainException when the card charge does not succeed
+     * @throws \DomainException when the passenger cannot pay by card (no card, declined)
+     * @throws \RuntimeException when the outcome is unknown
      */
-    private function chargeCard(Ride $ride, ScheduledRide $scheduled, int $feeKobo): string
+    private function chargeCard(Ride $ride, ScheduledRide $scheduled, int $feeKobo): ?string
     {
         $card = UserPaymentMethod::where('user_id', $ride->passenger_id)->where('is_default', true)->first();
 
@@ -218,7 +287,7 @@ class ScheduledRideCancellationFeeService
             ->update(['late_cancellation_fee_status' => 'charging']);
 
         if ($claimed === 0) {
-            throw new \DomainException('The cancellation fee is already being charged.');
+            return null;
         }
 
         try {
@@ -234,7 +303,7 @@ class ScheduledRideCancellationFeeService
             // The charge may have gone through (timeout); finance checks it.
             Log::error('Scheduled ride cancellation fee card charge errored', ['scheduled_ride_id' => $scheduled->id, 'error' => $e->getMessage()]);
 
-            throw new \DomainException('Card charge error; check the payment provider before charging again.');
+            throw new \RuntimeException('Card charge error; check the payment provider before charging again.');
         }
 
         if (($result['status'] ?? null) !== 'successful') {

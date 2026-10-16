@@ -29,7 +29,7 @@ class ConfigController extends Controller
     /**
      * What the booking screen needs to offer a valid pickup time.
      *
-     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reservation_fee: float, late_cancellation_fee: float, late_cancellation_window_minutes: int, driver_reservations_enabled: bool}
+     * @return array{enabled: bool, min_lead_minutes: int, max_advance_days: int, dispatch_lead_minutes: int, reservation_fee: float, late_cancellation_fee_basis: string, late_cancellation_fee: float, late_cancellation_window_minutes: int, driver_reservations_enabled: bool}
      */
     private static function scheduledRideBookingRules(): array
     {
@@ -41,6 +41,10 @@ class ConfigController extends Controller
             'max_advance_days' => $settings['max_advance_days'],
             'dispatch_lead_minutes' => $settings['dispatch_lead_minutes'],
             'reservation_fee' => $settings['reservation_fee'],
+            // economy_base_fare (the city's economy base fare), flat
+            // (late_cancellation_fee) or off. The ride shows the exact amount
+            // as scheduled.cancellation_fee_if_cancelled_now.
+            'late_cancellation_fee_basis' => $settings['late_cancellation_fee_basis'],
             'late_cancellation_fee' => $settings['late_cancellation_fee'],
             'late_cancellation_window_minutes' => $settings['late_cancellation_window_minutes'],
             'driver_reservations_enabled' => $settings['driver_reservations_enabled'],

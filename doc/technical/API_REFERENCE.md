@@ -744,8 +744,9 @@ No authentication required. Returns app configuration including minimum version 
     "max_advance_days": 3,
     "dispatch_lead_minutes": 15,
     "reservation_fee": 0,
+    "late_cancellation_fee_basis": "economy_base_fare",
     "late_cancellation_fee": 0,
-    "late_cancellation_window_minutes": 60,
+    "late_cancellation_window_minutes": 30,
     "driver_reservations_enabled": true
   }
 }
@@ -753,7 +754,7 @@ No authentication required. Returns app configuration including minimum version 
 
 **Usage:** Mobile clients should check `min_app_version` on every launch. If the installed version is below the minimum, show a force-update screen with a link to the App Store / Play Store. When `force_update` is `true`, block usage entirely until updated.
 
-`scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. `reservation_fee` is added to every scheduled quote; `late_cancellation_fee` applies when a passenger cancels a booking a driver has reserved within `late_cancellation_window_minutes` of pickup (both ₦0 = off). See [Scheduled Rides](#scheduled-rides).
+`scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. `reservation_fee` is added to every scheduled quote (₦0: the client decided not to charge for reservations). A passenger who cancels a booking a driver has reserved within `late_cancellation_window_minutes` (30) of pickup pays a late-cancellation fee: with `late_cancellation_fee_basis` `economy_base_fare` (the default) it is the economy base fare of the ride's city; with `flat` it is `late_cancellation_fee`; `off` means no fee. The ride shows the exact amount as `scheduled.cancellation_fee_if_cancelled_now`. See [Scheduled Rides](#scheduled-rides).
 
 ---
 
@@ -5080,6 +5081,20 @@ POST /rides
 
 Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verification, and transitions the ride to `searching` state. Only one active ride per passenger is allowed.
 
+**Balance due:** while the passenger owes money (an unpaid late-cancellation fee or wallet fare), booking is refused with `422` and `error_code: "BALANCE_DUE"` (see [Passenger — Balance Due](#passenger--balance-due)):
+```json
+{
+  "message": "You have an outstanding balance of ₦600.00. Pay it to book a ride.",
+  "error_code": "BALANCE_DUE",
+  "balance_due": 600,
+  "errors": {
+    "balance_due": [
+      "You have an outstanding balance of ₦600.00. Pay it to book a ride."
+    ]
+  }
+}
+```
+
 **Booking for later:** send `scheduled_pickup_at` to book a [scheduled ride](#scheduled-rides) instead. The ride is created in `scheduled` status with no PIN (`pin_code` is `null`), no wallet hold and no matching; the message is `"Ride scheduled successfully."`. A passenger on an active ride can still book for later, and a pending booking does not stop them from riding now.
 
 **What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
@@ -6122,7 +6137,7 @@ A passenger can book a ride for a later time (Phase 2, PRD P-20–P-22, B-27). B
 6. **Dispatch** — `dispatch_lead_minutes` (default 15) before pickup the dispatcher places the wallet hold, issues the PIN and moves the ride to `searching`. If a driver reserved it and is online (location under 2 minutes old), free and still in the right vehicle class, the ride goes **straight to them** (`searching → matched → driver_en_route`, the usual `ride_matched` / `ride_assigned` pushes). Otherwise the reservation is released (`reservation_released_reason: driver_unavailable`, both told) and normal matching starts (`scheduled_ride_dispatched` push). From there it is a normal ride; the PIN appears on the ride for the passenger (`pin_code` in `GET /passenger/active-ride` or `GET /rides/{ride}`). Matching keeps trying until `matching_grace_minutes` (default 10) after the pickup time, and never for less than the standard `matching_timeout` (5 minutes), before `no_driver_found`.
 7. **When dispatch cannot happen** — the booking is cancelled with `cancellation_reason` `scheduled_dispatch_failed`, a passenger-facing `cancellation_details`, and a `ride_cancelled` push carrying the same text. Reasons (`scheduled.dispatch_failure_reason`): `insufficient_wallet_balance`, `wallet_unavailable` (frozen wallet), `account_suspended`, `service_unavailable` (city or vehicle class withdrawn), `missed_dispatch_window` (the pickup plus grace period passed, e.g. the passenger was still on another trip). While the passenger is on another ride the dispatcher waits and tries again each minute until then.
 
-8. **Fees** (both ₦0 = off by default; see `doc/client/SCHEDULED_RIDES_DECISIONS.md`) — `reservation_fee` is added to the quote of every scheduled ride and paid with the fare. `late_cancellation_fee` is charged when the passenger cancels a booking **a driver has reserved** within `late_cancellation_window_minutes` (60) of pickup; it is free before that, free when no driver has reserved it, and never charged for `emergency`, `safety_concern`, `vehicle_mismatch` or `driver_no_show`, or when operations or the system cancel. It goes to the reserved driver in full. Wallet and saved-card bookings are charged (by a queued job); cash and bank-transfer bookings are waived. Show `scheduled.cancellation_fee_if_cancelled_now` in the cancel confirmation.
+8. **Fees** (set by the client on 16 October 2026; see `doc/client/SCHEDULED_RIDES_DECISIONS.md`) — **No reservation fee** (`reservation_fee` ₦0). **Late cancellation:** when the passenger cancels a booking **a driver has reserved** within `late_cancellation_window_minutes` (**30**) of the ride time, they pay the **economy base fare** of the ride's city (`late_cancellation_fee_basis: economy_base_fare`; if the city has no economy pricing, the base fare the ride was quoted with). It is free before the window and free when no driver has reserved the booking, and never charged for `emergency`, `safety_concern`, `vehicle_mismatch` or `driver_no_show`, or when operations or the system cancel. The reserved driver receives it in full. Wallet and saved-card bookings are charged at once (queued job). **What cannot be collected — every cash or bank-transfer booking, a wallet that cannot cover it, a declined card — becomes a [balance due](#passenger--balance-due)**; the passenger cannot book again until it is paid. Show `scheduled.cancellation_fee_if_cancelled_now` in the cancel confirmation.
 
 The dispatcher is a database-driven sweep that the scheduler runs every minute (`ProcessScheduledRidesJob`), so bookings survive restarts and deploys. The scheduler cron must be running (see DEPLOYMENT.md).
 
@@ -6144,9 +6159,9 @@ The dispatcher is a database-driven sweep that the scheduler runs every minute (
 | `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable` |
 | `cancellation_fee_if_cancelled_now` | What cancelling now would cost the passenger (0 when free) |
 | `late_cancellation_fee` | Fee recorded when the passenger cancelled late, else `null` |
-| `late_cancellation_fee_status` | `pending`, `charged`, `waived` (cash/bank transfer), `failed`, or `null` |
+| `late_cancellation_fee_status` | `pending` (being charged), `charged` (paid, including a balance due paid later), `balance_due` (owed by the passenger), `waived` (finance waived the balance), `failed` (card outcome unknown; finance checks), or `null` |
 
-Example (a reserved booking inside the late window, fee switched on):
+Example (a reserved booking inside the late window; Economy base fare ₦600):
 ```json
 {
   "scheduled_pickup_at": "2026-10-20T04:30:00.000000Z",
@@ -6158,7 +6173,7 @@ Example (a reserved booking inside the late window, fee switched on):
   "dispatch_failure_reason": null,
   "reservation_fee": 0,
   "reserved_driver": {
-    "id": "01a142a2-0cf5-705c-a16d-400256d57e81",
+    "id": "01a142ed-dca3-73c4-b7e9-c302f8a44181",
     "first_name": "Bayo",
     "profile_photo_url": null,
     "rating": null,
@@ -6172,7 +6187,7 @@ Example (a reserved booking inside the late window, fee switched on):
   "reserved_at": "2026-10-19T08:00:00.000000Z",
   "reserved_by_operations": false,
   "reservation_released_reason": null,
-  "cancellation_fee_if_cancelled_now": 1500,
+  "cancellation_fee_if_cancelled_now": 600,
   "late_cancellation_fee": null,
   "late_cancellation_fee_status": null
 }
@@ -6305,7 +6320,7 @@ DELETE /rides/{ride}/scheduled
 
 **Auth required. Middleware:** `user.type:passenger` (own rides only)
 
-Cancels a booking before it is dispatched. Free unless the late-cancellation fee is switched on and a driver has reserved the booking (see step 8 above; the response's `scheduled.late_cancellation_fee` and `late_cancellation_fee_status` show what was charged). The reserved driver is told. Optional body: `reason` and `reason_details`, as for [Cancel Ride](#cancel-ride). `POST /rides/{ride}/cancel` also cancels a `scheduled` ride (and is the endpoint for admins and for rides already dispatched).
+Cancels a booking before it is dispatched. Free unless a driver has reserved the booking and the ride time is less than 30 minutes away (see step 8 above). The response's `scheduled.late_cancellation_fee` and `late_cancellation_fee_status` (`charged`, `pending` or `balance_due`) show what happened. The reserved driver is told. Optional body: `reason` and `reason_details`, as for [Cancel Ride](#cancel-ride). `POST /rides/{ride}/cancel` also cancels a `scheduled` ride (and is the endpoint for admins and for rides already dispatched).
 
 **Response 200:** `{ "message": "Scheduled ride cancelled.", "ride": { "status": "cancelled", ... } }`
 
@@ -6375,9 +6390,11 @@ PUT /admin/settings/scheduled-rides
 | max_reservations_per_driver | integer | 5 | 1–50 | Upcoming reservations one driver may hold |
 | driver_reservation_gap_minutes | integer | 60 | 0–1440 | Minimum gap between one driver's reserved pickups |
 | driver_reservation_buffer_minutes | integer | 60 | 0–240 | No on-demand offers to a driver this long before their reserved pickup (0 = off) |
-| reservation_fee | number (NGN) | 0 | 0–100000 | Added to every scheduled ride's quote (0 = off) |
-| late_cancellation_fee | number (NGN) | 0 | 0–100000 | Charged for a late passenger cancellation of a reserved booking, paid to the driver (0 = off) |
-| late_cancellation_window_minutes | integer | 60 | 0–1440 | How long before pickup the late-cancellation fee starts to apply |
+| reservation_fee | number (NGN) | 0 | 0–100000 | Added to every scheduled ride's quote. Client: no charge for reservations |
+| late_cancellation_fee_basis | string | `economy_base_fare` | `economy_base_fare`, `flat`, `off` | How the late-cancellation fee is set. Client: the economy base fare of the ride's city |
+| late_cancellation_fee_vehicle_class | string | `economy` | an existing vehicle class `name` | The class whose base fare is the fee (`economy_base_fare` basis) |
+| late_cancellation_fee | number (NGN) | 0 | 0–100000 | The fee when the basis is `flat` |
+| late_cancellation_window_minutes | integer | 30 | 0–1440 | How long before the ride time the fee applies. Client: 30 minutes |
 
 The defaults and why they were chosen are in `doc/client/SCHEDULED_RIDES_DECISIONS.md`.
 
@@ -6400,8 +6417,10 @@ The defaults and why they were chosen are in `doc/client/SCHEDULED_RIDES_DECISIO
     "driver_reservation_gap_minutes": 60,
     "driver_reservation_buffer_minutes": 60,
     "reservation_fee": 0,
+    "late_cancellation_fee_basis": "economy_base_fare",
+    "late_cancellation_fee_vehicle_class": "economy",
     "late_cancellation_fee": 0,
-    "late_cancellation_window_minutes": 60
+    "late_cancellation_window_minutes": 30
   }
 }
 ```
@@ -10860,6 +10879,125 @@ Fallback for a missed or delayed Paystack webhook. `{reference}` is the `tx_ref`
 
 ---
 
+## Passenger — Balance Due
+
+**Middleware:** `auth:sanctum`, `user.type:passenger`
+
+Money the passenger owes that could not be collected at the time (client decision, 16 October 2026):
+- **`late_cancellation_fee`** — a scheduled ride's late-cancellation fee that could not be charged (cash or bank-transfer booking, wallet short or frozen, card declined). Paid to the reserved driver in full once collected.
+- **`wallet_shortfall`** — the part of a wallet ride's final fare the wallet could not cover. The ride's payment stays `failed` until the balance is paid; then the payment and the ride's `payment_status` become `captured`, and the driver receives the rest of the fare less the usual commission.
+
+While anything is outstanding, `POST /rides` returns `422` `BALANCE_DUE` (finance can turn this off with the wallet setting `block_booking_with_balance_due`). The passenger gets a `balance_due` notification when a balance is recorded. Bookings made before the balance arose are not cancelled.
+
+### Get Balance Due
+```
+GET /passenger/balance-due
+```
+
+**Response 200:**
+```json
+{
+  "total": 600,
+  "currency": "NGN",
+  "blocks_booking": true,
+  "items": [
+    {
+      "id": "01a142ed-dd38-724f-a9ba-e9a1e08397c2",
+      "reason": "late_cancellation_fee",
+      "reason_label": "Late cancellation fee",
+      "amount": 600,
+      "currency": "NGN",
+      "status": "outstanding",
+      "ride": {
+        "id": "01a142ed-dce0-71fc-97ef-2327192038f7",
+        "reference_number": "TRP-NG-000001",
+        "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+        "destination_address": "Murtala Muhammed International Airport, Ikeja"
+      },
+      "paid_at": null,
+      "paid_via": null,
+      "waived_at": null,
+      "created_at": "2026-10-20T04:05:00.000000Z"
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `total` | Outstanding total, NGN |
+| `blocks_booking` | Whether booking is refused until it is paid |
+| `items[].reason` | `late_cancellation_fee` or `wallet_shortfall` (`reason_label` for display) |
+| `items[].ride` | The ride it came from |
+
+### Pay Balance Due
+```
+POST /passenger/balance-due/pay
+```
+
+Pays **everything outstanding** in one payment. Rate limited to 10 per minute.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| payment_method | string | Yes | `wallet` (the available balance must cover the total) or `card` (charges the default saved card) |
+
+**Response 200:**
+```json
+{
+  "message": "Balance paid. You can book again.",
+  "paid": [
+    {
+      "id": "01a142ed-dd38-724f-a9ba-e9a1e08397c2",
+      "reason": "late_cancellation_fee",
+      "reason_label": "Late cancellation fee",
+      "amount": 600,
+      "currency": "NGN",
+      "status": "paid",
+      "ride": {
+        "id": "01a142ed-dce0-71fc-97ef-2327192038f7",
+        "reference_number": "TRP-NG-000001",
+        "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+        "destination_address": "Murtala Muhammed International Airport, Ikeja"
+      },
+      "passenger": {
+        "id": "01a142ed-dc80-715f-af5b-828a2891ae9f",
+        "reference_number": "P-000001",
+        "first_name": "Ade",
+        "last_name": "Ogunleye",
+        "phone": "+2348100000001",
+        "email": "ade@demo.etigo.com",
+        "type": "passenger",
+        "phone_verified_at": "2026-10-19T08:00:00.000000Z",
+        "is_active": true,
+        "profile_photo_url": null,
+        "created_at": "2026-10-19T08:00:00.000000Z"
+      },
+      "paid_at": "2026-10-20T04:05:00.000000Z",
+      "paid_via": "wallet",
+      "waived_at": null,
+      "created_at": "2026-10-20T04:05:00.000000Z"
+    }
+  ],
+  "total": 0
+}
+```
+
+**Response 422** (`errors.payment_method`), for example:
+```json
+{
+  "message": "Your wallet balance cannot cover the ₦600.00 you owe. Top up or pay by card.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "payment_method": [
+      "Your wallet balance cannot cover the ₦600.00 you owe. Top up or pay by card."
+    ]
+  }
+}
+```
+Other messages: `You have no balance to pay.`, `Add a card to pay your balance, or pay from your wallet.`, `Your card was declined. Try another card or pay from your wallet.`, `We could not reach the card provider. Please try again shortly or pay from your wallet.`, `A payment for your balance is already in progress.`
+
+---
+
 ## Driver — Bank Account
 
 **Middleware:** `auth:sanctum`, `user.type:driver`
@@ -12270,7 +12408,8 @@ Returns current wallet configuration (merged from database overrides and config 
     "abandoned_topup_minutes": 30,
     "payout_account_hold_hours": 24,
     "payout_account_hold_first_account": false,
-    "payout_account_name_check": "review"
+    "payout_account_name_check": "review",
+    "block_booking_with_balance_due": true
   }
 }
 ```
@@ -12288,6 +12427,7 @@ Returns current wallet configuration (merged from database overrides and config 
 | `payout_account_hold_hours` | integer | Hours payouts wait after a driver replaces their bank account (0 = no hold) |
 | `payout_account_hold_first_account` | boolean | Also hold a driver's first bank account |
 | `payout_account_name_check` | string | What a bank account name mismatch does: `off` (record only), `review` (save, pause payouts until finance approves), `block` (refuse the account) |
+| `block_booking_with_balance_due` | boolean | Refuse new bookings while the passenger has an outstanding [balance due](#passenger--balance-due) (default `true`) |
 
 ```
 PUT /admin/settings/wallet
@@ -12313,6 +12453,7 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 | `payout_account_hold_hours` | integer | 0–168 (applies to accounts saved after the change) |
 | `payout_account_hold_first_account` | boolean | |
 | `payout_account_name_check` | string | `off`, `review` or `block` (applies to accounts saved after the change; use `payout-accounts:check-names` for existing ones) |
+| `block_booking_with_balance_due` | boolean | |
 
 **Response 200:**
 ```json
@@ -12323,6 +12464,111 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 ```
 
 **Response 422:** Validation error, including `min_topup` errors when the combined settings would make top-ups impossible: `"The minimum top-up cannot exceed the maximum wallet balance."` / `"The minimum top-up cannot exceed the daily top-up cap."`
+
+### Passenger Balances Due
+
+```
+GET /admin/balances-due
+POST /admin/balances-due/{balanceDue}/waive
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance and Support can list; only Finance can waive.
+
+Money passengers owe (see [Passenger — Balance Due](#passenger--balance-due)). Filters: `status` (`outstanding`, `paid`, `waived`), `reason` (`late_cancellation_fee`, `wallet_shortfall`), `passenger_id`, `per_page` (1–100, default 25). Newest first. `summary` counts everything outstanding.
+
+**Response 200:**
+```json
+{
+  "balances": [
+    {
+      "id": "01a142ed-dd38-724f-a9ba-e9a1e08397c2",
+      "reason": "late_cancellation_fee",
+      "reason_label": "Late cancellation fee",
+      "amount": 600,
+      "currency": "NGN",
+      "status": "outstanding",
+      "ride": {
+        "id": "01a142ed-dce0-71fc-97ef-2327192038f7",
+        "reference_number": "TRP-NG-000001",
+        "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+        "destination_address": "Murtala Muhammed International Airport, Ikeja"
+      },
+      "passenger": {
+        "id": "01a142ed-dc80-715f-af5b-828a2891ae9f",
+        "reference_number": "P-000001",
+        "first_name": "Ade",
+        "last_name": "Ogunleye",
+        "phone": "+2348100000001",
+        "email": "ade@demo.etigo.com",
+        "type": "passenger",
+        "phone_verified_at": "2026-10-19T08:00:00.000000Z",
+        "is_active": true,
+        "profile_photo_url": null,
+        "created_at": "2026-10-19T08:00:00.000000Z"
+      },
+      "paid_at": null,
+      "paid_via": null,
+      "waived_at": null,
+      "waive_reason": null,
+      "created_at": "2026-10-20T04:05:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 25,
+    "total": 1
+  },
+  "summary": {
+    "outstanding_count": 1,
+    "outstanding_total": 600
+  }
+}
+```
+
+**Waive** writes a balance off (nobody is paid; the passenger can book again if nothing else is outstanding). Body: `reason` (required, max 500). Audit-logged. A late-cancellation fee's `late_cancellation_fee_status` becomes `waived`.
+
+**Response 200:**
+```json
+{
+  "message": "Balance waived.",
+  "balance": {
+    "id": "01a142ed-ddab-7008-9169-57157ab902ed",
+    "reason": "late_cancellation_fee",
+    "reason_label": "Late cancellation fee",
+    "amount": 600,
+    "currency": "NGN",
+    "status": "waived",
+    "ride": {
+      "id": "01a142ed-dd87-73ee-a0bd-5f480fba50f0",
+      "reference_number": "TRP-NG-000002",
+      "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+      "destination_address": "Murtala Muhammed International Airport, Ikeja"
+    },
+    "passenger": {
+      "id": "01a142ed-dc80-715f-af5b-828a2891ae9f",
+      "reference_number": "P-000001",
+      "first_name": "Ade",
+      "last_name": "Ogunleye",
+      "phone": "+2348100000001",
+      "email": "ade@demo.etigo.com",
+      "type": "passenger",
+      "phone_verified_at": "2026-10-19T08:00:00.000000Z",
+      "is_active": true,
+      "profile_photo_url": null,
+      "created_at": "2026-10-19T08:00:00.000000Z"
+    },
+    "paid_at": null,
+    "paid_via": null,
+    "waived_at": "2026-10-20T05:40:00.000000Z",
+    "waive_reason": "Goodwill: first late cancellation",
+    "created_at": "2026-10-20T05:40:00.000000Z"
+  }
+}
+```
+
+**Response 422:** `errors.balance_due` — `This balance is no longer outstanding.`
 
 ### Tip Settings
 
@@ -12814,6 +13060,7 @@ State conflicts (409) — a ride or SOS incident changed state between reading a
 | 409  | `HTTP_ERROR` / none        | Other conflicts (e.g. duplicate active ride, driver already on a ride) |
 | 422  | `VALIDATION_ERROR`         | Validation error (`errors` object) |
 | 422  | `INVALID_PARAMETER`        | A malformed identifier or date reached the database |
+| 422  | `BALANCE_DUE`              | `POST /rides` while the passenger has an outstanding balance (`balance_due` = amount); pay it with `POST /passenger/balance-due/pay` |
 | 429  | `HTTP_ERROR`               | Too many requests — wait for `Retry-After` seconds |
 | 500  | `SERVER_ERROR`             | Server error (no stack traces in production) |
 
@@ -13015,7 +13262,7 @@ A transition that is no longer allowed — usually because another request chang
 | `failed`             | Payment failed                           |
 | `pending_collection` | Cash payment awaiting driver collection  |
 | `collected`          | Cash payment collected by driver         |
-| `paid`               | Reserved (not set by current flows; wallet rides settle as `captured`, or `failed` with a shortfall) |
+| `paid`               | Reserved (not set by current flows; wallet rides settle as `captured`, or `failed` with a shortfall, which becomes a balance due; once the passenger pays it the payment becomes `captured`) |
 
 ### Payout Status
 | Value | Description |
@@ -13172,6 +13419,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Event | Recipient | Notification Type |
 |-------|-----------|-------------------|
 | Top-up credited / failed | Passenger | `topup_success` / `topup_failed` |
+| Balance due recorded (unpaid late-cancellation fee or wallet fare; data: `balance_due_id`, `ride_id`, `amount`) | Passenger | `balance_due` |
 | Ride paid from wallet | Passenger | `ride_wallet_payment` |
 | Refund credited to wallet | Passenger | `wallet_refund` |
 | Cash change credited to wallet | Passenger | `cash_change_credit` |

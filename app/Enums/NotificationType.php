@@ -59,6 +59,7 @@ enum NotificationType: string
     case CashChangeCredit = 'cash_change_credit';
     case PayoutAccountChanged = 'payout_account_changed';
     case PayoutAccountReviewed = 'payout_account_reviewed';
+    case BalanceDue = 'balance_due';
 
     public function label(): string
     {
@@ -97,6 +98,7 @@ enum NotificationType: string
             self::CashChangeCredit => 'Cash Change Credited',
             self::PayoutAccountChanged => 'Payout Account Changed',
             self::PayoutAccountReviewed => 'Payout Account Checked',
+            self::BalanceDue => 'Balance Due',
         };
     }
 
@@ -129,7 +131,8 @@ enum NotificationType: string
             self::PayoutRejected,
             self::CashChangeCredit,
             self::PayoutAccountChanged,
-            self::PayoutAccountReviewed => NotificationCategory::Payments,
+            self::PayoutAccountReviewed,
+            self::BalanceDue => NotificationCategory::Payments,
 
             self::PromoExpiring => NotificationCategory::Promotions,
 

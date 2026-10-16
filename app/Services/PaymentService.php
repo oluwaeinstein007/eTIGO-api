@@ -550,7 +550,7 @@ class PaymentService
                     'method' => PaymentMethod::Wallet,
                     'status' => $status,
                     'failure_reason' => $result['shortfall'] > 0
-                        ? "Wallet shortfall: {$result['shortfall']} kobo"
+                        ? "Wallet shortfall: {$result['shortfall']} kobo, recorded as a balance due"
                         : null,
                 ],
             );

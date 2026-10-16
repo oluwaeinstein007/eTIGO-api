@@ -1,7 +1,7 @@
 # Scheduled Rides: App and Dashboard Updates
 
 **Date:** October 16, 2026  
-**Backend:** PR #91 (`feat/scheduled-rides`); live on staging once merged  
+**Backend:** PR #91 (`feat/scheduled-rides`), PR #94 (booking limits) and the fees and balance-due update; live on staging once merged  
 **Prepared for:** Passenger app, driver app and admin dashboard teams
 
 Passengers can now book a ride for later, and drivers can reserve those bookings in advance. Request and response details are in `API_REFERENCE.md` → **Scheduled Rides**. Every new endpoint has a saved example in the "E-tiGo API v1" Postman collection (folders **Passenger › Rides**, **Driver › Driver — Scheduled Rides** and **Admin › Admin — Scheduled Rides**). Base URL: `/api/v1`.
@@ -12,9 +12,9 @@ Passengers can now book a ride for later, and drivers can reserve those bookings
 
 | App | Must do (breaking) | Should do |
 |-----|--------------------|-----------|
-| Passenger | Handle the new `scheduled` ride status everywhere you read `status` | Schedule toggle in booking; upcoming bookings list with edit and cancel; show the reserved driver; show the cancellation fee before cancelling; four new notifications |
+| Passenger | Handle the new `scheduled` ride status everywhere you read `status`; handle `422` `BALANCE_DUE` from `POST /rides` (show the Pay screen) | Schedule toggle in booking; upcoming bookings list with edit and cancel; show the reserved driver; show the cancellation fee before cancelling; **balance due screen**; five new notifications |
 | Driver | Handle the `scheduled` status if you list rides; read `scheduled_pickup_at` on ride offers | "Scheduled rides" screen to browse and reserve bookings; "My reservations" with release; two new notifications |
-| Admin dashboard | Handle the `scheduled` status in ride lists, filters and badges | Scheduled rides page (list, assign driver); scheduled ride settings page |
+| Admin dashboard | Handle the `scheduled` status in ride lists, filters and badges | Scheduled rides page (list, assign driver); scheduled ride settings page; **balances due page** (finance); new wallet setting |
 
 ---
 
@@ -41,7 +41,7 @@ Every ride object also has three new fields (all `false`/`null` for rides booked
 ## Passenger App
 
 ### Booking for later
-- `GET /config` → `scheduled_rides`: `enabled`, `min_lead_minutes` (30), `max_advance_days` (3), `dispatch_lead_minutes` (15), `reservation_fee`, `late_cancellation_fee`, `late_cancellation_window_minutes`, `driver_reservations_enabled`. Hide **Schedule** when `enabled` is false. Offer pickup times from `min_lead_minutes` from now up to `max_advance_days` ahead.
+- `GET /config` → `scheduled_rides`: `enabled`, `min_lead_minutes` (30), `max_advance_days` (3), `dispatch_lead_minutes` (15), `reservation_fee` (0: no charge for reservations), `late_cancellation_fee_basis` (`economy_base_fare`), `late_cancellation_fee`, `late_cancellation_window_minutes` (30), `driver_reservations_enabled`. Hide **Schedule** when `enabled` is false. Offer pickup times from `min_lead_minutes` from now up to `max_advance_days` ahead.
 - Quote: `POST /rides/estimate` with `scheduled_pickup_at`. Prices then reflect the pickup time. Each estimate has `reservation_fee` (currently 0) already included in `fare_estimate`.
 - Book: `POST /rides` with `scheduled_pickup_at`. **Send it in ISO 8601 with a UTC offset**, e.g. `2026-10-20T07:30:00+01:00`; without one you get 422. The response has `status: "scheduled"`, `message: "Ride scheduled successfully."` and **`pin_code: null`**: the PIN comes later.
 - 422 messages on `scheduled_pickup_at` explain the limits (too soon, too far, too many bookings, clash with another booking, scheduling off). Show them as they are.
@@ -54,8 +54,8 @@ Every ride object also has three new fields (all `false`/`null` for rides booked
 | `can_edit` | Show **Edit** only when true |
 | `reserved_driver` | `null`, or `{ id, first_name, profile_photo_url, rating, vehicle: { make, model, colour, plate_number } }` once a driver has committed. Show "Bayo will pick you up" |
 | `reservation_fee` | Part of the fare, if any |
-| `cancellation_fee_if_cancelled_now` | **Show this in the cancel confirmation** when above 0 ("Cancelling now costs ₦1,500") |
-| `late_cancellation_fee`, `late_cancellation_fee_status` | After a cancellation: fee charged (`pending`, `charged`, `waived`, `failed`) |
+| `cancellation_fee_if_cancelled_now` | **Show this in the cancel confirmation** when above 0 ("Cancelling now costs ₦600"). It is the economy base fare of the city, charged only when a driver has reserved the booking and the ride is less than 30 minutes away |
+| `late_cancellation_fee`, `late_cancellation_fee_status` | After a cancellation: `charged`, `pending` (being charged), `balance_due` (owed; see below), `waived`, `failed` |
 | `dispatch_failure_reason` | Why the system cancelled it (see notifications) |
 
 ### Upcoming bookings screen
@@ -74,8 +74,16 @@ At `dispatch_at` the ride moves to `searching` (or straight to `driver_en_route`
 | `scheduled_ride_reservation_released` | The reserved driver dropped out; the booking is still on | Ride detail |
 | `scheduled_ride_dispatched` | Matching started | Searching screen |
 | `ride_cancelled` | Also used when the system had to cancel the booking; the body says why | Ride detail |
+| `balance_due` | A late-cancellation fee or unpaid wallet fare was recorded as owed | Pay balance screen |
 
 Wallet bookings: the balance must cover the fare when booking, but nothing is held until 15 minutes before pickup. If the balance is short then, the booking is cancelled, so surface the reminder's top-up warning.
+
+### Balance due (new screen)
+A passenger can now **owe money**: a late-cancellation fee that could not be charged (cash or bank-transfer booking, short wallet, declined card), or the part of a **wallet ride's** final fare the wallet could not cover (this applies to all wallet rides, not only scheduled ones).
+- While anything is owed, `POST /rides` returns **422** with `error_code: "BALANCE_DUE"` and `balance_due` (amount). Show a **Pay balance** screen instead of a generic error.
+- `GET /passenger/balance-due` → `total`, `blocks_booking`, and `items` (each with `reason_label`, `amount` and the `ride`). Show it from the wallet or account screen too.
+- `POST /passenger/balance-due/pay` with `payment_method` `wallet` or `card` pays everything at once. 422 `errors.payment_method` explains a failure (e.g. wallet too low → offer top-up or card).
+- New notification `balance_due` (data: `balance_due_id`, `ride_id`, `amount`) → open the Pay screen.
 
 ---
 
@@ -90,7 +98,7 @@ Wallet bookings: the balance must cover the fare when booking, but nothing is he
 - **My reservations:** `GET /driver/scheduled-rides`. **Release:** `POST /driver/scheduled-rides/{ride}/release` (the passenger is told).
 - At `dispatch_at` the ride is **assigned directly** to the reserving driver if they are online, recently located and free, and arrives as a normal assigned ride (`ride_assigned` / `driver_en_route`). If not, the reservation is dropped and the ride goes to normal matching. Tell drivers to be online by `dispatch_at`.
 - In the hour before a reserved pickup the driver gets no on-demand offers, so they aren't late.
-- If the passenger cancels late, the driver receives the late-cancellation fee in full (when the fee is switched on; it is ₦0 for now).
+- If the passenger cancels a reserved booking less than 30 minutes before the ride, the driver receives the late-cancellation fee (the city's economy base fare) in full — at once when the passenger's wallet or card pays it, or later when the passenger pays an outstanding balance.
 
 ### New notifications
 | Type | When |
@@ -106,7 +114,9 @@ Wallet bookings: the balance must cover the fare when booking, but nothing is he
 
 - **Scheduled rides page:** `GET /admin/scheduled-rides` (filters `city_id`, `vehicle_class_id`, `from`, `to`, `reserved=true|false`). Each row has `scheduled.reserved_driver`.
 - **Assign a driver** before dispatch: `POST /admin/scheduled-rides/{ride}/assign` `{ "driver_id": "<user id>" }`. Posting again with another driver moves it. **Remove:** `DELETE /admin/scheduled-rides/{ride}/assign`. The driver and passenger are notified.
-- **Settings page** (operations): `GET`/`PUT /admin/settings/scheduled-rides`, 16 settings (see API reference). The fees are ₦0 until the client decides (see `doc/client/SCHEDULED_RIDES_DECISIONS.md`).
+- **Settings page** (operations): `GET`/`PUT /admin/settings/scheduled-rides`, 18 settings (see API reference), including `late_cancellation_fee_basis` (`economy_base_fare`, `flat`, `off`) and `late_cancellation_fee_vehicle_class`. Client decisions: no reservation fee; late-cancellation fee = economy base fare within 30 minutes (see `doc/client/SCHEDULED_RIDES_DECISIONS.md`).
+- **Balances due page** (finance and support can view; finance can waive): `GET /admin/balances-due` (filters `status`, `reason`, `passenger_id`; `summary.outstanding_total`), `POST /admin/balances-due/{id}/waive` with a `reason`.
+- **Wallet settings:** new `block_booking_with_balance_due` (boolean, default true).
 - **Pending rides** (`GET /admin/rides/pending`) never lists `scheduled` rides. A scheduled ride that found no driver stays on it for 24 hours from its pickup time.
 - **Status filters and badges:** add `scheduled`. Scheduled rides are left out of the completion-rate report until they have an outcome.
 - Cancellation reason `scheduled_dispatch_failed` (system only) can appear on cancelled rides.

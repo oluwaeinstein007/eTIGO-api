@@ -67,19 +67,30 @@ return [
     'driver_reservation_buffer_minutes' => (int) env('SCHEDULED_RIDES_DRIVER_BUFFER_MINUTES', 60),
 
     /*
-    | Fees, in NGN. Both default to 0 (off): the client decided on no
-    | cancellation fees for Phase 1 (OQ-05), and Bolt and Lyft, unlike Uber
-    | Reserve, charge no fee for booking ahead. Operations can switch them on.
+    | Fees, decided by the client on 16 Oct 2026 (Augustus Opara).
     */
 
-    // Added to every scheduled ride's quote (Uber Reserve's reservation fee).
+    // Added to every scheduled ride's quote, in NGN. Client: no charge for
+    // reservations, so 0.
     'reservation_fee' => (float) env('SCHEDULED_RIDES_RESERVATION_FEE', 0),
 
     // Charged when the passenger cancels a booking a driver has reserved,
-    // within late_cancellation_window_minutes of pickup. Paid to that driver
-    // in full. Collected from the wallet or saved card only; emergency,
-    // safety, vehicle-mismatch and driver-no-show cancellations are exempt.
+    // within late_cancellation_window_minutes of pickup, and paid to that
+    // driver in full. Emergency, safety, vehicle-mismatch and driver-no-show
+    // cancellations are exempt. What cannot be collected from the wallet or
+    // card (including every cash or bank-transfer booking) becomes a balance
+    // due the passenger must pay before booking again.
+    //
+    // How the amount is set:
+    //   economy_base_fare — the current base fare of the economy class
+    //                       (late_cancellation_fee_vehicle_class) in the
+    //                       ride's city. Client decision ("base economy fee").
+    //   flat              — late_cancellation_fee, in NGN.
+    //   off               — no fee.
+    'late_cancellation_fee_basis' => env('SCHEDULED_RIDES_LATE_CANCELLATION_FEE_BASIS', 'economy_base_fare'),
+    'late_cancellation_fee_vehicle_class' => env('SCHEDULED_RIDES_LATE_CANCELLATION_FEE_CLASS', 'economy'),
     'late_cancellation_fee' => (float) env('SCHEDULED_RIDES_LATE_CANCELLATION_FEE', 0),
-    'late_cancellation_window_minutes' => (int) env('SCHEDULED_RIDES_LATE_CANCELLATION_WINDOW_MINUTES', 60),
+    // Client: 30 minutes before the ride time.
+    'late_cancellation_window_minutes' => (int) env('SCHEDULED_RIDES_LATE_CANCELLATION_WINDOW_MINUTES', 30),
 
 ];

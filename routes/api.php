@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminBalanceDueController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
@@ -62,6 +63,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController;
+use App\Http\Controllers\Api\V1\Passenger\BalanceDueController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\PassengerActiveRideController;
 use App\Http\Controllers\Api\V1\Passenger\PassengerDisputeController;
@@ -288,6 +290,8 @@ Route::middleware('auth:sanctum')->prefix('sos')->group(function () {
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')->group(function () {
     Route::get('/active-ride', [PassengerActiveRideController::class, 'show']);
     Route::get('/nearby-drivers', NearbyDriversController::class);
+    Route::get('/balance-due', [BalanceDueController::class, 'show']);
+    Route::post('/balance-due/pay', [BalanceDueController::class, 'pay'])->middleware('throttle:10,1');
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
@@ -626,6 +630,11 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::middleware('admin.role:finance')->prefix('rides')->group(function () {
         Route::post('/{ride}/refund', [AdminRefundController::class, 'refundToWallet']);
+    });
+
+    Route::middleware('admin.role:finance,support')->prefix('balances-due')->group(function () {
+        Route::get('/', [AdminBalanceDueController::class, 'index']);
+        Route::post('/{balanceDue}/waive', [AdminBalanceDueController::class, 'waive'])->middleware('admin.role:finance');
     });
 
     Route::middleware('admin.role:finance')->prefix('settings')->group(function () {

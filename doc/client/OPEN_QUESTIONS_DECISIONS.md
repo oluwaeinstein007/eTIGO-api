@@ -2,7 +2,7 @@
 
 **Phase 1 & Phase 2 Backend — Decision Record for All Outstanding Questions**
 
-**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.2 | **Status:** All Phase 1 decisions resolved and implemented; Phase 2 scheduled-ride booking limits set by the client; other scheduled-ride defaults and Phase 2 recommendations awaiting client confirmation
+**Prepared by:** Engineering Team | **Date:** 16 October 2026 | **Document version:** 4.3 | **Status:** All Phase 1 decisions resolved and implemented; scheduled-ride booking window and fees decided by the client; balance due introduced; remaining scheduled-ride defaults and Phase 2 recommendations awaiting client confirmation
 
 ---
 
@@ -12,9 +12,9 @@
 
 This document records the decisions for all **26 Phase 1 open questions** identified during E-tiGo backend development, and the **Phase 2 questions** raised so far. Every Phase 1 question has been resolved and the corresponding code has been implemented and verified.
 
-Phase 1 questions are grouped into five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (9). Phase 2 adds **Scheduled Rides** (7 questions, built with industry-standard defaults and awaiting client confirmation) and **5 other Phase 2 questions** (OQ-18 to OQ-22), which now have engineering recommendations awaiting client confirmation.
+Phase 1 questions are grouped into five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (9). Two new wallet questions (OQ-34, OQ-35) cover collecting the new balance due. Phase 2 adds **Scheduled Rides** (7 questions; the booking window and fees were decided by the client on 16 October 2026, the rest await confirmation) and **5 other Phase 2 questions** (OQ-18 to OQ-22), which now have engineering recommendations awaiting client confirmation.
 
-Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026); in version 4.1 (16 October 2026) the five open Phase 2 questions OQ-18 to OQ-22 received recommendations; in version 4.2 (16 October 2026) the client set the scheduled-ride booking limits (SR-1 and SR-7: 3 days ahead, 3 upcoming bookings). All other decisions are unchanged.
+Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 October 2026). Items tagged <span class="badge updated">UPDATED</span> changed since version 3.0 (13 October 2026); in version 4.1 (16 October 2026) the five open Phase 2 questions OQ-18 to OQ-22 received recommendations; in version 4.2 (16 October 2026) the client set the scheduled-ride booking limits (SR-1 and SR-7: 3 days ahead, 3 upcoming bookings); in version 4.3 (16 October 2026) the client decided the booking window (SR-1), no reservation fee (SR-3), the late-cancellation fee (SR-4) and a balance due for late cancellations and wallet shortfalls (SR-5, OQ-26), and OQ-34 and OQ-35 were added. All other decisions are unchanged.
 
 </div>
 
@@ -45,7 +45,7 @@ Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 Oc
     - OQ-16 — EV Fee Waiver Scope
 5. **Wallet & Ledger Decisions**
     - OQ-25 — Wallet Limits
-    - OQ-26 — Fallback Payment Method
+    - OQ-26 — Fallback Payment Method <span class="badge updated">UPDATED</span>
     - OQ-27 — Refund Policy
     - OQ-28 — Driver Earnings Settlement Delay
     - OQ-29 — Cash-Ride Commission
@@ -53,6 +53,8 @@ Items tagged <span class="badge new">NEW</span> were added in version 4.0 (16 Oc
     - OQ-31 — Payout Schedule
     - OQ-32 — Tips in Wallet Flow <span class="badge updated">UPDATED</span>
     - OQ-33 — Regulatory Compliance
+    - OQ-34 — Collecting a Balance Due <span class="badge new">NEW</span>
+    - OQ-35 — Paying the Driver an Outstanding Balance <span class="badge new">NEW</span>
 6. **Phase 2 — Scheduled Rides** <span class="badge new">NEW</span>
     - SR-1 to SR-7
 7. **Phase 2 — Other Questions** <span class="badge updated">UPDATED</span>
@@ -152,7 +154,7 @@ Should Phase 1 include a cancellation fee, and under what conditions?
 
 **Phase 2 recommendation:** introduce a ₦300–₦500 flat fee after a 60-second grace window, with an automatic waiver if the driver's GPS shows no movement toward the pickup within 2 minutes. See the [Cancellation Fee Proposal](CANCELLATION_FEE_PROPOSAL.md).
 
-**Update (16 October 2026):** scheduled rides include a *late-cancellation fee* for bookings a driver has reserved. To respect this decision it is **built but switched off (₦0)**; turning it on is question **SR-4**.
+**Update (16 October 2026):** for **scheduled rides** a driver has reserved, the client decided on a late-cancellation fee (the economy base fare, within 30 minutes of the ride time) — see **SR-4**. On-demand rides still have no cancellation fee.
 
 ### OQ-06 — Driver Payout Frequency
 
@@ -321,17 +323,21 @@ What are the minimum top-up, maximum balance, and daily top-up cap values?
 > - Maximum balance: ₦500,000 (50,000,000 kobo)
 > - Daily top-up cap: ₦100,000 (10,000,000 kobo)
 
-### OQ-26 — Fallback Payment Method
+### OQ-26 — Fallback Payment Method <span class="badge updated">UPDATED</span>
 
 #### Question
 What happens when the passenger's wallet balance is insufficient for the final fare?
 
-#### Decision
-> **Partial settlement:**
+#### Decision (version 3.0)
+Partial settlement: capture whatever the wallet holds, record the shortfall, and mark the payment Failed for admin review.
+
+#### Decision (updated 16 October 2026 — client)
+> **The shortfall becomes a balance due the passenger owes.**
 >
-> - Capture whatever balance is available in the wallet
-> - Record the shortfall amount
-> - Mark the payment status as Failed for admin review and resolution
+> - The wallet pays what it can, as before, and the payment stays Failed until the rest is paid
+> - The rest is recorded as a balance due (`wallet_shortfall`) and the passenger is notified
+> - When the passenger pays it, the payment becomes Captured and the driver receives the rest of the fare, less the usual commission
+> - How it is collected: see OQ-34 and OQ-35
 
 ### OQ-27 — Refund Policy
 
@@ -427,6 +433,34 @@ Does E-tiGo need a separate PSP or MMO license to hold customer funds in its clo
 
 **Action required:** execute a formal partnership agreement with Paystack confirming the sub-wallet arrangement before public launch.
 
+### OQ-34 — Collecting a Balance Due <span class="badge new">NEW</span>
+
+#### Question
+The client decided that unpaid late-cancellation fees and wallet shortfalls are recorded as a balance due (SR-5, OQ-26). How is it collected?
+
+#### Industry Benchmark
+Uber and Bolt ask the rider to pay an outstanding balance before the next trip; Bolt can also add it to the next ride's fare. The Cancellation Fee Proposal recommended blocking new rides for cash users until the fee is settled.
+
+#### Engineering Default (awaiting confirmation)
+> **The passenger cannot book a new ride until the balance is paid.**
+>
+> - Booking returns a clear "outstanding balance of ₦X" message; the app shows a **Pay** screen
+> - The passenger pays everything outstanding at once, from the wallet or the saved card
+> - Bookings made before the balance arose are not cancelled
+> - Finance can turn the block off (wallet setting `block_booking_with_balance_due`) and can waive a balance with a reason
+> - Not built: adding the balance to the next ride's fare (would need the driver to collect it in cash on cash rides)
+
+### OQ-35 — Paying the Driver an Outstanding Balance <span class="badge new">NEW</span>
+
+#### Question
+When a passenger owes a late-cancellation fee or part of a fare, is the driver paid now (the platform carries the risk) or only once the passenger pays?
+
+#### Industry Benchmark
+Uber pays drivers the full fare and collects from the rider itself.
+
+#### Engineering Default (awaiting confirmation)
+> **The driver is paid when the passenger pays.** The late-cancellation fee goes to the reserved driver in full; the rest of an unpaid fare goes to the driver less the usual commission. Paying drivers up front would mean E-tiGo absorbs what passengers never pay; it can be added later as a setting if the client prefers the Uber model.
+
 ---
 
 <h2 class="section">F. Phase 2 — Scheduled Rides <span class="badge new">NEW</span></h2>
@@ -442,9 +476,9 @@ How far ahead can a passenger book, and how soon before pickup?
 Uber Reserve: 30 minutes to 2 hours minimum, up to 30–90 days ahead depending on the market. Lyft: up to 7 days. Bolt: 3 days (London launch), 72 hours (South Africa), up to 90 days (New Zealand).
 
 #### Decision
-> **At most 3 days ahead, at most 3 upcoming bookings per passenger** — set by the client (Augustus Opara, 16 October 2026). This matches Bolt's London and South Africa launches (3 days / 72 hours) and keeps the price locked at booking close to current rates.
+> **30 minutes to 3 days ahead, at most 3 upcoming bookings per passenger** — set by the client (Augustus Opara, 16 October 2026). This matches Bolt's London and South Africa launches (3 days / 72 hours) and keeps the price locked at booking close to current rates.
 >
-> Still an engineering default, awaiting confirmation: the earliest pickup is 30 minutes after booking, and one passenger's bookings must be at least 30 minutes apart.
+> Still an engineering default, awaiting confirmation: one passenger's bookings must be at least 30 minutes apart.
 
 ### SR-2 — Dispatch Timing <span class="badge new">NEW</span>
 
@@ -454,7 +488,7 @@ When does matching start, and how long does it keep searching?
 #### Engineering Default
 > **Matching starts 15 minutes before pickup** and keeps searching until **10 minutes after** the pickup time (never less than the standard 5-minute search). Passenger reminder 60 minutes before pickup. Wallet hold and ride PIN are created at dispatch, not at booking.
 
-### SR-3 — Reservation Fee <span class="badge new">NEW</span>
+### SR-3 — Reservation Fee <span class="badge updated">UPDATED</span>
 
 #### Question
 Should passengers pay a fee for booking ahead?
@@ -462,10 +496,10 @@ Should passengers pay a fee for booking ahead?
 #### Industry Benchmark
 Uber Reserve charges a reservation fee (for example £3–£5 in the UK). We have not seen one for Lyft or Bolt scheduled rides.
 
-#### Engineering Default
-> **Built, set to ₦0 (off).** If switched on, a flat amount is added to every scheduled ride's quote and paid with the fare. Suggested value if wanted: ₦200–₦300.
+#### Decision
+> **No charge for reservations** — client decision (16 October 2026). The setting stays at ₦0; operations could add one later without a release.
 
-### SR-4 — Late-Cancellation Fee <span class="badge new">NEW</span>
+### SR-4 — Late-Cancellation Fee <span class="badge updated">UPDATED</span>
 
 #### Question
 Should a passenger who cancels a booking a driver has reserved, close to pickup, pay a fee — an exception to OQ-05?
@@ -473,16 +507,21 @@ Should a passenger who cancels a booking a driver has reserved, close to pickup,
 #### Industry Benchmark
 Uber Reserve and Bolt (UK): free cancellation until 1 hour before pickup, then a fee (Uber charges the trip's minimum fare, paid to the driver); no fee if no driver has confirmed. Lyft: free until 30 minutes before.
 
-#### Engineering Default
-> **Built, set to ₦0 (off)** because of OQ-05. When switched on: charged only for bookings a driver has reserved, within **60 minutes** of pickup; paid to that driver **in full**; never charged for emergency, safety concern, vehicle mismatch or driver no-show, or when operations or the system cancel; shown to the passenger before they confirm. Suggested value if wanted: **₦1,500** (about the economy minimum fare).
+#### Decision
+> **The economy base fare, within 30 minutes of the ride time** — client decision (16 October 2026).
+>
+> - Charged only for bookings a driver has reserved, when the passenger cancels within 30 minutes of the ride time
+> - The amount is the current **economy base fare in the ride's city** (if the city has no economy pricing, the base fare the ride was quoted with)
+> - Paid to the reserved driver **in full**; never charged for emergency, safety concern, vehicle mismatch or driver no-show, or when operations or the system cancel; shown to the passenger before they confirm
+> - Wallet and card bookings are charged at once; what cannot be collected becomes a balance due (SR-5)
 
-### SR-5 — Late Cancellations Paid in Cash <span class="badge new">NEW</span>
+### SR-5 — Late Cancellations Paid in Cash <span class="badge updated">UPDATED</span>
 
 #### Question
 How should the late-cancellation fee be handled for cash and bank-transfer bookings, which cannot be charged after the fact?
 
-#### Engineering Default
-> **Waived.** The fee is collected from the wallet or saved card only. The Cancellation Fee Proposal's alternative — a balance due added to the passenger's next ride — would be a separate build.
+#### Decision
+> **Record a balance due** — client decision (16 October 2026). The same applies when a wallet or card cannot pay the fee, and to wallet passengers whose final fare exceeds their balance (OQ-26). How the balance is collected and when the driver is paid: OQ-34 and OQ-35.
 
 ### SR-6 — Drivers Who Often Release Reservations <span class="badge new">NEW</span>
 
@@ -603,7 +642,7 @@ Which cities are being activated, and on what target date?
 | OQ-16 | EV fee waiver | Drivers only | Implemented |
 | OQ-17 | Min app versions | 1.0.0, server-side enforcement | Implemented |
 | OQ-25 | Wallet limits | ₦500 min / ₦500k max / ₦100k daily | Implemented |
-| OQ-26 | Fallback payment | Partial settlement + shortfall | Implemented |
+| OQ-26 | Fallback payment | Wallet pays what it can; the rest is a balance due (client) | Implemented |
 | OQ-27 | Refund policy | Wallet credit default, card admin-only | Aligned |
 | OQ-28 | Settlement delay | Instant / 24 h / weekly — configurable | Implemented |
 | OQ-29 | Cash commission | Debit driver, negative to −₦5k | Implemented |
@@ -611,11 +650,13 @@ Which cities are being activated, and on what target date?
 | OQ-31 | Payout schedule | On-demand + admin approval | Implemented |
 | OQ-32 | Tips in wallet | Tips follow the payment method; wallet tips supported | Implemented — awaiting client confirmation |
 | OQ-33 | Wallet regulatory | Paystack sub-wallet / PSP license | Aligned |
-| SR-1 | Scheduled booking window | Up to **3 days** ahead, **3** upcoming bookings (client); from 30 min ahead, 30 min apart | Limits decided by client; 30-min values awaiting confirmation |
+| OQ-34 | Collecting a balance due | No new booking until paid; pay from wallet or card | Implemented — awaiting client confirmation |
+| OQ-35 | Driver paid on a balance due | When the passenger pays | Implemented — awaiting client confirmation |
+| SR-1 | Scheduled booking window | 30 min – **3 days** ahead, **3** upcoming bookings (client); 30 min apart | Decided by client (gap awaiting confirmation) |
 | SR-2 | Scheduled dispatch timing | 15 min before; search until 10 min after | Built — awaiting client confirmation |
-| SR-3 | Reservation fee | Built, ₦0 (off) | Client decision needed |
-| SR-4 | Late-cancellation fee | Built, ₦0 (off); 60-min window | Client decision needed |
-| SR-5 | Late cancel, cash bookings | Waived | Client decision needed |
+| SR-3 | Reservation fee | No charge | Decided by client |
+| SR-4 | Late-cancellation fee | Economy base fare, within 30 min of the ride | Decided by client — implemented |
+| SR-5 | Late cancel, cash bookings | Balance due (also wallet shortfalls) | Decided by client — implemented |
 | SR-6 | Driver release penalties | None; tracked | Client decision needed |
 | SR-7 | Driver reservation limits | 5 per driver, 60 min apart, 60-min protection | Built — awaiting client confirmation |
 | OQ-18 | Third-party PIN/tracking | Both rider and booker; wallet/card only | Recommended — awaiting client confirmation |
@@ -632,7 +673,7 @@ Which cities are being activated, and on what target date?
 |---|----------|--------|-------|----------|
 | 1 | HIGH | Execute the formal sub-wallet partnership agreement with Paystack confirming regulatory coverage | Legal / BD | Before public launch |
 | 2 | HIGH | Set up `WHATSAPP_SAFETY_NUMBER` and create the `sos_emergency_alert` WhatsApp template in Meta Business Manager | Ops / Eng | Before public launch |
-| 3 | HIGH | Confirm or change the remaining scheduled-ride defaults (SR-1's 30-minute values, SR-2, SR-7), and decide on the fees SR-3 to SR-6. The booking limits (3 days, 3 bookings) were decided on 16 October 2026 | Client / Product | Before scheduled rides are announced |
+| 3 | HIGH | Confirm the remaining scheduled-ride defaults (SR-2, SR-6, SR-7 and the 30-minute gap between bookings) and the balance-due collection rules (OQ-34, OQ-35). The booking window and fees were decided on 16 October 2026 | Client / Product | Before scheduled rides are announced |
 | 4 | HIGH | Confirm the OQ-18 to OQ-21 recommendations (or pick another option in the Phase 2 Decisions report) and give the target date for each new city (OQ-22) | Client / Product | Before Phase 2 build (Week 9); defaults are built if no answer |
 | 5 | MED | Coordinate with the mobile teams: (a) 112 auto-dial via `auto_dial_emergency`, (b) force-update gate via `/api/v1/config`, (c) the new `scheduled` ride status and scheduled-ride screens (see FRONTEND_UPDATE_SCHEDULED_RIDES.md) | Mobile Team | Next sprint |
 | 6 | MED | Confirm the wallet-tips change (OQ-32) | Client / Product | Next review |
@@ -643,4 +684,4 @@ Which cities are being activated, and on what target date?
 
 ---
 
-<p class="footer">E-tiGo — Open Questions Decision Report v4.2 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | Scheduled-ride booking limits decided; 7 scheduled-ride questions still open in part | 5 Phase 2 recommendations awaiting confirmation</p>
+<p class="footer">E-tiGo — Open Questions Decision Report v4.3 | Confidential | 16 October 2026<br>26 Phase 1 questions resolved | Scheduled-ride window and fees decided; SR-2, SR-6, SR-7, OQ-34, OQ-35 awaiting confirmation | 5 Phase 2 recommendations awaiting confirmation</p>

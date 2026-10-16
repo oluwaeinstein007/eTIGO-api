@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Status:** Implemented (PR #91). Values marked **client** were set by the client on 16 October 2026 (latest pickup 3 days ahead; 3 upcoming bookings per passenger). All other values are defaults chosen by engineering to match industry practice and **have not been confirmed by the client yet**. Operations can change every one of them at any time, without a release, from **Admin › Settings › Scheduled rides** (`PUT /api/v1/admin/settings/scheduled-rides`).
+**Status:** Implemented (PR #91; client decisions applied in PR #94 and the fees and balance-due update). Values marked **client** were set by the client (Augustus Opara) on 16 October 2026: the booking window (30 minutes to 3 days ahead), 3 upcoming bookings per passenger, no reservation fee, a late-cancellation fee of the economy base fare within 30 minutes of the ride, and a balance due for late cancellations that cannot be charged and for wallet fares the wallet cannot cover. All other values are defaults chosen by engineering to match industry practice and **have not been confirmed by the client yet**. Operations can change every one of them at any time, without a release, from **Admin › Settings › Scheduled rides** (`PUT /api/v1/admin/settings/scheduled-rides`).
 
 ---
 
@@ -22,7 +22,7 @@ Competitor terms vary by country and change over time. The figures below come fr
 2. [Price and Payment](#2-price-and-payment)
 3. [Dispatch and Matching](#3-dispatch-and-matching)
 4. [Drivers Reserving Bookings in Advance](#4-drivers-reserving-bookings-in-advance)
-5. [Fees](#5-fees)
+5. [Fees and Balance Due](#5-fees-and-balance-due)
 6. [Decisions Needed From the Client](#6-decisions-needed-from-the-client)
 7. [Settings Reference](#7-settings-reference)
 
@@ -32,7 +32,7 @@ Competitor terms vary by country and change over time. The figures below come fr
 
 | Decision | Industry practice | E-tiGo default | Why |
 |----------|-------------------|----------------|-----|
-| Earliest pickup | Uber: 30 minutes to 2 hours ahead, depending on market | **30 minutes** after booking | Long enough for a driver to commit and for dispatch to start on time; short enough to cover "later today" trips |
+| Earliest pickup | Uber: 30 minutes to 2 hours ahead, depending on market | **30 minutes** after booking (**client**) | Confirmed by the client. Long enough for a driver to commit and for dispatch to start on time; short enough to cover "later today" trips |
 | Latest pickup | Lyft: 7 days. Bolt: 3 days (London launch), 72 hours (South Africa), 90 days (New Zealand). Uber: 30–90 days | **3 days** ahead (**client**) | Set by the client. Matches Bolt's London and South Africa launches; the short horizon also keeps the locked price close to current rates |
 | Upcoming bookings per passenger | Not published | **3** (**client**) | Set by the client. Stops one account from holding many slots (and many reserved drivers) speculatively |
 | Gap between one passenger's bookings | Not published | **30 minutes** | Catches accidental double bookings without blocking a return trip |
@@ -81,34 +81,50 @@ Uber Reserve lets drivers see upcoming reservations and commit to them; Bolt con
 | Operations | Can **assign, move or remove** the driver on any booking before dispatch | Covers VIP, airport and corporate bookings |
 | What the passenger sees | Driver first name, photo, rating and vehicle once reserved | As with Uber Reserve |
 
-## 5. Fees
+## 5. Fees and Balance Due
 
-Both fees are built and work, but **default to ₦0 (off)**.
+The client decided the fees on 16 October 2026. Context: in Phase 1 the client chose *no cancellation fees* (OQ-05, see the Cancellation Fee Proposal); for scheduled rides a driver has reserved, the client chose a late-cancellation fee, as Uber Reserve and Bolt charge.
 
-**Why off:** the client decided on *no cancellation fees in Phase 1* (OQ-05, see the Cancellation Fee Proposal). Competitors also differ: Uber Reserve charges a reservation fee (for example £3–£5 in the UK); we have not seen one for Lyft or Bolt scheduled rides. We will not start charging passengers without the client's decision.
+| Fee | Decision (**client**) | Industry practice |
+|-----|-----------------------|-------------------|
+| **Reservation fee** (`reservation_fee`) | **None** (₦0) | Uber Reserve charges one (for example £3–£5 in the UK); we found none for Lyft or Bolt scheduled rides |
+| **Late-cancellation fee** (`late_cancellation_fee_basis: economy_base_fare`) | The **economy base fare** of the ride's city (for example ₦600 where Economy's base fare is ₦600). It follows the city's current Economy pricing, so it changes when pricing changes | Uber charges the trip's minimum fare; Lyft a flat $10; Bolt a cancellation fee |
+| **Late window** (`late_cancellation_window_minutes`) | **30 minutes** before the ride time | Uber Reserve and Bolt (UK): 1 hour; Lyft: 30 minutes |
 
-| Fee | How it works when switched on | Recommended value if enabled |
-|-----|-------------------------------|------------------------------|
-| **Reservation fee** (`reservation_fee`) | Flat amount added to every scheduled ride's quote, shown in the estimate and on the receipt. Paid with the fare by any payment method | ₦0 to stay level with Bolt. If the client wants to monetise the feature, ₦200–₦300 (about 10% of a typical economy trip) |
-| **Late-cancellation fee** (`late_cancellation_fee`) | Charged only when the passenger cancels a booking **a driver has reserved**, within the late window before pickup. Free before the window and free if no driver has reserved it (as Uber does) | **₦1,500**, roughly the economy minimum fare. Uber charges the trip's minimum fare in this case |
-| Late window (`late_cancellation_window_minutes`) | — | **60 minutes**: Uber Reserve and Bolt (UK) use one hour; Lyft uses 30 minutes |
+How the late-cancellation fee works (rules from the Cancellation Fee Proposal):
 
-Rules for the late-cancellation fee (they follow the Cancellation Fee Proposal):
-
+- **When:** only when the passenger cancels a booking **a driver has reserved**, within 30 minutes of the ride time. Free before that, and free if no driver has reserved it (as Uber does).
 - **Who gets it:** the reserved driver, **in full**, with no commission. It pays for the slot they blocked.
 - **Never charged** when the passenger cancels for an emergency, a safety concern, a vehicle mismatch or a driver no-show, or when operations or the system cancel.
-- **Collected** from the wallet or the saved card. Cash and bank-transfer bookings **cannot be charged** after the fact, so the fee is waived for them. The proposal suggests a "balance due" for cash users; that is a separate build, if wanted.
 - **Shown in advance:** the app shows the fee as `cancellation_fee_if_cancelled_now` before the passenger confirms a cancellation.
+- **Edge case — no economy pricing in the city:** the fee falls back to the base fare the ride was quoted with. Operations can also switch to a flat amount (`flat`) or turn the fee off (`off`).
+
+**Balance due (client decision).** Whatever cannot be collected at once is recorded as money the passenger owes:
+
+| Case | What happens |
+|------|--------------|
+| Cash or bank-transfer booking cancelled late | The fee is recorded as a balance due at once |
+| Wallet booking cancelled late, wallet cannot cover the fee (or is frozen) | Balance due |
+| Card booking cancelled late, card declined or no saved card | Balance due |
+| Card charge outcome unknown (gateway timeout) | Not recorded as a balance due, so the passenger can never pay twice; finance checks it with the provider |
+| **Wallet ride whose final fare is more than the wallet holds** | The wallet pays what it can; the rest is a balance due (previously only flagged for admin review, OQ-26) |
+
+How a balance due is collected (engineering defaults following Uber and Bolt, awaiting confirmation — OQ-34 and OQ-35 in the Open Questions report):
+
+- The passenger is notified and **cannot book a new ride until it is paid** (Uber and Bolt do the same). Finance can turn this block off.
+- The passenger pays **everything outstanding at once**, from the wallet or the saved card, in the app.
+- Once paid, the money goes to the driver it is owed to: the late-cancellation fee in full; an unpaid fare less the usual commission. **The driver is paid when the passenger pays**, not before.
+- Finance can waive a balance (with a reason); nobody is paid.
 
 ## 6. Decisions Needed From the Client
 
 | # | Question | Our default |
 |---|----------|-------------|
-| SR-1 | Booking window | **Partly decided:** at most **3 days** ahead (client). Still to confirm: earliest pickup 30 min |
+| SR-1 | Booking window | **Decided (client):** 30 minutes to 3 days ahead |
 | SR-2 | Confirm dispatch 15 minutes before pickup, searching until 10 minutes after? | 15 / 10 |
-| SR-3 | Charge a reservation fee for booking ahead? If yes, how much? | No (₦0) |
-| SR-4 | Charge a late-cancellation fee on reserved bookings (an exception to the Phase 1 no-fee rule)? If yes, how much and from how long before pickup? | No (₦0); window 60 min |
-| SR-5 | Cash passengers who cancel late: waive (current) or record a balance due on their next ride? | Waive |
+| SR-3 | Reservation fee | **Decided (client):** no charge for reservations |
+| SR-4 | Late-cancellation fee on reserved bookings | **Decided (client):** the economy base fare, within 30 minutes of the ride time |
+| SR-5 | Late cancellations that cannot be charged (cash) | **Decided (client):** recorded as a balance due; the same for wallet fares the wallet cannot cover. How it is collected (block booking until paid; driver paid when collected) is an engineering default awaiting confirmation — OQ-34, OQ-35 |
 | SR-6 | Should drivers who often give up reservations lose the ability to reserve (Bolt does this)? | Not built; tracked in the audit log |
 | SR-7 | Limits per passenger and per driver | **Partly decided:** **3 upcoming bookings** per passenger (client). Still to confirm: 30 min between a passenger's bookings; 5 reservations per driver, 60 min apart |
 
@@ -119,7 +135,7 @@ All values can be changed at runtime by operations (`GET`/`PUT /api/v1/admin/set
 | Setting | Default |
 |---------|---------|
 | `enabled` | true |
-| `min_lead_minutes` | 30 |
+| `min_lead_minutes` | 30 (client) |
 | `max_advance_days` | 3 (client) |
 | `dispatch_lead_minutes` | 15 |
 | `reminder_minutes` | 60 |
@@ -131,9 +147,12 @@ All values can be changed at runtime by operations (`GET`/`PUT /api/v1/admin/set
 | `max_reservations_per_driver` | 5 |
 | `driver_reservation_gap_minutes` | 60 |
 | `driver_reservation_buffer_minutes` | 60 |
-| `reservation_fee` | ₦0 |
-| `late_cancellation_fee` | ₦0 |
-| `late_cancellation_window_minutes` | 60 |
+| `reservation_fee` | ₦0 (client) |
+| `late_cancellation_fee_basis` | `economy_base_fare` (client) |
+| `late_cancellation_fee_vehicle_class` | `economy` |
+| `late_cancellation_fee` | ₦0 (used only when the basis is `flat`) |
+| `late_cancellation_window_minutes` | 30 (client) |
+| Wallet setting `block_booking_with_balance_due` | true |
 
 ---
 

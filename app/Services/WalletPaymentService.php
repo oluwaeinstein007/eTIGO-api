@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AccountType;
+use App\Enums\BalanceDueReason;
 use App\Enums\HoldStatus;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentStatus;
@@ -21,6 +22,7 @@ class WalletPaymentService
     public function __construct(
         private LedgerService $ledgerService,
         private CommissionService $commissionService,
+        private PassengerBalanceService $balanceService,
     ) {}
 
     /**
@@ -246,7 +248,17 @@ class WalletPaymentService
                     ),
                 ]);
 
-                Log::warning('Wallet settlement shortfall — flagged for admin review', [
+                // What the wallet could not cover is owed by the passenger
+                // (client decision, 16 Oct 2026) and goes to the driver once paid.
+                $this->balanceService->record(
+                    $ride->passenger_id,
+                    $ride,
+                    BalanceDueReason::WalletShortfall,
+                    $shortfall,
+                    $ride->driver_id,
+                );
+
+                Log::warning('Wallet settlement shortfall — recorded as a balance due', [
                     'ride_id' => $ride->id,
                     'final_fare_kobo' => $finalFareKobo,
                     'charged_kobo' => $chargeAmount,
