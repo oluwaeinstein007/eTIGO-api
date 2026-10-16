@@ -154,3 +154,62 @@ it('pauses critical alerts from an address that keeps sending rejected transfers
 
     expect(array_count_values($levels))->toMatchArray(['critical' => 5, 'warning' => 2]);
 });
+
+it('finds the transfer in an event wrapper whatever its depth, including a list', function (Closure $wrap) {
+    $payout = payoutBeingSent();
+
+    $this->postJson('/api/v1/webhooks/paystack/transfer-approval', $wrap(approvalRequest($payout)))->assertOk();
+})->with([
+    'list under data' => fn (array $t) => ['event' => 'transferrequest.approval-required', 'data' => [$t]],
+    'object under data' => fn (array $t) => ['event' => 'transferrequest.approval-required', 'data' => ['transfer' => $t]],
+    'top-level list' => fn (array $t) => [$t],
+]);
+
+it('rejects a bulk request when any transfer in it is not ours', function () {
+    $payout = payoutBeingSent();
+
+    $this->postJson('/api/v1/webhooks/paystack/transfer-approval', ['data' => [
+        approvalRequest($payout),
+        approvalRequest($payout, ['reference' => 'ATTACKER-1', 'recipient' => 'RCP_attacker']),
+    ]])->assertStatus(400);
+});
+
+it('reads a JSON body sent without a JSON content type', function () {
+    $payout = payoutBeingSent();
+
+    $this->call('POST', '/api/v1/webhooks/paystack/transfer-approval', [], [], [], ['CONTENT_TYPE' => 'text/plain'], json_encode(approvalRequest($payout)))
+        ->assertOk();
+});
+
+it('logs where things are in a rejected request but not the bank details', function () {
+    $critical = [];
+    Log::listen(function (MessageLogged $log) use (&$critical) {
+        if ($log->level === 'critical') {
+            $critical[] = $log;
+        }
+    });
+
+    $this->postJson('/api/v1/webhooks/paystack/transfer-approval', [
+        'event' => 'transferrequest.approval-required',
+        'data' => ['transfer' => ['ref' => 'X', 'recipient' => ['details' => ['account_number' => '0123456789', 'account_name' => 'Ada Driver']]]],
+    ])->assertStatus(400);
+
+    expect($critical)->toHaveCount(1)
+        ->and($critical[0]->message)->toContain('no transfer found in the request')
+        ->and($critical[0]->context['event'])->toBe('transferrequest.approval-required')
+        ->and($critical[0]->context['payload_shape'])->toBe([
+            'event' => 'string',
+            'data' => ['transfer' => ['ref' => 'string', 'recipient' => ['details' => 'array']]],
+        ])
+        ->and(json_encode($critical[0]->context))->not->toContain('0123456789')->not->toContain('Ada Driver');
+});
+
+it('rejects a request too large to check fully instead of approving the transfers found first', function () {
+    $payout = payoutBeingSent();
+
+    $this->postJson('/api/v1/webhooks/paystack/transfer-approval', ['data' => [
+        approvalRequest($payout),
+        ...array_fill(0, 1000, ['padding' => [1]]),
+        approvalRequest($payout, ['reference' => 'ATTACKER-1', 'recipient' => 'RCP_attacker']),
+    ]])->assertStatus(400);
+});
