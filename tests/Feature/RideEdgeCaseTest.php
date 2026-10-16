@@ -95,8 +95,10 @@ function bookRide(object $test, array $overrides = []): TestResponse
  * it now bills that much trip time. The default matches the mocked route
  * estimate, keeping the final fare equal to the booking quote.
  */
+/** Freezes the clock so the trip lasts exactly $tripMinutes when completed. */
 function startTrip(object $test, Ride $ride, int $tripMinutes = 15): Ride
 {
+    $test->freezeTime();
     $ride->update([
         'driver_id' => $test->driverUser->id,
         'status' => RideStatus::InProgress,
@@ -397,7 +399,6 @@ it('bills the actual trip time when the trip runs significantly longer', functio
 });
 
 it('caps the billed trip time when a trip is left running', function () {
-    $this->freezeTime();
     $booking = bookRide($this)->assertCreated();
     $ride = startTrip($this, Ride::find($booking->json('ride.id')), tripMinutes: 180);
     completeTrip($this, $ride)->assertOk();
