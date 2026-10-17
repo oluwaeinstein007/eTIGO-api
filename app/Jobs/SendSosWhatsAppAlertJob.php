@@ -53,6 +53,7 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
             "Triggered by: {$triggeredBy?->full_name} ({$incident->trigger_type->value})",
             "Phone: {$triggeredBy?->phone}",
             "Ride: #{$ride?->id}",
+            ...($ride?->is_third_party ? ["Booked for: {$ride->rider_name} ({$ride->rider_phone}) — booker {$ride->passenger?->full_name}, {$ride->passenger?->phone}"] : []),
             "GPS: {$incident->gps_lat}, {$incident->gps_lng}",
             'Maps: https://maps.google.com/?q='.$incident->gps_lat.','.$incident->gps_lng,
             'Time: '.now()->toDateTimeString(),

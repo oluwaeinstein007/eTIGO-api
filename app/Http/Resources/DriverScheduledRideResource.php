@@ -51,9 +51,10 @@ class DriverScheduledRideResource extends JsonResource
             'payment_method' => $this->payment_method?->value,
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'passenger' => $this->whenLoaded('passenger', fn () => [
-                'first_name' => $this->passenger->first_name,
+                'first_name' => $this->is_third_party ? $this->resource->riderFirstName() : $this->passenger->first_name,
                 'rating' => $this->passenger->averageRating(),
             ]),
+            'is_third_party' => (bool) $this->is_third_party,
             'reserved_by_me' => $scheduled?->reserved_driver_id === $request->user()?->id,
             'reserved_at' => $scheduled?->reserved_at,
         ];

@@ -41,14 +41,18 @@ class RideService
         private PromoApplicationService $promoApplicationService,
         private TierGateService $tierGateService,
         private ScheduledRideCancellationFeeService $cancellationFeeService,
+        private ThirdPartyBookingService $thirdPartyBookingService,
     ) {}
 
     /**
      * Book a ride now, or for later when $scheduledPickupAt is given. A
      * scheduled ride is quoted for its pickup time and waits in `scheduled`:
      * no PIN, wallet hold or matching until the dispatcher starts it shortly
-     * before pickup (ScheduledRideService::dispatch).
+     * before pickup (ScheduledRideService::dispatch). $thirdParty holds the
+     * rider fields of a ride booked for someone else
+     * (ThirdPartyBookingService::prepare).
      *
+     * @param  array<string, mixed>|null  $thirdParty
      * @return array{ride: Ride, pin_code: string|null}
      */
     public function createRide(
@@ -64,6 +68,7 @@ class RideService
         PaymentMethod $paymentMethod,
         ?string $promoCode = null,
         ?CarbonInterface $scheduledPickupAt = null,
+        ?array $thirdParty = null,
     ): array {
         $pricing = PricingConfig::currentFor($cityId, $vehicleClassId);
 
@@ -113,7 +118,7 @@ class RideService
             $pickupLat, $pickupLng, $pickupAddress,
             $destinationLat, $destinationLng, $destinationAddress,
             $paymentMethod, $estimate, $validatedPromoId,
-            $bookingFeeDiscountPct, $tierBenefits, $scheduledPickupAt,
+            $bookingFeeDiscountPct, $tierBenefits, $scheduledPickupAt, $thirdParty,
         ) {
             $ride = Ride::create([
                 'city_id' => $cityId,
@@ -143,6 +148,7 @@ class RideService
                 'promo_code_id' => $validatedPromoId,
                 'payment_method' => $paymentMethod,
                 'payment_status' => PaymentStatus::Pending,
+                ...($thirdParty ?? []),
             ]);
 
             if ($scheduledPickupAt) {
@@ -320,6 +326,12 @@ class RideService
     public function rebroadcastRide(Ride $ride, User $passenger): Ride
     {
         $ride = DB::transaction(function () use ($ride, $passenger) {
+            // Booker before ride, the same order as booking, so the
+            // third-party limit below cannot deadlock with a new booking.
+            if ($ride->is_third_party) {
+                User::whereKey($passenger->id)->lockForUpdate()->first();
+            }
+
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
 
             if (! $ride->belongsToPassenger($passenger)) {
@@ -330,6 +342,10 @@ class RideService
                 throw ValidationException::withMessages([
                     'ride' => 'This ride can only be retried after no driver was found.',
                 ]);
+            }
+
+            if ($ride->is_third_party) {
+                $this->thirdPartyBookingService->assertUnderActiveLimit($passenger, 'ride', retrying: $ride);
             }
 
             $retryCount = RideStateTransition::query()
@@ -492,7 +508,8 @@ class RideService
             $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
 
             if ($ride->status === RideStatus::NoDriverFound) {
-                $passengerHasNewerRide = Ride::where('passenger_id', $ride->passenger_id)
+                $passengerHasNewerRide = ! $ride->is_third_party && Ride::where('passenger_id', $ride->passenger_id)
+                    ->ownTrips()
                     ->where('id', '!=', $ride->id)
                     ->whereIn('status', RideStatus::activeStatuses())
                     ->exists();

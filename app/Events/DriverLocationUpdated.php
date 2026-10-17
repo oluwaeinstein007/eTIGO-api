@@ -21,6 +21,9 @@ class DriverLocationUpdated implements ShouldBroadcastNow
         public array $location,
         public ?string $rideId = null,
         public ?array $eta = null,
+        // False on a third-party ride whose tracking policy excludes the
+        // booker: the position then goes to admins only.
+        public bool $toRideChannel = true,
     ) {}
 
     /**
@@ -32,7 +35,7 @@ class DriverLocationUpdated implements ShouldBroadcastNow
             new PrivateChannel('admin.rides'),
         ];
 
-        if ($this->rideId) {
+        if ($this->rideId && $this->toRideChannel) {
             $channels[] = new PrivateChannel("ride.{$this->rideId}");
         }
 

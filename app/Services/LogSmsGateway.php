@@ -16,4 +16,16 @@ class LogSmsGateway implements SmsGateway
 
         return true;
     }
+
+    /**
+     * Nothing reaches the phone without a messaging provider, so this says
+     * no channel accepted the message; a third-party booker is then shown
+     * the PIN instead of waiting for a message that never arrives.
+     */
+    public function deliver(string $phone, string $message): ?string
+    {
+        $this->send($phone, $message);
+
+        return null;
+    }
 }

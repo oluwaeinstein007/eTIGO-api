@@ -21,6 +21,8 @@ use App\Services\PassengerBalanceService;
 use App\Services\RidePinService;
 use App\Services\RideService;
 use App\Services\ScheduledRideService;
+use App\Services\ThirdPartyBookingService;
+use App\Services\ThirdPartyRoutingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +42,8 @@ class RideController extends Controller
         private RidePinService $pinService,
         private ScheduledRideService $scheduledRideService,
         private PassengerBalanceService $balanceService,
+        private ThirdPartyBookingService $thirdPartyBookingService,
+        private ThirdPartyRoutingService $thirdPartyRouting,
     ) {}
 
     public function store(StoreRideRequest $request): JsonResponse
@@ -63,17 +67,10 @@ class RideController extends Controller
             $result = DB::transaction(function () use ($user, $request, $scheduledPickupAt) {
                 User::lockForUpdate()->find($user->id);
 
-                // Checked again under the passenger lock so two bookings sent
-                // together cannot both slip past the limits.
-                if ($scheduledPickupAt !== null) {
-                    $errors = $this->scheduledRideService->pickupTimeErrors($user, $scheduledPickupAt);
+                $paymentMethod = PaymentMethod::from($request->input('payment_method'));
 
-                    if ($errors !== []) {
-                        throw ValidationException::withMessages(['scheduled_pickup_at' => $errors]);
-                    }
-                }
-
-                // A booking for later does not compete with a ride happening now.
+                // Searches past their deadline are closed first, so they count
+                // towards neither the own-ride nor the third-party limit.
                 if ($scheduledPickupAt === null) {
                     $staleRides = Ride::where('passenger_id', $user->id)
                         ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
@@ -84,8 +81,35 @@ class RideController extends Controller
                     foreach ($staleRides as $staleRide) {
                         $this->rideService->expireStaleSearch($staleRide);
                     }
+                }
 
+                // Booking for someone else (Phase 2): checked under the
+                // passenger lock, like the limits below.
+                $thirdParty = $this->thirdPartyBookingService->prepare(
+                    booker: $user,
+                    riderName: $request->input('rider_name'),
+                    riderPhone: $request->input('rider_phone'),
+                    ageConfirmed: $request->boolean('rider_age_confirmed'),
+                    paymentMethod: $paymentMethod,
+                    scheduled: $scheduledPickupAt !== null,
+                );
+
+                // Checked again under the passenger lock so two bookings sent
+                // together cannot both slip past the limits.
+                if ($scheduledPickupAt !== null) {
+                    $errors = $this->scheduledRideService->pickupTimeErrors($user, $scheduledPickupAt, null, $thirdParty['rider_phone'] ?? null);
+
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages(['scheduled_pickup_at' => $errors]);
+                    }
+                }
+
+                // A booking for later does not compete with a ride happening
+                // now, and a ride for someone else does not compete with the
+                // booker's own (it has its own limit).
+                if ($scheduledPickupAt === null && $thirdParty === null) {
                     $activeRide = Ride::where('passenger_id', $user->id)
+                        ->ownTrips()
                         ->whereIn('status', RideStatus::activeStatuses())
                         ->exists();
 
@@ -104,9 +128,10 @@ class RideController extends Controller
                     destinationLat: (float) $request->input('destination_lat'),
                     destinationLng: (float) $request->input('destination_lng'),
                     destinationAddress: $request->input('destination_address'),
-                    paymentMethod: PaymentMethod::from($request->input('payment_method')),
+                    paymentMethod: $paymentMethod,
                     promoCode: $request->input('promo_code'),
                     scheduledPickupAt: $scheduledPickupAt,
+                    thirdParty: $thirdParty,
                 );
             });
         } catch (\DomainException $e) {
@@ -124,10 +149,24 @@ class RideController extends Controller
 
         $ride = $result['ride']->load(['city', 'vehicleClass', 'passenger', 'promoCode', 'scheduledRide.reservedDriver.driver.vehicle']);
 
+        if ($ride->is_third_party) {
+            AuditLog::record($ride, 'third_party_ride_booked', $user, null, [
+                'pin_recipient' => $ride->pin_recipient?->value,
+                'tracking_recipient' => $ride->tracking_recipient?->value,
+                'rider_age_confirmed' => true,
+            ]);
+
+            // A booking already inside the reminder window gets no reminder
+            // later, so the rider is told about it now.
+            if ($ride->scheduledRide?->reminder_sent_at !== null) {
+                $this->thirdPartyRouting->queue($ride, ThirdPartyRoutingService::REMINDER);
+            }
+        }
+
         return response()->json([
             'message' => $scheduledPickupAt ? 'Ride scheduled successfully.' : 'Ride created successfully.',
             'ride' => new RideResource($ride),
-            'pin_code' => $result['pin_code'],
+            'pin_code' => $ride->bookerSeesPin() ? $result['pin_code'] : null,
         ], 201);
     }
 
@@ -153,6 +192,7 @@ class RideController extends Controller
             'city_id' => ['sometimes', 'nullable', 'uuid'],
             'from_date' => ['sometimes', 'nullable', 'date'],
             'to_date' => ['sometimes', 'nullable', 'date'],
+            'is_third_party' => ['sometimes', 'nullable', 'boolean'],
             'per_page' => ['sometimes', 'integer'],
         ]);
 
@@ -175,6 +215,10 @@ class RideController extends Controller
 
         if ($request->filled('city_id')) {
             $query->where('city_id', $request->input('city_id'));
+        }
+
+        if ($request->filled('is_third_party')) {
+            $query->where('is_third_party', $request->boolean('is_third_party'));
         }
 
         if ($request->filled('from_date')) {
@@ -286,6 +330,22 @@ class RideController extends Controller
         $pin = $this->pinService->generatePin($ride);
 
         AuditLog::record($ride, 'ride_pin_regenerated', $passenger);
+
+        if ($ride->is_third_party) {
+            // The rider gets the new PIN again when the policy includes them.
+            $this->thirdPartyRouting->queue($ride, ThirdPartyRoutingService::PIN_UPDATE);
+            $ride->refresh();
+
+            $sentToRider = (bool) $ride->pin_recipient?->includesRider();
+
+            return response()->json([
+                'message' => $sentToRider
+                    ? "A new PIN has been issued and sent to {$ride->riderFirstName()}."
+                    : "A new PIN has been issued. Share it with {$ride->riderFirstName()} for pickup.",
+                'pin_code' => $ride->bookerSeesPin() ? $pin['pin_code'] : null,
+                'rider_notification_status' => $ride->rider_notification_status?->value,
+            ]);
+        }
 
         return response()->json([
             'message' => 'A new PIN has been issued. Share it with your driver at pickup.',

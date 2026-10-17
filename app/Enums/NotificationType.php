@@ -46,6 +46,9 @@ enum NotificationType: string
     case ScheduledRideReserved = 'scheduled_ride_reserved';
     case ScheduledRideReservationReleased = 'scheduled_ride_reservation_released';
 
+    // Third-party booking events
+    case ThirdPartyRiderUnreachable = 'third_party_rider_unreachable';
+
     // Lost & Found events
     case LostItemReport = 'lost_item_report';
 
@@ -90,6 +93,7 @@ enum NotificationType: string
             self::ScheduledRideDispatched => 'Finding Your Driver',
             self::ScheduledRideReserved => 'Driver Reserved',
             self::ScheduledRideReservationReleased => 'Reservation Released',
+            self::ThirdPartyRiderUnreachable => 'Rider Not Reached',
             self::LostItemReport => 'Lost Item Report',
             self::TopupSuccess => 'Top-up Successful',
             self::TopupFailed => 'Top-up Failed',
@@ -122,7 +126,8 @@ enum NotificationType: string
             self::ScheduledRideReminder,
             self::ScheduledRideDispatched,
             self::ScheduledRideReserved,
-            self::ScheduledRideReservationReleased => NotificationCategory::RideUpdates,
+            self::ScheduledRideReservationReleased,
+            self::ThirdPartyRiderUnreachable => NotificationCategory::RideUpdates,
 
             self::SosCheckIn,
             self::SosEscalated => NotificationCategory::Safety,

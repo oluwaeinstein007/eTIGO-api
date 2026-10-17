@@ -74,7 +74,7 @@ class DriverLocationController extends Controller
         }
 
         try {
-            DriverLocationUpdated::dispatch($driver->id, $location, $rideId, $eta);
+            DriverLocationUpdated::dispatch($driver->id, $location, $rideId, $eta, $activeRide?->bookerSeesTracking() ?? true);
         } catch (\Throwable $e) {
             // The location is already stored; a WebSocket outage must not turn
             // every location report into an error (clients poll as fallback).

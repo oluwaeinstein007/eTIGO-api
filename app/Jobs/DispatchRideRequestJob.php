@@ -86,9 +86,9 @@ class DispatchRideRequestJob implements ShouldQueue
                 vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
                 responseTimeoutSeconds: $timeout,
                 paymentMethod: $ride->payment_method?->value ?? '',
-                passengerName: trim(
-                    ($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')
-                ),
+                passengerName: $ride->is_third_party
+                    ? (string) $ride->riderFirstName()
+                    : trim(($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')),
                 passengerRating: $ride->passenger?->averageRating(),
                 distanceKm: isset($ride->pricing_snapshot['distance_km'])
                     ? (float) $ride->pricing_snapshot['distance_km']
@@ -97,6 +97,7 @@ class DispatchRideRequestJob implements ShouldQueue
                     ? (float) $ride->pricing_snapshot['duration_minutes']
                     : null,
                 scheduledPickupAt: $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String(),
+                isThirdParty: (bool) $ride->is_third_party,
             );
         } catch (\Throwable $e) {
             // The push notification below and the response timeout must still

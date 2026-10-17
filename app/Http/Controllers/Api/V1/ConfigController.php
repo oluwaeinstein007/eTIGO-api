@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
@@ -19,11 +20,36 @@ class ConfigController extends Controller
                 AppSetting::getValue('general.force_update', 'false'),
                 FILTER_VALIDATE_BOOLEAN,
             ),
-            'emergency_number' => '112',
+            'emergency_number' => (string) config('sos.emergency_number', '112'),
             'support_phone' => AppSetting::getValue('general.support_phone'),
             'support_email' => AppSetting::getValue('general.support_email'),
             'scheduled_rides' => self::scheduledRideBookingRules(),
+            'third_party_bookings' => self::thirdPartyBookingRules(),
         ]);
+    }
+
+    /**
+     * What the "book for someone else" screen needs: whether it is on, how
+     * the booker may pay, and who will get the PIN and tracking.
+     *
+     * @return array{enabled: bool, payment_methods: list<string>, pin_recipient: string, tracking_recipient: string, max_active_per_booker: int}
+     */
+    private static function thirdPartyBookingRules(): array
+    {
+        $settings = AppSetting::thirdParty();
+
+        return [
+            'enabled' => $settings['enabled'],
+            'payment_methods' => array_values(array_filter([
+                PaymentMethod::Wallet->value,
+                PaymentMethod::Card->value,
+                $settings['allow_cash'] ? PaymentMethod::Cash->value : null,
+                $settings['allow_bank_transfer'] ? PaymentMethod::BankTransfer->value : null,
+            ])),
+            'pin_recipient' => $settings['pin_recipient'],
+            'tracking_recipient' => $settings['tracking_recipient'],
+            'max_active_per_booker' => $settings['max_active_per_booker'],
+        ];
     }
 
     /**

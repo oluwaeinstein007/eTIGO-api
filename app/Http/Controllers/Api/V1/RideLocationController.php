@@ -78,7 +78,9 @@ class RideLocationController extends Controller
             return true;
         }
 
-        return $ride->passenger_id === $user->id
+        // On a ride booked for someone else, the booker follows it only when
+        // the tracking policy includes them (or the rider was not reached).
+        return ($ride->passenger_id === $user->id && $ride->bookerSeesTracking())
             || $ride->driver_id === $user->id;
     }
 }

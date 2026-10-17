@@ -18,6 +18,7 @@ class RideStateMachine
 {
     public function __construct(
         private RideNotificationService $notificationService,
+        private ThirdPartyRoutingService $thirdPartyRouting,
     ) {}
 
     /**
@@ -138,6 +139,11 @@ class RideStateMachine
         return $ride;
     }
 
+    /**
+     * Side effects of a committed transition: pushes, broadcasts and, on a
+     * ride booked for someone else, the rider's WhatsApp/SMS messages
+     * (ThirdPartyRoutingService). None of them may fail the transition.
+     */
     private function publishTransition(
         Ride $ride,
         RideStatus $from,
@@ -165,6 +171,21 @@ class RideStateMachine
             ));
         } catch (\Throwable) {
             // Reverb failures must not roll back a committed ride transition.
+        }
+
+        $riderMessage = match ($newStatus) {
+            RideStatus::DriverEnRoute => ThirdPartyRoutingService::DRIVER_DETAILS,
+            RideStatus::DriverArrived => ThirdPartyRoutingService::DRIVER_ARRIVED,
+            RideStatus::Cancelled => ThirdPartyRoutingService::CANCELLED,
+            default => null,
+        };
+
+        if ($riderMessage !== null && $ride->is_third_party) {
+            try {
+                $this->thirdPartyRouting->queue($ride, $riderMessage);
+            } catch (\Throwable) {
+                // Rider messaging failures must not break the ride transition.
+            }
         }
 
         if ($from === RideStatus::Searching || $newStatus === RideStatus::Searching) {

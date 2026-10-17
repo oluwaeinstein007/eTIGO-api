@@ -170,7 +170,7 @@
 
 ## 7. Phase 2 — Scheduling & Vehicle
 
-**PRD refs:** D-14, D-15, D-16
+**PRD refs:** D-12, D-13, D-14, D-15, D-16
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
@@ -181,6 +181,7 @@
 | FE2-DSR-01 | `[ ]` Build "Scheduled rides" screen: list bookings available to reserve (pickup time, trip, fare, passenger first name/rating) with a **Reserve** action; surface 422 reasons as returned | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides/available`, `POST /driver/scheduled-rides/{ride}/reserve`. See FRONTEND_UPDATE_SCHEDULED_RIDES.md |
 | FE2-DSR-02 | `[ ]` Build "My reservations" list with **Release**; show "be online by `dispatch_at`" | D-12 | 📡 BE2-SCH-10 | API ready: `GET /driver/scheduled-rides`, `POST /driver/scheduled-rides/{ride}/release` |
 | FE2-DSR-03 | `[ ]` Handle `scheduled_ride_reminder`, `scheduled_ride_reserved`, `scheduled_ride_reservation_released` and `ride_cancelled` (reserved booking) notifications; show `scheduled_pickup_at` on ride offers | D-12 | 📡 Push / `ride.request.dispatched` | A reserved ride arrives as a normal assigned ride at `dispatch_at` |
+| FE2-D3P-01 | `[ ]` Third-party rides: show and call the person being picked up from the ride's `rider` object (`first_name`, `phone`), not `passenger`; show a "Booked for {name}" badge when `rider.is_third_party` / offer `is_third_party` is true; the offer's `passenger_name` is then the rider's first name | D-13 | 📡 BE2-3P-09 | API ready (18 Oct 2026). The PIN flow is unchanged (the rider reads it out). See FRONTEND_UPDATE_THIRD_PARTY_BOOKINGS.md |
 | FE2-DVH-02 | `[ ]` Build lost item driver response screen: notification of reported lost item; "I have it" / "I don't have it" response; contact instructions if confirmed | D-14 | 📡 BE2-LF-06 | — |
 
 ---
@@ -207,8 +208,8 @@
 | Section | Tasks |
 |---------|-------|
 | Phase 1 | 48 |
-| Phase 2 | 8 |
-| **Total** | **56** |
+| Phase 2 | 9 |
+| **Total** | **57** |
 
 ---
 
