@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 
 class RideShareController extends Controller
 {
+    private const int LOCATION_MAX_AGE_SECONDS = 120;
+
     public function __construct(
         private DriverLocationService $locationService,
         private EtaService $etaService,
@@ -68,7 +70,8 @@ class RideShareController extends Controller
             return [null, null];
         }
 
-        if ($location === null) {
+        // An old position would show the car where it no longer is.
+        if ($location === null || $location['timestamp'] < now()->subSeconds(self::LOCATION_MAX_AGE_SECONDS)->timestamp) {
             return [null, null];
         }
 

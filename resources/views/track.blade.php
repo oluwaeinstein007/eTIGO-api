@@ -123,6 +123,10 @@
             } else {
                 driverMarker.setLatLng(position);
             }
+        } else if (driverMarker) {
+            // No recent position: don't leave the car where it was.
+            map.removeLayer(driverMarker);
+            driverMarker = null;
         }
 
         if (ride.status === 'completed') { clearInterval(timer); text('eta', 'You have arrived. Thank you for riding with E-tiGo.'); }

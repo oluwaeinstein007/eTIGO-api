@@ -41,6 +41,7 @@ class RideService
         private PromoApplicationService $promoApplicationService,
         private TierGateService $tierGateService,
         private ScheduledRideCancellationFeeService $cancellationFeeService,
+        private ThirdPartyBookingService $thirdPartyBookingService,
     ) {}
 
     /**
@@ -325,6 +326,12 @@ class RideService
     public function rebroadcastRide(Ride $ride, User $passenger): Ride
     {
         $ride = DB::transaction(function () use ($ride, $passenger) {
+            // Booker before ride, the same order as booking, so the
+            // third-party limit below cannot deadlock with a new booking.
+            if ($ride->is_third_party) {
+                User::whereKey($passenger->id)->lockForUpdate()->first();
+            }
+
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
 
             if (! $ride->belongsToPassenger($passenger)) {
@@ -335,6 +342,10 @@ class RideService
                 throw ValidationException::withMessages([
                     'ride' => 'This ride can only be retried after no driver was found.',
                 ]);
+            }
+
+            if ($ride->is_third_party) {
+                $this->thirdPartyBookingService->assertUnderActiveLimit($passenger, 'ride', retrying: $ride);
             }
 
             $retryCount = RideStateTransition::query()

@@ -22439,7 +22439,7 @@
           ]
         }
       ],
-      "description": "**`ride.rider_notification.updated`** on `private-user.{booker_id}` (third-party rides, booker only): `{ ride_id, rider_notification_status, rider_notification_channel, rider_notified_at, booker_sees_pin, booker_sees_tracking }`. When `booker_sees_pin` turns true, fetch the ride to show the PIN. On a rider-only tracking ride the booker cannot join `private-ride.{id}` (it carries the driver's location)."
+      "description": "**`ride.rider_notification.updated`** on `private-user.{booker_id}` (third-party rides, booker only): `{ ride_id, rider_notification_status, rider_notification_channel, rider_notified_at, booker_sees_pin, booker_sees_tracking }`. When `booker_sees_pin` turns true, fetch the ride to show the PIN. On a rider-only tracking ride the booker still joins `private-ride.{id}` for status and payment events, but `driver.location.updated` is not sent there."
     },
     {
       "name": "Webhooks",

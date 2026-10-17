@@ -20,7 +20,7 @@ class ConfigController extends Controller
                 AppSetting::getValue('general.force_update', 'false'),
                 FILTER_VALIDATE_BOOLEAN,
             ),
-            'emergency_number' => '112',
+            'emergency_number' => (string) config('sos.emergency_number', '112'),
             'support_phone' => AppSetting::getValue('general.support_phone'),
             'support_email' => AppSetting::getValue('general.support_email'),
             'scheduled_rides' => self::scheduledRideBookingRules(),

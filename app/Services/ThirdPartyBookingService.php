@@ -97,16 +97,7 @@ class ThirdPartyBookingService
         // A booking for later is not on the road yet; the scheduled-ride
         // limits cover it until dispatch.
         if (! $scheduled) {
-            $active = Ride::where('passenger_id', $booker->id)
-                ->thirdParty()
-                ->whereIn('status', RideStatus::activeStatuses())
-                ->count();
-
-            if ($active >= $policy['max_active_per_booker']) {
-                throw ValidationException::withMessages([
-                    'rider_phone' => ["You can have at most {$policy['max_active_per_booker']} rides for other people at the same time."],
-                ]);
-            }
+            $this->assertUnderActiveLimit($booker, 'rider_phone', $policy);
         }
 
         // Cancelled bookings count too, so booking and cancelling cannot be
@@ -135,6 +126,32 @@ class ThirdPartyBookingService
             // Nothing is sent to the rider under a booker-only policy.
             'rider_notification_status' => $messagesRider ? RiderNotificationStatus::Pending->value : null,
         ];
+    }
+
+    /**
+     * Refuse another third-party ride on the road when the booker already
+     * has the maximum. Also checked when a ride that found no driver is sent
+     * out again ($retrying), which is not counted while it waits.
+     *
+     * @param  array{max_active_per_booker: int}|null  $policy
+     *
+     * @throws ValidationException
+     */
+    public function assertUnderActiveLimit(User $booker, string $field, ?array $policy = null, ?Ride $retrying = null): void
+    {
+        $limit = ($policy ?? AppSetting::thirdParty())['max_active_per_booker'];
+
+        $active = Ride::where('passenger_id', $booker->id)
+            ->thirdParty()
+            ->whereIn('status', RideStatus::activeStatuses())
+            ->when($retrying, fn ($query) => $query->whereKeyNot($retrying->id))
+            ->count();
+
+        if ($active >= $limit) {
+            throw ValidationException::withMessages([
+                $field => ["You can have at most {$limit} rides for other people at the same time."],
+            ]);
+        }
     }
 
     /**

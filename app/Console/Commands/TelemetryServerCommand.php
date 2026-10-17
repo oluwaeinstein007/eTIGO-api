@@ -345,6 +345,7 @@ class TelemetryServerCommand extends Command
         // 2. Resolve active ride with short in-memory cache (10 seconds)
         $rideId = $payload['ride_id'] ?? $this->resolveActiveRideId($driverId, $userId);
         $eta = null;
+        $activeRide = null;
 
         if ($rideId) {
             try {
@@ -359,7 +360,7 @@ class TelemetryServerCommand extends Command
 
         // 3. Dispatch realtime broadcast to passenger / admin on private-ride.{rideId}
         try {
-            DriverLocationUpdated::dispatch($driverId, $location, $rideId, $eta);
+            DriverLocationUpdated::dispatch($driverId, $location, $rideId, $eta, $activeRide?->bookerSeesTracking() ?? true);
         } catch (Throwable) {
             // Broadcast failure must not halt ingestion
         }

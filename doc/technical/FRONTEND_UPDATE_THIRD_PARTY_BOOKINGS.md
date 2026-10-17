@@ -51,7 +51,7 @@ The defaults follow the OQ-18 recommendation. The client has not confirmed it ye
 | `rider_notification_status` | `pending` → `sent_whatsapp` / `sent_sms`, or `failed`. (`delivered` is reserved; not sent yet.) `null` when the policy sends the rider nothing. Show e.g. "Sent to Ada on WhatsApp" |
 | `rider_notification_channel`, `rider_notified_at` | Channel and time of the last message that got through |
 
-When the booker isn't allowed the PIN or tracking, `pin_code` and `share_token` are `null`. `GET /rides/{ride}/location` then returns `403`, and the booker can't join the `private-ride.{id}` channel. Fall back to polling `GET /rides/{ride}` for the status.
+When the booker isn't allowed the PIN or tracking, `pin_code` and `share_token` are `null`. `GET /rides/{ride}/location` then returns `403`. The booker still joins `private-ride.{id}` and gets status and payment events there, but no `driver.location.updated`.
 
 ### Following the rider's trip
 - `GET /passenger/active-ride`: `ride` is the booker's **own** ride. Rides they booked for others that are under way are in `third_party_rides` (full ride objects). Show both, for example as cards on the home screen.
@@ -95,6 +95,10 @@ These work as normal scheduled rides. The rider also gets a reminder before pick
 - **SOS console:** an incident on a third-party ride has `telemetry_data.third_party_rider` (`name`, `phone`) and `triggered_by_booker`. When the booker raised it, the incident position is the **car's** live position. The booker's own position is in `telemetry_data.reporter_gps`. Show the rider's number to the safety operator.
 
 ---
+
+## Testing on staging
+
+Without a messaging provider (no Termii key), the backend counts every rider message as **not delivered**. After about a minute, `rider_notification_status` becomes `failed` and the booker is shown the PIN and tracking. This is the same fallback as a real delivery failure, so on such an environment you can test the "rider not reached" flow, but you will not see `sent_whatsapp`.
 
 ## Rider Tracking Page (web)
 

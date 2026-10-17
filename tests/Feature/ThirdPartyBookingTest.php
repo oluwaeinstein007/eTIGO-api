@@ -7,6 +7,7 @@ use App\Enums\RiderNotificationStatus;
 use App\Enums\RideStatus;
 use App\Enums\ThirdPartyRecipient;
 use App\Enums\UserType;
+use App\Events\DriverLocationUpdated;
 use App\Events\RiderNotificationUpdated;
 use App\Jobs\SendThirdPartyRiderMessageJob;
 use App\Models\Account;
@@ -23,12 +24,15 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
+use App\Services\LogSmsGateway;
 use App\Services\RidePinService;
 use App\Services\RideService;
 use App\Services\ScheduledRideService;
 use App\Services\ThirdPartyBookingService;
 use App\Services\ThirdPartyRoutingService;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 
@@ -685,4 +689,81 @@ it('keeps the booker position when the car position is not fresh', function () {
     $incident = SosIncident::where('ride_id', $ride->id)->firstOrFail();
     expect((float) $incident->gps_lat)->toBe(9.0)
         ->and($incident->telemetry_data['gps_source'])->toBe('reporter');
+});
+
+// === CODE REVIEW FOLLOW-UPS ===
+
+it('keeps the third-party limit when a ride that found no driver is retried', function () {
+    ($this->setPolicy)(['max_active_per_booker' => 1]);
+    $firstId = ($this->book)()->json('ride.id');
+    Ride::whereKey($firstId)->update(['status' => RideStatus::NoDriverFound]);
+    ($this->book)(['rider_phone' => '+2348020000003'])->assertCreated();
+
+    ($this->as)($this->token)->postJson("/api/v1/rides/{$firstId}/rebroadcast")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['ride' => 'at most 1 rides for other people']);
+});
+
+it('leaves an old driver position out of the public tracking data', function () {
+    $old = Mockery::mock(DriverLocationService::class);
+    $old->shouldReceive('getDriverLocation')->andReturn(['lat' => 6.53, 'lng' => 3.39, 'heading' => 0, 'speed' => 0, 'timestamp' => now()->subMinutes(3)->timestamp]);
+    $old->shouldReceive('findNearbyDrivers')->andReturn([]);
+    $this->app->instance(DriverLocationService::class, $old);
+
+    [$ride] = ($this->bookAndAssign)();
+
+    $this->getJson("/api/v1/rides/{$ride->id}/share/{$ride->share_token}")
+        ->assertOk()
+        ->assertJsonPath('driver_location', null)
+        ->assertJsonPath('eta', null);
+});
+
+it('reports no channel when there is no messaging provider', function () {
+    expect((new LogSmsGateway)->deliver('+2348020000002', 'hello'))->toBeNull()
+        ->and((new LogSmsGateway)->send('+2348020000002', 'hello'))->toBeTrue();
+});
+
+it('falls back at once when the rider message cannot be queued', function () {
+    ($this->setPolicy)(['pin_recipient' => 'rider']);
+    $rideId = ($this->book)()->json('ride.id');
+    [$driverUser] = ($this->makeDriver)();
+
+    $bus = Mockery::mock(Dispatcher::class);
+    $bus->shouldReceive('dispatch')->andThrow(new RuntimeException('queue down'));
+    $this->app->instance(Dispatcher::class, $bus);
+
+    app(RideService::class)->acceptRide(Ride::find($rideId), $driverUser);
+
+    $ride = Ride::find($rideId);
+    expect($ride->rider_notification_status)->toBe(RiderNotificationStatus::Failed)
+        ->and($ride->bookerSeesPin())->toBeTrue();
+});
+
+it('issues a new PIN rather than sending the rider none', function () {
+    [$ride] = ($this->bookAndAssign)();
+    Cache::forget("ride:{$ride->id}:pin_code");
+
+    ($this->deliver)($ride);
+
+    $pin = app(RidePinService::class)->getCachedPin($ride);
+    expect($pin)->not->toBeNull()
+        ->and($this->sms->sent[0]['message'])->toContain("Your ride PIN: {$pin}");
+});
+
+it('keeps the booker on the ride channel but leaves the car position off it under rider-only tracking', function () {
+    ($this->setPolicy)(['tracking_recipient' => 'rider']);
+    [$ride] = ($this->bookAndAssign)();
+
+    $location = ['lat' => 6.5, 'lng' => 3.4, 'heading' => 0.0, 'speed' => 0.0, 'timestamp' => now()->timestamp];
+    $hidden = new DriverLocationUpdated('d1', $location, $ride->id, null, $ride->bookerSeesTracking());
+    $shown = new DriverLocationUpdated('d1', $location, $ride->id, null, true);
+
+    expect(collect($hidden->broadcastOn())->pluck('name')->all())->toBe(['private-admin.rides'])
+        ->and(collect($shown->broadcastOn())->pluck('name')->all())->toContain("private-ride.{$ride->id}");
+});
+
+it('uses the configured emergency number', function () {
+    config(['sos.emergency_number' => '199']);
+
+    $this->getJson('/api/v1/config')->assertJsonPath('emergency_number', '199');
 });

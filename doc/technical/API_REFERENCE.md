@@ -6125,7 +6125,7 @@ GET /rides/{ride}/share/{token}
 
 **No auth required** (`throttle:60,1`). The data behind trip sharing and the no-app tracking page that third-party riders receive. The page itself is served by the API host at `GET /track/{ride}/{token}` (HTML, `noindex`, polls this endpoint every 10 seconds). If the web team hosts its own page, set its address in `THIRD_PARTY_TRACKING_URL` (placeholders `{ride}` and `{token}`).
 
-Returns the status, pickup and destination, the driver's first name, photo and car (make, model, colour, plate), the driver's live position and ETA while the ride is active (`null` otherwise), and the emergency number and E-tiGo safety line. For a third-party ride it also gives the rider's and the booker's first names. Nothing about the passenger's account. The link expires 1 hour after the ride ends (`410`).
+Returns the status, pickup and destination, the driver's first name, photo and car (make, model, colour, plate), the driver's live position and ETA while the ride is active and the position is under 2 minutes old (`null` otherwise), and the emergency number and E-tiGo safety line. For a third-party ride it also gives the rider's and the booker's first names. Nothing about the passenger's account. The link expires 1 hour after the ride ends (`410`).
 
 **Response 200:**
 ```json
@@ -6189,7 +6189,7 @@ Returns the status, pickup and destination, the driver's first name, photo and c
 }
 ```
 
-`rider_first_name` and `booked_by_first_name` appear only on third-party rides. `safety.safety_line` is `ETIGO_SAFETY_LINE` (falling back to `ETIGO_SAFETY_NUMBER`), or `null` when neither is set.
+`rider_first_name` and `booked_by_first_name` appear only on third-party rides. `safety.safety_line` is `ETIGO_SAFETY_LINE` (falling back to `ETIGO_SAFETY_NUMBER`), or `null` when neither is set. `safety.emergency_number` is `SOS_EMERGENCY_NUMBER` (default `112`), the same number as `emergency_number` in `GET /config` and `auto_dial_emergency` in the SOS response.
 
 **Response 404** (unknown ride, wrong token or malformed ride ID):
 ```json
@@ -6673,9 +6673,13 @@ A third-party ride does **not** count as the booker's own active ride. The booke
 | `rider` (name, phone) | ✅ | ✅ (phone until the trip ends) | ✅ |
 | `passenger` | full | `id` and `first_name` only | full |
 | `pin_code` | when `booker_sees_pin` | — | — |
-| `share_token`, `GET /rides/{ride}/location`, the `private-ride.{id}` channel | when `booker_sees_tracking` (otherwise `null` / `403`) | ✅ | ✅ |
+| `share_token`, `GET /rides/{ride}/location`, `driver.location.updated` on `private-ride.{id}` | when `booker_sees_tracking` (otherwise `null` / `403` / not sent) | ✅ | ✅ |
 
 The driver's ride offer (`ride.request.dispatched`) and the driver's scheduled-ride lists show the rider's first name, with `is_third_party: true`.
+
+Retrying a third-party ride that found no driver (`POST /rides/{ride}/rebroadcast`) is refused with `422` on `ride` when the booker already has `max_active_per_booker` third-party rides on the road.
+
+**Environments without a messaging provider** (no `TERMII_API_KEY`) count rider messages as not delivered, so after the retries the booker is shown the PIN (`failed`). A message that cannot even be queued goes straight to `failed`. A PIN past its 6-hour life is issued again before the driver-details message is sent.
 
 **Safety.** The booker's in-app SOS works for the rider's trip. The incident's telemetry carries `third_party_rider` (`name`, `phone`), `triggered_by_booker`, the booker's own position (`reporter_gps`) and `gps_source`. When the booker raises the SOS, the incident's `gps_lat` and `gps_lng` are the **car's** live position (if it is under 2 minutes old), not the booker's. The WhatsApp alert to the safety desk names the rider and the booker. The tracking page shows a "Call 112" button and the safety line.
 
@@ -14184,7 +14188,7 @@ Private channels require authentication. The client must send an authorization r
 
 | Channel | Auth | Subscribers | Events |
 |---------|------|-------------|--------|
-| `private-ride.{rideId}` | Passenger or assigned driver (the booker of a third-party ride only when its tracking includes them) | Ride participants | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
+| `private-ride.{rideId}` | Passenger or assigned driver | Ride participants | `ride.status.updated`, `driver.location.updated` (left off for the booker of a third-party ride whose tracking excludes them), `payment.updated`, `ride.no-driver-found` |
 | `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers) |
 | `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded`, `ride.rider_notification.updated` |
 | `private-admin.rides` | Admin users | Admin dashboard | `ride.status.updated`, `driver.location.updated` |

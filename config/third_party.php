@@ -43,6 +43,6 @@ return [
 
     // The no-app tracking page sent to the rider. {ride} and {token} are
     // replaced with the ride ID and its share token.
-    'tracking_url' => env('THIRD_PARTY_TRACKING_URL', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/track/{ride}/{token}'),
+    'tracking_url' => env('THIRD_PARTY_TRACKING_URL') ?: rtrim((string) env('APP_URL', 'http://localhost'), '/').'/track/{ride}/{token}',
 
 ];

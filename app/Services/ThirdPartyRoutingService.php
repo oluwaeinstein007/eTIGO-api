@@ -82,7 +82,14 @@ class ThirdPartyRoutingService
             $this->broadcast($ride);
         }
 
-        SendThirdPartyRiderMessageJob::dispatch($ride->id, $type)->afterCommit();
+        try {
+            SendThirdPartyRiderMessageJob::dispatch($ride->id, $type)->afterCommit();
+        } catch (\Throwable $e) {
+            // With no job there is no retry or failed() hook: fall back now,
+            // so the booker is shown the PIN.
+            Log::error('Third-party rider message could not be queued', ['ride_id' => $ride->id, 'type' => $type, 'error' => $e->getMessage()]);
+            $this->markFailed($ride->id, $type);
+        }
     }
 
     /**
@@ -213,7 +220,10 @@ class ThirdPartyRoutingService
         }
         $lines[] = $driver.'.';
 
-        if ($ride->pin_recipient?->includesRider() && ($pin = $this->pinService->getCachedPin($ride)) !== null) {
+        if ($ride->pin_recipient?->includesRider()) {
+            // A PIN past its 6-hour life is issued again rather than leaving
+            // the rider without one.
+            $pin = $this->pinService->getCachedPin($ride) ?? $this->pinService->generatePin($ride)['pin_code'];
             $lines[] = "Your ride PIN: {$pin}. Only tell it to the driver once you are in the right car.";
         } else {
             $lines[] = "Ask {$booker} for your ride PIN.";
