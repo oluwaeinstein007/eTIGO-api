@@ -6634,7 +6634,9 @@ A passenger (the **booker**) can book and pay for a ride that someone else takes
 4. **Delivery fallback.** If WhatsApp and SMS both refuse the message (3 attempts over about a minute), `rider_notification_status` becomes `failed`. The booker gets a `third_party_rider_unreachable` push, and **the PIN and tracking are shown to them whatever the policy**, so the ride can still start.
 5. **Trip updates.** With `rider_trip_updates` on (the default), the rider also gets "your driver has arrived" with the car and plate. If the ride is cancelled after the rider was told about it, they get a cancellation message.
 6. **PIN change.** When the booker regenerates the PIN, the new one is sent to the rider again, if the policy includes them.
-7. **Scheduled rides.** The rider gets a reminder with the time and places (no PIN) at the scheduled-ride reminder time, 60 minutes before pickup by default. The PIN, driver details and tracking link follow at dispatch, as for every scheduled ride.
+7. **Scheduled rides.** The rider gets a reminder with the time and places (no PIN) at the scheduled-ride reminder time, 60 minutes before pickup by default. A booking made inside that window (or with reminders off) is sent to the rider at once, and so is a change of time or places when no reminder is still to come. The PIN, driver details and tracking link follow at dispatch, as for every scheduled ride.
+
+Text the booker typed (their name, the addresses) is sent with links removed, so the feature cannot be used for phishing.
 
 **Rules**
 
@@ -6656,7 +6658,7 @@ A third-party ride does **not** count as the booker's own active ride. The booke
 |-------|-------------|
 | `rider_name`, `rider_phone` | As booked (`rider_phone` in E.164) |
 | `pin_recipient`, `tracking_recipient` | `booker`, `rider` or `both`, saved at booking |
-| `rider_notification_status` | `pending` (no channel has accepted it yet), `sent_whatsapp`, `sent_sms`, `delivered` (reserved for provider delivery receipts; not set yet), `failed` |
+| `rider_notification_status` | `pending` (no channel has accepted it yet), `sent_whatsapp`, `sent_sms`, `delivered` (reserved for provider delivery receipts; not set yet), `failed`; `null` when the policy sends the rider nothing (booker-only PIN and tracking) |
 | `rider_notification_channel` | `whatsapp` or `sms` once sent |
 | `rider_notified_at` | When the driver-details (or new-PIN) message was accepted |
 | `booker_sees_pin`, `booker_sees_tracking` | Whether the booker gets the PIN and live tracking now (from the policy, or the `failed` fallback) |

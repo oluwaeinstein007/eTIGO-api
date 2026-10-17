@@ -620,3 +620,69 @@ it('tells the apps the third-party rules in the app config', function () {
         ->assertJsonPath('third_party_bookings.payment_methods', ['wallet', 'card', 'bank_transfer'])
         ->assertJsonPath('third_party_bookings.tracking_recipient', 'rider');
 });
+
+// === REVIEW FOLLOW-UPS ===
+
+it('leaves the delivery status empty when the rider is never messaged', function () {
+    ($this->setPolicy)(['pin_recipient' => 'booker', 'tracking_recipient' => 'booker']);
+
+    ($this->book)()->assertCreated()->assertJsonPath('ride.third_party.rider_notification_status', null);
+});
+
+it('does not count a search past its deadline towards the third-party limit', function () {
+    ($this->setPolicy)(['max_active_per_booker' => 1]);
+    ($this->book)()->assertCreated();
+
+    $this->travel(10)->minutes();
+
+    ($this->book)(['rider_phone' => '+2348020000003'])->assertCreated();
+    expect(Ride::where('passenger_id', $this->booker->id)->where('status', RideStatus::NoDriverFound)->count())->toBe(1);
+});
+
+it('tells the rider at once about a scheduled booking already inside the reminder window', function () {
+    ($this->book)(['scheduled_pickup_at' => now()->addMinutes(45)->toIso8601String()])->assertCreated();
+
+    Queue::assertPushed(SendThirdPartyRiderMessageJob::class, fn ($job) => $job->type === ThirdPartyRoutingService::REMINDER);
+});
+
+it('waits for the reminder when a scheduled booking is further ahead', function () {
+    ($this->book)(['scheduled_pickup_at' => now()->addHours(3)->toIso8601String()])->assertCreated();
+
+    Queue::assertNotPushed(SendThirdPartyRiderMessageJob::class);
+});
+
+it('tells the rider about a new time when no reminder is still to come', function () {
+    $rideId = ($this->book)(['scheduled_pickup_at' => now()->addHours(3)->toIso8601String()])->json('ride.id');
+    Queue::assertNotPushed(SendThirdPartyRiderMessageJob::class);
+
+    ($this->as)($this->token)->putJson("/api/v1/rides/{$rideId}/scheduled", [
+        'scheduled_pickup_at' => now()->addMinutes(50)->toIso8601String(),
+    ])->assertOk();
+
+    Queue::assertPushed(SendThirdPartyRiderMessageJob::class, fn ($job) => $job->rideId === $rideId && $job->type === ThirdPartyRoutingService::REMINDER);
+});
+
+it('strips links from booker-entered text in rider messages', function () {
+    [$ride] = ($this->bookAndAssign)(['pickup_address' => 'Gate 2 https://evil.example/login www.evil.example now']);
+
+    ($this->deliver)($ride);
+
+    expect($this->sms->sent[0]['message'])->toContain('from Gate 2 now.')
+        ->and($this->sms->sent[0]['message'])->not->toContain('evil.example');
+});
+
+it('keeps the booker position when the car position is not fresh', function () {
+    $stale = Mockery::mock(DriverLocationService::class);
+    $stale->shouldReceive('getDriverLocation')->andReturn(['lat' => 6.53, 'lng' => 3.39, 'heading' => 0, 'speed' => 0, 'timestamp' => now()->subMinutes(10)->timestamp]);
+    $stale->shouldReceive('findNearbyDrivers')->andReturn([]);
+    $this->app->instance(DriverLocationService::class, $stale);
+
+    [$ride] = ($this->bookAndAssign)();
+    $ride->update(['status' => RideStatus::InProgress]);
+
+    ($this->as)($this->token)->postJson("/api/v1/rides/{$ride->id}/sos", ['gps_lat' => 9, 'gps_lng' => 7])->assertCreated();
+
+    $incident = SosIncident::where('ride_id', $ride->id)->firstOrFail();
+    expect((float) $incident->gps_lat)->toBe(9.0)
+        ->and($incident->telemetry_data['gps_source'])->toBe('reporter');
+});

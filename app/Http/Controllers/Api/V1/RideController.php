@@ -69,6 +69,20 @@ class RideController extends Controller
 
                 $paymentMethod = PaymentMethod::from($request->input('payment_method'));
 
+                // Searches past their deadline are closed first, so they count
+                // towards neither the own-ride nor the third-party limit.
+                if ($scheduledPickupAt === null) {
+                    $staleRides = Ride::where('passenger_id', $user->id)
+                        ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
+                        ->with('scheduledRide')
+                        ->get()
+                        ->filter(fn (Ride $ride) => $this->matchingService->searchDeadline($ride)->isPast());
+
+                    foreach ($staleRides as $staleRide) {
+                        $this->rideService->expireStaleSearch($staleRide);
+                    }
+                }
+
                 // Booking for someone else (Phase 2): checked under the
                 // passenger lock, like the limits below.
                 $thirdParty = $this->thirdPartyBookingService->prepare(
@@ -94,16 +108,6 @@ class RideController extends Controller
                 // now, and a ride for someone else does not compete with the
                 // booker's own (it has its own limit).
                 if ($scheduledPickupAt === null && $thirdParty === null) {
-                    $staleRides = Ride::where('passenger_id', $user->id)
-                        ->whereIn('status', [RideStatus::Requested, RideStatus::Searching])
-                        ->with('scheduledRide')
-                        ->get()
-                        ->filter(fn (Ride $ride) => $this->matchingService->searchDeadline($ride)->isPast());
-
-                    foreach ($staleRides as $staleRide) {
-                        $this->rideService->expireStaleSearch($staleRide);
-                    }
-
                     $activeRide = Ride::where('passenger_id', $user->id)
                         ->ownTrips()
                         ->whereIn('status', RideStatus::activeStatuses())
@@ -151,6 +155,12 @@ class RideController extends Controller
                 'tracking_recipient' => $ride->tracking_recipient?->value,
                 'rider_age_confirmed' => true,
             ]);
+
+            // A booking already inside the reminder window gets no reminder
+            // later, so the rider is told about it now.
+            if ($ride->scheduledRide?->reminder_sent_at !== null) {
+                $this->thirdPartyRouting->queue($ride, ThirdPartyRoutingService::REMINDER);
+            }
         }
 
         return response()->json([

@@ -200,6 +200,17 @@ class ScheduledRideService
 
             $scheduled->save();
 
+            // A rider who will get no further reminder hears about the new
+            // time or places now (BE2-3P-08).
+            $tripChanged = $timeChanged || $ride->wasChanged([
+                'pickup_lat', 'pickup_lng', 'pickup_address',
+                'destination_lat', 'destination_lng', 'destination_address',
+            ]);
+
+            if ($ride->is_third_party && $tripChanged && $scheduled->reminder_sent_at !== null) {
+                $this->thirdPartyRoutingService->queue($ride->setRelation('scheduledRide', $scheduled), ThirdPartyRoutingService::REMINDER);
+            }
+
             AuditLog::record($ride, 'scheduled_ride_updated', $passenger, $before, $this->editableSnapshot($ride, $scheduled));
 
             return $ride->fresh('scheduledRide');

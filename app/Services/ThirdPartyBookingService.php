@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PaymentMethod;
 use App\Enums\RiderNotificationStatus;
 use App\Enums\RideStatus;
+use App\Enums\ThirdPartyRecipient;
 use App\Models\AppSetting;
 use App\Models\Ride;
 use App\Models\User;
@@ -49,7 +50,7 @@ class ThirdPartyBookingService
      * phone is the booker's). Call it with the booker's row locked so two
      * bookings sent together cannot both pass the limits.
      *
-     * @return array{is_third_party: true, rider_name: string, rider_phone: string, pin_recipient: string, tracking_recipient: string, rider_notification_status: string}|null
+     * @return array{is_third_party: true, rider_name: string, rider_phone: string, pin_recipient: string, tracking_recipient: string, rider_notification_status: string|null}|null
      *
      * @throws ValidationException
      */
@@ -122,13 +123,17 @@ class ThirdPartyBookingService
             ]);
         }
 
+        $messagesRider = ThirdPartyRecipient::from($policy['pin_recipient'])->includesRider()
+            || ThirdPartyRecipient::from($policy['tracking_recipient'])->includesRider();
+
         return [
             'is_third_party' => true,
             'rider_name' => trim((string) $riderName),
             'rider_phone' => $riderPhone,
             'pin_recipient' => $policy['pin_recipient'],
             'tracking_recipient' => $policy['tracking_recipient'],
-            'rider_notification_status' => RiderNotificationStatus::Pending->value,
+            // Nothing is sent to the rider under a booker-only policy.
+            'rider_notification_status' => $messagesRider ? RiderNotificationStatus::Pending->value : null,
         ];
     }
 

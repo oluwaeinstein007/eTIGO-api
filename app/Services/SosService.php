@@ -103,13 +103,14 @@ class SosService
         // booker's own position stays in the telemetry.
         $reportedGps = ['lat' => (float) $data['gps_lat'], 'lng' => (float) $data['gps_lng']];
         $bookerElsewhere = $ride->is_third_party && $user->id === $ride->passenger_id;
+        $carGps = $bookerElsewhere && $ride->driver_id ? $this->freshDriverLocation($ride->driver_id) : null;
 
-        if ($bookerElsewhere && $ride->driver_id && ($carGps = $this->freshDriverLocation($ride->driver_id)) !== null) {
+        if ($carGps !== null) {
             $data['gps_lat'] = $carGps['lat'];
             $data['gps_lng'] = $carGps['lng'];
         }
 
-        $incident = DB::transaction(function () use ($ride, $user, $triggerType, $data, $vehicle, $reportedGps, $bookerElsewhere) {
+        $incident = DB::transaction(function () use ($ride, $user, $triggerType, $data, $vehicle, $reportedGps, $bookerElsewhere, $carGps) {
             // Serialise triggers for the same ride so a double tap cannot open
             // two incidents.
             Ride::whereKey($ride->id)->lockForUpdate()->first();
@@ -153,7 +154,7 @@ class SosService
                         ],
                         'triggered_by_booker' => $bookerElsewhere,
                         'reporter_gps' => $reportedGps,
-                        'gps_source' => $data['gps_lat'] === $reportedGps['lat'] && $data['gps_lng'] === $reportedGps['lng'] ? 'reporter' : 'driver',
+                        'gps_source' => $carGps !== null ? 'driver' : 'reporter',
                     ] : []),
                 ],
             ]);

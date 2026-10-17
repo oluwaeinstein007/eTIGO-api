@@ -12,6 +12,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Ride;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Routes the PIN and live tracking of a third-party booking (Phase 2,
@@ -188,7 +189,7 @@ class ThirdPartyRoutingService
 
     private function compose(Ride $ride, string $type): ?string
     {
-        $booker = $ride->passenger?->first_name ?: 'Your contact';
+        $booker = $this->plain($ride->passenger?->first_name, 40) ?: 'Your contact';
 
         return match ($type) {
             self::DRIVER_DETAILS => $this->driverDetailsMessage($ride, $booker),
@@ -196,7 +197,7 @@ class ThirdPartyRoutingService
                 : "E-tiGo: your new ride PIN is {$pin}. The old PIN no longer works. Only tell it to the driver once you are in the right car.",
             self::DRIVER_ARRIVED => 'E-tiGo: your driver '.($ride->driver?->first_name ?? '').' has arrived'
                 .(($car = $this->carDescription($ride)) ? " in the {$car}" : '').'. Check the plate number before you get in.',
-            self::CANCELLED => "E-tiGo: the ride {$booker} booked for you from {$ride->pickup_address} has been cancelled. Contact {$booker} for details.",
+            self::CANCELLED => "E-tiGo: the ride {$booker} booked for you from {$this->plain($ride->pickup_address)} has been cancelled. Contact {$booker} for details.",
             self::REMINDER => $this->reminderMessage($ride, $booker),
             default => null,
         };
@@ -204,7 +205,7 @@ class ThirdPartyRoutingService
 
     private function driverDetailsMessage(Ride $ride, string $booker): string
     {
-        $lines = ["E-tiGo: {$booker} booked a ride for you from {$ride->pickup_address}."];
+        $lines = ["E-tiGo: {$booker} booked a ride for you from {$this->plain($ride->pickup_address)}."];
 
         $driver = 'Driver: '.($ride->driver?->first_name ?? 'assigned');
         if ($car = $this->carDescription($ride)) {
@@ -237,7 +238,7 @@ class ThirdPartyRoutingService
 
         $time = $pickupAt->copy()->setTimezone($ride->city?->timezone ?? config('app.timezone'))->format('g:i A');
 
-        return "E-tiGo: {$booker} booked you a ride at {$time} from {$ride->pickup_address} to {$ride->destination_address}. "
+        return "E-tiGo: {$booker} booked you a ride at {$time} from {$this->plain($ride->pickup_address)} to {$this->plain($ride->destination_address)}. "
             ."You'll get the driver's details when a driver is on the way. For changes, contact {$booker}.";
     }
 
@@ -255,6 +256,19 @@ class ThirdPartyRoutingService
         $car = trim(implode(' ', array_filter([$vehicle->colour ? strtolower($vehicle->colour) : null, $vehicle->make, $vehicle->model])));
 
         return trim($car.($vehicle->plate_number ? " ({$vehicle->plate_number})" : '')) ?: null;
+    }
+
+    /**
+     * Text the booker typed (their name, the addresses), made safe to send
+     * to someone else's phone: links are removed so the feature cannot be
+     * used to send phishing messages, and it is kept short.
+     */
+    private function plain(?string $text, int $limit = 120): string
+    {
+        $text = preg_replace('~(https?://|www\.)\S+~i', '', (string) $text);
+        $text = trim(preg_replace('/\s+/', ' ', (string) $text));
+
+        return Str::limit($text, $limit, '…');
     }
 
     private function safetyLine(): string

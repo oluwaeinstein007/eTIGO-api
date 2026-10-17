@@ -48,7 +48,7 @@ The defaults follow the OQ-18 recommendation. The client has not confirmed it ye
 | `rider_name`, `rider_phone` | "Ride for Ada Okafor" |
 | `pin_recipient`, `tracking_recipient` | `booker`, `rider` or `both`. Saved at booking. Tells you what the booker gets |
 | `booker_sees_pin`, `booker_sees_tracking` | Show the PIN or the live map only when these are true. They turn true by themselves if the rider can't be reached |
-| `rider_notification_status` | `pending` → `sent_whatsapp` / `sent_sms`, or `failed`. (`delivered` is reserved; not sent yet.) Show e.g. "Sent to Ada on WhatsApp" |
+| `rider_notification_status` | `pending` → `sent_whatsapp` / `sent_sms`, or `failed`. (`delivered` is reserved; not sent yet.) `null` when the policy sends the rider nothing. Show e.g. "Sent to Ada on WhatsApp" |
 | `rider_notification_channel`, `rider_notified_at` | Channel and time of the last message that got through |
 
 When the booker isn't allowed the PIN or tracking, `pin_code` and `share_token` are `null`. `GET /rides/{ride}/location` then returns `403`, and the booker can't join the `private-ride.{id}` channel. Fall back to polling `GET /rides/{ride}` for the status.
@@ -63,7 +63,7 @@ When the booker isn't allowed the PIN or tracking, `pin_code` and `share_token` 
 - Only the booker can cancel, rate, tip or dispute. The rider's message tells them to contact the booker for changes.
 
 ### Scheduled rides for someone else
-These work as normal scheduled rides. The rider also gets a reminder before pickup (no PIN), then the driver's details and the PIN at dispatch. Two bookings at the same time are fine when they are for different people.
+These work as normal scheduled rides. The rider also gets a reminder before pickup (no PIN), then the driver's details and the PIN at dispatch. A booking less than an hour away is sent to the rider straight away, and so is a later change of time or places. Two bookings at the same time are fine when they are for different people.
 
 ---
 
