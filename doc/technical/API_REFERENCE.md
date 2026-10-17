@@ -12090,7 +12090,7 @@ GET /admin/wallets?search=ada&status=active&min_balance=100000&page=1&per_page=2
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Support (Support is read-only)
+**Allowed Roles:** Finance, Support, Operations (Support and Operations are read-only)
 
 Passenger wallets, newest first.
 
@@ -12146,7 +12146,7 @@ GET /admin/wallets/{account}
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Support
+**Allowed Roles:** Finance, Support, Operations
 
 The wallet with its passenger, active holds (newest first, each with its ride) and its 20 most recent entries. Only passenger wallets: any other account answers 404 (driver ledgers have their own endpoints).
 
@@ -12220,7 +12220,7 @@ The wallet with its passenger, active holds (newest first, each with its ride) a
 | `wallet.frozen` | Present only while the wallet is frozen: when, why and by whom. Wallets frozen before October 2026 were filled in from the audit log. |
 | `active_holds[].ride` | The ride the hold reserves money for. The hold's `id` is its reference. |
 | `recent_transactions[].transaction_type` | What the entry was for (see Wallet Transactions below); `type` stays `credit` or `debit`. |
-| `permissions.can_freeze` | Whether the signed-in admin may freeze or unfreeze (Finance, Super Admin). Use it to show the view-only notice; the server still checks on each action. |
+| `permissions.can_freeze` | Whether the signed-in admin may freeze or unfreeze (Finance, Super Admin). `false` for Support and Operations: show the view-only notice. The server still checks on each action. |
 
 ### Wallet Transactions
 
@@ -12229,7 +12229,7 @@ GET /admin/wallets/{account}/transactions?type=ride_payment&status=success&date_
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Support
+**Allowed Roles:** Finance, Support, Operations
 
 Every money movement on the wallet, plus top-ups that are still pending or failed at the card provider, newest first.
 
@@ -12288,7 +12288,7 @@ GET /admin/wallets/{account}/audit-trail?page=1&per_page=20
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Support
+**Allowed Roles:** Finance, Support, Operations
 
 Changes staff made to the wallet, newest first: freezes, unfreezes and manual adjustments (requested, approved, rejected).
 
@@ -13607,7 +13607,7 @@ Super Admins always bypass role checks and have full access.
 | `/admin/ev-stations` | Yes | — | — | — |
 | `/admin/passengers` | — | Yes | — | Yes |
 | `/admin/disputes` | — | Yes | — | — |
-| `/admin/wallets` | — | Yes | Yes | — |
+| `/admin/wallets` (view) | Yes | Yes | Yes | — |
 | `/admin/wallets` (freeze) | — | — | Yes | — |
 | `/admin/driver-ledgers` | — | Yes | Yes | — |
 | `/admin/ledger` | — | — | Yes | — |

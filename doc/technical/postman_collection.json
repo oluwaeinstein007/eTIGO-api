@@ -18892,7 +18892,7 @@
                     }
                   ]
                 },
-                "description": "Passenger wallets with `owner` (name, phone, email, passenger ID), `last_activity_at`, balance, held and status (`active`, `frozen`, `closed`). Search by name, full name, phone, email or passenger ID."
+                "description": "Passenger wallets with `owner` (name, phone, email, passenger ID), `last_activity_at`, balance, held and status (`active`, `frozen`, `closed`). Search by name, full name, phone, email or passenger ID.\n\n**Roles:** Finance, Support and Operations can view (Support and Operations read-only); only Finance can freeze or unfreeze."
               },
               "response": [
                 {
@@ -18951,7 +18951,7 @@
                     "{{account_id}}"
                   ]
                 },
-                "description": "Wallet with `owner`, `frozen` (when, reason, who and their role, while frozen), active holds with their ride (reference, vehicle class, route, status), 20 recent entries with `transaction_type`, and `permissions.can_freeze`. 404 for non-passenger accounts."
+                "description": "Wallet with `owner`, `frozen` (when, reason, who and their role, while frozen), active holds with their ride (reference, vehicle class, route, status), 20 recent entries with `transaction_type`, and `permissions.can_freeze`. 404 for non-passenger accounts.\n\n**Roles:** Finance, Support and Operations can view (Support and Operations read-only); only Finance can freeze or unfreeze."
               },
               "response": [
                 {
