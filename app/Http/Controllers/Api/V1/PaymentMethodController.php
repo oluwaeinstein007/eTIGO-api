@@ -2,20 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Contracts\PaymentGateway;
 use App\Enums\PaymentMethod;
+use App\Exceptions\TopupRefusedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\InitializePaymentRequest;
+use App\Models\AppSetting;
 use App\Models\UserPaymentMethod;
+use App\Models\WalletTransaction;
+use App\Services\SavedCardService;
+use App\Services\WalletTopupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 class PaymentMethodController extends Controller
 {
     public function __construct(
-        private PaymentGateway $paymentGateway,
+        private WalletTopupService $topups,
+        private SavedCardService $savedCards,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -52,60 +55,77 @@ class PaymentMethodController extends Controller
         return response()->json(['payment_methods' => $methods]);
     }
 
+    /**
+     * Starts adding a card. The passenger pays a small amount by card, which
+     * is a wallet top-up with the usual wallet checks and limits: it is
+     * credited to their wallet, and the card is saved once the payment
+     * succeeds.
+     */
     public function initialize(InitializePaymentRequest $request): JsonResponse
     {
-        $user = $request->user();
-        $txRef = 'ETIGO-'.Str::upper(Str::random(12));
+        $amountKobo = AppSetting::wallet('card_verification_amount');
 
-        $result = $this->paymentGateway->initializePayment([
-            'tx_ref' => $txRef,
-            'amount' => $request->validated('amount'),
-            'currency' => $request->validated('currency'),
-            'redirect_url' => $request->validated('redirect_url'),
-            'customer_email' => $user->paymentEmail(),
-            'customer_name' => "{$user->first_name} {$user->last_name}",
-            'channels' => $request->validated('channels', ['card']),
+        try {
+            $started = $this->topups->start(
+                $request->user(),
+                $amountKobo,
+                $request->validated('redirect_url'),
+                channels: ['card'],
+                saveCard: true,
+                type: 'card_verification',
+            );
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json([
+            'payment_link' => $started['link'],
+            'tx_ref' => $started['transaction']->reference,
+            'amount' => $amountKobo / 100,
+            'currency' => 'NGN',
         ]);
-
-        Cache::put("payment_tx_ref:{$txRef}", $user->id, now()->addHours(24));
-
-        return response()->json($result);
     }
 
+    /**
+     * Confirms a checkout started with initialize; {transactionId} is its
+     * tx_ref. A successful payment is credited to the wallet (the webhook
+     * does the same, only once) and the card is saved.
+     */
     public function verify(Request $request, string $transactionId): JsonResponse
     {
-        $result = $this->paymentGateway->verifyTransaction($transactionId);
+        $user = $request->user();
 
-        $txRef = $result['tx_ref'] ?? null;
-        $cacheKey = $txRef ? "payment_tx_ref:{$txRef}" : null;
-        $ownerUserId = $cacheKey ? Cache::get($cacheKey) : null;
+        $transaction = WalletTransaction::where('reference', $transactionId)
+            ->whereHas('account', fn ($query) => $query
+                ->where('owner_type', $user->getMorphClass())
+                ->where('owner_id', $user->id))
+            ->first();
 
-        if (! $ownerUserId || $ownerUserId !== $request->user()->id) {
+        if (! $transaction) {
             abort(403, 'Transaction does not belong to this user.');
         }
 
-        if ($result['status'] === 'successful' && $result['card_last_four']) {
-            $authCode = (string) ($result['authorization_code'] ?? '');
-            $provider = $result['provider'] ?? (str_starts_with(strtoupper($authCode), 'FLW') ? 'flutterwave' : 'paystack');
-
-            UserPaymentMethod::firstOrCreate(
-                [
-                    'user_id' => $request->user()->id,
-                    'card_last_four' => $result['card_last_four'],
-                    'card_brand' => $result['card_brand'],
-                ],
-                [
-                    'provider' => $provider,
-                    'gateway_token' => $result['authorization_code'],
-                    'gateway_email' => $request->user()->paymentEmail(),
-                    'is_default' => ! UserPaymentMethod::where('user_id', $request->user()->id)->exists(),
-                ],
-            );
-
-            Cache::forget($cacheKey);
+        try {
+            $result = $this->topups->confirm($transaction);
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
 
-        return response()->json($result);
+        $successful = $result['status'] === 'successful';
+        $card = $successful ? $this->savedCards->saveForTopup($transaction, $result) : null;
+
+        return response()->json([
+            'status' => $result['status'],
+            'tx_ref' => $transaction->reference,
+            'amount' => $result['amount'] / 100,
+            'currency' => $result['currency'] ?? 'NGN',
+            'payment_type' => $result['channel'] ?? null,
+            'card_last_four' => $result['card_last_four'] ?? null,
+            'card_brand' => $result['card_brand'] ?? null,
+            'card_saved' => $card !== null,
+            'payment_method_id' => $card?->id,
+            'wallet_credit' => $successful ? $result['amount'] / 100 : 0,
+        ]);
     }
 
     public function setDefault(Request $request, UserPaymentMethod $paymentMethod): JsonResponse

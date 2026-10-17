@@ -15,6 +15,9 @@ class WalletTransaction extends Model
         'account_id',
         'reference',
         'amount',
+        'save_card',
+        'payment_method_id',
+        'card_saved_at',
         'status',
         'gateway_transaction_id',
         'journal_id',
@@ -26,6 +29,8 @@ class WalletTransaction extends Model
     {
         return [
             'amount' => 'integer',
+            'save_card' => 'boolean',
+            'card_saved_at' => 'datetime',
             'status' => WalletTransactionStatus::class,
             'completed_at' => 'datetime',
             'abandoned_at' => 'datetime',
@@ -35,6 +40,11 @@ class WalletTransaction extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(UserPaymentMethod::class, 'payment_method_id');
     }
 
     public function journal(): BelongsTo

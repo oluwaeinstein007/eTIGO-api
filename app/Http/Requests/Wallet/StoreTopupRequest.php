@@ -17,6 +17,7 @@ class StoreTopupRequest extends FormRequest
         return [
             'amount' => ['required', 'integer', 'min:'.AppSetting::wallet('min_topup')],
             'callback_url' => ['required', 'url'],
+            'save_card' => ['sometimes', 'boolean'],
         ];
     }
 

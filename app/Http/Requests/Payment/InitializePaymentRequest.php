@@ -16,9 +16,12 @@ class InitializePaymentRequest extends FormRequest
      */
     public function rules(): array
     {
+        // The server sets the amount (wallet card_verification_amount) and
+        // only takes cards. amount, currency and channels are still accepted
+        // so older app builds that send them keep working; they are ignored.
         return [
-            'amount' => ['required', 'numeric', 'min:1'],
-            'currency' => ['required', 'string', 'size:3'],
+            'amount' => ['sometimes', 'numeric'],
+            'currency' => ['sometimes', 'string', 'size:3'],
             'redirect_url' => ['required', 'url'],
             'channels' => ['sometimes', 'array'],
             'channels.*' => ['string'],

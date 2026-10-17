@@ -5191,10 +5191,10 @@
                     "topup"
                   ]
                 },
-                "description": "Starts a Paystack checkout for a wallet top-up (amount in kobo; minimum from the wallet settings, default 50000 = \u20a6500). **Sets `{{topup_reference}}`** (the `tx_ref`).\n\nRefused (422) if the wallet is frozen, the top-up would exceed the maximum balance, or the daily cap is reached; 429 after 5 attempts an hour or 10 a day. Passengers without an email can top up \u2014 a placeholder email is sent to Paystack. The wallet is credited when Paystack confirms (webhook, **Verify Wallet Top-Up** or the background sweeper), once.",
+                "description": "Starts a Paystack checkout for a wallet top-up (amount in kobo; minimum from the wallet settings, default 50000 = \u20a6500). **Sets `{{topup_reference}}`** (the `tx_ref`).\n\nRefused (422) if the wallet is frozen, the top-up would exceed the maximum balance, or the daily cap is reached; 429 after 5 attempts an hour or 10 a day. Passengers without an email can top up \u2014 a placeholder email is sent to Paystack. The wallet is credited when Paystack confirms (webhook, **Verify Wallet Top-Up** or the background sweeper), once. Send `save_card: true` to also save the card the top-up is paid with as a payment method.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": 500000,\n  \"callback_url\": \"https://etigo.app/wallet/callback\"\n}"
+                  "raw": "{\n  \"amount\": 500000,\n  \"callback_url\": \"https://etigo.app/wallet/callback\",\n  \"save_card\": false\n}"
                 }
               },
               "response": [
@@ -19978,7 +19978,7 @@
                     "wallet"
                   ]
                 },
-                "description": "Returns wallet configuration: top-up limits, balance caps, payout minimums, settlement delays, and hold expiry. Includes the payout account safeguards: `payout_account_hold_hours` (0 = no hold), `payout_account_hold_first_account`, `payout_account_name_check` (`off`, `review`, `block`)."
+                "description": "Returns wallet configuration: top-up limits, balance caps, payout minimums, settlement delays, and hold expiry. Includes the payout account safeguards: `payout_account_hold_hours` (0 = no hold), `payout_account_hold_first_account`, `payout_account_name_check` (`off`, `review`, `block`). `card_verification_amount` (kobo) is charged when a passenger adds a card and credited to their wallet."
               },
               "response": [
                 {
@@ -19991,7 +19991,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\",\n    \"block_booking_with_balance_due\": true\n  }\n}"
+                  "body": "{\n  \"settings\": {\n    \"currency\": \"NGN\",\n    \"min_topup\": 50000,\n    \"max_balance\": 50000000,\n    \"daily_topup_cap\": 10000000,\n    \"card_verification_amount\": 10000,\n    \"min_payout\": 100000,\n    \"settlement_delay\": \"instant\",\n    \"max_negative_balance\": -500000,\n    \"hold_expiry_hours\": 4,\n    \"abandoned_topup_minutes\": 30,\n    \"payout_account_hold_hours\": 24,\n    \"payout_account_hold_first_account\": false,\n    \"payout_account_name_check\": \"review\",\n    \"block_booking_with_balance_due\": true\n  }\n}"
                 }
               ]
             },
@@ -20024,7 +20024,7 @@
                     "wallet"
                   ]
                 },
-                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values. Payout account safeguards: `payout_account_hold_hours` (0\u2013168), `payout_account_hold_first_account` (boolean), `payout_account_name_check` (`off`, `review`, `block`); they apply to accounts saved afterwards.\n\n`block_booking_with_balance_due` (boolean): refuse new bookings while a passenger owes a balance (default true).",
+                "description": "Updates wallet limits (kobo); only the fields sent change and they apply immediately. The minimum top-up cannot exceed the maximum balance or the daily cap (422 on `min_topup`). Every change is audited with old and new values. Payout account safeguards: `payout_account_hold_hours` (0\u2013168), `payout_account_hold_first_account` (boolean), `payout_account_name_check` (`off`, `review`, `block`); they apply to accounts saved afterwards.\n\n`block_booking_with_balance_due` (boolean): refuse new bookings while a passenger owes a balance (default true). `card_verification_amount`: 5000\u2013100000 kobo (\u20a650\u2013\u20a61,000).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"min_topup\": 100000,\n  \"max_balance\": 100000000,\n  \"settlement_delay\": \"instant\"\n}"
@@ -20286,7 +20286,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": 100,\n  \"currency\": \"NGN\",\n  \"redirect_url\": \"https://myapp.com/payment/callback\"\n}"
+                  "raw": "{\n  \"redirect_url\": \"https://myapp.com/payment/callback\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/payments/initialize",
@@ -20298,7 +20298,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Starts a Paystack checkout used to save a card (channels default to `card`). Passengers without an email are supported. **Sets `{{payment_reference}}`** (the `tx_ref`) for **Verify Payment**."
+                "description": "Starts adding a card. The passenger pays a small amount by card (admin wallet setting `card_verification_amount`, default \u20a6100, returned as `amount`), and **that payment is credited to their wallet** once it succeeds; the card is saved too. It is a wallet top-up, so it is refused like one: 422 if the wallet is frozen/closed or the max balance or daily cap would be exceeded, 429 after 5 top-up attempts an hour or 10 a day. Card-only; any `amount`/`currency`/`channels` sent is ignored. Passengers without an email are supported. **Sets `{{payment_reference}}`** (the `tx_ref`) for **Verify Payment**."
               },
               "response": [
                 {
@@ -20311,7 +20311,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"payment_link\": \"https://fake-checkout.test/pay/ETIGO-RC20VVPGGCCI\",\n  \"tx_ref\": \"ETIGO-RC20VVPGGCCI\"\n}"
+                  "body": "{\n  \"payment_link\": \"https://checkout.paystack.com/7xk2abc9mq\",\n  \"tx_ref\": \"TOPUP-RC20VVPGGCCI\",\n  \"amount\": 100,\n  \"currency\": \"NGN\"\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -20323,7 +20323,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The amount field must be at least 1. (and 2 more errors)\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"amount\": [\n      \"The amount field must be at least 1.\"\n    ],\n    \"currency\": [\n      \"The currency field must be 3 characters.\"\n    ],\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"The redirect url field is required.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ]\n  }\n}"
                 }
               ],
               "event": [
@@ -20372,15 +20372,15 @@
                     {
                       "key": "paymentId",
                       "value": "{{payment_reference}}",
-                      "description": "The payment ID or transaction reference"
+                      "description": "The tx_ref returned by Initialize Payment"
                     }
                   ]
                 },
-                "description": "Verifies a checkout started with **Initialize Payment** (`{{payment_reference}}` = its `tx_ref`) and, when successful, saves the card (the first card becomes the default). Only the user who started the checkout can verify it (403 otherwise)."
+                "description": "Confirms a checkout started with **Initialize Payment** (`{{payment_reference}}` = its `tx_ref`). When successful, the amount paid is credited to the wallet (once, even if the webhook also arrives) and the card is saved if Paystack lets us charge it again (the first card becomes the default). `wallet_credit` is the naira credited. Only the user who started the checkout can verify it (403 otherwise)."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Card Saved",
+                  "name": "200 \u2014 Card Saved, Wallet Credited",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -20389,7 +20389,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"status\": \"successful\",\n  \"tx_ref\": \"ETIGO-RC20VVPGGCCI\",\n  \"transaction_id\": \"4099260516\",\n  \"amount\": 100,\n  \"currency\": \"NGN\",\n  \"payment_type\": \"card\",\n  \"card_last_four\": \"4242\",\n  \"card_brand\": \"VISA\",\n  \"authorization_code\": \"AUTH_8dfhjjdt\"\n}"
+                  "body": "{\n  \"status\": \"successful\",\n  \"tx_ref\": \"TOPUP-RC20VVPGGCCI\",\n  \"amount\": 100,\n  \"currency\": \"NGN\",\n  \"payment_type\": \"card\",\n  \"card_last_four\": \"4081\",\n  \"card_brand\": \"visa\",\n  \"card_saved\": true,\n  \"payment_method_id\": \"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b\",\n  \"wallet_credit\": 100\n}"
                 },
                 {
                   "name": "403 \u2014 Not Your Transaction",
@@ -20546,7 +20546,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": -1,\n  \"currency\": \"INVALID\"\n}"
+                  "raw": "{}"
                 },
                 "url": {
                   "raw": "{{base_url}}/payments/initialize",
@@ -20558,7 +20558,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Expected: 422 `VALIDATION_ERROR` \u2014 negative amount, unsupported currency and missing `redirect_url`."
+                "description": "Expected: 422 `VALIDATION_ERROR`: missing `redirect_url`."
               },
               "response": [
                 {
@@ -20571,7 +20571,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The amount field must be at least 1. (and 2 more errors)\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"amount\": [\n      \"The amount field must be at least 1.\"\n    ],\n    \"currency\": [\n      \"The currency field must be 3 characters.\"\n    ],\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"The redirect url field is required.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ]\n  }\n}"
                 }
               ]
             }

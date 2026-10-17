@@ -14,6 +14,7 @@ class UserPaymentMethod extends Model
         'user_id',
         'provider',
         'gateway_token',
+        'gateway_signature',
         'gateway_email',
         'card_brand',
         'card_last_four',
@@ -33,6 +34,7 @@ class UserPaymentMethod extends Model
 
     protected $hidden = [
         'gateway_token',
+        'gateway_signature',
     ];
 
     public function user(): BelongsTo

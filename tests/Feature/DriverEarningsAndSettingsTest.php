@@ -260,6 +260,20 @@ test('admin wallet settings validates input', function () {
     $response->assertUnprocessable();
 });
 
+test('admin can set the amount charged when a passenger adds a card', function () {
+    $this->withToken($this->adminToken)->getJson('/api/v1/admin/settings/wallet')
+        ->assertOk()
+        ->assertJsonPath('settings.card_verification_amount', 10000);
+
+    $this->withToken($this->adminToken)->putJson('/api/v1/admin/settings/wallet', ['card_verification_amount' => 5000])
+        ->assertOk()
+        ->assertJsonPath('settings.card_verification_amount', 5000);
+
+    $this->withToken($this->adminToken)->putJson('/api/v1/admin/settings/wallet', ['card_verification_amount' => 4000])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['card_verification_amount']);
+});
+
 test('driver can fetch paginated ledger transactions with custom per_page and page', function () {
     $ledger = app(LedgerService::class);
     $driverAccount = $ledger->findOrCreateAccount(

@@ -51,7 +51,7 @@ class AppSetting extends Model
     }
 
     /**
-     * @return array{min_topup: int, max_balance: int, daily_topup_cap: int, min_payout: int, settlement_delay: string, max_negative_balance: int, hold_expiry_hours: int, abandoned_topup_minutes: int, payout_account_hold_hours: int, payout_account_hold_first_account: bool, payout_account_name_check: string, block_booking_with_balance_due: bool}
+     * @return array{min_topup: int, max_balance: int, daily_topup_cap: int, card_verification_amount: int, min_payout: int, settlement_delay: string, max_negative_balance: int, hold_expiry_hours: int, abandoned_topup_minutes: int, payout_account_hold_hours: int, payout_account_hold_first_account: bool, payout_account_name_check: string, block_booking_with_balance_due: bool}
      */
     public static function getWalletSettings(): array
     {
@@ -61,6 +61,7 @@ class AppSetting extends Model
             'min_topup' => (int) ($settings['wallet.min_topup'] ?? config('wallet.min_topup')),
             'max_balance' => (int) ($settings['wallet.max_balance'] ?? config('wallet.max_balance')),
             'daily_topup_cap' => (int) ($settings['wallet.daily_topup_cap'] ?? config('wallet.daily_topup_cap')),
+            'card_verification_amount' => (int) ($settings['wallet.card_verification_amount'] ?? config('wallet.card_verification_amount')),
             'min_payout' => (int) ($settings['wallet.min_payout'] ?? config('wallet.min_payout')),
             'settlement_delay' => (string) ($settings['wallet.settlement_delay'] ?? config('wallet.settlement_delay', 'instant')),
             'max_negative_balance' => (int) ($settings['wallet.max_negative_balance'] ?? config('wallet.max_negative_balance')),

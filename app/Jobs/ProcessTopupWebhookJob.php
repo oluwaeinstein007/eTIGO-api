@@ -73,6 +73,15 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
                     'abandoned_at' => null,
                 ]);
 
+            $savesCard = WalletTransaction::where('reference', $this->reference)
+                ->where('save_card', true)
+                ->whereNull('card_saved_at')
+                ->exists();
+
+            if ($savesCard) {
+                SaveTopupCardJob::dispatch($this->reference);
+            }
+
             if ($account && $account->owner_type === 'App\\Models\\User') {
                 $user = User::find($account->owner_id);
                 $user?->notify(new WalletTopupNotification($this->amountKobo, true));
