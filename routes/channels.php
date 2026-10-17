@@ -39,6 +39,11 @@ Broadcast::channel('admin.sos', function (User $user): bool {
         || $user->admin_role === AdminRole::SuperAdmin;
 });
 
+Broadcast::channel('admin.ev-stations', function (User $user): bool {
+    return $user->hasAdminRole(AdminRole::Operations)
+        || $user->hasAdminRole(AdminRole::SuperAdmin);
+});
+
 Broadcast::channel('driver.{driverUserId}', function (User $user, string $driverUserId): bool {
     return $user->id === $driverUserId && $user->isDriver();
 });

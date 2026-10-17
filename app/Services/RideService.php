@@ -10,7 +10,6 @@ use App\Exceptions\InvalidStateTransitionException;
 use App\Jobs\CalculateCarbonScoreJob;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\MatchingTimeoutJob;
-use App\Jobs\MonitorCancellationJob;
 use App\Jobs\ProcessPaymentJob;
 use App\Models\AuditLog;
 use App\Models\Driver;
@@ -268,8 +267,8 @@ class RideService
         // The cancellation has committed; anti-offline monitoring is best-effort
         // and must not turn a successful cancel into an error if Redis is down.
         try {
-            if ($driverUserId && $this->offlineTripDetectionService->shouldMonitor($ride)) {
-                MonitorCancellationJob::dispatch($ride->id, $driverUserId);
+            if ($driverUserId) {
+                $this->offlineTripDetectionService->startMonitoringAfterCancellation($ride, $driverUserId);
             }
         } catch (\Throwable $e) {
             Log::warning('Could not start offline-trip monitoring after cancellation', [

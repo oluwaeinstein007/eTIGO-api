@@ -378,7 +378,7 @@ describe('Admin review — POST /admin/offline-flags/{flag}/review', function ()
         expect($this->driver->status)->toBe(DriverStatus::Approved);
     });
 
-    it('rejects review for non-disputed flag', function () {
+    it('reviews a flag the driver did not dispute', function () {
         $flag = OfflineTripFlag::factory()->create([
             'driver_id' => $this->driverUser->id,
             'ride_id' => $this->ride->id,
@@ -386,11 +386,30 @@ describe('Admin review — POST /admin/offline-flags/{flag}/review', function ()
 
         $response = $this->postJson(
             "/api/v1/admin/offline-flags/{$flag->id}/review",
-            ['outcome' => 'upheld', 'notes' => 'Should not work.'],
+            ['outcome' => 'upheld', 'notes' => 'Route evidence is conclusive.'],
             ['Authorization' => "Bearer {$this->adminToken}"],
         );
 
-        $response->assertStatus(422);
+        $response->assertOk()
+            ->assertJsonPath('message', 'Flag Upheld.')
+            ->assertJsonPath('flag.status.value', 'upheld')
+            ->assertJsonPath('flag.review_notes', 'Route evidence is conclusive.');
+    });
+
+    it('rejects a second review', function () {
+        $flag = OfflineTripFlag::factory()->create([
+            'driver_id' => $this->driverUser->id,
+            'ride_id' => $this->ride->id,
+            'dispute_outcome' => DisputeOutcome::Upheld,
+            'resolved_at' => now(),
+        ]);
+
+        $this->postJson(
+            "/api/v1/admin/offline-flags/{$flag->id}/review",
+            ['outcome' => 'overturned', 'notes' => 'Changing my mind here.'],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        )->assertStatus(422)
+            ->assertJsonValidationErrors(['flag' => 'This flag has already been reviewed.']);
     });
 });
 

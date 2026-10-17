@@ -21,6 +21,8 @@ class UpdateEvStationFormRequest extends FormRequest
             'lat' => ['sometimes', 'numeric', 'between:-90,90'],
             'lng' => ['sometimes', 'numeric', 'between:-180,180'],
             'address' => ['sometimes', 'string', 'max:500'],
+            // Adds stalls at the end, or removes the highest-numbered ones if they are free.
+            'total_stalls' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'connector_types' => ['sometimes', 'array'],
             'connector_types.*' => ['string', 'in:CCS2,CHAdeMO,Type2,GBT,Tesla'],
             'power_output_kw' => ['sometimes', 'integer', 'min:1', 'max:500'],

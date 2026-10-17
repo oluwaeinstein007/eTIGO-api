@@ -109,6 +109,12 @@ return [
     'max_topups_per_day' => (int) env('WALLET_MAX_TOPUPS_PER_DAY', 10),
 
     /*
+    | Admin wallet screens read date filters (date_from / date_to) as whole
+    | days in this timezone.
+    */
+    'timezone' => env('WALLET_TIMEZONE', 'Africa/Lagos'),
+
+    /*
     |--------------------------------------------------------------------------
     | Paystack Configuration (Wallet & Transfers)
     |--------------------------------------------------------------------------

@@ -56,6 +56,7 @@ class MonitorCancellationJob implements ShouldQueue
                 'timestamp' => $location['timestamp'],
                 'speed' => $location['speed'] ?? 0,
                 'heading' => $location['heading'] ?? 0,
+                'accuracy' => $location['accuracy'] ?? null,
             ];
 
             $ttl = ($monitoringWindow + 30) * 60;

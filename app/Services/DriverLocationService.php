@@ -30,7 +30,10 @@ class DriverLocationService
         return Redis::connection('geolocation');
     }
 
-    public function updateLocation(string $driverId, float $lat, float $lng, float $heading = 0, float $speed = 0, ?string $userId = null): void
+    /**
+     * @param  float|null  $accuracy  Horizontal GPS accuracy in metres, as the phone reports it
+     */
+    public function updateLocation(string $driverId, float $lat, float $lng, float $heading = 0, float $speed = 0, ?string $userId = null, ?float $accuracy = null): void
     {
         $conn = $this->redis();
         $member = (string) $driverId;
@@ -42,6 +45,9 @@ class DriverLocationService
             'lng' => $lng,
             'heading' => $heading,
             'speed' => $speed,
+            // Always written, so an app that stops reporting accuracy does not
+            // leave an old value behind; empty means unknown.
+            'accuracy' => $accuracy ?? '',
             'timestamp' => now()->timestamp,
         ];
 
@@ -132,6 +138,7 @@ class DriverLocationService
             'lng' => (float) $data['lng'],
             'heading' => (float) ($data['heading'] ?? 0),
             'speed' => (float) ($data['speed'] ?? 0),
+            'accuracy' => isset($data['accuracy']) && $data['accuracy'] !== '' ? (float) $data['accuracy'] : null,
             'timestamp' => (int) ($data['timestamp'] ?? 0),
         ];
     }

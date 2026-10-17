@@ -15,8 +15,14 @@ class LedgerEntryResource extends JsonResource
 
         return [
             'id' => $this->id,
+            // debit or credit
             'type' => $this->type->value,
             'type_label' => $this->type->label(),
+            // What the money was for (top-up, ride payment, refund, tip ...).
+            'transaction_type' => $this->journal?->type ? [
+                'value' => $this->journal->type->value,
+                'label' => $this->journal->type->label(),
+            ] : null,
             'amount' => $this->amount,
             'running_balance' => $this->running_balance,
             'created_at' => $this->created_at?->toIso8601String(),

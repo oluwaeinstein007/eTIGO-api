@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Jobs\MonitorCancellationJob;
 use App\Models\Ride;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class OfflineTripDetectionService
@@ -11,26 +13,71 @@ class OfflineTripDetectionService
         private readonly DriverLocationService $locationService,
     ) {}
 
+    public const CONTEXT_CACHE_PREFIX = 'offline_monitoring_context:';
+
     public function shouldMonitor(Ride $ride): bool
     {
-        if (! $ride->driver_id) {
+        $distance = $this->driverDistanceFromPickup($ride);
+
+        return $distance !== null
+            && $distance <= config('offline_detection.pickup_proximity_meters', 300);
+    }
+
+    /**
+     * Start watching the driver after a cancellation close to the pickup, and
+     * remember where the driver was when the ride was cancelled: it is part of
+     * the evidence if the trip is flagged.
+     */
+    public function startMonitoringAfterCancellation(Ride $ride, string $driverUserId): bool
+    {
+        $location = $ride->driver_id ? $this->locationService->getDriverLocation($ride->driver_id) : null;
+        $distance = $location ? $this->distanceFromPickup($ride, $location) : null;
+
+        if ($distance === null || $distance > config('offline_detection.pickup_proximity_meters', 300)) {
             return false;
+        }
+
+        $ttlMinutes = config('offline_detection.monitoring_window_minutes', 15)
+            + config('offline_detection.analysis_delay_minutes', 20)
+            + 60;
+
+        Cache::put(self::CONTEXT_CACHE_PREFIX.$ride->id, [
+            'cancelled_at' => now()->toISOString(),
+            'cancel_distance_from_pickup_meters' => round($distance, 1),
+            'cancel_gps_accuracy_meters' => $location['accuracy'] ?? null,
+        ], now()->addMinutes($ttlMinutes));
+
+        MonitorCancellationJob::dispatch($ride->id, $driverUserId);
+
+        return true;
+    }
+
+    /**
+     * Metres between the driver's last reported position and the ride's pickup;
+     * null when the driver's position is unknown.
+     */
+    public function driverDistanceFromPickup(Ride $ride): ?float
+    {
+        if (! $ride->driver_id) {
+            return null;
         }
 
         $driverLocation = $this->locationService->getDriverLocation($ride->driver_id);
-        if (! $driverLocation) {
-            return false;
-        }
 
-        $proximityMeters = config('offline_detection.pickup_proximity_meters', 300);
-        $distance = $this->haversineDistance(
+        return $driverLocation ? $this->distanceFromPickup($ride, $driverLocation) : null;
+    }
+
+    /**
+     * @param  array{lat: float, lng: float}  $location
+     */
+    private function distanceFromPickup(Ride $ride, array $location): float
+    {
+        return $this->haversineDistance(
             (float) $ride->pickup_lat,
             (float) $ride->pickup_lng,
-            $driverLocation['lat'],
-            $driverLocation['lng'],
+            $location['lat'],
+            $location['lng'],
         );
-
-        return $distance <= $proximityMeters;
     }
 
     /**
@@ -57,6 +104,7 @@ class OfflineTripDetectionService
         $collocatedPoints = 0;
         $totalDistance = 0;
         $pointDistances = [];
+        $onRouteTimestamps = [];
 
         foreach ($driverTrajectory as $point) {
             $minDistance = PHP_FLOAT_MAX;
@@ -75,6 +123,10 @@ class OfflineTripDetectionService
 
             if ($minDistance <= $thresholdMeters) {
                 $collocatedPoints++;
+
+                if (isset($point['timestamp'])) {
+                    $onRouteTimestamps[] = (int) $point['timestamp'];
+                }
             }
 
             $totalDistance += $minDistance;
@@ -90,6 +142,12 @@ class OfflineTripDetectionService
             : 0;
 
         $flagged = $collocatedPoints >= $minPoints && $percentage >= $matchPercentage;
+
+        $timestamps = array_filter(array_map(fn ($point) => $point['timestamp'] ?? null, $driverTrajectory));
+        $accuracies = array_values(array_filter(
+            array_map(fn ($point) => $point['accuracy'] ?? null, $driverTrajectory),
+            fn ($accuracy) => $accuracy !== null,
+        ));
 
         Log::info('Offline trip collocation analysis', [
             'collocated_points' => $collocatedPoints,
@@ -109,6 +167,15 @@ class OfflineTripDetectionService
             'threshold_meters' => $thresholdMeters,
             'min_points_required' => $minPoints,
             'match_percentage_required' => $matchPercentage,
+            // From the first to the last sample on the passenger's route.
+            'on_route_duration_seconds' => count($onRouteTimestamps) > 1
+                ? max($onRouteTimestamps) - min($onRouteTimestamps)
+                : 0,
+            'monitoring_duration_seconds' => count($timestamps) > 1 ? max($timestamps) - min($timestamps) : 0,
+            // Null when the driver app does not report GPS accuracy.
+            'average_gps_accuracy_meters' => $accuracies === []
+                ? null
+                : round(array_sum($accuracies) / count($accuracies), 1),
         ];
     }
 

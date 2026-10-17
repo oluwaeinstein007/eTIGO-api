@@ -1706,6 +1706,7 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
   "lng": 7.4951,
   "heading": 45.0,
   "speed": 30.0,
+  "accuracy": 12.5,
   "timestamp": "2026-10-06T14:15:00Z"
 }
 ```
@@ -1716,6 +1717,7 @@ Send the driver's current GPS position. Rate-limited to 1 request per second per
 | `lng` | float | Yes | Between -180 and 180 |
 | `heading` | float | No | Between 0 and 360 (degrees from north) |
 | `speed` | float | No | >= 0 (km/h) |
+| `accuracy` | float | No | 0–10000. Horizontal GPS accuracy in metres as the phone reports it (iOS `horizontalAccuracy`, Android `Location.getAccuracy()`). Shown to compliance reviewers on anti-offline flags. |
 | `timestamp` | string | No | Valid date/time. Accepted but not used: the server's time is recorded |
 
 **Response 200:**
@@ -9523,15 +9525,59 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance`
 
+**Promo object (admin view).** Every admin promo endpoint returns promos in this shape:
+
+```json
+{
+  "id": "uuid",
+  "code": "WELCOME20",
+  "description": "20% off for new riders",
+  "discount_type": "percentage",
+  "discount_type_label": "Percentage",
+  "discount_value": "20.00",
+  "max_discount_cap": "1000.00",
+  "total_redemption_limit": 2000,
+  "per_user_limit": 1,
+  "starts_at": "2026-10-01T00:00:00.000000Z",
+  "expires_at": "2026-11-01T00:00:00.000000Z",
+  "status": { "value": "active", "label": "Active" },
+  "rider_eligibility": { "value": "first_ride", "label": "First-time passengers only" },
+  "min_order_count": null,
+  "max_order_count": 0,
+  "timing": { "value": "peak_only", "label": "Peak hours only" },
+  "peak_only": true,
+  "off_peak_only": false,
+  "min_tier_level": null,
+  "city_ids": ["uuid", "uuid"],
+  "cities": [{ "id": "uuid", "name": "Lagos", "...": "..." }],
+  "vehicle_class_id": null,
+  "minimum_fare_amount": null,
+  "geo_fence": null,
+  "is_active": true,
+  "cancelled_at": null,
+  "is_cancelled": false,
+  "total_redemptions": 640,
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+
+| Field | Notes |
+|-------|-------|
+| `status` | `active`, `scheduled` (starts in the future), `paused`, `expired` or `cancelled`. Worked out in that precedence: cancelled, then expired, then paused, then scheduled. A paused promo that has passed its end date is `expired`. |
+| `rider_eligibility` | `all`, `first_ride` (no completed rides yet), `returning` (at least one completed ride), or `custom` when `min_order_count` / `max_order_count` hold any other pair. |
+| `timing` | `any_time`, `peak_only` or `off_peak_only`. Peak hours are 07:00–09:00 and 17:00–19:00 in the ride city's local time (`config/promo.php`). |
+| `city_ids` / `cities` | The cities the promo runs in. **Empty means every city.** Replaces the old single `city_id`, which is no longer returned. |
+
 ### List Promos
 
 `GET /api/v1/admin/promos`
 
 **Query parameters:**
-- `status` — `active`, `expired`, `inactive`, `scheduled`, `cancelled`. The `active`, `expired`, `inactive`, and `scheduled` filters automatically exclude cancelled promos (i.e. they only return promos where `cancelled_at` is null). Use `cancelled` to list only permanently cancelled promos.
-- `city_id` — filter by city
-- `search` — search by code or description
-- `per_page` — pagination size (default 20, max 100)
+- `status`: `active`, `scheduled`, `paused`, `expired`, `cancelled`. Matches the `status` field above. `inactive`, the old name for `paused`, is still accepted.
+- `city_id`: promos targeted at this city (promos that run in every city are not included)
+- `search`: search by code or description
+- `per_page`: pagination size (default 20, max 100)
 
 **Response (200):**
 ```json
@@ -9557,20 +9603,18 @@ Returns the authenticated passenger's promo code redemption history, paginated.
   "description": "20% off for new riders",
   "discount_type": "percentage",
   "discount_value": 20,
-  "max_discount_cap": 2000,
-  "total_redemption_limit": 500,
+  "max_discount_cap": 1000,
+  "total_redemption_limit": 2000,
   "per_user_limit": 1,
   "starts_at": "2026-10-01T00:00:00Z",
   "expires_at": "2026-11-01T00:00:00Z",
-  "city_id": "uuid (optional)",
+  "city_ids": ["uuid", "uuid"],
+  "rider_eligibility": "first_ride",
+  "timing": "peak_only",
+  "min_tier_level": 2,
   "vehicle_class_id": "uuid (optional)",
-  "minimum_fare_amount": 1500 (optional),
-  "min_tier_level": 2 (optional, 1-5),
-  "min_order_count": 0 (optional),
-  "max_order_count": 5 (optional, for new-user promos),
-  "peak_only": false,
-  "off_peak_only": false,
-  "is_active": true (optional, default true),
+  "minimum_fare_amount": 1500,
+  "is_active": true,
   "geo_fence": {
     "center_lat": 9.0579,
     "center_lng": 7.4951,
@@ -9579,7 +9623,14 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 }
 ```
 
-`geo_fence` is either a circle (`center_lat`, `center_lng`, `radius_km` 0.1–500) or a polygon: `"polygon": [{"lat": 6.45, "lng": 3.38}, ...]` with at least 3 points. `per_user_limit` defaults to 1 (max 100). Create the promo with `is_active: false` to save it without making it usable.
+| Field | Notes |
+|-------|-------|
+| `city_ids` | Optional array of city UUIDs (max 100). Leave out or send `[]` for every city. The old `city_id` (one city or `null`) is still accepted and becomes `city_ids`. |
+| `rider_eligibility` | Optional: `all`, `first_ride` or `returning`. Sets `min_order_count` / `max_order_count` and **overrides** them if both are sent. `custom` is output-only; send the counts directly for other rules. |
+| `timing` | Optional: `any_time`, `peak_only` or `off_peak_only`. Sets `peak_only` / `off_peak_only` and overrides them if both are sent. |
+| `min_tier_level` | Optional, 1–5. |
+
+`geo_fence` is either a circle (`center_lat`, `center_lng`, `radius_km` 0.1–500) or a polygon: `"polygon": [{"lat": 6.45, "lng": 3.38}, ...]` with at least 3 points. `per_user_limit` defaults to 1 (max 100). Create the promo with `is_active: false` to save it paused.
 
 **Response (201):**
 ```json
@@ -9597,7 +9648,7 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 
 `PUT /api/v1/admin/promos/{promo}`
 
-All fields from create are accepted; only provided fields are updated.
+All fields from create are accepted; only provided fields are updated. Leaving `city_ids` out keeps the current cities; `[]` makes the promo run in every city.
 
 **Response 422 (cancelled promo):**
 ```json
@@ -9606,18 +9657,35 @@ All fields from create are accepted; only provided fields are updated.
 }
 ```
 
-### Toggle Promo Status
+### Pause Promo
+
+`POST /api/v1/admin/promos/{promo}/pause`
+
+Stops the promo from being redeemed until it is resumed. Pausing a promo that is already paused returns 200 without changing anything. Audit logged (`promo_code_paused`).
+
+**Response (200):**
+```json
+{
+  "message": "Promo code paused.",
+  "promo": { "status": { "value": "paused", "label": "Paused" }, "...": "..." }
+}
+```
+
+**Response 422:** `"Cannot change status of a cancelled promo code."`
+
+### Resume Promo
+
+`POST /api/v1/admin/promos/{promo}/resume`
+
+Makes a paused promo usable again; it shows as `scheduled` if its start date is still ahead. Resuming a promo that is not paused returns 200 without changing anything. Audit logged (`promo_code_resumed`).
+
+**Response 422:** `"Cannot change status of a cancelled promo code."`, or for a promo past its end date: `"This promo code has expired. Move its end date later to run it again."`
+
+### Toggle Promo Status (deprecated)
 
 `PATCH /api/v1/admin/promos/{promo}/status`
 
-Activates or deactivates the promo. Audit logged.
-
-**Response 422 (cancelled promo):**
-```json
-{
-  "message": "Cannot change status of a cancelled promo code."
-}
-```
+**Deprecated: use Pause and Resume.** Pauses an active promo or resumes a paused one, and still answers `"Promo code activated."` / `"Promo code deactivated."`.
 
 ---
 
@@ -9625,9 +9693,9 @@ Activates or deactivates the promo. Audit logged.
 
 `POST /api/v1/admin/promos/{promo}/cancel`
 
-Permanently cancels a promo code. Sets `is_active = false` and records `cancelled_at` timestamp. This action **cannot be undone** — a cancelled promo can never be reactivated or updated.
+Permanently cancels a promo code. Sets `is_active = false` and records `cancelled_at` timestamp. This action **cannot be undone**: a cancelled promo can never be resumed or updated.
 
-**Cancel vs. Pause:** Toggling status (via `PATCH .../status`) is reversible — it simply flips `is_active` on/off. Cancelling is permanent: once cancelled, the promo is frozen and cannot be toggled, updated, or reused.
+**Cancel vs. Pause:** pausing is reversible. Cancelling is permanent: once cancelled, the promo cannot be paused, resumed, updated or reused.
 
 **Response (200):**
 ```json
@@ -9636,11 +9704,7 @@ Permanently cancels a promo code. Sets `is_active = false` and records `cancelle
   "promo": {
     "id": "uuid",
     "code": "WELCOME20",
-    "description": "20% off for new riders",
-    "discount_type": "percentage",
-    "discount_type_label": "Percentage",
-    "discount_value": "20.00",
-    "max_discount_cap": "2000.00",
+    "status": { "value": "cancelled", "label": "Cancelled" },
     "is_active": false,
     "cancelled_at": "2026-10-15T12:00:00.000000Z",
     "is_cancelled": true,
@@ -9664,29 +9728,34 @@ Permanently cancels a promo code. Sets `is_active = false` and records `cancelle
 
 **Query parameters:**
 
-| Parameter    | Type | Required | Description                                                      |
-|--------------|------|----------|------------------------------------------------------------------|
-| `start_date` | date | No       | Filter redemption stats from this date (inclusive)                |
-| `end_date`   | date | No       | Filter redemption stats until this date (inclusive, must be >= `start_date`) |
+| Parameter    | Type | Required | Description |
+|--------------|------|----------|-------------|
+| `start_date` | `Y-m-d` | No | First day of the range (inclusive). Default: the promo's start date. |
+| `end_date`   | `Y-m-d` | No | Last day of the range (inclusive, on or after `start_date`). Default: today, or the promo's end date if that is earlier. |
 
-Date filtering applies to `total_redemptions`, `unique_users`, `total_discount_given`, `average_discount`, `total_fare_value`, and `redemptions_by_day`. The `remaining_redemptions` and `usage_percentage` fields always use unfiltered (all-time) counts.
+Days are calendar days in `Africa/Lagos` (`PROMO_TIMEZONE`). A range can cover at most 366 days; a longer explicit range answers 422 on `end_date`, and a longer default range is cut to the latest 366 days.
+
+The range applies to `total_redemptions`, `unique_users`, `total_discount_given`, `average_discount`, `total_fare_value` and `redemptions_by_day`. Usage against the limit (`lifetime_redemptions`, `remaining_redemptions`, `usage_percentage`) always covers the promo's whole life, because the limit is a lifetime limit.
 
 **Response (200):**
 ```json
 {
   "promo": { ... },
   "performance": {
+    "period": { "start_date": "2026-10-01", "end_date": "2026-10-07", "timezone": "Africa/Lagos" },
     "total_redemptions": 42,
     "unique_users": 38,
     "total_discount_given": 84000.00,
     "average_discount": 2000.00,
     "total_fare_value": 252000.00,
-    "remaining_redemptions": 458,
-    "usage_percentage": 8.4,
-    "redemptions_by_day": {
-      "2026-10-05": { "count": 12, "total_discount": 24000.00 },
-      "2026-10-06": { "count": 30, "total_discount": 60000.00 }
-    }
+    "lifetime_redemptions": 640,
+    "total_redemption_limit": 2000,
+    "remaining_redemptions": 1360,
+    "usage_percentage": 32.0,
+    "redemptions_by_day": [
+      { "date": "2026-10-01", "count": 0, "total_discount": 0 },
+      { "date": "2026-10-02", "count": 12, "total_discount": 24000.00 }
+    ]
   },
   "recent_redemptions": [...]
 }
@@ -9696,8 +9765,10 @@ Date filtering applies to `total_redemptions`, `unique_users`, `total_discount_g
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `total_fare_value` | number | Pre-discount fare total (SUM of `final_fare_amount + discount_amount` for all redemptions in the date range) |
-| `usage_percentage` | number\|null | Percentage of `total_redemption_limit` used (all-time, ignoring date filter). `null` if the promo has no redemption limit. |
+| `redemptions_by_day` | array | One entry for **every** day in the range, in date order; days with no redemptions have `count: 0`. (Before October 2026 this was an object keyed by date with only the days that had redemptions.) |
+| `total_fare_value` | number | Pre-discount fare total (SUM of `final_fare_amount + discount_amount`) for redemptions in the range |
+| `remaining_redemptions`, `usage_percentage` | number\|null | Lifetime; `null` when the promo has no `total_redemption_limit` ("No limit"). |
+| `unique_users`, `average_discount`, `recent_redemptions` | | Extra figures the design does not show yet; `recent_redemptions` is the latest 20 whatever the range. |
 
 ---
 
@@ -9805,13 +9876,25 @@ Cancels an open SOS incident (false alarm). Available to the triggering user or 
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:safety_operator`
 
+**Queue status.** Besides the eight-value `status`, every admin incident carries `queue_status`, the console's three-way view of whether an operator has taken the alert:
+
+| `queue_status` | Incident `status` values |
+|---|---|
+| `unacknowledged` | `triggered`, `check_in_sent`, `acknowledged`, `escalated` |
+| `acknowledged` | `operator_assigned`, `dispatched` |
+| `resolved` | `resolved`, `cancelled` |
+
+Incident status `acknowledged` means the person who raised the SOS answered the check-in ("I'm safe"); its label is **Confirmed Safe**. It does not mean an operator has taken the alert, so it counts as `unacknowledged` in the queue until an operator takes or resolves it.
+
 ### List Active Incidents
 
 `GET /api/v1/admin/sos/active`
 
-Returns active SOS incidents prioritized by severity (escalated first).
+Returns open SOS incidents prioritised by severity (escalated first), each with the ride's passenger, driver and vehicle class.
 
-**Query Params:** `status`, `per_page`
+**Query Params:** `status` (an incident status), `queue_status`, `search`, `per_page`
+
+`search` matches the incident reference (`SOS-000123`), the ride reference, or the name or phone number of the passenger, the driver or whoever raised the SOS.
 
 **Response (200):**
 ```json
@@ -9820,27 +9903,40 @@ Returns active SOS incidents prioritized by severity (escalated first).
   "incidents": [
     {
       "id": "uuid",
+      "reference_number": "SOS-000123",
       "ride_id": "uuid",
       "status": "escalated",
+      "status_label": "Escalated",
+      "queue_status": { "value": "unacknowledged", "label": "Unacknowledged" },
       "trigger_type": "passenger",
       "gps_lat": "9.0579000",
       "gps_lng": "7.4951000",
       "vehicle_details": { "plate_number": "AB-123-CD", "make": "Toyota", "model": "Corolla", "color": "White" },
-      "telemetry_data": { "ride_status": "in_progress", "passenger_id": "uuid", "driver_id": "uuid" },
       "escalated_at": "2026-10-11T12:01:00.000000Z",
-      "triggered_by": { "id": "uuid", "first_name": "Ade", ... },
-      "ride": { ... }
+      "escalates_at": null,
+      "operator_assigned_at": null,
+      "wait_seconds": 95,
+      "triggered_by": { "id": "uuid", "first_name": "Ade", "...": "..." },
+      "ride": { "reference_number": "TRP-NG-000045", "passenger": { "...": "..." }, "driver": { "...": "..." }, "...": "..." },
+      "created_at": "2026-10-11T12:00:00.000000Z"
     }
   ],
   "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
 }
 ```
 
+| Field | Notes |
+|-------|-------|
+| `reference_number` | Readable alert ID, `SOS-` + six digits. |
+| `wait_seconds` | How long the alert waited for an operator: until one took it (or resolved it), or until now while it is still waiting. `null` for an alert cancelled before any operator saw it. |
+| `operator_assigned_at` | When an operator first took the alert. |
+| `escalates_at` | When the alert escalates automatically if the check-in goes unanswered: `check_in_sent_at` + `SOS_ESCALATION_TIMEOUT` (default 30 s) once the check-in is out, an estimate (raised + `SOS_CHECK_IN_DELAY` + timeout) before that, and `null` once it can no longer escalate. Use it for the "Automatic escalation in 00:18" countdown. |
+
 ### Show Incident Detail
 
 `GET /api/v1/admin/sos/{incident}`
 
-Returns full incident details with event logs and ride information. Admin-only fields: `vehicle_details`, `telemetry_data`, `operator_id`, `operator_notes`, `operator` and `event_logs`.
+Returns the incident with its audit trail, the ride (passenger, driver with rating, vehicle class, city) and what the map needs. Admin-only fields: `vehicle_details`, `telemetry_data`, `operator_id`, `operator_notes`, `operator`, `queue_status`, `escalates_at`, `operator_assigned_at`, `wait_seconds` and `event_logs`.
 
 **Response (200):**
 ```json
@@ -9848,71 +9944,88 @@ Returns full incident details with event logs and ride information. Admin-only f
   "message": "SOS incident details retrieved.",
   "incident": {
     "id": "uuid",
+    "reference_number": "SOS-000123",
     "ride_id": "uuid",
     "triggered_by_user_id": "uuid",
     "trigger_type": "passenger",
     "trigger_type_label": "Passenger",
     "status": "operator_assigned",
     "status_label": "Operator Assigned",
+    "queue_status": { "value": "acknowledged", "label": "Acknowledged" },
     "gps_lat": "9.0579000",
     "gps_lng": "7.4951000",
-    "vehicle_details": { "plate_number": "AB-123-CD", "make": "Toyota", "model": "Corolla", "color": "White" },
+    "vehicle_details": { "plate_number": "AB-123-CD", "make": "Toyota", "model": "Corolla", "color": "White", "vehicle_class": "Comfort" },
     "telemetry_data": { "ride_status": "in_progress", "passenger_id": "uuid", "driver_id": "uuid" },
-    "check_in_sent_at": "2026-10-11T12:00:00.000000Z",
+    "check_in_sent_at": "2026-10-11T12:00:05.000000Z",
     "check_in_acknowledged_at": null,
-    "escalated_at": "2026-10-11T12:01:00.000000Z",
+    "escalated_at": "2026-10-11T12:00:35.000000Z",
+    "escalates_at": null,
     "operator_id": "uuid",
-    "operator_notes": "Called the passenger, police dispatched",
+    "operator_assigned_at": "2026-10-11T12:01:40.000000Z",
+    "wait_seconds": 100,
+    "operator_notes": null,
     "resolved_at": null,
-    "triggered_by": { "id": "uuid", "first_name": "Ade", ... },
-    "operator": { "id": "uuid", "first_name": "Kemi", ... },
-    "ride": { ... },
+    "triggered_by": { "id": "uuid", "first_name": "Ade", "...": "..." },
+    "operator": { "id": "uuid", "first_name": "Kemi", "...": "..." },
+    "ride": { "...": "..." },
     "event_logs": [
       {
         "id": "uuid",
-        "event_type": "triggered",
-        "actor_id": "uuid",
-        "actor": { "id": "uuid", "first_name": "Ade", ... },
-        "metadata": { "trigger_type": "passenger", "gps_lat": 9.0579, "gps_lng": 7.4951 },
-        "created_at": "2026-10-11T12:00:00.000000Z"
+        "event_type": "transition:triggered->check_in_sent",
+        "description": "Safety check-in sent",
+        "actor_type": "system",
+        "actor_id": null,
+        "metadata": null,
+        "created_at": "2026-10-11T12:00:05.000000Z"
       },
       {
         "id": "uuid",
         "event_type": "transition:escalated->operator_assigned",
+        "description": "Alert taken by an operator",
+        "actor_type": "operator",
         "actor_id": "uuid",
-        "actor": { "id": "uuid", "first_name": "Kemi", ... },
+        "actor": { "id": "uuid", "first_name": "Kemi", "admin_role": "safety_operator", "...": "..." },
         "metadata": null,
-        "created_at": "2026-10-11T12:03:00.000000Z"
+        "created_at": "2026-10-11T12:01:40.000000Z"
       }
     ],
     "created_at": "2026-10-11T12:00:00.000000Z"
-  }
+  },
+  "route": { "encoded_polyline": "abc...", "distance_km": 12.4, "duration_minutes": 28 },
+  "driver_location": { "lat": 9.061, "lng": 7.49, "heading": 90, "speed": 32.5, "updated_at": "2026-10-11T12:01:38.000000Z" }
 }
 ```
 
-`event_type` is `triggered`, `operator_reassigned` (metadata carries `previous_operator_id`), or `transition:{from}->{to}` for every status change.
+| Field | Notes |
+|-------|-------|
+| `event_logs[].description` | Readable line for the audit trail, e.g. "SOS raised by the passenger", "Safety check-in sent", "Confirmed safe by the person who raised the SOS", "Escalated: no answer to the safety check-in", "Alert taken by an operator", "Emergency services dispatched (police)", "Called the passenger: no answer", "Resolved". |
+| `event_logs[].actor_type` | `system` for automatic steps (no actor), `operator` for admins, otherwise `passenger` or `driver`. |
+| `route` | The ride's planned route from pickup to destination (Google encoded polyline); `null` if routing fails. |
+| `driver_location` | Last position the driver's phone sent, while the incident is open; `null` once it is closed or if unknown. Live positions arrive as `driver.location.updated` on the `admin.rides` channel (filter by `ride_id`). |
+
+`event_type` is `triggered`, `operator_reassigned` (metadata carries `previous_operator_id`), `operator_call` (see Log a Call), or `transition:{from}->{to}` for every status change.
 
 ### Incident History
 
 `GET /api/v1/admin/sos/history`
 
-Returns all incidents (active and resolved) with filters.
+Returns all incidents (open and closed), newest first, each with the ride's passenger, driver and vehicle class.
 
-**Query Params:** `status`, `trigger_type`, `ride_id`, `date_from`, `date_to`, `per_page`
+**Query Params:** `status`, `queue_status`, `search`, `trigger_type`, `ride_id`, `date_from`, `date_to`, `per_page`. An unknown `status` or `queue_status` answers 422.
 
-### Assign Operator
+### Assign Operator (take the alert)
 
 `POST /api/v1/admin/sos/{incident}/assign`
 
-Safety operator takes over an incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`). Calling it on an incident another operator already holds reassigns it to the caller (logged as `operator_reassigned`). Uses row locking to prevent concurrent assignment conflicts.
+The operator takes the incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`); its `queue_status` becomes `acknowledged`. Calling it on an incident another operator already holds reassigns it to the caller (logged as `operator_reassigned`). Uses row locking to prevent concurrent assignment conflicts. This is the dashboard's "Acknowledge" action.
 
-**Errors:** `422` — `"This incident cannot be assigned in its current state."` (already resolved or cancelled).
+**Errors:** `422` `"This incident cannot be assigned in its current state."` (already resolved or cancelled).
 
 **Response (200):**
 ```json
 {
   "message": "You have been assigned to this incident.",
-  "incident": { "status": "operator_assigned", "operator_id": "uuid", ... }
+  "incident": { "status": "operator_assigned", "operator_id": "uuid", "...": "..." }
 }
 ```
 
@@ -9920,7 +10033,7 @@ Safety operator takes over an incident at any open stage (`triggered`, `check_in
 
 `POST /api/v1/admin/sos/{incident}/dispatch`
 
-Initiates emergency services handoff. Requires operator assignment first (`422` `"An operator must be assigned before dispatching emergency services."`).
+Records that emergency services were called. If no operator has taken the incident yet, the calling operator takes it first (both steps appear in the audit trail).
 
 **Request:**
 ```json
@@ -9934,14 +10047,16 @@ Initiates emergency services handoff. Requires operator assignment first (`422` 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `emergency_service_type` | string | Yes | `police`, `ambulance`, `fire`, or `all` |
-| `contact_number` | string | No | Emergency contact number |
-| `notes` | string | No | Dispatch notes |
+| `contact_number` | string | No | Number called, max 20 characters |
+| `notes` | string | No | Dispatch notes, max 2000 |
+
+**Errors (422):** `"Emergency services have already been dispatched for this incident."`, `"This incident has already been closed."`
 
 ### Resolve Incident
 
 `POST /api/v1/admin/sos/{incident}/resolve`
 
-Resolves an SOS incident with operator notes. Allowed at any open stage — an operator can close a false alarm without waiting for escalation. If no operator was assigned, the resolving operator is recorded. `422` `"This incident has already been closed."` if it is already resolved or cancelled.
+Resolves an SOS incident with operator notes. Allowed at any open stage: an operator can close a false alarm without waiting for escalation. If no operator was assigned, the resolving operator is recorded. `422` `"This incident has already been closed."` if it is already resolved or cancelled.
 
 **Request:**
 ```json
@@ -9954,6 +10069,31 @@ Resolves an SOS incident with operator notes. Allowed at any open stage — an o
 |-------|------|----------|-------|
 | `notes` | string | Yes | Min 10 characters, max 2000 |
 
+### Log a Call
+
+`POST /api/v1/admin/sos/{incident}/calls`
+
+Adds a call the operator made about the incident to its audit trail. The call itself is placed from the operator's own phone (the passenger's and driver's numbers are on the incident's ride); the API does not place or record calls.
+
+**Request:**
+```json
+{
+  "called_party": "passenger",
+  "outcome": "no_answer",
+  "phone": "+2348012345678",
+  "notes": "Rang twice, went to voicemail."
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `called_party` | string | No | `passenger` (default), `driver`, `emergency_contact` or `other` |
+| `outcome` | string | Yes | `reached`, `no_answer`, `busy` or `unreachable` |
+| `phone` | string | No | Number called, max 20 |
+| `notes` | string | No | Max 2000 |
+
+**Response (201):** `{ "message": "Call logged.", "incident": { ...with event_logs } }`
+
 **SOS Incident Status Flow:**
 ```
 triggered ──→ check_in_sent ──→ escalated ──→ operator_assigned ──→ dispatched ──→ resolved
@@ -9965,8 +10105,8 @@ cancelled: reachable from triggered, check_in_sent, acknowledged, escalated (not
 ```
 
 **WebSocket Channels:**
-- `admin.sos` — Receives `sos.incident.escalated` events (SafetyOperator + SuperAdmin)
-- `user.{userId}` — Receives `sos.check_in.requested` events (triggering user)
+- `admin.sos` (SafetyOperator + SuperAdmin): `sos.incident.triggered` when an SOS is raised, `sos.incident.escalated` when it escalates, and `sos.incident.updated` on **every** later status change (check-in sent, confirmed safe, escalated, taken, dispatched, resolved, cancelled) and on reassignment. Payload: `incident_id`, `reference_number`, `ride_id`, `status`, `previous_status`, `queue_status`, `operator_id`, `escalates_at`, `updated_at`. The `triggered` and `escalated` events also carry `reference_number`.
+- `user.{userId}`: `sos.check_in.requested` events (triggering user)
 
 ---
 
@@ -10003,7 +10143,7 @@ Returns the authenticated driver's compliance status including active flag count
 
 `POST /api/v1/driver/flags/{flag}/dispute`
 
-Driver disputes an offline trip flag. Only the flagged driver can dispute. Cannot dispute an already-disputed flag.
+Driver disputes an offline trip flag. Only the flagged driver can dispute, once, and not after an admin has reviewed the flag. The time and channel (`driver_app`) are recorded for the admin console.
 
 **Request Body:**
 ```json
@@ -10024,7 +10164,7 @@ Driver disputes an offline trip flag. Only the flagged driver can dispute. Canno
 }
 ```
 
-**Response 422:** Already disputed, wrong driver, or validation error.
+**Response 422:** Already disputed, already reviewed (`"This flag has already been reviewed."`), wrong driver, or validation error.
 
 ---
 
@@ -10032,71 +10172,116 @@ Driver disputes an offline trip flag. Only the flagged driver can dispute. Canno
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,safety_operator`
 
+**Flag status.** Each flag carries a `status`:
+
+| `status` | Meaning |
+|---|---|
+| `flagged` | Raised by detection; no dispute and no review yet |
+| `disputed` | The driver disputed it and it awaits a decision |
+| `upheld` | An admin upheld it |
+| `overturned` | An admin overturned it (its sanction is lifted and it no longer counts towards later sanctions) |
+
 ### List Offline Trip Flags
 
 `GET /api/v1/admin/offline-flags`
 
-List flagged trips with optional filters and pagination.
+List flagged trips with optional filters and pagination, newest first.
 
 | Query Param | Type | Description |
 |-------------|------|-------------|
+| `status` | string | `flagged`, `disputed`, `upheld`, `overturned`, or `active` (not yet resolved) |
+| `search` | string | Flag reference (`FLG-000045`), ride reference, or the driver's name, phone or driver ID |
 | `sanction_tier` | int | Filter by tier: 1 (Warning), 2 (Suspension), 3 (Deactivation) |
 | `is_disputed` | bool | Filter by disputed status |
 | `dispute_outcome` | string | Filter: pending, upheld, overturned |
 | `driver_id` | uuid | Filter by driver user ID |
 | `date_from` | datetime | Filter from date |
 | `date_to` | datetime | Filter to date |
-| `status` | string | `active` (unresolved), `disputed` (pending dispute) |
 | `per_page` | int | Items per page (default 20) |
 
 ### Show Offline Trip Flag
 
 `GET /api/v1/admin/offline-flags/{flag}`
 
-Get detailed information about a specific flag including detection data, ride details, and resolution info.
-
-`detection_data` is shown to admins only. `dispute_notes` (the driver's dispute text) and `dispute_outcome` appear once the flag is disputed.
+The flag with its evidence, the driver (with their city), the passenger and ride, the driver's earlier flags and the flag's history.
 
 **Response 200:**
 ```json
 {
   "message": "Offline trip flag details retrieved.",
   "flag": {
-    "id": "01a1421f-5780-713b-bdf4-12d4d03db70e",
-    "ride_id": "01a1421f-577c-7028-b24c-f7167281c568",
-    "driver_id": "01a1421f-577e-7227-8b4a-ca82c7b227a5",
-    "passenger_id": "01a1421f-577f-73fb-a6d8-e2de98403cb2",
-    "sanction_tier": { "value": 1, "label": "Warning" },
-    "sanction_action": "warning_issued",
+    "id": "uuid",
+    "reference_number": "FLG-000045",
+    "ride_id": "uuid",
+    "driver_id": "uuid",
+    "passenger_id": "uuid",
+    "status": { "value": "disputed", "label": "Disputed" },
+    "sanction_tier": { "value": 2, "label": "48-Hour Suspension" },
+    "sanction_action": "suspended_48h",
     "is_disputed": true,
     "dispute_outcome": { "value": "pending", "label": "Pending" },
     "dispute_notes": "The passenger is my brother; we were travelling together after the trip ended.",
-    "detection_data": {
-      "flagged": true,
-      "collocation_points": 8,
-      "total_trajectory_points": 10,
-      "route_match_percentage": 80.0,
-      "average_distance_meters": 42.5,
-      "point_distances": [38.2, 41.0, 55.7, 36.9, 47.3, 40.1, 39.8, 44.6, 260.4, 410.3],
-      "threshold_meters": 200,
-      "min_points_required": 3,
-      "match_percentage_required": 60
+    "dispute": {
+      "notes": "The passenger is my brother; we were travelling together after the trip ended.",
+      "filed_at": "2026-10-16T08:12:00.000000Z",
+      "channel": "driver_app"
     },
+    "review_notes": null,
+    "detection_summary": "The ride was cancelled with the driver 0.3 km from the pickup. Afterwards, the driver's phone followed the passenger's route: 87.5% of its location samples (14 of 16) were within 200 m of it, over 10 min 50 s.",
+    "evidence": {
+      "route_match_percentage": 87.5,
+      "location_samples": 16,
+      "on_route_samples": 14,
+      "threshold_meters": 200,
+      "cancel_distance_from_pickup_km": 0.3,
+      "on_route_duration_seconds": 650,
+      "average_gps_accuracy_meters": 15.0
+    },
+    "detection_data": { "...": "raw detection output" },
     "flagged_at": "2026-10-16T00:31:52.000000Z",
     "resolved_at": null,
-    "driver": { "id": "01a1421f-577e-7227-8b4a-ca82c7b227a5", "first_name": "Emeka", "...": "..." },
-    "passenger": { "id": "01a1421f-577f-73fb-a6d8-e2de98403cb2", "first_name": "Bisi", "...": "..." },
-    "ride": { "id": "01a1421f-577c-7028-b24c-f7167281c568", "reference_number": "TRP-NG-000001", "...": "..." },
+    "driver": { "id": "uuid", "reference_number": "...", "first_name": "Emeka", "phone": "+234...", "...": "..." },
+    "driver_city": { "id": "uuid", "name": "Abuja", "...": "..." },
+    "passenger": { "id": "uuid", "first_name": "Bisi", "...": "..." },
+    "ride": { "id": "uuid", "reference_number": "TRP-NG-000001", "pickup": { "...": "..." }, "destination": { "...": "..." }, "...": "..." },
+    "resolved_by": null,
     "created_at": "2026-10-16T00:31:52.000000Z"
-  }
+  },
+  "previous_flags": [
+    {
+      "id": "uuid",
+      "reference_number": "FLG-000031",
+      "ride_reference_number": "TRP-NG-000390",
+      "flagged_at": "2026-10-06T19:02:11.000000Z",
+      "sanction_tier": { "value": 1, "label": "Warning" },
+      "status": { "value": "upheld", "label": "Upheld" }
+    }
+  ],
+  "previous_flags_window_days": 30,
+  "history": [
+    { "event": "offline_trip_flagged", "description": "Flagged by automatic detection", "notes": null, "actor": null, "created_at": "..." },
+    { "event": "offline_flag_disputed", "description": "Disputed by the driver", "notes": "The passenger is my brother...", "actor": { "id": "uuid", "name": "Emeka Obi", "role": "driver" }, "created_at": "..." },
+    { "event": "offline_flag_escalated", "description": "Escalated from Level 1 to Level 2", "notes": "Second event in 30 days.", "actor": { "id": "uuid", "name": "Kemi Ade", "role": "operations" }, "created_at": "..." }
+  ]
 }
 ```
 
-### Review Disputed Flag
+| Field | Notes |
+|-------|-------|
+| `detection_summary` | Why the trip was flagged, as one sentence built from the evidence. `null` if the flag has no detection figures. |
+| `evidence` | The figures behind the flag. `cancel_distance_from_pickup_km` (driver's distance from the pickup when the ride was cancelled), `on_route_duration_seconds` (from the first to the last location sample on the passenger's route) and `average_gps_accuracy_meters` were added in October 2026: older flags have `null` for them, and GPS accuracy stays `null` until the driver app sends `accuracy` with its location updates. |
+| `dispute` | When and through which app the driver disputed; `channel` is `driver_app`. Only present on disputed flags. |
+| `review_notes` | The reason the admin gave when upholding or overturning. |
+| `previous_flags` | The driver's other flags in the 30 days (`OFFLINE_SANCTION_LOOKBACK_DAYS`) up to this one, newest first. |
+| `history` | Each step on the flag, oldest first: flagged, disputed, reviewed (`description` is "Upheld" or "Overturned"), escalated, de-escalated, deactivation confirmed, with the reason and who did it (`role` is the admin role, or `driver`). |
+
+The detection measures the **driver's** phone against the passenger's planned route after the cancellation; the passenger's phone is not tracked after a cancellation, so there is no "phones stayed together" figure. Audio is not recorded.
+
+### Review a Flag (uphold or overturn)
 
 `POST /api/v1/admin/offline-flags/{flag}/review`
 
-Resolve a driver's dispute — uphold or overturn the flag. If overturned, the sanction is reversed and the driver may be reinstated.
+Uphold or overturn any flag that has not been reviewed yet, whether or not the driver disputed it. Overturning lifts the flag's suspension (unless another flag still applies) and the flag stops counting towards later sanctions.
 
 **Request Body:**
 ```json
@@ -10109,7 +10294,7 @@ Resolve a driver's dispute — uphold or overturn the flag. If overturned, the s
 | Field | Type | Rules |
 |-------|------|-------|
 | `outcome` | string | Required: `upheld` or `overturned` |
-| `notes` | string | Required, min 10, max 2000 chars |
+| `notes` | string | Required, min 10, max 2000 chars. Returned as `review_notes`. |
 
 **Response 200:**
 ```json
@@ -10119,13 +10304,15 @@ Resolve a driver's dispute — uphold or overturn the flag. If overturned, the s
 }
 ```
 
-**Response 422:** Not disputed, already resolved, or validation error.
+The message reads `Dispute …` for a disputed flag and `Flag …` otherwise.
+
+**Response 422:** `"This flag has already been reviewed."`, or validation error.
 
 ### Escalate Flag Sanction
 
 `POST /api/v1/admin/offline-flags/{flag}/escalate`
 
-Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate beyond tier 3 or resolved flags.
+Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction. Not allowed beyond level 3 or on a resolved flag.
 
 **Request Body:**
 ```json
@@ -10136,7 +10323,7 @@ Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate b
 
 | Field | Type | Rules |
 |-------|------|-------|
-| `notes` | string | Optional, max 2000 chars |
+| `notes` | string | **Required**, min 10, max 2000 chars. Shown in the flag's `history`. |
 
 **Response 200:**
 ```json
@@ -10146,13 +10333,40 @@ Manually escalate a flag's sanction tier (L1→L2 or L2→L3). Cannot escalate b
 }
 ```
 
-**Response 422:** Already at max tier or resolved.
+**Response 422:** Already at max tier, resolved, or reason missing.
+
+### De-escalate Flag Sanction
+
+`POST /api/v1/admin/offline-flags/{flag}/de-escalate`
+
+Move the flag down one level (L3→L2 or L2→L1). When the flag is the driver's latest and their current suspension came from the compliance system:
+- **L3 → L2:** the driver stays suspended but is no longer under deactivation review; the 48-hour suspension runs from when it began and then lifts automatically.
+- **L2 → L1:** the suspension is lifted and the driver is reinstated (approved).
+
+A suspension an admin made by hand for another reason is never changed. The driver gets a push notification.
+
+**Request Body:**
+```json
+{
+  "notes": "First offence pattern; reducing to a suspension."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `notes` | string | Required, min 10, max 2000 chars. Shown in the flag's `history`. |
+
+**Response 200:** `{ "message": "Sanction reduced to 48-Hour Suspension.", "flag": { ... } }`
+
+**Response 422:** `"This flag is already at the lowest sanction tier."`, `"This flag has already been resolved."`, or `"The driver has been deactivated. Reactivate them from driver management instead."` (L3 flag whose deactivation was confirmed).
+
+To remove every sanction from a flag, overturn it (Review, `outcome: overturned`).
 
 ### Confirm Permanent Deactivation
 
 `POST /api/v1/admin/offline-flags/{flag}/confirm-deactivation`
 
-Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3, and never while the driver's dispute of the flag is pending or after it was overturned. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification.
+Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3, and never while the driver's dispute of the flag is pending or after it was overturned. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification. Level 3 never deactivates a driver on its own: this human confirmation is required.
 
 **Auth required (admin).** Roles: `operations`, `safety_operator`
 
@@ -10164,16 +10378,10 @@ No request body required.
   "message": "Driver permanently deactivated after admin review.",
   "flag": {
     "id": "uuid",
-    "ride_id": "uuid",
-    "driver_id": "uuid",
-    "passenger_id": "uuid",
+    "reference_number": "FLG-000045",
     "sanction_tier": { "value": 3, "label": "Permanent Deactivation" },
     "sanction_action": "pending_admin_review",
-    "is_disputed": false,
-    "flagged_at": "2026-10-10T14:30:00.000000Z",
-    "driver": { "..." },
-    "passenger": { "..." },
-    "ride": { "..." }
+    "...": "..."
   }
 }
 ```
@@ -10547,6 +10755,32 @@ Cancels any non-terminal reservation. Releases the stall and triggers queue tran
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
 
+**Station object.** Admin and public station endpoints return:
+
+```json
+{
+  "id": "uuid",
+  "name": "Lekki Phase 1 Charging Hub",
+  "city_id": "uuid",
+  "lat": "6.4378000",
+  "lng": "3.4709000",
+  "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+  "total_stalls": 6,
+  "connector_types": ["CCS2", "Type2"],
+  "power_output_kw": 150,
+  "pricing_per_kwh": 15000,
+  "operating_hours": { "open": "06:00", "close": "22:00" },
+  "status": { "value": "maintenance", "label": "Under Maintenance" },
+  "availability": { "total": 6, "available": 3, "occupied": 2, "reserved": 1, "out_of_service": 0, "queue_length": 1 },
+  "city": { "...": "..." },
+  "stalls": [ { "stall_number": 1, "status": { "value": "occupied", "label": "Occupied" }, "current_driver": { "first_name": "Emeka", "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-123-AB" } }, "...": "..." } ]
+}
+```
+
+`connector_types`, `power_output_kw`, `pricing_per_kwh` (kobo per kWh) and `operating_hours` are returned as saved, so an edit form can show them. `availability.queue_length` is present on the list and details. `status` is `active`, `inactive` or `maintenance` ("Under Maintenance": drivers cannot reserve).
+
+**Live updates:** the `admin.ev-stations` private channel (operations and super admins) receives `ev.station.availability_changed` whenever a stall changes status, a driver joins or leaves a queue (or moves in it), or a station is created, switched on or off, resized or deleted. Payload: `station_id`, `deleted`, `status`, `availability` (same shape as above), `updated_at`; a deleted station sends only `station_id` and `deleted: true`. The figures are read when the event is sent, so after a burst of changes the last event has the latest state.
+
 ### List Stations
 
 ```
@@ -10558,7 +10792,7 @@ Authorization: Bearer {admin_token}
 |-------|------|-------|
 | `city_id` | string (UUID) | Optional filter |
 | `status` | string | Optional: `active`, `inactive`, `maintenance` |
-| `search` | string | Optional, search by name (case-insensitive) |
+| `search` | string | Optional, search by name (case-insensitive, max 100) |
 | `per_page` | integer | Optional, default 20, max 100 |
 
 **Response 200:**
@@ -10596,7 +10830,7 @@ Content-Type: application/json
 | Field | Type | Rules |
 |-------|------|-------|
 | `name` | string | Required, max 255 |
-| `city_id` | string (UUID) | Required, must exist |
+| `city_id` | string (UUID) | Optional, must exist. Left out, the city is worked out from `lat`/`lng` (city boundaries, then reverse geocoding); 422 on `city_id` if the point is in no active city. |
 | `lat` | numeric | Required, -90 to 90 |
 | `lng` | numeric | Required, -180 to 180 |
 | `address` | string | Required, max 500 |
@@ -10624,7 +10858,7 @@ GET /admin/ev-stations/{station}
 Authorization: Bearer {admin_token}
 ```
 
-Returns station with stall-level availability and current occupant details.
+Returns the station with its stalls in number order (each with its current driver and that driver's vehicle), availability, and the queue.
 
 **Response 200:**
 ```json
@@ -10637,9 +10871,23 @@ Returns station with stall-level availability and current occupant details.
     "reserved": 1,
     "out_of_service": 0,
     "queue_length": 1
-  }
+  },
+  "queue": [
+    {
+      "reservation_id": "uuid",
+      "position": 1,
+      "driver": { "id": "uuid", "name": "Tunde Bello", "phone": "+234..." },
+      "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-123-AB" },
+      "battery_level": 18,
+      "joined_at": "2026-10-17T09:12:00+00:00",
+      "wait_seconds": 840,
+      "estimated_available_at": "2026-10-17T09:40:00.000000Z"
+    }
+  ]
 }
 ```
+
+`queue` lists drivers waiting for a stall in the order they joined; `wait_seconds` counts from `joined_at`.
 
 ### Update Station
 
@@ -10649,13 +10897,16 @@ Authorization: Bearer {admin_token}
 Content-Type: application/json
 ```
 
-All fields optional. `total_stalls` is managed via the Manage Stalls endpoint.
+All create fields are optional here, including `total_stalls` (1–100):
+- **Higher:** new stalls are added after the highest stall number, as `available`.
+- **Lower:** the highest-numbered stalls are removed, provided each is `available` or `out_of_service` and nobody holds a reservation on it. Otherwise 422 on `total_stalls`, e.g. `"Stall 6 is in use. Free it before reducing the stall count."`, and nothing changes.
 
 **Request Body:**
 ```json
 {
   "name": "Updated Hub Name",
-  "address": "New address"
+  "address": "New address",
+  "total_stalls": 8
 }
 ```
 
@@ -10702,7 +10953,7 @@ Authorization: Bearer {admin_token}
 Content-Type: application/json
 ```
 
-Upserts stalls by stall number. Auto-updates `total_stalls` count.
+Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station.
 
 **Request Body:**
 ```json
@@ -10775,7 +11026,7 @@ DELETE /admin/ev-stations/{station}
 Authorization: Bearer {admin_token}
 ```
 
-Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations.
+Permanently deletes an EV charging station and all its stalls. Fails if the station has an open reservation (pending review, reserved, queued or active).
 
 **Response 200:**
 ```json
@@ -11835,20 +12086,20 @@ Wallet and ledger endpoints use granular role-based access. Super Admin always h
 ### List Wallets
 
 ```
-GET /admin/wallets?search=ada&status=active&min_balance=100000&page=1
+GET /admin/wallets?search=ada&status=active&min_balance=100000&page=1&per_page=20
 Authorization: Bearer {admin_token}
 ```
 
-**Allowed Roles:** Finance, Support
+**Allowed Roles:** Finance, Support (Support is read-only)
 
-Passenger wallets, newest first, 20 per page (fixed).
+Passenger wallets, newest first.
 
 | Query | Description |
 |---|---|
-| `search` | Passenger first name, last name, email or phone (partial match) |
+| `search` | Passenger first name, last name, full name, email, phone or passenger ID (partial match) |
 | `status` | `active`, `frozen` or `closed` |
 | `min_balance` / `max_balance` | Balance bounds in kobo |
-| `page` | Page number |
+| `page`, `per_page` | Page number; page size (default 20, max 100) |
 
 **Response 200:**
 ```json
@@ -11862,8 +12113,18 @@ Passenger wallets, newest first, 20 per page (fixed).
       "status": "active",
       "status_label": "Active",
       "balance": 500000,
-      "available_balance": 500000,
-      "held": 0,
+      "available_balance": 380000,
+      "held": 120000,
+      "owner": {
+        "id": "uuid",
+        "reference_number": "P-000123",
+        "name": "Jane Doe",
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "phone": "+2348031234567",
+        "email": "jane@example.com"
+      },
+      "last_activity_at": "2026-10-16T18:02:11+00:00",
       "created_at": "2026-10-16T00:26:13+00:00"
     }
   ],
@@ -11876,6 +12137,8 @@ Passenger wallets, newest first, 20 per page (fixed).
 }
 ```
 
+`owner.reference_number` is the passenger ID. `last_activity_at` is when money last moved in or out of the wallet (`null` if it never has). A `closed` wallet can no longer be used; show it with its own badge.
+
 ### View Wallet
 
 ```
@@ -11885,7 +12148,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance, Support
 
-The wallet, its active holds and its 20 most recent entries. Each hold has `id`, `ride_id`, `amount`, `status`, `status_label`, `expires_at`, `created_at`, and `captured_at` / `released_at` once settled.
+The wallet with its passenger, active holds (newest first, each with its ride) and its 20 most recent entries. Only passenger wallets: any other account answers 404 (driver ledgers have their own endpoints).
 
 **Response 200:**
 ```json
@@ -11893,21 +12156,47 @@ The wallet, its active holds and its 20 most recent entries. Each hold has `id`,
   "wallet": {
     "id": "01a1421a-2a78-73a4-b9f4-bfde68c5d57f",
     "type": "passenger_wallet",
-    "type_label": "Passenger Wallet",
     "currency": "NGN",
-    "status": "active",
-    "status_label": "Active",
+    "status": "frozen",
+    "status_label": "Frozen",
     "balance": 500000,
-    "available_balance": 500000,
-    "held": 0,
+    "available_balance": 250000,
+    "held": 250000,
+    "owner": { "id": "uuid", "reference_number": "P-000123", "name": "Jane Doe", "phone": "+234...", "email": "jane@example.com", "...": "..." },
+    "last_activity_at": "2026-10-16T18:02:11+00:00",
+    "frozen": {
+      "frozen_at": "2026-10-17T09:00:00+00:00",
+      "reason": "Chargeback investigation opened.",
+      "frozen_by": { "id": "uuid", "name": "Kemi Ade", "role": "finance" }
+    },
     "created_at": "2026-10-16T00:26:13+00:00"
   },
-  "active_holds": [],
+  "active_holds": [
+    {
+      "id": "uuid",
+      "amount": 250000,
+      "status": "active",
+      "status_label": "Active",
+      "ride_id": "uuid",
+      "ride": {
+        "id": "uuid",
+        "reference_number": "TRP-NG-000412",
+        "status": "in_progress",
+        "status_label": "In Progress",
+        "vehicle_class": "Comfort",
+        "pickup_address": "Wuse 2, Abuja",
+        "destination_address": "Garki, Abuja"
+      },
+      "expires_at": "2026-10-17T13:00:00+00:00",
+      "created_at": "2026-10-17T09:00:00+00:00"
+    }
+  ],
   "recent_transactions": [
     {
       "id": "01a1421a-2a89-7164-a0a1-cecba93c911d",
       "type": "credit",
       "type_label": "Credit",
+      "transaction_type": { "value": "top_up", "label": "Wallet Top-up" },
       "amount": 500000,
       "running_balance": 500000,
       "created_at": "2026-10-16T00:26:13+00:00",
@@ -11921,9 +12210,107 @@ The wallet, its active holds and its 20 most recent entries. Each hold has `id`,
         "posted_at": "2026-10-16T00:26:13+00:00"
       }
     }
-  ]
+  ],
+  "permissions": { "can_freeze": true }
 }
 ```
+
+| Field | Notes |
+|-------|-------|
+| `wallet.frozen` | Present only while the wallet is frozen: when, why and by whom. Wallets frozen before October 2026 were filled in from the audit log. |
+| `active_holds[].ride` | The ride the hold reserves money for. The hold's `id` is its reference. |
+| `recent_transactions[].transaction_type` | What the entry was for (see Wallet Transactions below); `type` stays `credit` or `debit`. |
+| `permissions.can_freeze` | Whether the signed-in admin may freeze or unfreeze (Finance, Super Admin). Use it to show the view-only notice; the server still checks on each action. |
+
+### Wallet Transactions
+
+```
+GET /admin/wallets/{account}/transactions?type=ride_payment&status=success&date_from=2026-10-01&date_to=2026-10-17&search=TRP-NG&page=1&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+Every money movement on the wallet, plus top-ups that are still pending or failed at the card provider, newest first.
+
+| Query | Description |
+|---|---|
+| `type` | `top_up`, `ride_payment`, `refund`, `tip`, `cancellation_fee`, `balance_due`, `cash_change`, `adjustment`, `reversal`, … (any transaction type below) |
+| `status` | `success`, `pending` or `failed` |
+| `direction` | `credit` or `debit` |
+| `date_from` / `date_to` | `Y-m-d`, inclusive, as calendar days in Africa/Lagos (`WALLET_TIMEZONE`) |
+| `search` | Transaction reference, description or ride reference |
+| `page`, `per_page` | Default 20, max 100 |
+
+**Response 200:**
+```json
+{
+  "transactions": [
+    {
+      "id": "uuid",
+      "source": "ledger",
+      "type": { "value": "ride_payment", "label": "Ride Payment" },
+      "direction": "debit",
+      "amount": 150000,
+      "status": "success",
+      "reference": "JRN-OF9URBRSSFAR-261016",
+      "description": "Ride settlement for ride ...",
+      "ride_id": "uuid",
+      "ride_reference_number": "TRP-NG-000412",
+      "created_at": "2026-10-16T18:02:11+00:00"
+    },
+    {
+      "id": "uuid",
+      "source": "top_up_attempt",
+      "type": { "value": "top_up", "label": "Wallet Top-up" },
+      "direction": "credit",
+      "amount": 100000,
+      "status": "pending",
+      "reference": "TOPUP-8F2K4M9Q1ZXA",
+      "description": "Wallet top-up",
+      "ride_id": null,
+      "ride_reference_number": null,
+      "created_at": "2026-10-16T17:55:00+00:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 3, "per_page": 20, "total": 47 }
+}
+```
+
+`source` is `ledger` for money that moved (status always `success`) and `top_up_attempt` for a top-up the provider has not confirmed (`pending`) or that was abandoned or declined (`failed`). A completed top-up appears once, as its ledger entry. Amounts are in kobo.
+
+**Transaction types** (`type.value` → label): `top_up` Wallet Top-up, `ride_payment` Ride Payment, `refund` Ride Refund, `tip` Driver Tip, `cancellation_fee` Cancellation Fee, `balance_due` Balance Due, `cash_change` Cash Change Credit, `adjustment` Manual Adjustment, `reversal` Reversal. (Driver-side types `ride_settlement`, `commission`, `payout`, `ev_reservation_fee`, `fleet_remittance` do not appear on passenger wallets.) `type` is `null` only for a journal the API cannot classify.
+
+### Wallet Audit Trail
+
+```
+GET /admin/wallets/{account}/audit-trail?page=1&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance, Support
+
+Changes staff made to the wallet, newest first: freezes, unfreezes and manual adjustments (requested, approved, rejected).
+
+**Response 200:**
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "event": "wallet.frozen",
+      "description": "Wallet frozen",
+      "reason": "Chargeback investigation opened.",
+      "amount": null,
+      "actor": { "id": "uuid", "name": "Kemi Ade", "role": "finance" },
+      "created_at": "2026-10-17T09:00:00+00:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+`event` is `wallet.frozen`, `wallet.unfrozen`, `adjustment.created`, `adjustment.approved` or `adjustment.rejected`; `amount` (kobo) is set for adjustments.
 
 ### Freeze Wallet
 
@@ -11934,7 +12321,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-A frozen wallet cannot be topped up or used to pay. The action is audit-logged with the reason.
+A frozen wallet cannot be topped up or used to pay. The reason, time and admin are kept on the wallet (`wallet.frozen`) and in the audit trail.
 
 **Request Body:**
 
@@ -11945,7 +12332,8 @@ A frozen wallet cannot be topped up or used to pay. The action is audit-logged w
 **Response 200:**
 ```json
 {
-  "message": "Wallet frozen successfully."
+  "message": "Wallet frozen successfully.",
+  "wallet": { "status": "frozen", "frozen": { "frozen_at": "...", "reason": "...", "frozen_by": { "...": "..." } }, "...": "..." }
 }
 ```
 
@@ -11969,7 +12357,8 @@ Authorization: Bearer {admin_token}
 **Response 200:**
 ```json
 {
-  "message": "Wallet unfrozen successfully."
+  "message": "Wallet unfrozen successfully.",
+  "wallet": { "status": "active", "...": "..." }
 }
 ```
 
@@ -13316,12 +13705,19 @@ Super Admins always bypass role checks and have full access.
 |---------------------|--------------------------------------------|
 | `triggered`         | SOS triggered, awaiting check-in dispatch  |
 | `check_in_sent`     | Check-in prompt sent to user               |
-| `acknowledged`      | User confirmed they are safe (an operator can still take over or close it) |
+| `acknowledged`      | User confirmed they are safe; label "Confirmed Safe" (an operator can still take over or close it) |
 | `escalated`         | No response — escalated to safety console  |
 | `operator_assigned` | Safety operator took over the incident     |
 | `dispatched`        | Emergency services dispatch initiated      |
 | `resolved`          | Incident closed by operator (terminal)     |
 | `cancelled`         | Incident cancelled by the user or an admin before an operator took over (terminal) |
+
+### SOS Queue Status (admin console)
+| Value            | Incident statuses                                   |
+|------------------|-----------------------------------------------------|
+| `unacknowledged` | `triggered`, `check_in_sent`, `acknowledged`, `escalated` |
+| `acknowledged`   | `operator_assigned`, `dispatched` (an operator has taken it) |
+| `resolved`       | `resolved`, `cancelled`                             |
 
 ### SOS Trigger Type
 | Value       | Description                        |
@@ -13466,6 +13862,23 @@ Priority matching keeps distance first: priority passengers are always offered t
 | `2`   | 48-Hour Suspension     | Force offline + suspend driver account      |
 | `3`   | Permanent Deactivation | Force offline + permanently suspend account |
 
+### Offline Flag Status
+| Value        | Description                                           |
+|--------------|-------------------------------------------------------|
+| `flagged`    | Raised by detection; not disputed or reviewed yet     |
+| `disputed`   | Driver disputed it; awaiting review                   |
+| `upheld`     | Admin upheld it                                       |
+| `overturned` | Admin overturned it; sanction lifted                  |
+
+### Promo Status
+| Value       | Description                                   |
+|-------------|-----------------------------------------------|
+| `active`    | Running now                                   |
+| `scheduled` | Starts in the future                          |
+| `paused`    | Paused by an admin; can be resumed            |
+| `expired`   | Past its end date                             |
+| `cancelled` | Cancelled permanently                         |
+
 ### Dispute Outcome (Offline Trip Flag)
 | Value        | Description                                           |
 |--------------|-------------------------------------------------------|
@@ -13605,7 +14018,8 @@ Private channels require authentication. The client must send an authorization r
 | `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers) |
 | `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded` |
 | `private-admin.rides` | Admin users | Admin dashboard | `ride.status.updated`, `driver.location.updated` |
-| `private-admin.sos` | Safety operators, super admins | SOS console | `sos.incident.triggered`, `sos.incident.escalated` |
+| `private-admin.sos` | Safety operators, super admins | SOS console | `sos.incident.triggered`, `sos.incident.escalated`, `sos.incident.updated` |
+| `private-admin.ev-stations` | Operations admins, super admins | EV stations screens | `ev.station.availability_changed` |
 | `private-passengers.nearby` / `private-drivers.nearby` | Passengers / drivers | Home-screen maps | `nearby.map.changed` |
 
 Every event also has a non-WebSocket path (push notification, polling endpoint or the WhatsApp SOS alert), so a Reverb outage degrades the experience without breaking rides or safety.
@@ -13660,7 +14074,7 @@ The token can also be sent as an `Authorization: Bearer {driver_token}` header d
 | Client frame | Server reply |
 |--------------|--------------|
 | `{"type": "auth", "token": "..."}` | `{"type": "authenticated", "driver_id": "...", "message": "Authenticated successfully."}` |
-| `{"type": "location", "lat": 6.5244, "lng": 3.3792, "heading": 90, "speed": 32.5, "ride_id": "optional"}` | `{"type": "location_ack", "timestamp": 1760540400, "eta": { "distance_km": 3.2, "duration_minutes": 8.0 }}` (`eta` is null without an active ride) |
+| `{"type": "location", "lat": 6.5244, "lng": 3.3792, "heading": 90, "speed": 32.5, "accuracy": 12.5, "ride_id": "optional"}` (`accuracy` in metres, optional) | `{"type": "location_ack", "timestamp": 1760540400, "eta": { "distance_km": 3.2, "duration_minutes": 8.0 }}` (`eta` is null without an active ride) |
 | `{"type": "ping"}` | `{"type": "pong", "timestamp": 1760540400}` |
 
 Errors arrive as `{"type": "error", "code": <status>, "message": "..."}`: `401` invalid/expired token or a `location` frame before authenticating (the connection is closed for a bad token), `403` driver not online/approved, `422` invalid coordinates, `400` malformed JSON or unknown frame type. Location frames sent less than `TELEMETRY_RATE_LIMIT_MS` (500 ms) apart are dropped silently. `ride_id` is optional — the gateway finds the driver's active ride itself.

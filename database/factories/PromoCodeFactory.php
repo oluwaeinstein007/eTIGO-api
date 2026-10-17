@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\DiscountType;
+use App\Models\City;
 use App\Models\PromoCode;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -34,7 +35,6 @@ class PromoCodeFactory extends Factory
             'min_tier_level' => null,
             'peak_only' => false,
             'off_peak_only' => false,
-            'city_id' => null,
             'vehicle_class_id' => null,
             'minimum_fare_amount' => null,
             'is_active' => true,
@@ -96,6 +96,16 @@ class PromoCodeFactory extends Factory
         return $this->state(fn () => [
             'max_order_count' => $maxOrders,
         ]);
+    }
+
+    /**
+     * Run the promo only in the given cities.
+     */
+    public function inCities(City ...$cities): static
+    {
+        return $this->afterCreating(fn (PromoCode $promo) => $promo->cities()->sync(
+            collect($cities)->map->getKey()->all(),
+        ));
     }
 
     public function tierRestricted(int $minTier = 3): static

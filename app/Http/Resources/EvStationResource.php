@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EvStallStatus;
 use App\Models\EvChargingStation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -21,6 +22,11 @@ class EvStationResource extends JsonResource
             'lng' => $this->lng,
             'address' => $this->address,
             'total_stalls' => $this->total_stalls,
+            'connector_types' => $this->connector_types ?? [],
+            'power_output_kw' => $this->power_output_kw,
+            // Kobo per kWh.
+            'pricing_per_kwh' => $this->pricing_per_kwh,
+            'operating_hours' => $this->operating_hours,
             'status' => [
                 'value' => $this->status->value,
                 'label' => $this->status->label(),
@@ -41,10 +47,13 @@ class EvStationResource extends JsonResource
         $stalls = $this->stalls;
 
         return [
-            'available' => $stalls->where('status.value', 'available')->count(),
-            'occupied' => $stalls->where('status.value', 'occupied')->count(),
-            'reserved' => $stalls->where('status.value', 'reserved')->count(),
-            'out_of_service' => $stalls->where('status.value', 'out_of_service')->count(),
+            'total' => $stalls->count(),
+            'available' => $stalls->where('status', EvStallStatus::Available)->count(),
+            'occupied' => $stalls->where('status', EvStallStatus::Occupied)->count(),
+            'reserved' => $stalls->where('status', EvStallStatus::Reserved)->count(),
+            'out_of_service' => $stalls->where('status', EvStallStatus::OutOfService)->count(),
+            // Present when the query counted the queue (withCount).
+            'queue_length' => $this->when(isset($this->queue_length), fn () => (int) $this->queue_length),
         ];
     }
 }

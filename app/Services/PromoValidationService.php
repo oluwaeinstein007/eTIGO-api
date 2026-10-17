@@ -54,7 +54,7 @@ class PromoValidationService
             return $this->reject('This promo code has expired.');
         }
 
-        if ($promo->city_id && ($cityId === null || $promo->city_id !== $cityId)) {
+        if (! $promo->isAvailableInCity($cityId)) {
             return $this->reject('This promo code is not valid in your city.');
         }
 
@@ -162,7 +162,7 @@ class PromoValidationService
             return $this->reject('This promo code has reached its redemption limit.');
         }
 
-        $promo->load(['city', 'vehicleClass']);
+        $promo->load(['cities', 'vehicleClass']);
 
         return ['valid' => true, 'promo' => $promo, 'reason' => null];
     }

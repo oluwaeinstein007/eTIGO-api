@@ -440,7 +440,7 @@ it('honours a first-ride promo when the ride completes', function () {
 });
 
 it('rejects at booking a promo restricted to another city', function () {
-    PromoCode::factory()->flat(500)->create(['code' => 'ABUJAONLY', 'city_id' => City::factory()->create()->id]);
+    PromoCode::factory()->flat(500)->inCities(City::factory()->create())->create(['code' => 'ABUJAONLY']);
 
     bookRide($this, ['promo_code' => 'ABUJAONLY'])
         ->assertUnprocessable()

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AccountStatus;
 use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
+use App\Enums\TransactionType;
 use App\Models\Account;
 use App\Models\Journal;
 use App\Models\LedgerEntry;
@@ -18,7 +19,7 @@ class LedgerService
      * Post a balanced journal with one or more debit/credit entries.
      *
      * @param  array{account_id: string, type: string, amount: int}[]  $lines
-     * @param  array{description: string, idempotency_key?: string|null, metadata?: array|null}  $options
+     * @param  array{description: string, idempotency_key?: string|null, metadata?: array|null, type?: TransactionType|null}  $options
      */
     public function postJournal(array $lines, array $options): Journal
     {
@@ -44,6 +45,7 @@ class LedgerService
 
                 $journal = Journal::create([
                     'reference' => $this->generateReference(),
+                    'type' => $options['type'] ?? TransactionType::fromJournalKey($idempotencyKey),
                     'description' => $options['description'],
                     'idempotency_key' => $idempotencyKey,
                     'metadata' => $options['metadata'] ?? null,

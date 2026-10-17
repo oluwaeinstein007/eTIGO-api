@@ -6,6 +6,7 @@ use App\Enums\SosIncidentStatus;
 use App\Enums\SosTriggerType;
 use App\Events\SosIncidentEscalated;
 use App\Events\SosIncidentTriggered;
+use App\Events\SosIncidentUpdated;
 use App\Exceptions\InvalidStateTransitionException;
 use App\Jobs\SendSosCheckInJob;
 use App\Jobs\SendSosWhatsAppAlertJob;
@@ -140,6 +141,7 @@ class SosService
                 gpsLng: (float) $incident->gps_lng,
                 status: SosIncidentStatus::Triggered->value,
                 triggeredAt: now()->toISOString(),
+                referenceNumber: $incident->reference_number,
             ));
         } catch (\Throwable $e) {
             Log::error('SOS console broadcast failed; WhatsApp alert still queued', [
@@ -257,6 +259,7 @@ class SosService
                 gpsLng: (float) $escalated->gps_lng,
                 status: SosIncidentStatus::Escalated->value,
                 escalatedAt: now()->toISOString(),
+                referenceNumber: $escalated->reference_number,
             ));
         } catch (\Throwable $e) {
             Log::error('SOS escalation broadcast failed', [
@@ -283,14 +286,14 @@ class SosService
             }
 
             if ($this->canTransitionTo($incident, SosIncidentStatus::OperatorAssigned)) {
-                $this->transitionTo($incident, SosIncidentStatus::OperatorAssigned, $operator);
+                $this->takeIncident($incident, $operator);
             } else {
                 $this->logEvent($incident, 'operator_reassigned', $operator, [
                     'previous_operator_id' => $incident->operator_id,
                 ]);
+                $incident->update(['operator_id' => $operator->id]);
+                $this->broadcastUpdate($incident, $incident->status);
             }
-
-            $incident->update(['operator_id' => $operator->id]);
 
             return $incident->fresh();
         });
@@ -301,8 +304,18 @@ class SosService
         return DB::transaction(function () use ($incident, $operator, $data) {
             $incident = $this->lock($incident);
 
+            if ($incident->isTerminal()) {
+                throw new \RuntimeException('This incident has already been closed.');
+            }
+
+            if ($incident->status === SosIncidentStatus::Dispatched) {
+                throw new \RuntimeException('Emergency services have already been dispatched for this incident.');
+            }
+
+            // Dispatching an alert nobody has taken yet takes it first, so the
+            // operator who called for help is on record as handling it.
             if ($incident->status !== SosIncidentStatus::OperatorAssigned) {
-                throw new \RuntimeException('An operator must be assigned before dispatching emergency services.');
+                $this->takeIncident($incident, $operator);
             }
 
             $this->transitionTo($incident, SosIncidentStatus::Dispatched, $operator, [
@@ -330,12 +343,41 @@ class SosService
 
             $incident->update([
                 'operator_id' => $incident->operator_id ?? $operator->id,
+                'operator_assigned_at' => $incident->operator_assigned_at ?? now(),
                 'operator_notes' => $notes,
                 'resolved_at' => now(),
             ]);
 
             return $incident->fresh();
         });
+    }
+
+    /**
+     * Record that an operator spoke to (or tried to reach) someone on the
+     * incident. The call itself is placed from the operator's phone.
+     *
+     * @param  array{called_party: string, outcome: string, phone?: string|null, notes?: string|null}  $data
+     */
+    public function logCall(SosIncident $incident, User $operator, array $data): SosIncident
+    {
+        $this->logEvent($incident, 'operator_call', $operator, [
+            'called_party' => $data['called_party'],
+            'outcome' => $data['outcome'],
+            'phone' => $data['phone'] ?? null,
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        return $incident->fresh();
+    }
+
+    private function takeIncident(SosIncident $incident, User $operator): void
+    {
+        $this->transitionTo($incident, SosIncidentStatus::OperatorAssigned, $operator);
+
+        $incident->update([
+            'operator_id' => $operator->id,
+            'operator_assigned_at' => $incident->operator_assigned_at ?? now(),
+        ]);
     }
 
     private function lock(SosIncident $incident): SosIncident
@@ -362,6 +404,26 @@ class SosService
         $incident->update(['status' => $newStatus]);
 
         $this->logEvent($incident, "transition:{$fromStatus->value}->{$newStatus->value}", $actor, $metadata);
+
+        $this->broadcastUpdate($incident, $fromStatus);
+    }
+
+    /**
+     * Tell the safety console about the change once it has committed. Like the
+     * other SOS broadcasts, a failure is logged and never undoes the change.
+     */
+    private function broadcastUpdate(SosIncident $incident, SosIncidentStatus $previousStatus): void
+    {
+        DB::afterCommit(function () use ($incident, $previousStatus) {
+            try {
+                event(SosIncidentUpdated::fromIncident($incident->fresh(), $previousStatus));
+            } catch (\Throwable $e) {
+                Log::error('SOS update broadcast failed', [
+                    'incident_id' => $incident->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     private function logEvent(

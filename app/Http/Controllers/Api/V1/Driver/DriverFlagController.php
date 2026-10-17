@@ -17,6 +17,8 @@ class DriverFlagController extends Controller
         $flag->update([
             'is_disputed' => true,
             'dispute_notes' => $request->validated('notes'),
+            'disputed_at' => now(),
+            'dispute_channel' => 'driver_app',
             'dispute_outcome' => DisputeOutcome::Pending,
         ]);
 

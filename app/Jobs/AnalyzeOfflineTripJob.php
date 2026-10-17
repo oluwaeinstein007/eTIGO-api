@@ -40,6 +40,7 @@ class AnalyzeOfflineTripJob implements ShouldQueue
         if (empty($trajectory)) {
             Log::info('AnalyzeOfflineTripJob: no trajectory data', ['ride_id' => $this->rideId]);
             Cache::forget($cacheKey);
+            Cache::forget(OfflineTripDetectionService::CONTEXT_CACHE_PREFIX.$this->rideId);
 
             return;
         }
@@ -61,7 +62,10 @@ class AnalyzeOfflineTripJob implements ShouldQueue
                 'route_match_percentage' => $result['route_match_percentage'],
             ]);
 
-            $sanctionService->applyForRide($ride, $result);
+            $sanctionService->applyForRide($ride, [
+                ...$result,
+                ...Cache::get(OfflineTripDetectionService::CONTEXT_CACHE_PREFIX.$this->rideId, []),
+            ]);
         } else {
             Log::info('No offline trip detected', [
                 'ride_id' => $this->rideId,
@@ -70,6 +74,7 @@ class AnalyzeOfflineTripJob implements ShouldQueue
         }
 
         Cache::forget($cacheKey);
+        Cache::forget(OfflineTripDetectionService::CONTEXT_CACHE_PREFIX.$this->rideId);
     }
 
     public function uniqueId(): string

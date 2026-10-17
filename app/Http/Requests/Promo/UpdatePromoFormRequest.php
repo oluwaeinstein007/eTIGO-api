@@ -3,12 +3,15 @@
 namespace App\Http\Requests\Promo;
 
 use App\Enums\DiscountType;
+use App\Enums\PromoRiderEligibility;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdatePromoFormRequest extends FormRequest
 {
+    use MapsPromoFormFields;
+
     public function authorize(): bool
     {
         return true;
@@ -43,15 +46,15 @@ class UpdatePromoFormRequest extends FormRequest
             'min_tier_level' => ['nullable', 'integer', 'min:1', 'max:5'],
             'peak_only' => ['boolean'],
             'off_peak_only' => ['boolean'],
-            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'vehicle_class_id' => ['nullable', 'uuid', 'exists:vehicle_classes,id'],
             'minimum_fare_amount' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
+            ...$this->formFieldRules(),
         ];
     }
 
     /**
-     * @return void
+     * @return array<int, callable>
      */
     public function after(): array
     {
@@ -60,8 +63,11 @@ class UpdatePromoFormRequest extends FormRequest
                 $data = $validator->getData();
                 $promo = $this->route('promo');
 
-                $peakOnly = $data['peak_only'] ?? $promo?->peak_only ?? false;
-                $offPeakOnly = $data['off_peak_only'] ?? $promo?->off_peak_only ?? false;
+                [$peakOnly, $offPeakOnly] = $this->resolvedTimingFlags(
+                    $data,
+                    (bool) $promo?->peak_only,
+                    (bool) $promo?->off_peak_only,
+                );
 
                 if ($peakOnly && $offPeakOnly) {
                     $validator->errors()->add('peak_only', 'A promo cannot be both peak-only and off-peak-only.');
@@ -102,6 +108,11 @@ class UpdatePromoFormRequest extends FormRequest
                     ? $data['max_order_count']
                     : $promo?->max_order_count;
 
+                if (isset($data['rider_eligibility'])) {
+                    ['min_order_count' => $minOrderCount, 'max_order_count' => $maxOrderCount] = PromoRiderEligibility::tryFrom((string) $data['rider_eligibility'])?->orderCounts()
+                        ?? ['min_order_count' => $minOrderCount, 'max_order_count' => $maxOrderCount];
+                }
+
                 if ($minOrderCount !== null
                     && $maxOrderCount !== null
                     && $minOrderCount > $maxOrderCount) {
@@ -116,5 +127,7 @@ class UpdatePromoFormRequest extends FormRequest
         if ($this->has('code')) {
             $this->merge(['code' => strtoupper(trim($this->input('code')))]);
         }
+
+        $this->mergeLegacyCityId();
     }
 }

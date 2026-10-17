@@ -70,7 +70,7 @@ it('creates a promo with city and vehicle class restrictions', function () {
         ]);
 
     $response->assertCreated()
-        ->assertJsonPath('promo.city_id', $this->city->id)
+        ->assertJsonPath('promo.city_ids', [$this->city->id])
         ->assertJsonPath('promo.vehicle_class_id', $this->vehicleClass->id);
 });
 
@@ -210,7 +210,7 @@ it('toggles promo status', function () {
 
     expect($promo->fresh()->is_active)->toBeFalse();
 
-    $this->assertDatabaseHas('audit_logs', ['event' => 'promo_code_toggled']);
+    $this->assertDatabaseHas('audit_logs', ['event' => 'promo_code_paused']);
 });
 
 it('returns promo performance analytics', function () {

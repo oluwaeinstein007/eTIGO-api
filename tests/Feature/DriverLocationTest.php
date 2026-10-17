@@ -65,7 +65,23 @@ it('calls location service with correct parameters', function () {
 
     $this->mockLocationService->shouldHaveReceived('updateLocation')
         ->once()
-        ->with($this->driver->id, 9.0579, 7.4951, 45.0, 30.0, $this->driverUser->id);
+        ->with($this->driver->id, 9.0579, 7.4951, 45.0, 30.0, $this->driverUser->id, null);
+});
+
+it('passes the GPS accuracy the app reports', function () {
+    Event::fake([DriverLocationUpdated::class]);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/driver/location', [
+            'lat' => 9.0579,
+            'lng' => 7.4951,
+            'accuracy' => 12.5,
+        ])
+        ->assertOk();
+
+    $this->mockLocationService->shouldHaveReceived('updateLocation')
+        ->once()
+        ->with($this->driver->id, 9.0579, 7.4951, 0.0, 0.0, $this->driverUser->id, 12.5);
 });
 
 it('returns 403 for offline driver', function () {

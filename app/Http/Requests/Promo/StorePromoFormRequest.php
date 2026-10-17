@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class StorePromoFormRequest extends FormRequest
 {
+    use MapsPromoFormFields;
+
     public function authorize(): bool
     {
         return true;
@@ -40,22 +42,24 @@ class StorePromoFormRequest extends FormRequest
             'min_tier_level' => ['nullable', 'integer', 'min:1', 'max:5'],
             'peak_only' => ['boolean'],
             'off_peak_only' => ['boolean'],
-            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'vehicle_class_id' => ['nullable', 'uuid', 'exists:vehicle_classes,id'],
             'minimum_fare_amount' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
+            ...$this->formFieldRules(),
         ];
     }
 
     /**
-     * @return void
+     * @return array<int, callable>
      */
     public function after(): array
     {
         return [
             function ($validator) {
                 $data = $validator->getData();
-                if (($data['peak_only'] ?? false) && ($data['off_peak_only'] ?? false)) {
+                [$peakOnly, $offPeakOnly] = $this->resolvedTimingFlags($data);
+
+                if ($peakOnly && $offPeakOnly) {
                     $validator->errors()->add('peak_only', 'A promo cannot be both peak-only and off-peak-only.');
                 }
 
@@ -63,7 +67,8 @@ class StorePromoFormRequest extends FormRequest
                     $validator->errors()->add('discount_value', 'Percentage discount cannot exceed 100%.');
                 }
 
-                if (($data['min_order_count'] ?? null) !== null
+                if (! isset($data['rider_eligibility'])
+                    && ($data['min_order_count'] ?? null) !== null
                     && ($data['max_order_count'] ?? null) !== null
                     && $data['min_order_count'] > $data['max_order_count']) {
                     $validator->errors()->add('min_order_count', 'Minimum order count cannot exceed maximum order count.');
@@ -77,5 +82,7 @@ class StorePromoFormRequest extends FormRequest
         if ($this->has('code')) {
             $this->merge(['code' => strtoupper(trim($this->input('code')))]);
         }
+
+        $this->mergeLegacyCityId();
     }
 }

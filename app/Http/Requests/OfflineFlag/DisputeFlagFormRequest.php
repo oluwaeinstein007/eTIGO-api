@@ -31,6 +31,8 @@ class DisputeFlagFormRequest extends FormRequest
 
                 if ($flag->is_disputed) {
                     $validator->errors()->add('flag', 'This flag has already been disputed.');
+                } elseif ($flag->hasReviewOutcome()) {
+                    $validator->errors()->add('flag', 'This flag has already been reviewed.');
                 }
 
                 if ($flag->driver_id !== $this->user()->id) {

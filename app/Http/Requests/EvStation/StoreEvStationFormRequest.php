@@ -17,7 +17,8 @@ class StoreEvStationFormRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            // Worked out from lat/lng when left out.
+            'city_id' => ['sometimes', 'nullable', 'uuid', 'exists:cities,id'],
             'lat' => ['required', 'numeric', 'between:-90,90'],
             'lng' => ['required', 'numeric', 'between:-180,180'],
             'address' => ['required', 'string', 'max:500'],

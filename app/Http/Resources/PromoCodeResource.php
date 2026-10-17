@@ -29,16 +29,29 @@ class PromoCodeResource extends JsonResource
             'geo_fence' => $this->when($isAdmin, $this->geo_fence),
             'min_order_count' => $this->when($isAdmin, $this->min_order_count),
             'max_order_count' => $this->when($isAdmin, $this->max_order_count),
+            'rider_eligibility' => $this->when($isAdmin, fn () => [
+                'value' => $this->riderEligibility()->value,
+                'label' => $this->riderEligibility()->label(),
+            ]),
             'min_tier_level' => $this->min_tier_level,
             'peak_only' => $this->peak_only,
             'off_peak_only' => $this->off_peak_only,
-            'city_id' => $this->city_id,
+            'timing' => [
+                'value' => $this->timing()->value,
+                'label' => $this->timing()->label(),
+            ],
+            // Empty means the promo runs in every city.
+            'city_ids' => $this->whenLoaded('cities', fn () => $this->cities->modelKeys()),
             'vehicle_class_id' => $this->vehicle_class_id,
             'minimum_fare_amount' => $this->minimum_fare_amount,
+            'status' => [
+                'value' => $this->status()->value,
+                'label' => $this->status()->label(),
+            ],
             'is_active' => $this->is_active,
             'cancelled_at' => $this->cancelled_at?->toISOString(),
             'is_cancelled' => $this->isCancelled(),
-            'city' => new CityResource($this->whenLoaded('city')),
+            'cities' => CityResource::collection($this->whenLoaded('cities')),
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_by' => $this->when($isAdmin, fn () => $this->whenLoaded('createdByAdmin', fn () => [
                 'id' => $this->createdByAdmin->id,

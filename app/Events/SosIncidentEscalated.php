@@ -20,6 +20,7 @@ class SosIncidentEscalated implements ShouldBroadcastNow
         public float $gpsLng,
         public string $status,
         public string $escalatedAt,
+        public ?string $referenceNumber = null,
     ) {}
 
     /** @return array<PrivateChannel> */
@@ -37,6 +38,7 @@ class SosIncidentEscalated implements ShouldBroadcastNow
     {
         return [
             'incident_id' => $this->incidentId,
+            'reference_number' => $this->referenceNumber,
             'ride_id' => $this->rideId,
             'triggered_by_user_id' => $this->triggeredByUserId,
             'trigger_type' => $this->triggerType,

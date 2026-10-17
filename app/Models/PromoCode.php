@@ -3,12 +3,16 @@
 namespace App\Models;
 
 use App\Enums\DiscountType;
+use App\Enums\PromoRiderEligibility;
+use App\Enums\PromoStatus;
+use App\Enums\PromoTiming;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PromoCode extends Model
@@ -31,7 +35,6 @@ class PromoCode extends Model
         'min_tier_level',
         'peak_only',
         'off_peak_only',
-        'city_id',
         'vehicle_class_id',
         'minimum_fare_amount',
         'is_active',
@@ -66,9 +69,12 @@ class PromoCode extends Model
         return $this->hasMany(PromoRedemption::class);
     }
 
-    public function city(): BelongsTo
+    /**
+     * The cities the promo runs in; none means every city.
+     */
+    public function cities(): BelongsToMany
     {
-        return $this->belongsTo(City::class);
+        return $this->belongsToMany(City::class);
     }
 
     public function vehicleClass(): BelongsTo
@@ -89,9 +95,71 @@ class PromoCode extends Model
             ->where('expires_at', '>', now());
     }
 
+    /**
+     * Promos that are, or would be, in the given dashboard status. Mirrors status().
+     */
+    public function scopeWithStatus(Builder $query, PromoStatus $status): Builder
+    {
+        return match ($status) {
+            PromoStatus::Cancelled => $query->whereNotNull('cancelled_at'),
+            PromoStatus::Expired => $query->whereNull('cancelled_at')->where('expires_at', '<=', now()),
+            PromoStatus::Paused => $query->whereNull('cancelled_at')->where('expires_at', '>', now())->where('is_active', false),
+            PromoStatus::Scheduled => $query->whereNull('cancelled_at')->where('is_active', true)->where('starts_at', '>', now()),
+            PromoStatus::Active => $query->active(),
+        };
+    }
+
+    public function scopeAvailableInCity(Builder $query, ?string $cityId): Builder
+    {
+        return $query->where(function (Builder $query) use ($cityId) {
+            $query->whereDoesntHave('cities');
+
+            if ($cityId) {
+                $query->orWhereHas('cities', fn (Builder $q) => $q->whereKey($cityId));
+            }
+        });
+    }
+
     public function isCancelled(): bool
     {
         return $this->cancelled_at !== null;
+    }
+
+    /**
+     * Where the promo stands for the dashboard: cancelled and expired win over
+     * paused, and a promo that has not started yet is scheduled.
+     */
+    public function status(): PromoStatus
+    {
+        return match (true) {
+            $this->isCancelled() => PromoStatus::Cancelled,
+            $this->expires_at !== null && $this->expires_at->lte(now()) => PromoStatus::Expired,
+            ! $this->is_active => PromoStatus::Paused,
+            $this->starts_at !== null && $this->starts_at->isFuture() => PromoStatus::Scheduled,
+            default => PromoStatus::Active,
+        };
+    }
+
+    public function riderEligibility(): PromoRiderEligibility
+    {
+        return PromoRiderEligibility::fromOrderCounts($this->min_order_count, $this->max_order_count);
+    }
+
+    public function timing(): PromoTiming
+    {
+        return PromoTiming::fromFlags((bool) $this->peak_only, (bool) $this->off_peak_only);
+    }
+
+    /**
+     * Whether the promo runs in the city; a promo with no cities runs everywhere.
+     */
+    public function isAvailableInCity(?string $cityId): bool
+    {
+        $cityIds = $this->relationLoaded('cities')
+            ? $this->cities->modelKeys()
+            : $this->cities()->pluck('cities.id')->all();
+
+        return $cityIds === [] || ($cityId !== null && in_array($cityId, $cityIds, true));
     }
 
     public function scopeByCode(Builder $query, string $code): Builder
