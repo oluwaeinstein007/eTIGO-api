@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Contracts\WalletGateway;
-use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\SavedCardService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -35,15 +34,10 @@ class SaveTopupCardJob implements ShouldBeUnique, ShouldQueue
 
     public function handle(WalletGateway $gateway, SavedCardService $savedCards): void
     {
-        $transaction = WalletTransaction::with('account')->where('reference', $this->reference)->first();
+        $transaction = WalletTransaction::where('reference', $this->reference)->first();
 
-        if (! $transaction?->save_card || $transaction->account?->owner_type !== 'App\\Models\\User') {
-            return;
-        }
-
-        $user = User::find($transaction->account->owner_id);
-
-        if (! $user) {
+        // Already saved (by the verify endpoint, usually), or not asked for.
+        if (! $transaction?->save_card || $transaction->card_saved_at) {
             return;
         }
 
@@ -53,6 +47,6 @@ class SaveTopupCardJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $savedCards->saveFromTopup($user, $verification);
+        $savedCards->saveForTopup($transaction, $verification);
     }
 }

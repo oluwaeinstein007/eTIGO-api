@@ -2,107 +2,41 @@
 
 namespace App\Http\Controllers\Api\V1\Passenger;
 
-use App\Contracts\WalletGateway;
 use App\Enums\AccountType;
 use App\Enums\WalletTransactionStatus;
+use App\Exceptions\TopupRefusedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreTopupRequest;
-use App\Jobs\ProcessTopupWebhookJob;
-use App\Models\AppSetting;
 use App\Models\WalletTransaction;
 use App\Services\LedgerService;
+use App\Services\WalletTopupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 class WalletTopupController extends Controller
 {
     public function __construct(
         private LedgerService $ledgerService,
-        private WalletGateway $walletGateway,
+        private WalletTopupService $topups,
     ) {}
 
     public function store(StoreTopupRequest $request): JsonResponse
     {
-        $user = $request->user();
-        $amountKobo = $request->validated('amount');
-
-        $account = $this->ledgerService->findOrCreateAccount(
-            $user->getMorphClass(),
-            $user->id,
-            AccountType::PassengerWallet,
-        );
-
-        if (! $account->isActive()) {
-            return response()->json(['message' => 'Wallet is frozen or closed.'], 422);
-        }
-
-        $maxBalance = AppSetting::wallet('max_balance');
-        if (($account->balance + $amountKobo) > $maxBalance) {
-            $maxNaira = $maxBalance / 100;
-
-            return response()->json(['message' => "Top-up would exceed maximum wallet balance of ₦{$maxNaira}."], 422);
-        }
-
-        $dailyCap = AppSetting::wallet('daily_topup_cap');
-        $todayTopups = Cache::get("topup_daily:{$user->id}:".now()->toDateString(), 0);
-        if (($todayTopups + $amountKobo) > $dailyCap) {
-            return response()->json(['message' => 'Daily top-up limit exceeded.'], 422);
-        }
-
-        $hourlyKey = "topup_hourly:{$user->id}:".now()->format('Y-m-d-H');
-        Cache::add($hourlyKey, 0, now()->addHour());
-        if (Cache::increment($hourlyKey) > config('wallet.max_topups_per_hour', 5)) {
-            Cache::decrement($hourlyKey);
-
-            return response()->json(['message' => 'Too many top-up attempts. Please wait.'], 429);
-        }
-
-        $dailyCountKey = "topup_daily_count:{$user->id}:".now()->toDateString();
-        Cache::add($dailyCountKey, 0, now()->endOfDay());
-        if (Cache::increment($dailyCountKey) > config('wallet.max_topups_per_day', 10)) {
-            Cache::decrement($dailyCountKey);
-            Cache::decrement($hourlyKey);
-
-            return response()->json(['message' => 'Daily top-up attempt limit reached.'], 429);
-        }
-
-        $txRef = 'TOPUP-'.strtoupper(Str::random(12));
-
         try {
-            $result = $this->walletGateway->initializePayment([
-                'tx_ref' => $txRef,
-                'amount' => $amountKobo / 100,
-                'currency' => 'NGN',
-                'redirect_url' => $request->validated('callback_url'),
-                'customer' => [
-                    'email' => $user->paymentEmail(),
-                    'name' => "{$user->first_name} {$user->last_name}",
-                ],
-                'meta' => [
-                    'user_id' => $user->id,
-                    'account_id' => $account->id,
-                    'type' => 'wallet_topup',
-                ],
-                'payment_options' => 'card,banktransfer,ussd',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'Unable to initialize payment. Please try again.'], 502);
+            $started = $this->topups->start(
+                $request->user(),
+                $request->validated('amount'),
+                $request->validated('callback_url'),
+                saveCard: $request->boolean('save_card'),
+            );
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
-
-        WalletTransaction::create([
-            'account_id' => $account->id,
-            'reference' => $txRef,
-            'amount' => $amountKobo,
-            'save_card' => $request->boolean('save_card'),
-            'status' => WalletTransactionStatus::Pending,
-        ]);
 
         return response()->json([
             'message' => 'Top-up initialized.',
-            'payment_link' => $result['link'],
-            'tx_ref' => $txRef,
+            'payment_link' => $started['link'],
+            'tx_ref' => $started['transaction']->reference,
         ]);
     }
 
@@ -131,10 +65,12 @@ class WalletTopupController extends Controller
             return response()->json(['message' => 'Top-up has already been credited.']);
         }
 
+        // The wallet gateway reports amounts in kobo; the passenger is credited
+        // with what the provider actually collected.
         try {
-            $result = $this->walletGateway->verifyTransaction($transaction->reference);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'Unable to verify transaction.'], 502);
+            $result = $this->topups->confirm($transaction);
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
 
         if ($result['status'] !== 'successful') {
@@ -143,18 +79,6 @@ class WalletTopupController extends Controller
                 'status' => $result['status'],
             ], 422);
         }
-
-        if (($result['tx_ref'] ?? null) !== $transaction->reference) {
-            return response()->json(['message' => 'Invalid transaction reference.'], 422);
-        }
-
-        // The wallet gateway reports amounts in kobo; the passenger is credited
-        // with what the provider actually collected.
-        ProcessTopupWebhookJob::dispatch(
-            $transaction->account_id,
-            (int) $result['amount'],
-            $transaction->reference,
-        );
 
         return response()->json(['message' => 'Top-up is being processed.']);
     }

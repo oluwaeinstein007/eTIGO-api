@@ -56,11 +56,13 @@ class PaystackWalletGateway implements WalletGateway
             'currency' => $data['currency'] ?? 'NGN',
             'channel' => $authorization['channel'] ?? $data['channel'] ?? null,
             'card_last_four' => $authorization['last4'] ?? null,
-            'card_brand' => isset($authorization['brand']) ? trim((string) $authorization['brand']) : null,
+            'card_brand' => $authorization['brand'] ?? null,
             'card_expiry_month' => isset($authorization['exp_month']) ? (int) $authorization['exp_month'] : null,
             'card_expiry_year' => isset($authorization['exp_year']) ? (int) $authorization['exp_year'] : null,
             'authorization_code' => $authorization['authorization_code'] ?? null,
+            'card_signature' => $authorization['signature'] ?? null,
             'reusable' => (bool) ($authorization['reusable'] ?? false),
+            'customer_email' => $data['customer']['email'] ?? null,
         ];
     }
 

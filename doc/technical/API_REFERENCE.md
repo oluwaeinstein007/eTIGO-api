@@ -7810,14 +7810,14 @@ Returns available payment methods for the authenticated user. Cash is always inc
 POST /payments/initialize
 ```
 
-Starts adding a card. The passenger pays a small amount by card through Paystack; **that payment is a wallet top-up**: it is credited to their wallet and the card is saved once it succeeds. The amount is set by the server (admin wallet setting `card_verification_amount`, default ₦100) and returned in the response so the app can tell the passenger (e.g. "₦100 will be added to your wallet"). Channels default to `card`; `bank_transfer` and `ussd` can be requested (OPay users pay by bank transfer to the generated account), in which case the wallet is credited but no card is saved. Users without an email on their account are supported: a stable placeholder (`{user_id}@rider.etigo.ng`) is sent to Paystack and remembered with the saved card. Pass the returned `tx_ref` to **Verify Payment**.
+Starts adding a card. The passenger pays a small amount by card through Paystack; **that payment is a wallet top-up**: it is credited to their wallet and the card is saved once it succeeds. The amount is set by the server (admin wallet setting `card_verification_amount`, default ₦100) and returned in the response so the app can tell the passenger (e.g. "₦100 will be added to your wallet"). Only cards are offered at checkout. Users without an email on their account are supported: a stable placeholder (`{user_id}@rider.etigo.ng`) is sent to Paystack and remembered with the saved card. Pass the returned `tx_ref` to **Verify Payment**.
 
-The ₦100 is credited even when the wallet is frozen or at its maximum balance; it is the passenger's money either way. It does not use up any of the 5-per-hour / 10-per-day top-up attempts, but it does count towards the daily top-up total.
+Because it is a top-up, the usual top-up rules apply: it is refused while the wallet is frozen or closed, if it would take the wallet over its maximum balance or the daily top-up cap, and it counts as one of the passenger's top-up attempts (5 per hour, 10 per day).
 
 | Field        | Type   | Required | Description                       |
 |--------------|--------|----------|-----------------------------------|
 | redirect_url | string | Yes      | URL to redirect after payment     |
-| channels     | array  | No       | `card`, `bank_transfer`, `ussd`; default `["card"]` |
+| channels     | array  | No       | **Ignored** (cards only); still accepted from older app builds |
 | amount       | number | No       | **Ignored** (the server sets the amount); still accepted from older app builds |
 | currency     | string | No       | **Ignored** (always `NGN`)        |
 
@@ -7833,6 +7833,8 @@ Rate limit: 10 requests per minute.
 }
 ```
 
+**Response 422:** `"Wallet is frozen or closed."`, `"Top-up would exceed maximum wallet balance of ₦…"`, or `"Daily top-up limit exceeded."`
+**Response 429:** Too many top-up attempts (5 per hour, 10 per day, shared with **Initialize Top-up**).
 **Response 502:** `"Unable to initialize payment. Please try again."`
 
 ---
@@ -7844,7 +7846,7 @@ GET /payments/{transactionId}/verify
 Confirms a checkout started with **Initialize Payment**; `{transactionId}` is its `tx_ref` (Paystack also appends it to the callback URL as `reference`). When the payment succeeded:
 
 - the amount Paystack collected is credited to the passenger's wallet, once: calling this again, or the Paystack webhook arriving too, never credits twice. The passenger gets the usual "Top-up Successful" notification;
-- the card is saved as a payment method if it was paid by a card Paystack lets us charge again (the first saved card becomes the default). Adding a card that is already saved refreshes it instead of duplicating it.
+- the card is saved as a payment method if it was paid by a card Paystack lets us charge again (the first saved card becomes the default). Paystack's card signature identifies the card: adding a card that is already saved refreshes it instead of duplicating it, and a different card with the same last four digits is saved separately. Each payment saves its card at most once, so verifying again after the passenger removed the card does not bring it back.
 
 If the app never calls this (closed mid-checkout), the webhook (or the stuck top-up sweeper) still credits the wallet and saves the card.
 

@@ -14,13 +14,21 @@ Request and response details are in `API_REFERENCE.md` → **Payment Methods** �
 
 | Must do (breaking) | Should do | Nice to have |
 |--------------------|-----------|--------------|
-| Nothing. The current add-card flow keeps working | Stop sending `amount`/`currency`; tell the passenger the amount goes to their wallet; refresh the wallet balance after adding a card | "Save this card" toggle on the top-up screen |
+| Show the `message` when adding a card is refused (422/429), as on wallet top-up | Stop sending `amount`/`currency`; tell the passenger the amount goes to their wallet; refresh the wallet balance after adding a card | "Save this card" toggle on the top-up screen |
 
 ---
 
 ## 1. Add-card screen (should do)
 
-`POST /payments/initialize` now sets the amount itself (₦100 by default; finance can change it). Anything you send in `amount` or `currency` is ignored, so you can stop sending them. Only `redirect_url` is required.
+`POST /payments/initialize` now sets the amount itself (₦100 by default; finance can change it). Anything you send in `amount`, `currency` or `channels` is ignored (checkout is card-only), so you can stop sending them. Only `redirect_url` is required.
+
+Because adding a card is a top-up, it can now be refused like one. Show the `message`:
+
+| Status | When |
+|--------|------|
+| 422 | Wallet frozen or closed, or the payment would exceed the wallet's maximum balance or daily top-up cap |
+| 429 | Too many top-up attempts (5 per hour, 10 per day, shared with wallet top-ups) |
+| 502 | Paystack could not be reached; retry later |
 
 The response has two new fields. Use `amount` in the copy rather than hard-coding ₦100:
 
@@ -43,7 +51,7 @@ Call `GET /payments/{tx_ref}/verify` as before. New fields in the response:
 
 | Field | Meaning |
 |-------|---------|
-| `card_saved` | `true` when the card was saved. `false` if the passenger paid by bank transfer/USSD or the card can't be charged again |
+| `card_saved` | `true` when the card was saved. `false` if the card can't be charged again, or the passenger has since removed it |
 | `payment_method_id` | The saved card's ID in `GET /payment-methods` |
 | `wallet_credit` | Naira credited to the wallet (`0` if the payment failed) |
 

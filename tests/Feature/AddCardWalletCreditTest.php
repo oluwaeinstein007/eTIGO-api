@@ -1,15 +1,18 @@
 <?php
 
 use App\Contracts\WalletGateway;
+use App\Enums\AccountStatus;
 use App\Enums\AccountType;
 use App\Enums\WalletTransactionStatus;
 use App\Jobs\ProcessTopupWebhookJob;
+use App\Jobs\SaveTopupCardJob;
 use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Models\WalletTransaction;
 use App\Services\LedgerService;
+use App\Services\SavedCardService;
 use Mockery\MockInterface;
 
 beforeEach(function () {
@@ -41,7 +44,9 @@ function addCardCharge(string $reference, array $overrides = []): array
         'card_expiry_month' => 12,
         'card_expiry_year' => 2030,
         'authorization_code' => 'AUTH_abc123',
+        'card_signature' => 'SIG_visa4081',
         'reusable' => true,
+        'customer_email' => 'checkout@example.com',
         ...$overrides,
     ];
 }
@@ -134,10 +139,10 @@ it('gives Paystack an email when a phone-only passenger adds a card', function (
         ->assertOk();
 });
 
-it('passes requested channels to Paystack when adding a card', function () {
+it('only takes cards when adding a card, whatever channels the app asks for', function () {
     $gateway = fakeWalletGateway();
     $gateway->shouldReceive('initializePayment')->once()
-        ->withArgs(fn (array $data) => $data['channels'] === ['card', 'bank_transfer'])
+        ->withArgs(fn (array $data) => $data['channels'] === ['card'])
         ->andReturn(['link' => 'https://checkout.paystack.test/abc']);
 
     $this->actingAs($this->passenger)
@@ -148,13 +153,59 @@ it('passes requested channels to Paystack when adding a card', function () {
         ->assertOk();
 });
 
+it('refuses to add a card while the wallet is frozen', function () {
+    addCardWallet($this->passenger)->update(['status' => AccountStatus::Frozen]);
+    fakeWalletGateway()->shouldNotReceive('initializePayment');
+
+    $this->actingAs($this->passenger)
+        ->postJson('/api/v1/payments/initialize', ['redirect_url' => 'https://etigo.app/payment/callback'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'Wallet is frozen or closed.');
+
+    expect(WalletTransaction::count())->toBe(0);
+});
+
+it('refuses to add a card when the payment would take the wallet over its maximum balance', function () {
+    addCardWallet($this->passenger)->update(['balance' => AppSetting::wallet('max_balance') - 5000]);
+    fakeWalletGateway()->shouldNotReceive('initializePayment');
+
+    $this->actingAs($this->passenger)
+        ->postJson('/api/v1/payments/initialize', ['redirect_url' => 'https://etigo.app/payment/callback'])
+        ->assertUnprocessable();
+});
+
+it('counts adding a card towards the top-up attempt limit', function () {
+    fakeWalletGateway()->shouldReceive('initializePayment')->times(5)
+        ->andReturn(['link' => 'https://checkout.paystack.test/abc']);
+
+    foreach (range(1, 5) as $attempt) {
+        $this->actingAs($this->passenger)
+            ->postJson('/api/v1/payments/initialize', ['redirect_url' => 'https://etigo.app/payment/callback'])
+            ->assertOk();
+    }
+
+    $this->actingAs($this->passenger)
+        ->postJson('/api/v1/passenger/wallet/topup', ['amount' => 100000, 'callback_url' => 'https://app.etigo.test/wallet'])
+        ->assertStatus(429);
+});
+
+it('answers 502 when Paystack cannot start the add-card payment', function () {
+    fakeWalletGateway()->shouldReceive('initializePayment')->andThrow(new RuntimeException('down'));
+
+    $this->actingAs($this->passenger)
+        ->postJson('/api/v1/payments/initialize', ['redirect_url' => 'https://etigo.app/payment/callback'])
+        ->assertStatus(502);
+
+    expect(WalletTransaction::count())->toBe(0);
+});
+
 it('validates the add-card request', function () {
     fakeWalletGateway()->shouldNotReceive('initializePayment');
 
     $this->actingAs($this->passenger)
-        ->postJson('/api/v1/payments/initialize', ['channels' => ['crypto']])
+        ->postJson('/api/v1/payments/initialize', [])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['redirect_url', 'channels.0'])
+        ->assertJsonValidationErrors(['redirect_url'])
         ->assertJsonMissingValidationErrors(['amount', 'currency']);
 });
 
@@ -180,7 +231,8 @@ it('credits the add-card payment to the wallet and saves the card', function () 
     expect($response->json('payment_method_id'))->toBe($card->id)
         ->and($card->gateway_token)->toBe('AUTH_abc123')
         ->and($card->provider)->toBe('paystack')
-        ->and($card->gateway_email)->toBe($this->passenger->paymentEmail())
+        ->and($card->gateway_signature)->toBe('SIG_visa4081')
+        ->and($card->gateway_email)->toBe('checkout@example.com')
         ->and($card->card_expiry_year)->toBe(2030)
         ->and($card->is_default)->toBeTrue();
 
@@ -264,12 +316,12 @@ it('saves the card when the webhook credits an add-card payment the app never ve
     ]);
 });
 
-it('refreshes the authorization of a card the passenger adds again', function () {
+it('refreshes a card saved before signatures were recorded when the passenger adds it again', function () {
     $card = UserPaymentMethod::create([
         'user_id' => $this->passenger->id,
         'provider' => 'paystack',
         'gateway_token' => 'AUTH_old',
-        'card_brand' => 'visa',
+        'card_brand' => 'visa ',
         'card_last_four' => '4081',
         'is_default' => true,
     ]);
@@ -280,7 +332,48 @@ it('refreshes the authorization of a card the passenger adds again', function ()
     $this->actingAs($this->passenger)->getJson('/api/v1/payments/TOPUP-AGAIN/verify')->assertOk();
 
     expect(UserPaymentMethod::where('user_id', $this->passenger->id)->count())->toBe(1)
-        ->and($card->fresh()->gateway_token)->toBe('AUTH_abc123');
+        ->and($card->fresh()->gateway_token)->toBe('AUTH_abc123')
+        ->and($card->fresh()->gateway_signature)->toBe('SIG_visa4081');
+});
+
+it('saves a different card with the same last four digits separately', function () {
+    $existing = UserPaymentMethod::create([
+        'user_id' => $this->passenger->id,
+        'provider' => 'paystack',
+        'gateway_token' => 'AUTH_first',
+        'gateway_signature' => 'SIG_first',
+        'card_brand' => 'visa',
+        'card_last_four' => '4081',
+        'is_default' => true,
+    ]);
+    pendingAddCard($this->passenger, 'TOPUP-SECOND');
+    fakeWalletGateway()->shouldReceive('verifyTransaction')->with('TOPUP-SECOND')
+        ->andReturn(addCardCharge('TOPUP-SECOND'));
+
+    $this->actingAs($this->passenger)->getJson('/api/v1/payments/TOPUP-SECOND/verify')->assertOk();
+
+    expect(UserPaymentMethod::where('user_id', $this->passenger->id)->count())->toBe(2)
+        ->and($existing->fresh()->gateway_token)->toBe('AUTH_first');
+});
+
+it('does not bring back a card the passenger removed when the payment is verified again', function () {
+    pendingAddCard($this->passenger, 'TOPUP-REMOVED');
+    fakeWalletGateway()->shouldReceive('verifyTransaction')->with('TOPUP-REMOVED')
+        ->andReturn(addCardCharge('TOPUP-REMOVED'));
+
+    $cardId = $this->actingAs($this->passenger)
+        ->getJson('/api/v1/payments/TOPUP-REMOVED/verify')
+        ->json('payment_method_id');
+
+    $this->actingAs($this->passenger)->deleteJson("/api/v1/payment-methods/{$cardId}")->assertOk();
+
+    $this->actingAs($this->passenger)
+        ->getJson('/api/v1/payments/TOPUP-REMOVED/verify')
+        ->assertOk()
+        ->assertJsonPath('card_saved', false);
+
+    expect(UserPaymentMethod::count())->toBe(0)
+        ->and(addCardWallet($this->passenger)->fresh()->balance)->toBe(10000);
 });
 
 it('remembers that a wallet top-up should save its card', function () {
@@ -324,4 +417,12 @@ it('does not save the card of a top-up made without save_card', function () {
 
     expect(addCardWallet($this->passenger)->fresh()->balance)->toBe(10000)
         ->and(UserPaymentMethod::count())->toBe(0);
+});
+
+it('does not ask Paystack again for a card that is already saved', function () {
+    $transaction = pendingAddCard($this->passenger, 'TOPUP-DONE');
+    $transaction->update(['card_saved_at' => now()]);
+    fakeWalletGateway()->shouldNotReceive('verifyTransaction');
+
+    (new SaveTopupCardJob('TOPUP-DONE'))->handle(app(WalletGateway::class), app(SavedCardService::class));
 });

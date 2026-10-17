@@ -73,7 +73,12 @@ class ProcessTopupWebhookJob implements ShouldBeUnique, ShouldQueue
                     'abandoned_at' => null,
                 ]);
 
-            if (WalletTransaction::where('reference', $this->reference)->value('save_card')) {
+            $savesCard = WalletTransaction::where('reference', $this->reference)
+                ->where('save_card', true)
+                ->whereNull('card_saved_at')
+                ->exists();
+
+            if ($savesCard) {
                 SaveTopupCardJob::dispatch($this->reference);
             }
 

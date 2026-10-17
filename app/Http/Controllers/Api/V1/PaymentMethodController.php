@@ -2,28 +2,22 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Contracts\WalletGateway;
-use App\Enums\AccountType;
 use App\Enums\PaymentMethod;
-use App\Enums\WalletTransactionStatus;
+use App\Exceptions\TopupRefusedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\InitializePaymentRequest;
-use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\AppSetting;
 use App\Models\UserPaymentMethod;
 use App\Models\WalletTransaction;
-use App\Services\LedgerService;
 use App\Services\SavedCardService;
+use App\Services\WalletTopupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class PaymentMethodController extends Controller
 {
-    // The wallet gateway is injected per method: it needs Paystack configured,
-    // which listing or removing saved cards does not.
     public function __construct(
-        private LedgerService $ledgerService,
+        private WalletTopupService $topups,
         private SavedCardService $savedCards,
     ) {}
 
@@ -63,54 +57,30 @@ class PaymentMethodController extends Controller
 
     /**
      * Starts adding a card. The passenger pays a small amount by card, which
-     * is a wallet top-up: it is credited to their wallet, and the card is
-     * saved once the payment succeeds.
+     * is a wallet top-up with the usual wallet checks and limits: it is
+     * credited to their wallet, and the card is saved once the payment
+     * succeeds.
      */
-    public function initialize(InitializePaymentRequest $request, WalletGateway $walletGateway): JsonResponse
+    public function initialize(InitializePaymentRequest $request): JsonResponse
     {
-        $user = $request->user();
         $amountKobo = AppSetting::wallet('card_verification_amount');
 
-        $account = $this->ledgerService->findOrCreateAccount(
-            $user->getMorphClass(),
-            $user->id,
-            AccountType::PassengerWallet,
-        );
-
-        $txRef = 'TOPUP-'.Str::upper(Str::random(12));
-
         try {
-            $result = $walletGateway->initializePayment([
-                'tx_ref' => $txRef,
-                'amount' => $amountKobo / 100,
-                'currency' => 'NGN',
-                'redirect_url' => $request->validated('redirect_url'),
-                'customer' => [
-                    'email' => $user->paymentEmail(),
-                    'name' => "{$user->first_name} {$user->last_name}",
-                ],
-                'meta' => [
-                    'user_id' => $user->id,
-                    'account_id' => $account->id,
-                    'type' => 'card_verification',
-                ],
-                'channels' => $request->validated('channels', ['card']),
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'Unable to initialize payment. Please try again.'], 502);
+            $started = $this->topups->start(
+                $request->user(),
+                $amountKobo,
+                $request->validated('redirect_url'),
+                channels: ['card'],
+                saveCard: true,
+                type: 'card_verification',
+            );
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
 
-        WalletTransaction::create([
-            'account_id' => $account->id,
-            'reference' => $txRef,
-            'amount' => $amountKobo,
-            'save_card' => true,
-            'status' => WalletTransactionStatus::Pending,
-        ]);
-
         return response()->json([
-            'payment_link' => $result['link'],
-            'tx_ref' => $txRef,
+            'payment_link' => $started['link'],
+            'tx_ref' => $started['transaction']->reference,
             'amount' => $amountKobo / 100,
             'currency' => 'NGN',
         ]);
@@ -121,7 +91,7 @@ class PaymentMethodController extends Controller
      * tx_ref. A successful payment is credited to the wallet (the webhook
      * does the same, only once) and the card is saved.
      */
-    public function verify(Request $request, WalletGateway $walletGateway, string $transactionId): JsonResponse
+    public function verify(Request $request, string $transactionId): JsonResponse
     {
         $user = $request->user();
 
@@ -136,27 +106,13 @@ class PaymentMethodController extends Controller
         }
 
         try {
-            $result = $walletGateway->verifyTransaction($transaction->reference);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'Unable to verify transaction.'], 502);
-        }
-
-        if (($result['tx_ref'] ?? null) !== $transaction->reference) {
-            return response()->json(['message' => 'Invalid transaction reference.'], 422);
+            $result = $this->topups->confirm($transaction);
+        } catch (TopupRefusedException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->status);
         }
 
         $successful = $result['status'] === 'successful';
-        $card = null;
-
-        if ($successful) {
-            if ($transaction->status !== WalletTransactionStatus::Completed) {
-                ProcessTopupWebhookJob::dispatch($transaction->account_id, (int) $result['amount'], $transaction->reference);
-            }
-
-            if ($transaction->save_card) {
-                $card = $this->savedCards->saveFromTopup($user, $result);
-            }
-        }
+        $card = $successful ? $this->savedCards->saveForTopup($transaction, $result) : null;
 
         return response()->json([
             'status' => $result['status'],

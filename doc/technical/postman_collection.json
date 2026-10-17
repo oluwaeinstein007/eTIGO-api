@@ -20298,7 +20298,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Starts adding a card. The passenger pays a small amount by card (admin wallet setting `card_verification_amount`, default \u20a6100, returned as `amount`), and **that payment is credited to their wallet** once it succeeds; the card is saved too. Any `amount`/`currency` sent is ignored. Channels default to `card`. Passengers without an email are supported. **Sets `{{payment_reference}}`** (the `tx_ref`) for **Verify Payment**."
+                "description": "Starts adding a card. The passenger pays a small amount by card (admin wallet setting `card_verification_amount`, default \u20a6100, returned as `amount`), and **that payment is credited to their wallet** once it succeeds; the card is saved too. It is a wallet top-up, so it is refused like one: 422 if the wallet is frozen/closed or the max balance or daily cap would be exceeded, 429 after 5 top-up attempts an hour or 10 a day. Card-only; any `amount`/`currency`/`channels` sent is ignored. Passengers without an email are supported. **Sets `{{payment_reference}}`** (the `tx_ref`) for **Verify Payment**."
               },
               "response": [
                 {
@@ -20546,7 +20546,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"channels\": [\n    \"crypto\"\n  ]\n}"
+                  "raw": "{}"
                 },
                 "url": {
                   "raw": "{{base_url}}/payments/initialize",
@@ -20558,7 +20558,7 @@
                     "initialize"
                   ]
                 },
-                "description": "Expected: 422 `VALIDATION_ERROR`: unsupported channel and missing `redirect_url`."
+                "description": "Expected: 422 `VALIDATION_ERROR`: missing `redirect_url`."
               },
               "response": [
                 {
@@ -20571,7 +20571,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The redirect url field is required. (and 1 more error)\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ],\n    \"channels.0\": [\n      \"The selected channels.0 is invalid.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"The redirect url field is required.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"redirect_url\": [\n      \"The redirect url field is required.\"\n    ]\n  }\n}"
                 }
               ]
             }
