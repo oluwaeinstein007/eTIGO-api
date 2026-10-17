@@ -48,15 +48,19 @@ class ScheduledRideService
         private TierGateService $tierGateService,
         private NotificationService $notificationService,
         private ScheduledRideReservationService $reservationService,
+        private ThirdPartyBookingService $thirdPartyBookingService,
+        private ThirdPartyRoutingService $thirdPartyRoutingService,
     ) {}
 
     /**
      * Why a pickup time cannot be booked (an empty list when it can). Pass
-     * the booking being edited so it is not compared with itself.
+     * the booking being edited so it is not compared with itself, and the
+     * rider's phone for a booking made for someone else: bookings only clash
+     * when they are for the same person.
      *
      * @return list<string>
      */
-    public function pickupTimeErrors(User $passenger, CarbonInterface $pickupAt, ?Ride $editing = null): array
+    public function pickupTimeErrors(User $passenger, CarbonInterface $pickupAt, ?Ride $editing = null, ?string $riderPhone = null): array
     {
         $settings = AppSetting::scheduledRides();
 
@@ -87,6 +91,7 @@ class ScheduledRideService
 
         $gap = $settings['min_minutes_between_bookings'];
         $clash = $upcoming->first(fn (Ride $ride) => $ride->scheduledRide !== null
+            && $ride->rider_phone === $riderPhone
             && abs($ride->scheduledRide->scheduled_pickup_at->diffInMinutes($pickupAt)) < $gap);
 
         if ($clash !== null) {
@@ -142,7 +147,7 @@ class ScheduledRideService
                 : $scheduled->scheduled_pickup_at;
 
             if (isset($changes['scheduled_pickup_at'])) {
-                $errors = $this->pickupTimeErrors($passenger, $pickupAt, $ride);
+                $errors = $this->pickupTimeErrors($passenger, $pickupAt, $ride, $ride->is_third_party ? $ride->rider_phone : null);
 
                 if ($errors !== []) {
                     throw ValidationException::withMessages(['scheduled_pickup_at' => $errors]);
@@ -158,6 +163,12 @@ class ScheduledRideService
 
             if (isset($changes['payment_method'])) {
                 $ride->payment_method = PaymentMethod::from($changes['payment_method']);
+
+                if ($ride->is_third_party && ! $this->thirdPartyBookingService->paymentMethodAllowed($ride->payment_method)) {
+                    throw ValidationException::withMessages([
+                        'payment_method' => ["{$ride->payment_method->label()} can't be used when you book for someone else. Pay by wallet or card."],
+                    ]);
+                }
             }
 
             $this->requote($ride, $passenger, $pickupAt);
@@ -322,8 +333,11 @@ class ScheduledRideService
                 return 'failed';
             }
 
-            $passengerBusy = Ride::query()
+            // The booker's own ride now does not hold up one booked for
+            // someone else, nor the other way round.
+            $passengerBusy = ! $ride->is_third_party && Ride::query()
                 ->where('passenger_id', $ride->passenger_id)
+                ->ownTrips()
                 ->whereKeyNot($ride->id)
                 ->whereIn('status', RideStatus::activeStatuses())
                 ->exists();
@@ -464,7 +478,9 @@ class ScheduledRideService
             ->setTimezone($ride->city?->timezone ?? config('app.timezone'))
             ->format('g:i A');
 
-        $body = "Your ride is booked for {$time} from {$ride->pickup_address}.";
+        $body = $ride->is_third_party
+            ? "The ride you booked for {$ride->riderFirstName()} is at {$time} from {$ride->pickup_address}."
+            : "Your ride is booked for {$time} from {$ride->pickup_address}.";
 
         if ($ride->payment_method === PaymentMethod::Wallet
             && $this->walletPaymentService->availableBalance($ride->passenger) < (int) round($ride->fare_estimate_amount * 100)) {
@@ -498,6 +514,14 @@ class ScheduledRideService
             ]);
 
             return false;
+        }
+
+        // The rider of a booking made for them hears about it too (BE2-3P-08);
+        // the PIN follows at dispatch with the driver's details.
+        try {
+            $this->thirdPartyRoutingService->queue($ride->loadMissing('scheduledRide'), ThirdPartyRoutingService::REMINDER);
+        } catch (\Throwable $e) {
+            Log::warning('Third-party rider reminder could not be queued', ['ride_id' => $ride->id, 'error' => $e->getMessage()]);
         }
 
         return true;

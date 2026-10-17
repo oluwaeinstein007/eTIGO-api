@@ -4,8 +4,11 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Enums\RiderNotificationStatus;
 use App\Enums\RideStatus;
+use App\Enums\ThirdPartyRecipient;
 use App\Traits\HasReferenceNumber;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Ride extends Model
 {
@@ -27,6 +31,14 @@ class Ride extends Model
         'city_id',
         'vehicle_class_id',
         'passenger_id',
+        'is_third_party',
+        'rider_name',
+        'rider_phone',
+        'pin_recipient',
+        'tracking_recipient',
+        'rider_notification_status',
+        'rider_notification_channel',
+        'rider_notified_at',
         'driver_id',
         'pickup_lat',
         'pickup_lng',
@@ -57,6 +69,11 @@ class Ride extends Model
         return [
             'status' => RideStatus::class,
             'payment_method' => PaymentMethod::class,
+            'is_third_party' => 'boolean',
+            'pin_recipient' => ThirdPartyRecipient::class,
+            'tracking_recipient' => ThirdPartyRecipient::class,
+            'rider_notification_status' => RiderNotificationStatus::class,
+            'rider_notified_at' => 'datetime',
             'pickup_lat' => 'decimal:7',
             'pickup_lng' => 'decimal:7',
             'destination_lat' => 'decimal:7',
@@ -202,5 +219,75 @@ class Ride extends Model
     public function isAssignedToDriver(string $driverId): bool
     {
         return $this->driver_id === $driverId;
+    }
+
+    /**
+     * Rides the passenger takes themselves, not ones booked for someone else.
+     */
+    public function scopeOwnTrips(Builder $query): void
+    {
+        $query->where('is_third_party', false);
+    }
+
+    public function scopeThirdParty(Builder $query): void
+    {
+        $query->where('is_third_party', true);
+    }
+
+    /**
+     * Whether the booker may see the ride PIN: the policy includes them, or
+     * the rider's message could not be delivered (so the ride can still start).
+     */
+    public function bookerSeesPin(): bool
+    {
+        if (! $this->is_third_party) {
+            return true;
+        }
+
+        return ($this->pin_recipient?->includesBooker() ?? true)
+            || $this->rider_notification_status === RiderNotificationStatus::Failed;
+    }
+
+    /**
+     * Whether the booker may follow the trip live (same fallback as the PIN).
+     */
+    public function bookerSeesTracking(): bool
+    {
+        if (! $this->is_third_party) {
+            return true;
+        }
+
+        return ($this->tracking_recipient?->includesBooker() ?? true)
+            || $this->rider_notification_status === RiderNotificationStatus::Failed;
+    }
+
+    /**
+     * Whether the rider of a third-party booking is messaged at all.
+     */
+    public function messagesRider(): bool
+    {
+        return $this->is_third_party
+            && ($this->pin_recipient?->includesRider() || $this->tracking_recipient?->includesRider());
+    }
+
+    /**
+     * First name of the person being picked up: the rider on a third-party
+     * booking, otherwise the passenger.
+     */
+    public function riderFirstName(): ?string
+    {
+        if ($this->is_third_party) {
+            return Str::of((string) $this->rider_name)->trim()->before(' ')->toString() ?: null;
+        }
+
+        return $this->passenger?->first_name;
+    }
+
+    /**
+     * Phone number of the person being picked up.
+     */
+    public function riderPhone(): ?string
+    {
+        return $this->is_third_party ? $this->rider_phone : $this->passenger?->phone;
     }
 }

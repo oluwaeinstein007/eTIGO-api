@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Log;
 
 class SosService
 {
+    public function __construct(
+        private DriverLocationService $locationService,
+    ) {}
+
     /**
      * A safety operator may take over or close an incident at any open stage —
      * they must never wait for the automatic escalation to act.
@@ -54,6 +58,26 @@ class SosService
         'cancelled' => [],
     ];
 
+    /**
+     * The driver's last position if it is under two minutes old.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    private function freshDriverLocation(string $driverUserId): ?array
+    {
+        try {
+            $location = $this->locationService->getDriverLocation($driverUserId);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($location === null || $location['timestamp'] < now()->subMinutes(2)->timestamp) {
+            return null;
+        }
+
+        return ['lat' => (float) $location['lat'], 'lng' => (float) $location['lng']];
+    }
+
     public function canTransitionTo(SosIncident $incident, SosIncidentStatus $newStatus): bool
     {
         $allowed = self::VALID_TRANSITIONS[$incident->status->value] ?? [];
@@ -74,7 +98,18 @@ class SosService
             $vehicle = $driverRecord?->vehicle;
         }
 
-        $incident = DB::transaction(function () use ($ride, $user, $triggerType, $data, $vehicle) {
+        // On a ride booked for someone else the booker is usually not in the
+        // car, so the car's live position is what the Safety team needs. The
+        // booker's own position stays in the telemetry.
+        $reportedGps = ['lat' => (float) $data['gps_lat'], 'lng' => (float) $data['gps_lng']];
+        $bookerElsewhere = $ride->is_third_party && $user->id === $ride->passenger_id;
+
+        if ($bookerElsewhere && $ride->driver_id && ($carGps = $this->freshDriverLocation($ride->driver_id)) !== null) {
+            $data['gps_lat'] = $carGps['lat'];
+            $data['gps_lng'] = $carGps['lng'];
+        }
+
+        $incident = DB::transaction(function () use ($ride, $user, $triggerType, $data, $vehicle, $reportedGps, $bookerElsewhere) {
             // Serialise triggers for the same ride so a double tap cannot open
             // two incidents.
             Ride::whereKey($ride->id)->lockForUpdate()->first();
@@ -111,6 +146,15 @@ class SosService
                     'destination_lng' => (float) $ride->destination_lng,
                     'triggered_at_speed' => $data['speed'] ?? null,
                     'triggered_at_heading' => $data['heading'] ?? null,
+                    ...($ride->is_third_party ? [
+                        'third_party_rider' => [
+                            'name' => $ride->rider_name,
+                            'phone' => $ride->rider_phone,
+                        ],
+                        'triggered_by_booker' => $bookerElsewhere,
+                        'reporter_gps' => $reportedGps,
+                        'gps_source' => $data['gps_lat'] === $reportedGps['lat'] && $data['gps_lng'] === $reportedGps['lng'] ? 'reporter' : 'driver',
+                    ] : []),
                 ],
             ]);
 

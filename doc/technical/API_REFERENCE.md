@@ -748,6 +748,13 @@ No authentication required. Returns app configuration including minimum version 
     "late_cancellation_fee": 0,
     "late_cancellation_window_minutes": 30,
     "driver_reservations_enabled": true
+  },
+  "third_party_bookings": {
+    "enabled": true,
+    "payment_methods": ["wallet", "card"],
+    "pin_recipient": "both",
+    "tracking_recipient": "both",
+    "max_active_per_booker": 2
   }
 }
 ```
@@ -755,6 +762,8 @@ No authentication required. Returns app configuration including minimum version 
 **Usage:** Mobile clients should check `min_app_version` on every launch. If the installed version is below the minimum, show a force-update screen with a link to the App Store / Play Store. When `force_update` is `true`, block usage entirely until updated.
 
 `scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. `reservation_fee` is added to every scheduled quote (₦0: the client decided not to charge for reservations). A passenger who cancels a booking a driver has reserved within `late_cancellation_window_minutes` (30) of pickup pays a late-cancellation fee: with `late_cancellation_fee_basis` `economy_base_fare` (the default) it is the economy base fare of the ride's city; with `flat` it is `late_cancellation_fee`; `off` means no fee. The ride shows the exact amount as `scheduled.cancellation_fee_if_cancelled_now`. See [Scheduled Rides](#scheduled-rides).
+
+`third_party_bookings` drives "Book for someone else": hide it when `enabled` is `false`, and offer only `payment_methods` for such a booking. Use `pin_recipient` and `tracking_recipient` to tell the booker what the rider will receive. The ride saves the values in effect at booking. See [Third-Party Bookings](#third-party-bookings).
 
 ---
 
@@ -1062,6 +1071,8 @@ Authorization: Bearer {passenger_token}
 
 Returns the passenger's current active ride (status: `searching`, `driver_en_route`, `driver_arrived`, or `in_progress`). Returns `null` if no active ride. Used by the frontend to restore the ride screen on app relaunch.
 
+`ride` is the passenger's **own** ride. Rides they booked for someone else that are in progress are listed in `third_party_rides` (ride detail objects, newest first; `[]` when none). See [Third-Party Bookings](#third-party-bookings).
+
 **Response 200:**
 ```json
 {
@@ -1083,14 +1094,16 @@ Returns the passenger's current active ride (status: `searching`, `driver_en_rou
     "fare_currency": "NGN",
     "pin": "4821",
     "...": "full ride detail object"
-  }
+  },
+  "third_party_rides": []
 }
 ```
 
 **Response 200 (no active ride):**
 ```json
 {
-  "ride": null
+  "ride": null,
+  "third_party_rides": []
 }
 ```
 
@@ -5113,6 +5126,8 @@ Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verifi
 
 **Booking for later:** send `scheduled_pickup_at` to book a [scheduled ride](#scheduled-rides) instead. The ride is created in `scheduled` status with no PIN (`pin_code` is `null`), no wallet hold and no matching; the message is `"Ride scheduled successfully."`. A passenger on an active ride can still book for later, and a pending booking does not stop them from riding now.
 
+**Booking for someone else:** send `rider_name`, `rider_phone` and `rider_age_confirmed: true` to book and pay for a ride someone else takes. The booker stays the ride's passenger. The rider gets the driver details, PIN and a tracking link by WhatsApp/SMS. Wallet or card only by default. See [Third-Party Bookings](#third-party-bookings).
+
 **What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
 
 **PIN:** valid for 6 hours (the whole pickup phase). If the driver uses up the 3 attempts, the passenger can issue a new PIN with `POST /rides/{ride}/pin/regenerate`.
@@ -5131,6 +5146,9 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_address| string  | Yes      | Human-readable destination address  |
 | payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
 | scheduled_pickup_at | string (ISO 8601) | No | Book for later. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`). See [Scheduled Rides](#scheduled-rides) for the limits. |
+| rider_name | string | With `rider_phone` | Book for someone else: the rider's name (max 100). See [Third-Party Bookings](#third-party-bookings) |
+| rider_phone | string | No | The rider's phone: E.164 (`+2348020000002`) or Nigerian local (`0802 000 0002`). The booker's own number makes it a normal ride |
+| rider_age_confirmed | boolean | With `rider_phone` | Must be `true`: the rider is 18 or over, or an adult travels with them |
 | promo_code         | string  | No       | Promo code to apply (max 50 chars). **All** rules are checked at booking against this ride (user eligibility, city, vehicle class, pickup geo-fence, minimum fare vs. the estimate, peak/off-peak in the city's timezone) — an invalid code returns `422` on `promo_code`. The discount is applied to the final fare at completion; the code's validity window and peak rules are honoured as they were at booking. |
 
 **Response 201:**
@@ -5235,6 +5253,8 @@ Other `422` validation messages: `vehicle_class_id` — `"This vehicle class is 
 
 **Ride responses** (`POST /rides`, `GET /rides`, `GET /rides/{ride}`, active ride) carry `is_scheduled`, `scheduled_pickup_at` and a `scheduled` object for rides booked ahead (all `false`/`null` otherwise). They stay on the ride after it is dispatched, so the apps can still show "Scheduled for 7:30 AM" on the trip.
 
+They also carry `is_third_party`, a `rider` object (who the driver picks up: `first_name`, `phone`, `is_third_party`) and, for a ride booked for someone else, a `third_party` object for the booker and admins. See [Third-Party Bookings](#third-party-bookings). `pin_code` and `share_token` are `null` for the booker when the ride's policy keeps them from the booker.
+
 ---
 
 ### List Rides
@@ -5250,6 +5270,7 @@ GET /rides
 | city_id     | string (UUID) | Filter by city (`422` if not a UUID) |
 | from_date   | date    | Filter rides from this date (`422` if not a date) |
 | to_date     | date    | Filter rides until this date (`422` if not a date) |
+| is_third_party | boolean | `1`: only rides booked for someone else; `0`: only the passenger's own rides |
 | per_page    | integer | Results per page (default 15, clamped to 1–50) |
 
 **Response 200:**
@@ -5652,6 +5673,15 @@ Issues a fresh 4-digit PIN with a new set of 3 attempts — for example after th
 ```
 Before a driver is assigned (`requested`, `searching`, `no_driver_found`) the message is `"A new PIN can be issued once a driver has been assigned."`.
 
+**Third-party ride:** when the ride's PIN policy includes the rider, the new PIN is sent to them again by WhatsApp/SMS. `rider_notification_status` goes back to `pending`, unless the last message failed: then it stays `failed` so the booker keeps seeing the PIN. `pin_code` is `null` when the policy gives the PIN to the rider only.
+```json
+{
+  "message": "A new PIN has been issued and sent to Ada.",
+  "pin_code": "4821",
+  "rider_notification_status": "pending"
+}
+```
+
 ---
 
 ### Complete Ride
@@ -5900,9 +5930,17 @@ Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), in
   "currency": "NGN",
   "vehicle_class": "Economy",
   "response_timeout_seconds": 20,
-  "scheduled_pickup_at": null
+  "payment_method": "card",
+  "passenger_name": "Ade Ogunleye",
+  "passenger_rating": 4.9,
+  "distance_km": 8.5,
+  "duration_minutes": 15,
+  "scheduled_pickup_at": null,
+  "is_third_party": false
 }
 ```
+
+When `is_third_party` is `true` the ride was booked for someone else and `passenger_name` is the **rider's** first name (the person to pick up); `passenger_rating` is still the booker's.
 
 `scheduled_pickup_at` is the booked pickup time (ISO 8601) when the offer is for a [scheduled ride](#scheduled-rides), otherwise `null`. (A scheduled ride a driver reserved in advance is assigned to them directly, with no offer.) The push notification's `data` carries it too, only for scheduled rides.
 
@@ -5925,7 +5963,7 @@ Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), in
 GET /rides/{ride}/location
 ```
 
-**Auth required.** Fallback polling endpoint for when WebSocket connection drops. Returns the driver's latest cached location from Redis and a computed ETA. Accessible by the ride's passenger, the assigned driver, or any admin.
+**Auth required.** Fallback polling endpoint for when WebSocket connection drops. Returns the driver's latest cached location from Redis and a computed ETA. Accessible by the ride's passenger, the assigned driver, or any admin. On a [third-party ride](#third-party-bookings) with rider-only tracking the booker gets `403`, unless the rider's message failed.
 
 **Response 200 (driver location available):**
 ```json
@@ -6085,15 +6123,17 @@ Re-sends a ride request to find new drivers after the original search ended with
 GET /rides/{ride}/share/{token}
 ```
 
-**No auth required.** Public endpoint for sharing ride tracking. Returns limited ride info (status, location, vehicle class, driver first name). Share token expires 1 hour after ride completion (returns 410).
+**No auth required** (`throttle:60,1`). The data behind trip sharing and the no-app tracking page that third-party riders receive. The page itself is served by the API host at `GET /track/{ride}/{token}` (HTML, `noindex`, polls this endpoint every 10 seconds). If the web team hosts its own page, set its address in `THIRD_PARTY_TRACKING_URL` (placeholders `{ride}` and `{token}`).
+
+Returns the status, pickup and destination, the driver's first name, photo and car (make, model, colour, plate), the driver's live position and ETA while the ride is active (`null` otherwise), and the emergency number and E-tiGo safety line. For a third-party ride it also gives the rider's and the booker's first names. Nothing about the passenger's account. The link expires 1 hour after the ride ends (`410`).
 
 **Response 200:**
 ```json
 {
   "ride": {
     "id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
-    "status": "in_progress",
-    "status_label": "In Progress",
+    "status": "driver_en_route",
+    "status_label": "Driver En Route",
     "pickup": {
       "lat": "6.5244000",
       "lng": "3.3792000",
@@ -6116,12 +6156,40 @@ GET /rides/{ride}/share/{token}
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
     "driver": {
-      "first_name": "Bayo"
+      "first_name": "Bayo",
+      "profile_photo_url": null,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Corolla",
+        "colour": "Silver",
+        "plate_number": "LND-123-XY"
+      }
     },
-    "started_at": "2026-10-06T14:05:00.000000Z"
+    "is_third_party": true,
+    "rider_first_name": "Ada",
+    "booked_by_first_name": "Ade",
+    "started_at": null,
+    "completed_at": null
+  },
+  "driver_location": {
+    "lat": 6.5301,
+    "lng": 3.3812,
+    "heading": 90,
+    "timestamp": 1792405262
+  },
+  "eta": {
+    "target": "pickup",
+    "distance_km": 1.4,
+    "duration_minutes": 5
+  },
+  "safety": {
+    "emergency_number": "112",
+    "safety_line": "+2348000000000"
   }
 }
 ```
+
+`rider_first_name` and `booked_by_first_name` appear only on third-party rides. `safety.safety_line` is `ETIGO_SAFETY_LINE` (falling back to `ETIGO_SAFETY_NUMBER`), or `null` when neither is set.
 
 **Response 404** (unknown ride, wrong token or malformed ride ID):
 ```json
@@ -6551,6 +6619,105 @@ POST /driver/scheduled-rides/{ride}/release
 Gives the booking back before dispatch; the passenger is told and the booking returns to the available list. No penalty (tracked in the audit log).
 
 **Response 200:** `{ "message": "Reservation released.", "ride": { ... } }`. **Response 422:** `This ride has no reservation to release.` / `You have not reserved this ride.`
+
+---
+
+## Third-Party Bookings
+
+A passenger (the **booker**) can book and pay for a ride that someone else takes (the **rider**), such as a parent, a guest or a colleague (Phase 2, PRD B-28, P-23, P-24, D-13, A-34). The defaults follow the OQ-18 recommendation of 16 October 2026, which the client has not confirmed yet (`doc/client/PHASE2_DECISIONS.md`). Operations can change every default without a release.
+
+**How it works**
+
+1. **Booking.** `POST /rides` (now, or with `scheduled_pickup_at`) plus `rider_name`, `rider_phone` and `rider_age_confirmed: true`. The booker stays the ride's `passenger`: they pay, cancel, rate, dispute and see the trip in their history. The booker is never told whether the number has an E-tiGo account.
+2. **Policy snapshot.** The ride saves who gets the PIN and who gets live tracking (`pin_recipient` and `tracking_recipient`: `booker`, `rider` or `both`; default **both**). A later settings change applies only to new bookings.
+3. **Driver assigned.** The rider gets a WhatsApp message (SMS if WhatsApp fails). It contains the booker's first name, the driver's first name, the car and plate, and the safety contacts (112 and the E-tiGo safety line). It also has the **PIN** when the policy includes the rider, and a **tracking link that works without the app** (`/track/{ride}/{share_token}`) when tracking includes the rider. It tells the rider to contact the booker for changes. The booker sees the PIN and live map in the app when the policy includes them.
+4. **Delivery fallback.** If WhatsApp and SMS both refuse the message (3 attempts over about a minute), `rider_notification_status` becomes `failed`. The booker gets a `third_party_rider_unreachable` push, and **the PIN and tracking are shown to them whatever the policy**, so the ride can still start.
+5. **Trip updates.** With `rider_trip_updates` on (the default), the rider also gets "your driver has arrived" with the car and plate. If the ride is cancelled after the rider was told about it, they get a cancellation message.
+6. **PIN change.** When the booker regenerates the PIN, the new one is sent to the rider again, if the policy includes them.
+7. **Scheduled rides.** The rider gets a reminder with the time and places (no PIN) at the scheduled-ride reminder time, 60 minutes before pickup by default. The PIN, driver details and tracking link follow at dispatch, as for every scheduled ride.
+
+**Rules**
+
+| Rule | Default | Error (`422`) |
+|------|---------|---------------|
+| The feature is on | `enabled: true` | `rider_phone`: "Booking a ride for someone else is not available right now." |
+| Rider name required | — | `rider_name`: "Enter the rider's name." |
+| Age confirmation: the rider is 18+, or an adult travels with them | — | `rider_age_confirmed`: "Confirm that the rider is 18 or over, or that an adult is travelling with them." |
+| Payment by wallet or card, because the payer is not in the car | `allow_cash: false`, `allow_bank_transfer: false` | `payment_method`: "Cash can't be used when you book for someone else. Pay by wallet or card." Also applies when a scheduled booking is edited |
+| Third-party rides under way at once | `max_active_per_booker: 2` | `rider_phone`: "You can have at most 2 rides for other people at the same time." |
+| Different rider numbers per booker in 24 hours (cancelled bookings count) | `max_rider_numbers_per_day: 10` | `rider_phone`: "You can book for at most 10 different people in 24 hours." |
+| Rider phone format: E.164 or Nigerian local | — | `rider_phone`: "Enter the rider's phone number in international format, e.g. +2348031234567." |
+
+A third-party ride does **not** count as the booker's own active ride. The booker can ride themselves at the same time, and the 409 "already have an active ride" applies only to their own rides. Scheduled bookings for different people do not clash on `min_minutes_between_bookings`, and the booker's own trip does not hold up dispatch of a third-party booking. The scheduled-ride limit `max_upcoming_per_passenger` counts all of the booker's bookings.
+
+**The `third_party` object** (booker and admins only; absent on the passenger's own rides):
+
+| Field | Description |
+|-------|-------------|
+| `rider_name`, `rider_phone` | As booked (`rider_phone` in E.164) |
+| `pin_recipient`, `tracking_recipient` | `booker`, `rider` or `both`, saved at booking |
+| `rider_notification_status` | `pending` (no channel has accepted it yet), `sent_whatsapp`, `sent_sms`, `delivered` (reserved for provider delivery receipts; not set yet), `failed` |
+| `rider_notification_channel` | `whatsapp` or `sms` once sent |
+| `rider_notified_at` | When the driver-details (or new-PIN) message was accepted |
+| `booker_sees_pin`, `booker_sees_tracking` | Whether the booker gets the PIN and live tracking now (from the policy, or the `failed` fallback) |
+
+**The `rider` object** is on every ride (`null` in lists that do not load the passenger): `first_name`, `phone` and `is_third_party`. It describes the person the driver picks up: the rider on a third-party ride, otherwise the passenger. The driver sees the phone until the trip ends.
+
+**What each viewer sees on a third-party ride**
+
+| | Booker | Driver | Admin |
+|---|---|---|---|
+| `third_party` | ✅ | — | ✅ |
+| `rider` (name, phone) | ✅ | ✅ (phone until the trip ends) | ✅ |
+| `passenger` | full | `id` and `first_name` only | full |
+| `pin_code` | when `booker_sees_pin` | — | — |
+| `share_token`, `GET /rides/{ride}/location`, the `private-ride.{id}` channel | when `booker_sees_tracking` (otherwise `null` / `403`) | ✅ | ✅ |
+
+The driver's ride offer (`ride.request.dispatched`) and the driver's scheduled-ride lists show the rider's first name, with `is_third_party: true`.
+
+**Safety.** The booker's in-app SOS works for the rider's trip. The incident's telemetry carries `third_party_rider` (`name`, `phone`), `triggered_by_booker`, the booker's own position (`reporter_gps`) and `gps_source`. When the booker raises the SOS, the incident's `gps_lat` and `gps_lng` are the **car's** live position (if it is under 2 minutes old), not the booker's. The WhatsApp alert to the safety desk names the rider and the booker. The tracking page shows a "Call 112" button and the safety line.
+
+**Real time.** `ride.rider_notification.updated` is sent on `private-user.{booker_id}` whenever `rider_notification_status` changes (see [Real-Time Broadcasting](#real-time-broadcasting-websocket)). When `booker_sees_pin` turns `true`, fetch the ride to show the PIN.
+
+### Third-Party Booking Settings (Admin)
+```
+GET /admin/settings/third-party
+PUT /admin/settings/third-party
+```
+
+**Auth required. Admin role:** `operations` (and `super_admin`). Changes are audit-logged (`third_party_settings.updated`) and apply to new bookings only. Defaults come from `config/third_party.php` (`THIRD_PARTY_*` environment variables).
+
+| Field | Type | Default | Range | Description |
+|-------|------|---------|-------|-------------|
+| enabled | boolean | `true` | — | Accept new third-party bookings. Rides already booked carry on |
+| pin_recipient | string | `both` | `booker`, `rider`, `both` | Who gets the ride PIN |
+| tracking_recipient | string | `both` | `booker`, `rider`, `both` | Who gets live tracking |
+| allow_cash | boolean | `false` | — | Allow cash payment |
+| allow_bank_transfer | boolean | `false` | — | Allow bank-transfer payment |
+| max_active_per_booker | integer | 2 | 1–10 | Third-party rides under way at once per booker |
+| max_rider_numbers_per_day | integer | 10 | 1–100 | Different rider numbers per booker in 24 hours |
+| rider_trip_updates | boolean | `true` | — | Also message the rider on driver arrival and cancellation |
+
+`THIRD_PARTY_TRACKING_URL` (environment only) sets the tracking-page address sent to riders. The default is `{APP_URL}/track/{ride}/{token}`.
+
+**PUT** accepts any subset of the fields. **Response 200:**
+```json
+{
+  "message": "Third-party booking settings updated. They apply to new bookings.",
+  "settings": {
+    "enabled": true,
+    "pin_recipient": "rider",
+    "tracking_recipient": "both",
+    "allow_cash": true,
+    "allow_bank_transfer": false,
+    "max_active_per_booker": 2,
+    "max_rider_numbers_per_day": 10,
+    "rider_trip_updates": true
+  }
+}
+```
+
+**Response 422:** range and enum checks, e.g. `"The selected pin recipient is invalid."`.
 
 ---
 
@@ -13936,6 +14103,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Reserved pickup reminder | Driver | `scheduled_ride_reminder` | 60 minutes before a reserved pickup: "be online by …" |
 | Reserved booking cancelled | Driver | `ride_cancelled` | The passenger cancelled a booking the driver had reserved |
 | Scheduled ride could not start | Passenger | `ride_cancelled` | The body explains why (e.g. wallet could not cover the fare) |
+| Rider not reached (third-party ride) | Booker | `third_party_rider_unreachable` | WhatsApp and SMS to the rider failed; the PIN is now on the ride for the booker to pass on (bypasses notification preferences) |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
@@ -14014,9 +14182,9 @@ Private channels require authentication. The client must send an authorization r
 
 | Channel | Auth | Subscribers | Events |
 |---------|------|-------------|--------|
-| `private-ride.{rideId}` | Passenger or assigned driver | Ride participants | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
+| `private-ride.{rideId}` | Passenger or assigned driver (the booker of a third-party ride only when its tracking includes them) | Ride participants | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
 | `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers) |
-| `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded` |
+| `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded`, `ride.rider_notification.updated` |
 | `private-admin.rides` | Admin users | Admin dashboard | `ride.status.updated`, `driver.location.updated` |
 | `private-admin.sos` | Safety operators, super admins | SOS console | `sos.incident.triggered`, `sos.incident.escalated`, `sos.incident.updated` |
 | `private-admin.ev-stations` | Operations admins, super admins | EV stations screens | `ev.station.availability_changed` |
@@ -14047,6 +14215,21 @@ Dispatched on every driver location update (max 1/second). Includes live GPS coo
 ```
 
 `ride_id` and `eta` are `null` when the driver has no active ride (admin channel only in that case).
+
+#### `ride.rider_notification.updated`
+
+Sent to the booker of a [third-party ride](#third-party-bookings) on `private-user.{bookerId}` whenever the rider's message status changes (`pending` → `sent_whatsapp` / `sent_sms`, or `failed`). When `booker_sees_pin` turns `true`, fetch `GET /rides/{ride}` for the PIN; the PIN itself is never broadcast.
+
+```json
+{
+  "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+  "rider_notification_status": "failed",
+  "rider_notification_channel": null,
+  "rider_notified_at": null,
+  "booker_sees_pin": true,
+  "booker_sees_tracking": true
+}
+```
 
 #### `tier.upgraded`
 

@@ -253,6 +253,7 @@ Each transition locks the ride, validates the edge, writes an append-only `ride_
 | Cancel | Allowed until the trip starts (and from `no_driver_found`). Free, except the late-cancellation fee on a driver-reserved scheduled booking (§6.1). The wallet hold is released, the other party is notified with who cancelled (passenger, driver or E-tiGo support) and the reason, and a driver cancellation near the pickup starts off-app trip monitoring (§14). |
 | Admin assignment | `requested`, `searching` or `no_driver_found`; for `no_driver_found` the passenger must not have booked again, and a wallet hold is re-placed. |
 | Book for later | `POST /rides` with `scheduled_pickup_at` creates a `scheduled` ride (§6.1). Not an active ride: it does not block riding now, and an active ride does not block booking for later. |
+| Book for someone else | `POST /rides` with `rider_name` + `rider_phone` creates a third-party ride (§6.2). It does not count as the booker's own active ride; it has its own limit. |
 
 ### 6.1 Scheduled rides (Phase 2)
 
@@ -276,7 +277,22 @@ Modelled on Uber Reserve and Bolt scheduled rides: the passenger books a pickup 
 
 **Decisions:** every default above, the industry benchmark behind it and the open client questions are in `doc/client/SCHEDULED_RIDES_DECISIONS.md`. Not built: penalties for drivers who often release reservations (tracked in the audit log only).
 
-The driver's live location is shared with the passenger only while the ride is active (`GET /rides/{ride}/location`); afterwards only admins see it. Share links (`/rides/{ride}/share/{token}`) expire one hour after the trip ends.
+### 6.2 Third-party bookings (Phase 2)
+
+Modelled on Uber's "request for someone else": a passenger (the **booker**) books and pays for a ride someone else takes (the **rider**), who needs no app or account. The booker stays `rides.passenger_id`, so payment, holds, promos, tiers, cancellation, rating, disputes, receipts and history need no changes. The rider exists only as ride columns: `is_third_party`, `rider_name`, `rider_phone` (E.164), the policy snapshot `pin_recipient` / `tracking_recipient` (`ThirdPartyRecipient`: `booker`, `rider`, `both`), and the delivery state `rider_notification_status` (`RiderNotificationStatus`), `rider_notification_channel`, `rider_notified_at`. Settings are `AppSetting::thirdParty()`: operations' overrides (`PUT /admin/settings/third-party`) over `config/third_party.php`. Defaults follow the OQ-18 recommendation (`doc/client/PHASE2_DECISIONS.md`), which the client has not confirmed.
+
+| Step | Rules |
+|------|-------|
+| Book | `ThirdPartyBookingService::prepare`, under the booker's row lock. A rider phone equal to the booker's makes it a normal ride. The booking needs the rider's name and `rider_age_confirmed`, and wallet or card payment (cash and bank transfer only if allowed). Limits: `max_active_per_booker` (2) rides under way, not counted for scheduled bookings, and `max_rider_numbers_per_day` (10) distinct numbers in a rolling 24 h, cancelled bookings included. The app never learns whether the number has an account. Own-ride checks use `Ride::ownTrips()`, so a third-party ride and the booker's own ride don't block each other. |
+| PIN and tracking | Generated as for any ride. The booker sees `pin_code` only when `Ride::bookerSeesPin()` is true (policy includes the booker, or the rider's message `failed`). `bookerSeesTracking()` gates the booker's `share_token`, `GET /rides/{ride}/location` and the `ride.{id}` channel (which carries the driver's location) the same way. |
+| Rider messages | `ThirdPartyRoutingService::queue` from `RideStateMachine::publishTransition` (after commit): `driver_en_route` → driver details (driver, car, plate, PIN if the policy includes the rider, tracking link if tracking does, 112 and safety line); `driver_arrived` → arrival; `cancelled` → cancellation, only if the rider had already been told. PIN regeneration → new PIN. The scheduled-ride reminder (§6.1) → a reminder without the PIN. Sent by `SendThirdPartyRiderMessageJob` through `SmsGateway::deliver` (WhatsApp, then SMS; returns the channel). The PIN is read from the cache when the message is sent, so it is always the latest. Messages that no longer fit the ride's status are skipped. |
+| Delivery status | `pending` → `sent_whatsapp` / `sent_sms`. A refused message throws, so the job retries (3 tries, 15 s / 45 s back-off). `failed()` sets `failed` only while the ride is still before pickup and `pending`, then sends the booker `third_party_rider_unreachable` (critical push), which reveals the PIN and tracking. A new PIN resets to `pending`, except after `failed`, so the booker keeps the PIN. Each change is broadcast to the booker as `ride.rider_notification.updated` on `user.{bookerId}`. `delivered` is reserved: Termii delivery receipts are not consumed yet. |
+| Who sees what | `PresentsThirdPartyRide` (ride resources): booker and admins get the `third_party` object. Everyone gets `rider` (the person picked up; the driver sees the phone until the trip ends). The driver gets only the booker's `id` and `first_name`. Ride offers and the driver's scheduled lists use the rider's first name. `GET /passenger/active-ride` returns the own ride as `ride` and third-party rides as `third_party_rides`. |
+| Scheduled | Bookings clash on `min_minutes_between_bookings` only for the same rider. Dispatch is not held up by the booker's own ride (and the other way round). Editing to a disallowed payment method is refused. |
+| Safety | When the booker raises SOS on a third-party ride, the incident GPS is the car's live position (if under 2 min old); the booker's own position stays in telemetry (`reporter_gps`, `gps_source`). Telemetry also holds `third_party_rider`, and the WhatsApp alert names the rider and the booker. |
+| Tracking page | `GET /track/{ride}/{token}` (web route, `resources/views/track.blade.php`): no login, `noindex`, Leaflet/OpenStreetMap map polling the public share endpoint every 10 s. It shows the driver photo, car and plate, ETA, "Call 112" and the safety line (`sos.safety_line`). The link sent to riders is `THIRD_PARTY_TRACKING_URL` (default `{APP_URL}/track/{ride}/{token}`). It expires 1 hour after the trip, like every share link. |
+
+The driver's live location is shared with the passenger only while the ride is active (`GET /rides/{ride}/location`); afterwards only admins see it. Share links (`/rides/{ride}/share/{token}`, and the `/track/{ride}/{token}` page built on them) include the driver's live position and the car while the ride is active, and expire one hour after the trip ends.
 
 ---
 
@@ -314,9 +330,9 @@ Per-ride matching state lives in the cache with the matching timeout as TTL: `ri
 
 | Channel | Who may subscribe | Events |
 |---------|-------------------|--------|
-| `ride.{rideId}` | The ride's passenger and driver | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
+| `ride.{rideId}` | The ride's passenger and driver (on a third-party ride, the booker only when its tracking includes them) | `ride.status.updated`, `driver.location.updated`, `payment.updated`, `ride.no-driver-found` |
 | `driver.{userId}` | That driver | `ride.request.dispatched` |
-| `user.{userId}` | That user | `sos.check_in.requested`, `tier.upgraded` |
+| `user.{userId}` | That user | `sos.check_in.requested`, `tier.upgraded`, `ride.rider_notification.updated` (§6.2) |
 | `admin.rides` | Admins | `ride.status.updated`, `driver.location.updated` |
 | `admin.sos` | Safety operators, super admins | `sos.incident.triggered`, `sos.incident.escalated` |
 | `passengers.nearby` / `drivers.nearby` | Passengers / drivers | `nearby.map.changed` |
@@ -477,6 +493,8 @@ cancelled: by the user or an admin, until an operator takes over
 3. After 5 s (`SOS_CHECK_IN_DELAY`) the user gets an "Are you safe?" check-in. No answer within 30 s (`SOS_ESCALATION_TIMEOUT`) escalates the incident to the console.
 4. Safety operators can take over or resolve the incident **at any open stage**. They never wait for the escalation timer.
 
+On a third-party ride, an SOS the booker raises uses the car's live position and records the rider (§6.2).
+
 Every step is locked and logged in the append-only `sos_event_log`. Incident telemetry and vehicle details are encrypted at rest (`encrypted:array` casts).
 
 ### Off-app trip detection and sanctions
@@ -544,6 +562,7 @@ vendor/bin/pint --dirty --format agent         # format changed files
 - Tests that need Redis (GEO search) are skipped when the `phpredis` extension is missing.
 - When switching bearer tokens within one test, call `app('auth')->forgetGuards()` (Sanctum caches the resolved user).
 - Scheduled rides: `ScheduledRideTest` (booking limits, future-time surge and promo, edit/cancel, dispatch and its failures, reminders, admin settings) `ScheduledRideReservationTest` (driver reservations, dispatch to the reserved driver, admin assignment, reservation fee) and `ScheduledRideFeesAndBalanceDueTest` (late-cancellation fee, balance due, wallet shortfall).
+- Third-party bookings: `ThirdPartyBookingTest` (rules and limits, policy snapshot, rider messages and SMS fallback, delivery failure and PIN fallback, PIN resend, who sees what, tracking page, scheduled third-party rides, SOS, admin settings, app config).
 - Edge-case suites per area: `RideEdgeCaseTest`, `MatchingEdgeCaseTest`, `WalletPayoutEdgeCaseTest`, `AccountSafetyEdgeCaseTest`, `OperationsEdgeCaseTest`, `ApiErrorHandlingTest`.
 - CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.4 and 8.5 with PostgreSQL 16 and Redis 7 for every pull request to `staging`; both must pass before a push to `staging` deploys.
 
@@ -556,13 +575,14 @@ The complete list is in `.env.example`. The ones that change behaviour:
 | Area | Variables |
 |------|-----------|
 | Sessions | `SANCTUM_TOKEN_EXPIRATION` (admin, min), `SANCTUM_APP_TOKEN_EXPIRATION` (apps, min) |
-| OTP / SMS / WhatsApp | `TERMII_API_KEY`, `TERMII_SENDER_ID`, `TERMII_WHATSAPP_FROM`, `ETIGO_SAFETY_NUMBER` |
+| OTP / SMS / WhatsApp | `TERMII_API_KEY`, `TERMII_SENDER_ID`, `TERMII_WHATSAPP_FROM`, `ETIGO_SAFETY_NUMBER` (SOS alerts), `ETIGO_SAFETY_LINE` (shown to riders; falls back to `ETIGO_SAFETY_NUMBER`), `SOS_EMERGENCY_NUMBER` (112) |
 | Maps & places | `GOOGLE_MAPS_API_KEY`, `MAPBOX_ACCESS_TOKEN`, `GEOAPIFY_API_KEY`, `LOCATIONIQ_API_KEY`, `PLACE_SEARCH_DRIVERS`, `PLACE_SEARCH_COUNTRY` |
 | Payments | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_FAKE`, `FLUTTERWAVE_SECRET_KEY`, `FLUTTERWAVE_WEBHOOK_SECRET` |
 | Wallet | `WALLET_MIN_TOPUP`, `WALLET_MAX_BALANCE`, `WALLET_DAILY_TOPUP_CAP`, `WALLET_MIN_PAYOUT`, `WALLET_SETTLEMENT_DELAY`, `WALLET_MAX_NEGATIVE_BALANCE`, `WALLET_DEFAULT_COMMISSION_RATE`, `WALLET_HOLD_EXPIRY_HOURS`, `WALLET_MAX_CASH_OVERPAYMENT`, `WALLET_BLOCK_BOOKING_WITH_BALANCE_DUE` (kobo; finance can override most at runtime) |
 | Matching | `MATCHING_RADIUS_TIER_1_KM`/`_2_KM`/`_3_KM`, `MATCHING_DRIVER_RESPONSE_TIMEOUT`, `MATCHING_TIMEOUT`, `MATCHING_MAX_AUTO_RETRIES`, `MATCHING_PRIORITY_EXTRA_RETRIES`, `MATCHING_AUTO_RETRY_DELAY`, `MATCHING_MAX_CANDIDATES` |
 | Surge | `SURGE_DEMAND_WINDOW_MINUTES` (10), `SURGE_DEMAND_MIN_REQUESTS` (5), `SURGE_DEMAND_CACHE_SECONDS` (60) |
 | Scheduled rides | `SCHEDULED_RIDES_DRIVER_RESERVATIONS`, `SCHEDULED_RIDES_MAX_RESERVATIONS_PER_DRIVER` (5), `SCHEDULED_RIDES_DRIVER_GAP_MINUTES` (60), `SCHEDULED_RIDES_DRIVER_BUFFER_MINUTES` (60), `SCHEDULED_RIDES_RESERVATION_FEE` (0), `SCHEDULED_RIDES_LATE_CANCELLATION_FEE_BASIS` (`economy_base_fare`), `SCHEDULED_RIDES_LATE_CANCELLATION_FEE_CLASS` (`economy`), `SCHEDULED_RIDES_LATE_CANCELLATION_FEE` (0, flat basis only), `SCHEDULED_RIDES_LATE_CANCELLATION_WINDOW_MINUTES` (30), `SCHEDULED_RIDES_ENABLED`, `SCHEDULED_RIDES_MIN_LEAD_MINUTES` (30), `SCHEDULED_RIDES_MAX_ADVANCE_DAYS` (3), `SCHEDULED_RIDES_DISPATCH_LEAD_MINUTES` (15), `SCHEDULED_RIDES_REMINDER_MINUTES` (60), `SCHEDULED_RIDES_MATCHING_GRACE_MINUTES` (10), `SCHEDULED_RIDES_RETRY_WAVE_DELAY_SECONDS` (30), `SCHEDULED_RIDES_MAX_UPCOMING` (3), `SCHEDULED_RIDES_MIN_GAP_MINUTES` (30) — operations can override at runtime |
+| Third-party bookings | `THIRD_PARTY_BOOKINGS_ENABLED`, `THIRD_PARTY_PIN_RECIPIENT` (`both`), `THIRD_PARTY_TRACKING_RECIPIENT` (`both`), `THIRD_PARTY_ALLOW_CASH` (false), `THIRD_PARTY_ALLOW_BANK_TRANSFER` (false), `THIRD_PARTY_MAX_ACTIVE_PER_BOOKER` (2), `THIRD_PARTY_MAX_RIDER_NUMBERS_PER_DAY` (10), `THIRD_PARTY_RIDER_TRIP_UPDATES` (true) — operations can override at runtime; `THIRD_PARTY_TRACKING_URL` (env only) |
 | Upfront fares | `PRICING_TRIP_TIME_TOLERANCE_PCT` (25), `PRICING_TRIP_TIME_TOLERANCE_MIN_MINUTES` (10), `PRICING_MAX_BILLED_TIME_MULTIPLIER` (3) |
 | KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `KYC_SKIP_VERIFICATION` |
 | Push | `FIREBASE_CREDENTIALS_PATH` (path or raw JSON), `FIREBASE_PROJECT_ID` |
@@ -585,3 +605,5 @@ These are deliberate gaps that need a product decision or data, not bugs:
 | Shared journey points | The 1.5× `shared_journey` multiplier can be configured but is never awarded until pooled rides exist (Phase 2); the admin multipliers endpoint returns `is_awarded: false` for it |
 | Existing vehicles' fuel type | Vehicles created before fuel type existed stay `null` until the driver or operations sets it (run `vehicles:request-fuel-types` once to ask them) |
 | Booking latency | The maps call for the route runs inside the booking transaction (passenger row lock); fine at current volume, worth moving out if booking contention appears |
+| Third-party delivery receipts | `rider_notification_status` stops at `sent_whatsapp` / `sent_sms`: Termii delivery reports are not consumed, so `delivered` is never set. Messages are plain text (no driver photo in the message; the tracking page shows it) |
+| Third-party rating | The driver's rating of the trip applies to the booker's account (the rider has none), as on Uber |

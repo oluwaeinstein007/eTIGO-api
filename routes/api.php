@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminScheduledRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
+use App\Http\Controllers\Api\V1\Admin\AdminThirdPartySettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
@@ -475,6 +476,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::delete('/scheduled-rides/{ride}/assign', [AdminScheduledRideController::class, 'unassign']);
         Route::get('/settings/scheduled-rides', [AdminScheduledRideController::class, 'showSettings']);
         Route::put('/settings/scheduled-rides', [AdminScheduledRideController::class, 'updateSettings']);
+        Route::get('/settings/third-party', [AdminThirdPartySettingsController::class, 'show']);
+        Route::put('/settings/third-party', [AdminThirdPartySettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {

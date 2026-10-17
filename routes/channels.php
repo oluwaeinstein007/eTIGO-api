@@ -26,7 +26,9 @@ Broadcast::channel('ride.{rideId}', function (User $user, string $rideId): bool 
         return false;
     }
 
-    return $ride->passenger_id === $user->id
+    // This channel carries the driver's live location, so the booker of a
+    // ride for someone else joins only when the tracking policy includes them.
+    return ($ride->passenger_id === $user->id && $ride->bookerSeesTracking())
         || $ride->driver_id === $user->id;
 });
 

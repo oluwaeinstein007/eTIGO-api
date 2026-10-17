@@ -337,7 +337,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  },\n  \"third_party_bookings\": {\n    \"enabled\": true,\n    \"payment_methods\": [\n      \"wallet\",\n      \"card\"\n    ],\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"max_active_per_booker\": 2\n  }\n}"
             }
           ]
         },
@@ -725,7 +725,7 @@
                     "{{share_token}}"
                   ]
                 },
-                "description": "Public endpoint (no auth). Returns limited ride info for tracking. Share token expires 1 hour after ride completion (returns 410)."
+                "description": "Public endpoint (no auth, 60/min). The data behind trip sharing and the no-app tracking page sent to third-party riders (`GET /track/{ride}/{token}` on the API host renders it). Returns the status, pickup/destination, the driver's first name, photo and car (make, model, colour, plate), the driver's live position and ETA while the ride is active, the emergency number and the E-tiGo safety line. For a third-party ride also `rider_first_name` and `booked_by_first_name`. Nothing about the passenger's account. Expires 1 hour after the ride ends (410)."
               },
               "response": [
                 {
@@ -738,7 +738,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"status\": \"in_progress\",\n    \"status_label\": \"In Progress\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"driver\": {\n      \"first_name\": \"Bayo\"\n    },\n    \"started_at\": \"2026-10-15T15:41:02.000000Z\"\n  }\n}"
+                  "body": "{\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"status\": \"in_progress\",\n    \"status_label\": \"In Progress\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"driver\": {\n      \"first_name\": \"Bayo\",\n      \"profile_photo_url\": null,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LND-123-XY\"\n      }\n    },\n    \"started_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"is_third_party\": true,\n    \"rider_first_name\": \"Ada\",\n    \"booked_by_first_name\": \"Ade\",\n    \"completed_at\": null\n  },\n  \"driver_location\": {\n    \"lat\": 6.5301,\n    \"lng\": 3.3812,\n    \"heading\": 90,\n    \"timestamp\": 1792405262\n  },\n  \"eta\": {\n    \"target\": \"destination\",\n    \"distance_km\": 6.4,\n    \"duration_minutes\": 14\n  },\n  \"safety\": {\n    \"emergency_number\": \"112\",\n    \"safety_line\": \"+2348000000000\"\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 Invalid Link",
@@ -2927,7 +2927,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Ride created successfully.\",\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"co2_saved_kg\": 1.2,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": \"4145\",\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\"\n  },\n  \"pin_code\": \"4145\"\n}"
+                  "body": "{\n  \"message\": \"Ride created successfully.\",\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"co2_saved_kg\": 1.2,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": \"4145\",\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"is_third_party\": false,\n    \"rider\": {\n      \"first_name\": \"Ade\",\n      \"phone\": \"+2348100000001\",\n      \"is_third_party\": false\n    }\n  },\n  \"pin_code\": \"4145\"\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -2968,6 +2968,141 @@
                       "}",
                       "try { remember('ride_id', data.ride.id); } catch (e) {}",
                       "try { remember('share_token', data.ride.share_token); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Book Ride for Someone Else",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides"
+                  ]
+                },
+                "description": "Book and pay for a ride someone else takes (Phase 2, BE2-3P). Same body as **Create Ride** plus `rider_name`, `rider_phone` and `rider_age_confirmed: true` (the rider is 18+ or an adult travels with them). **Sets `{{ride_id}}` and `{{share_token}}`.**\n\n- You (the booker) stay the ride's passenger: you pay, cancel, rate and see the trip in your history.\n- `rider_phone`: E.164, or a Nigerian local number (`0802 000 0002`), stored as `+2348020000002`. Your own number makes it a normal ride.\n- Payment: `wallet` or `card` only by default; `cash` and `bank_transfer` return 422 unless operations allow them.\n- Does not count as your own active ride (you can ride yourself at the same time). Limits: 2 active third-party rides; 10 different rider numbers per 24 hours (cancelled bookings count).\n- The PIN/tracking policy is saved on the ride (`third_party.pin_recipient`, `tracking_recipient`). When a driver is assigned the rider gets a WhatsApp message (SMS fallback) with the driver, car, plate, PIN and a no-app tracking link (`/track/{ride}/{token}`).\n- `pin_code` is null when the policy sends the PIN to the rider only. If the rider's message fails, `rider_notification_status` becomes `failed` and the PIN is shown to you whatever the policy.\n- We never tell you whether the number has an E-tiGo account.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"vehicle_class_id\": \"{{economy_class_id}}\",\n  \"pickup_lat\": 6.5244,\n  \"pickup_lng\": 3.3792,\n  \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n  \"destination_lat\": 6.4541,\n  \"destination_lng\": 3.3947,\n  \"destination_address\": \"456 Broad Street, Lagos Island, Lagos\",\n  \"payment_method\": \"card\",\n  \"rider_name\": \"Ada Okafor\",\n  \"rider_phone\": \"+2348020000002\",\n  \"rider_age_confirmed\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Third-Party Ride Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride created successfully.\",\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"co2_saved_kg\": 1.2,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": \"4145\",\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"is_third_party\": true,\n    \"rider\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348020000002\",\n      \"is_third_party\": true\n    },\n    \"third_party\": {\n      \"rider_name\": \"Ada Okafor\",\n      \"rider_phone\": \"+2348020000002\",\n      \"pin_recipient\": \"both\",\n      \"tracking_recipient\": \"both\",\n      \"rider_notification_status\": \"pending\",\n      \"rider_notification_channel\": null,\n      \"rider_notified_at\": null,\n      \"booker_sees_pin\": true,\n      \"booker_sees_tracking\": true\n    }\n  },\n  \"pin_code\": \"4145\"\n}"
+                },
+                {
+                  "name": "201 \u2014 Rider-Only PIN (no pin_code)",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride created successfully.\",\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"co2_saved_kg\": 1.2,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"is_third_party\": true,\n    \"rider\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348020000002\",\n      \"is_third_party\": true\n    },\n    \"third_party\": {\n      \"rider_name\": \"Ada Okafor\",\n      \"rider_phone\": \"+2348020000002\",\n      \"pin_recipient\": \"rider\",\n      \"tracking_recipient\": \"both\",\n      \"rider_notification_status\": \"pending\",\n      \"rider_notification_channel\": null,\n      \"rider_notified_at\": null,\n      \"booker_sees_pin\": false,\n      \"booker_sees_tracking\": true\n    }\n  },\n  \"pin_code\": null\n}"
+                },
+                {
+                  "name": "422 \u2014 Cash Not Allowed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cash can't be used when you book for someone else. Pay by wallet or card.\",\n  \"errors\": {\n    \"payment_method\": [\n      \"Cash can't be used when you book for someone else. Pay by wallet or card.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Age Not Confirmed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Confirm that the rider is 18 or over, or that an adult is travelling with them.\",\n  \"errors\": {\n    \"rider_age_confirmed\": [\n      \"Confirm that the rider is 18 or over, or that an adult is travelling with them.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Too Many Active",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You can have at most 2 rides for other people at the same time.\",\n  \"errors\": {\n    \"rider_phone\": [\n      \"You can have at most 2 rides for other people at the same time.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Too Many Numbers",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You can book for at most 10 different people in 24 hours.\",\n  \"errors\": {\n    \"rider_phone\": [\n      \"You can book for at most 10 different people in 24 hours.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Feature Off",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Booking a ride for someone else is not available right now.\",\n  \"errors\": {\n    \"rider_phone\": [\n      \"Booking a ride for someone else is not available right now.\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const ride = pm.response.json().ride;",
+                      "    pm.collectionVariables.set('ride_id', ride.id);",
+                      "    if (ride.share_token) { pm.collectionVariables.set('share_token', ride.share_token); }",
+                      "}"
                     ]
                   }
                 }
@@ -3059,6 +3194,69 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"scheduled_pickup_at\": [\n      \"The scheduled pickup time must include a timezone offset, e.g. 2026-10-20T07:30:00+01:00.\"\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Book Scheduled Ride for Someone Else",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides"
+                  ]
+                },
+                "description": "A scheduled booking (`scheduled_pickup_at`) for someone else. The rider gets a WhatsApp/SMS reminder with the booking details (no PIN) at the scheduled-ride reminder time (60 min before pickup by default), and the driver details, PIN and tracking link when a driver is on the way. Bookings only clash (`min_minutes_between_bookings`) when they are for the same person, and dispatch is not held up by your own ride. Editing the booking to `cash`/`bank_transfer` is refused like at booking. **Sets `{{ride_id}}`.**",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"vehicle_class_id\": \"{{economy_class_id}}\",\n  \"pickup_lat\": 6.5244,\n  \"pickup_lng\": 3.3792,\n  \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n  \"destination_lat\": 6.5774,\n  \"destination_lng\": 3.321,\n  \"destination_address\": \"Murtala Muhammed International Airport, Ikeja\",\n  \"payment_method\": \"card\",\n  \"scheduled_pickup_at\": \"2026-10-20T05:30:00+01:00\",\n  \"rider_name\": \"Ada Okafor\",\n  \"rider_phone\": \"+2348020000002\",\n  \"rider_age_confirmed\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Scheduled for Someone Else",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Ride scheduled successfully.\",\n  \"ride\": {\n    \"id\": \"01a142a2-0d1b-7393-aa4e-743b38e7cc53\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n    \"vehicle_class_id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n    \"passenger_id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.5774000\",\n      \"lng\": \"3.3210000\",\n      \"address\": \"Murtala Muhammed International Airport, Ikeja\"\n    },\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"is_scheduled\": true,\n    \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n    \"scheduled\": {\n      \"scheduled_pickup_at\": \"2026-10-20T04:30:00.000000Z\",\n      \"dispatch_at\": \"2026-10-20T04:15:00.000000Z\",\n      \"can_edit\": true,\n      \"reminder_sent_at\": null,\n      \"dispatched_at\": null,\n      \"cancelled_at\": null,\n      \"dispatch_failure_reason\": null,\n      \"reservation_fee\": 0,\n      \"reserved_driver\": null,\n      \"reserved_at\": null,\n      \"reserved_by_operations\": false,\n      \"reservation_released_reason\": null,\n      \"cancellation_fee_if_cancelled_now\": 0,\n      \"late_cancellation_fee\": null,\n      \"late_cancellation_fee_status\": null\n    },\n    \"share_token\": \"kGuDBI4w87Knu4hbij7zg0ZwkuNaGlRB\",\n    \"fare_estimate_amount\": \"6500.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"distance_km\": 18,\n    \"duration_minutes\": 35,\n    \"co2_saved_kg\": 2.16,\n    \"payment_method\": \"card\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a142a2-0ced-71e5-8ec2-7ea9c97b84d6\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a142a2-0cee-71ca-9007-d7763d7881b7\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": \"lite\",\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a142a2-0ce5-73a0-a03d-7135967d9bd5\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"is_third_party\": true,\n    \"third_party\": {\n      \"rider_name\": \"Ada Okafor\",\n      \"rider_phone\": \"+2348020000002\",\n      \"pin_recipient\": \"both\",\n      \"tracking_recipient\": \"both\",\n      \"rider_notification_status\": \"pending\",\n      \"rider_notification_channel\": null,\n      \"rider_notified_at\": null,\n      \"booker_sees_pin\": true,\n      \"booker_sees_tracking\": true\n    },\n    \"rider\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348020000002\",\n      \"is_third_party\": true\n    }\n  },\n  \"pin_code\": null\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const ride = pm.response.json().ride;",
+                      "    pm.collectionVariables.set('ride_id', ride.id);",
+                      "    if (ride.share_token) { pm.collectionVariables.set('share_token', ride.share_token); }",
+                      "}"
+                    ]
+                  }
                 }
               ]
             },
@@ -3395,6 +3593,39 @@
               ]
             },
             {
+              "name": "List Rides \u2014 Third-Party Only",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides?is_third_party=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides"
+                  ],
+                  "query": [
+                    {
+                      "key": "is_third_party",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "`is_third_party=1` lists only rides you booked for someone else; `0` only your own. Omit for all."
+              },
+              "response": []
+            },
+            {
               "name": "Show Ride",
               "request": {
                 "method": "GET",
@@ -3636,7 +3867,7 @@
                     "location"
                   ]
                 },
-                "description": "Polling fallback when the WebSocket drops. Ride passenger, assigned driver or admin.\n\n- Active ride: the driver's latest position (`lat`, `lng`, `heading`, `speed`, `timestamp`) and a throttled `eta` (to pickup before the trip, to the destination during it).\n- Ride completed or cancelled: `location` is `null` with \"Live location is only available during an active ride.\" \u2014 admins still get the last position.\n- No recent position: `\"Driver location unavailable.\"`\n\nPrefer the `private-ride.{rideId}` channel for real-time updates."
+                "description": "Polling fallback when the WebSocket drops. Ride passenger, assigned driver or admin.\n\n- Active ride: the driver's latest position (`lat`, `lng`, `heading`, `speed`, `timestamp`) and a throttled `eta` (to pickup before the trip, to the destination during it).\n- Ride completed or cancelled: `location` is `null` with \"Live location is only available during an active ride.\" \u2014 admins still get the last position.\n- No recent position: `\"Driver location unavailable.\"`\n\nPrefer the `private-ride.{rideId}` channel for real-time updates.\n\n**Third-party ride:** the booker gets 403 when the tracking policy is rider-only (unless the rider's message failed)."
               },
               "response": [
                 {
@@ -3755,7 +3986,7 @@
                     "active-ride"
                   ]
                 },
-                "description": "Returns the passenger's current active ride (searching, matched, en-route, arrived, or in-progress). Returns `null` if none."
+                "description": "Returns the passenger's current active ride (searching, matched, en-route, arrived, or in-progress). Returns `null` if none.\n\n**Third-party bookings (Phase 2):** `ride` is your own ride in progress; rides you booked for other people that are in progress are in `third_party_rides` (an array, empty when none)."
               },
               "response": [
                 {
@@ -3768,7 +3999,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Silver\",\n      \"captured_at\": \"2026-10-15T15:41:02+00:00\",\n      \"distance_km\": 10,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-15T15:41:02+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 25,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a14039-578d-718b-99f8-622e5934aa0a\",\n      \"waiting_time_rate\": \"50.00\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 2\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"driver\": null,\n    \"cancelled_by\": null,\n    \"state_transitions\": [\n      {\n        \"id\": \"01a14039-5912-7055-ae32-ff78f5dcb292\",\n        \"from_state\": \"requested\",\n        \"to_state\": \"searching\",\n        \"triggered_by_type\": \"passenger\",\n        \"triggered_by_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n        \"metadata\": null,\n        \"created_at\": \"2026-10-15T15:41:02.000000Z\"\n      }\n    ],\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": \"4145\",\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\"\n  }\n}"
+                  "body": "{\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": null,\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"searching\",\n    \"status_label\": \"Searching for Driver\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Silver\",\n      \"captured_at\": \"2026-10-15T15:41:02+00:00\",\n      \"distance_km\": 10,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-15T15:41:02+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 25,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a14039-578d-718b-99f8-622e5934aa0a\",\n      \"waiting_time_rate\": \"50.00\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 2\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"driver\": null,\n    \"cancelled_by\": null,\n    \"state_transitions\": [\n      {\n        \"id\": \"01a14039-5912-7055-ae32-ff78f5dcb292\",\n        \"from_state\": \"requested\",\n        \"to_state\": \"searching\",\n        \"triggered_by_type\": \"passenger\",\n        \"triggered_by_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n        \"metadata\": null,\n        \"created_at\": \"2026-10-15T15:41:02.000000Z\"\n      }\n    ],\n    \"matched_at\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"pin_code\": \"4145\",\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\"\n  },\n  \"third_party_rides\": []\n}"
                 }
               ]
             },
@@ -3962,7 +4193,7 @@
                     "regenerate"
                   ]
                 },
-                "description": "Passenger issues a fresh 4-digit PIN with 3 new attempts (for example after the driver used them up). Allowed once a driver is assigned and before the trip starts (`matched`, `driver_en_route`, `driver_arrived`); the previous PIN stops working. Before a driver is assigned \u2192 422 \"A new PIN can be issued once a driver has been assigned.\"; after the trip starts \u2192 422. Rate limit 5/min."
+                "description": "Passenger issues a fresh 4-digit PIN with 3 new attempts (for example after the driver used them up). Allowed once a driver is assigned and before the trip starts (`matched`, `driver_en_route`, `driver_arrived`); the previous PIN stops working. Before a driver is assigned \u2192 422 \"A new PIN can be issued once a driver has been assigned.\"; after the trip starts \u2192 422. Rate limit 5/min.\n\n**Third-party ride:** the new PIN is sent to the rider again when the policy includes them (`rider_notification_status` restarts at `pending`; it stays `failed` if the last message failed, so you keep seeing the PIN). `pin_code` is null when the policy gives the PIN to the rider only."
               },
               "response": [
                 {
@@ -4000,6 +4231,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"A new PIN can be issued once a driver has been assigned.\",\n  \"current_status\": \"searching\"\n}"
+                },
+                {
+                  "name": "200 \u2014 Third-Party (sent to rider)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A new PIN has been issued and sent to Ada.\",\n  \"pin_code\": \"7302\",\n  \"rider_notification_status\": \"pending\"\n}"
                 }
               ]
             }
@@ -15336,6 +15579,116 @@
           "description": "Scheduled rides (Phase 2): upcoming bookings, driver pre-assignment and the scheduling settings. Role: operations (and super_admin)."
         },
         {
+          "name": "Admin \u2014 Third-Party Bookings",
+          "description": "Policy for rides passengers book for someone else (Phase 2, OQ-18 recommendation, awaiting client confirmation). Role: operations. Changes apply to new bookings only; each ride keeps the recipients it was booked with.",
+          "item": [
+            {
+              "name": "Get Third-Party Booking Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/third-party",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "third-party"
+                  ]
+                },
+                "description": "Current policy: runtime overrides over `config/third_party.php`. Role: operations."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"allow_cash\": false,\n    \"allow_bank_transfer\": false,\n    \"max_active_per_booker\": 2,\n    \"max_rider_numbers_per_day\": 10,\n    \"rider_trip_updates\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Third-Party Booking Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/third-party",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "third-party"
+                  ]
+                },
+                "description": "Send any subset: `enabled`, `pin_recipient` and `tracking_recipient` (`booker`, `rider`, `both`; default `both`), `allow_cash`, `allow_bank_transfer` (default false), `max_active_per_booker` (1\u201310, default 2), `max_rider_numbers_per_day` (1\u2013100, default 10), `rider_trip_updates` (also message the rider on driver arrival and cancellation; default true). Audit-logged. Whatever the recipients, the booker sees the PIN when the rider's message fails.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pin_recipient\": \"rider\",\n  \"allow_cash\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Third-party booking settings updated. They apply to new bookings.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"pin_recipient\": \"rider\",\n    \"tracking_recipient\": \"both\",\n    \"allow_cash\": true,\n    \"allow_bank_transfer\": false,\n    \"max_active_per_booker\": 2,\n    \"max_rider_numbers_per_day\": 10,\n    \"rider_trip_updates\": true\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Validation Error",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The selected pin recipient is invalid.\",\n  \"errors\": {\n    \"pin_recipient\": [\n      \"The selected pin recipient is invalid.\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Admin \u2014 Dispute Management",
           "item": [
             {
@@ -22085,7 +22438,8 @@
             }
           ]
         }
-      ]
+      ],
+      "description": "**`ride.rider_notification.updated`** on `private-user.{booker_id}` (third-party rides, booker only): `{ ride_id, rider_notification_status, rider_notification_channel, rider_notified_at, booker_sees_pin, booker_sees_tracking }`. When `booker_sees_pin` turns true, fetch the ride to show the PIN. On a rider-only tracking ride the booker cannot join `private-ride.{id}` (it carries the driver's location)."
     },
     {
       "name": "Webhooks",

@@ -32,6 +32,9 @@ class RideRequestDispatched implements ShouldBroadcastNow
         public ?float $durationMinutes,
         // Set for a scheduled ride: the pickup time the passenger booked.
         public ?string $scheduledPickupAt = null,
+        // Booked by the passenger for someone else: passengerName is then the
+        // rider's first name.
+        public bool $isThirdParty = false,
     ) {}
 
     /**
@@ -72,6 +75,7 @@ class RideRequestDispatched implements ShouldBroadcastNow
             'distance_km' => $this->distanceKm,
             'duration_minutes' => $this->durationMinutes,
             'scheduled_pickup_at' => $this->scheduledPickupAt,
+            'is_third_party' => $this->isThirdParty,
         ];
     }
 }

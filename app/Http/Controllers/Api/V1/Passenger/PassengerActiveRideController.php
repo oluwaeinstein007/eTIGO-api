@@ -10,6 +10,10 @@ use Illuminate\Http\Request;
 
 class PassengerActiveRideController extends Controller
 {
+    /**
+     * The passenger's own ride in progress (`ride`), and the rides they
+     * booked for other people that are in progress (`third_party_rides`).
+     */
     public function show(Request $request): JsonResponse
     {
         $activeStatuses = array_map(
@@ -17,7 +21,7 @@ class PassengerActiveRideController extends Controller
             RideStatus::activeStatuses(),
         );
 
-        $ride = $request->user()->rides()
+        $rides = $request->user()->rides()
             ->whereIn('status', $activeStatuses)
             ->with([
                 'city',
@@ -28,10 +32,15 @@ class PassengerActiveRideController extends Controller
                 'cancelledByUser',
             ])
             ->orderByDesc('created_at')
-            ->first();
+            ->get();
+
+        $ride = $rides->firstWhere('is_third_party', false);
 
         return response()->json([
             'ride' => $ride === null ? null : (new RideDetailResource($ride))->resolve($request),
+            'third_party_rides' => $rides->where('is_third_party', true)
+                ->values()
+                ->map(fn ($thirdPartyRide) => (new RideDetailResource($thirdPartyRide))->resolve($request)),
         ]);
     }
 }

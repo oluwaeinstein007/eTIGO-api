@@ -2,12 +2,14 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\PresentsThirdPartyRide;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Cache;
 
 class RideDetailResource extends JsonResource
 {
+    use PresentsThirdPartyRide;
+
     /**
      * @return array<string, mixed>
      */
@@ -37,7 +39,7 @@ class RideDetailResource extends JsonResource
             'scheduled' => $this->scheduledRide
                 ? new ScheduledRideResource($this->scheduledRide, $this->resource)
                 : null,
-            'share_token' => $this->share_token,
+            'share_token' => $this->shareTokenField($request),
             'fare_estimate_amount' => $this->fare_estimate_amount,
             'final_fare_amount' => $this->final_fare_amount,
             'discount_amount' => $this->discount_amount,
@@ -56,17 +58,15 @@ class RideDetailResource extends JsonResource
             'cancellation_reason' => $this->cancellation_reason,
             'city' => new CityResource($this->whenLoaded('city')),
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
-            'passenger' => new UserResource($this->whenLoaded('passenger')),
+            'passenger' => $this->passengerField($request),
             'driver' => new UserResource($this->whenLoaded('driver')),
             'cancelled_by' => new UserResource($this->whenLoaded('cancelledByUser')),
             'state_transitions' => RideStateTransitionResource::collection($this->whenLoaded('stateTransitions')),
             'matched_at' => $this->matched_at,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
-            'pin_code' => $this->when(
-                $request->user()?->id === $this->passenger_id,
-                fn () => Cache::get("ride:{$this->id}:pin_code"),
-            ),
+            'pin_code' => $this->pinCodeField($request),
+            ...$this->thirdPartyFields($request),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

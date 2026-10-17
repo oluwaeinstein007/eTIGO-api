@@ -16,4 +16,11 @@ class LogSmsGateway implements SmsGateway
 
         return true;
     }
+
+    public function deliver(string $phone, string $message): ?string
+    {
+        $this->send($phone, $message);
+
+        return 'whatsapp';
+    }
 }

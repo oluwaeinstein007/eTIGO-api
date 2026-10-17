@@ -18,6 +18,7 @@ class RideStateMachine
 {
     public function __construct(
         private RideNotificationService $notificationService,
+        private ThirdPartyRoutingService $thirdPartyRouting,
     ) {}
 
     /**
@@ -165,6 +166,22 @@ class RideStateMachine
             ));
         } catch (\Throwable) {
             // Reverb failures must not roll back a committed ride transition.
+        }
+
+        // A ride booked for someone else: the rider hears by WhatsApp/SMS.
+        $riderMessage = match ($newStatus) {
+            RideStatus::DriverEnRoute => ThirdPartyRoutingService::DRIVER_DETAILS,
+            RideStatus::DriverArrived => ThirdPartyRoutingService::DRIVER_ARRIVED,
+            RideStatus::Cancelled => ThirdPartyRoutingService::CANCELLED,
+            default => null,
+        };
+
+        if ($riderMessage !== null && $ride->is_third_party) {
+            try {
+                $this->thirdPartyRouting->queue($ride, $riderMessage);
+            } catch (\Throwable) {
+                // Rider messaging failures must not break the ride transition.
+            }
         }
 
         if ($from === RideStatus::Searching || $newStatus === RideStatus::Searching) {

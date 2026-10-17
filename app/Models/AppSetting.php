@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ThirdPartyRecipient;
 use Illuminate\Database\Eloquent\Model;
 
 class AppSetting extends Model
@@ -104,6 +105,29 @@ class AppSetting extends Model
             'late_cancellation_fee_vehicle_class' => (string) $value('late_cancellation_fee_vehicle_class'),
             'late_cancellation_fee' => round((float) $value('late_cancellation_fee'), 2),
             'late_cancellation_window_minutes' => (int) $value('late_cancellation_window_minutes'),
+        ];
+    }
+
+    /**
+     * Third-party booking policy (Phase 2, BE2-3P-02): the admin's runtime
+     * overrides (PUT /admin/settings/third-party) over config/third_party.php.
+     *
+     * @return array{enabled: bool, pin_recipient: string, tracking_recipient: string, allow_cash: bool, allow_bank_transfer: bool, max_active_per_booker: int, max_rider_numbers_per_day: int, rider_trip_updates: bool}
+     */
+    public static function thirdParty(): array
+    {
+        $settings = static::where('group', 'third_party')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["third_party.{$key}"] ?? config("third_party.{$key}");
+
+        return [
+            'enabled' => filter_var($value('enabled'), FILTER_VALIDATE_BOOLEAN),
+            'pin_recipient' => ThirdPartyRecipient::tryFrom((string) $value('pin_recipient'))?->value ?? ThirdPartyRecipient::Both->value,
+            'tracking_recipient' => ThirdPartyRecipient::tryFrom((string) $value('tracking_recipient'))?->value ?? ThirdPartyRecipient::Both->value,
+            'allow_cash' => filter_var($value('allow_cash'), FILTER_VALIDATE_BOOLEAN),
+            'allow_bank_transfer' => filter_var($value('allow_bank_transfer'), FILTER_VALIDATE_BOOLEAN),
+            'max_active_per_booker' => (int) $value('max_active_per_booker'),
+            'max_rider_numbers_per_day' => (int) $value('max_rider_numbers_per_day'),
+            'rider_trip_updates' => filter_var($value('rider_trip_updates'), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 }

@@ -52,7 +52,9 @@ class RideNotificationService
             userId: $ride->passenger_id,
             type: NotificationType::RideMatched,
             title: 'Driver Found!',
-            body: "Your driver {$ride->driver?->first_name} is on the way.",
+            body: $ride->is_third_party
+                ? "Your driver {$ride->driver?->first_name} is on the way to pick up {$ride->riderFirstName()}."
+                : "Your driver {$ride->driver?->first_name} is on the way.",
             data: ['ride_id' => (string) $ride->id],
         );
 
@@ -73,7 +75,9 @@ class RideNotificationService
             userId: $ride->passenger_id,
             type: NotificationType::DriverEnRoute,
             title: 'Driver En Route',
-            body: 'Your driver is on the way to pick you up.',
+            body: $ride->is_third_party
+                ? "The driver is on the way to pick up {$ride->riderFirstName()}."
+                : 'Your driver is on the way to pick you up.',
             data: ['ride_id' => (string) $ride->id],
         );
     }
@@ -84,7 +88,9 @@ class RideNotificationService
             userId: $ride->passenger_id,
             type: NotificationType::DriverArriving,
             title: 'Driver Has Arrived',
-            body: 'Your driver is waiting at the pickup location.',
+            body: $ride->is_third_party
+                ? "The driver is waiting for {$ride->riderFirstName()} at the pickup location."
+                : 'Your driver is waiting at the pickup location.',
             data: ['ride_id' => (string) $ride->id],
         );
     }
@@ -95,7 +101,9 @@ class RideNotificationService
             userId: $ride->passenger_id,
             type: NotificationType::RideStarted,
             title: 'Ride Started',
-            body: "Heading to {$ride->destination_address}",
+            body: $ride->is_third_party
+                ? "{$ride->riderFirstName()}'s trip has started. Heading to {$ride->destination_address}"
+                : "Heading to {$ride->destination_address}",
             data: ['ride_id' => (string) $ride->id],
         );
     }

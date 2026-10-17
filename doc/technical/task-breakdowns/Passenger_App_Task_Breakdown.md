@@ -207,11 +207,13 @@
 
 **PRD refs:** P-23, P-24
 
+> **API ready (18 Oct 2026).** What changed for the app: [FRONTEND_UPDATE_THIRD_PARTY_BOOKINGS.md](../FRONTEND_UPDATE_THIRD_PARTY_BOOKINGS.md); endpoints: [API reference — Third-Party Bookings](../API_REFERENCE.md#third-party-bookings).
+
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-P3P-01 | `[ ]` Add "Book for Someone Else" toggle to booking flow: show rider name + rider phone fields when active; "rider is 18+ or accompanied" confirmation; offer only the payment methods the policy allows (wallet/card by default) | P-23 | 📡 BE2-3P-03 | Pick from contacts. Rider phone = own phone → normal ride |
-| FE2-P3P-02 | `[ ]` Build third-party ride tracking: booker's view of ride progress; show PIN and live map when the ride's policy includes the booker (default: both); show the "rider couldn't be reached — share this PIN" alert | P-24 | 📡 BE2-3P-04, BE2-3P-06 | OQ-18 recommended: PIN and tracking to both. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
-| FE2-P3P-03 | `[ ]` Build rider notification flow: WhatsApp/SMS to rider with ride details, PIN and tracking link (sent by the backend); show the booker the `rider_notification_status` (pending / sent by WhatsApp / sent by SMS / delivered / failed) from the ride resource and `ride.rider_notification.updated` | P-24 | 📡 BE2-3P-04, BE2-3P-06 | Messages are sent server-side; no app needed by the rider |
+| FE2-P3P-01 | `[ ]` Add "Book for Someone Else" toggle to booking flow: show rider name + rider phone fields when active; "rider is 18+ or accompanied" confirmation; offer only the payment methods the policy allows (wallet/card by default) | P-23 | 📡 BE2-3P-03 | Pick from contacts. Rider phone = own phone → normal ride. API ready: `POST /rides` + `rider_name`, `rider_phone`, `rider_age_confirmed`; `GET /config` → `third_party_bookings` (`enabled`, `payment_methods`) |
+| FE2-P3P-02 | `[ ]` Build third-party ride tracking: booker's view of ride progress; show PIN and live map when the ride's policy includes the booker (default: both); show the "rider couldn't be reached — share this PIN" alert | P-24 | 📡 BE2-3P-04, BE2-3P-06 | OQ-18 recommended: PIN and tracking to both. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md). API ready: `third_party` object, `pin_code` (null when withheld), `GET /passenger/active-ride` → `third_party_rides`; `third_party_rider_unreachable` push |
+| FE2-P3P-03 | `[ ]` Build rider notification flow: WhatsApp/SMS to rider with ride details, PIN and tracking link (sent by the backend); show the booker the `rider_notification_status` (pending / sent by WhatsApp / sent by SMS / delivered / failed) from the ride resource and `ride.rider_notification.updated` | P-24 | 📡 BE2-3P-04, BE2-3P-06 | Messages are sent server-side; no app needed by the rider. API ready: `third_party.rider_notification_status`; `ride.rider_notification.updated` on `private-user.{id}` (`delivered` not sent yet) |
 
 ---
 

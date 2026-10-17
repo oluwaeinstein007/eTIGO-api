@@ -68,7 +68,7 @@ it('returns a null ride when the passenger has no active ride', function () {
     $this->withToken($token)
         ->getJson('/api/v1/passenger/active-ride')
         ->assertOk()
-        ->assertExactJson(['ride' => null]);
+        ->assertExactJson(['ride' => null, 'third_party_rides' => []]);
 });
 
 it('requires authentication to get the current active ride', function () {

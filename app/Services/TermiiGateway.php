@@ -27,14 +27,18 @@ class TermiiGateway implements SmsGateway
 
     public function send(string $phone, string $message): bool
     {
-        $sent = $this->sendViaChannel($phone, $message, 'whatsapp');
+        return $this->deliver($phone, $message) !== null;
+    }
 
-        if (! $sent) {
-            Log::info('Termii WhatsApp delivery failed, falling back to SMS', ['phone' => $phone]);
-            $sent = $this->sendViaChannel($phone, $message, 'dnd');
+    public function deliver(string $phone, string $message): ?string
+    {
+        if ($this->sendViaChannel($phone, $message, 'whatsapp')) {
+            return 'whatsapp';
         }
 
-        return $sent;
+        Log::info('Termii WhatsApp delivery failed, falling back to SMS', ['phone' => $phone]);
+
+        return $this->sendViaChannel($phone, $message, 'dnd') ? 'sms' : null;
     }
 
     public function sendViaChannel(string $phone, string $message, string $channel): bool
