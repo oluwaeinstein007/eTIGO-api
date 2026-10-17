@@ -20,8 +20,9 @@ use Illuminate\Support\Str;
 
 class PaymentMethodController extends Controller
 {
+    // The wallet gateway is injected per method: it needs Paystack configured,
+    // which listing or removing saved cards does not.
     public function __construct(
-        private WalletGateway $walletGateway,
         private LedgerService $ledgerService,
         private SavedCardService $savedCards,
     ) {}
@@ -65,7 +66,7 @@ class PaymentMethodController extends Controller
      * is a wallet top-up: it is credited to their wallet, and the card is
      * saved once the payment succeeds.
      */
-    public function initialize(InitializePaymentRequest $request): JsonResponse
+    public function initialize(InitializePaymentRequest $request, WalletGateway $walletGateway): JsonResponse
     {
         $user = $request->user();
         $amountKobo = AppSetting::wallet('card_verification_amount');
@@ -79,7 +80,7 @@ class PaymentMethodController extends Controller
         $txRef = 'TOPUP-'.Str::upper(Str::random(12));
 
         try {
-            $result = $this->walletGateway->initializePayment([
+            $result = $walletGateway->initializePayment([
                 'tx_ref' => $txRef,
                 'amount' => $amountKobo / 100,
                 'currency' => 'NGN',
@@ -120,7 +121,7 @@ class PaymentMethodController extends Controller
      * tx_ref. A successful payment is credited to the wallet (the webhook
      * does the same, only once) and the card is saved.
      */
-    public function verify(Request $request, string $transactionId): JsonResponse
+    public function verify(Request $request, WalletGateway $walletGateway, string $transactionId): JsonResponse
     {
         $user = $request->user();
 
@@ -135,7 +136,7 @@ class PaymentMethodController extends Controller
         }
 
         try {
-            $result = $this->walletGateway->verifyTransaction($transaction->reference);
+            $result = $walletGateway->verifyTransaction($transaction->reference);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Unable to verify transaction.'], 502);
         }
