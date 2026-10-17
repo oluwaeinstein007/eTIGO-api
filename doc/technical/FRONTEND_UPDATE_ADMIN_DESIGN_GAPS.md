@@ -1,7 +1,7 @@
 # Admin Dashboard Design Gaps: Backend Changes
 
 **Date:** October 17, 2026  
-**Backend:** branch `fix/admin-dashboard-design-gaps`; live on staging once merged  
+**Backend:** PR #102 (`fix/admin-dashboard-design-gaps`); live on staging once merged  
 **Prepared for:** Admin dashboard team (also read §7 if you work on the passenger or driver app)
 
 This answers the "Admin dashboard: designs compared with the API" document, item by item, for promos, Safety and SOS, anti-offline compliance, EV charging stations and passenger wallets. Most gaps are now closed in the API. A few stay as they are on purpose; those are in §6 with the reason, and need a design change instead.
