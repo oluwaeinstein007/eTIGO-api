@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Contracts\PushNotificationGateway;
-use App\Enums\DisputeOutcome;
 use App\Enums\DriverStatus;
 use App\Enums\SanctionTier;
 use App\Models\AuditLog;
@@ -67,10 +66,7 @@ class SanctionService
     {
         $recentFlagCount = OfflineTripFlag::forDriver($driverUserId)
             ->withinLookback()
-            ->where(function ($q) {
-                $q->where('is_disputed', false)
-                    ->orWhere('dispute_outcome', '!=', DisputeOutcome::Overturned);
-            })
+            ->notOverturned()
             ->count();
 
         return match (true) {
@@ -187,6 +183,57 @@ class SanctionService
         return $drivers->count();
     }
 
+    /**
+     * Bring the driver in line with a flag moved down a tier. Only the driver's
+     * latest flag decides their current compliance sanction, and only
+     * suspensions this service imposed are changed; one an admin made by hand
+     * is left alone.
+     */
+    public function deEscalate(OfflineTripFlag $flag, SanctionTier $newTier): void
+    {
+        $driver = Driver::where('user_id', $flag->driver_id)->first();
+
+        if (! $driver || ! $driver->isSuspended()
+            || ! in_array($driver->suspension_reason, [self::AUTOMATIC_SUSPENSION_REASON, self::DEACTIVATION_REVIEW_REASON], true)) {
+            return;
+        }
+
+        $latestFlagId = OfflineTripFlag::forDriver($flag->driver_id)
+            ->notOverturned()
+            ->latest('flagged_at')
+            ->value('id');
+
+        if ($latestFlagId !== $flag->id) {
+            return;
+        }
+
+        if ($newTier === SanctionTier::Suspension) {
+            // The 48-hour clock runs from when the suspension began.
+            $driver->update(['suspension_reason' => self::AUTOMATIC_SUSPENSION_REASON]);
+            $hours = config('offline_detection.suspension_hours', 48);
+
+            rescue(fn () => $this->pushGateway->sendToUser($driver->user_id, [
+                'title' => 'Sanction Reduced',
+                'body' => "Your account is no longer under deactivation review. Your suspension ends {$hours} hours after it began.",
+                'data' => ['type' => 'compliance_warning', 'suspension_hours' => $hours],
+            ]));
+
+            return;
+        }
+
+        $driver->update([
+            'status' => DriverStatus::Approved,
+            'suspended_at' => null,
+            'suspension_reason' => null,
+        ]);
+
+        rescue(fn () => $this->pushGateway->sendToUser($driver->user_id, [
+            'title' => 'Suspension Lifted',
+            'body' => 'Your compliance sanction has been reduced to a warning. You can go online again.',
+            'data' => ['type' => 'compliance_warning', 'reinstated' => true],
+        ]));
+    }
+
     public function reverseSanction(OfflineTripFlag $flag): void
     {
         $driver = Driver::where('user_id', $flag->driver_id)->first();
@@ -198,10 +245,7 @@ class SanctionService
             $remainingActiveFlags = OfflineTripFlag::forDriver($flag->driver_id)
                 ->withinLookback()
                 ->where('id', '!=', $flag->id)
-                ->where(function ($q) {
-                    $q->where('is_disputed', false)
-                        ->orWhere('dispute_outcome', '!=', DisputeOutcome::Overturned);
-                })
+                ->notOverturned()
                 ->count();
 
             if ($remainingActiveFlags === 0) {

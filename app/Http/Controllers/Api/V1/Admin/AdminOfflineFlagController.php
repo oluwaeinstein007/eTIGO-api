@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Contracts\PushNotificationGateway;
 use App\Enums\DisputeOutcome;
 use App\Enums\DriverStatus;
+use App\Enums\OfflineFlagStatus;
 use App\Enums\SanctionTier;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\OfflineFlag\DeEscalateFlagFormRequest;
 use App\Http\Requests\OfflineFlag\EscalateFlagFormRequest;
 use App\Http\Requests\OfflineFlag\ReviewFlagFormRequest;
 use App\Http\Resources\OfflineFlagResource;
@@ -17,16 +19,36 @@ use App\Services\DriverLocationService;
 use App\Services\SanctionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class AdminOfflineFlagController extends Controller
 {
+    /**
+     * Audit events that make up a flag's history, with how each reads.
+     */
+    private const HISTORY_EVENTS = [
+        'offline_trip_flagged' => 'Flagged by automatic detection',
+        'offline_flag_disputed' => 'Disputed by the driver',
+        'offline_flag_reviewed' => 'Reviewed',
+        'offline_flag_escalated' => 'Escalated',
+        'offline_flag_de_escalated' => 'De-escalated',
+        'offline_flag_deactivation_confirmed' => 'Deactivation confirmed',
+    ];
+
     public function __construct(
         private readonly SanctionService $sanctionService,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            // "active" (not yet resolved) is kept from before the derived status.
+            'status' => ['nullable', Rule::in([...array_column(OfflineFlagStatus::cases(), 'value'), 'active'])],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+
         $flags = OfflineTripFlag::query()
             ->with(['driver', 'passenger', 'ride', 'resolvedBy'])
             ->when($request->query('sanction_tier'), function ($query, $tier) {
@@ -47,12 +69,12 @@ class AdminOfflineFlagController extends Controller
             ->when($request->query('date_to'), function ($query, $date) {
                 $query->where('flagged_at', '<=', $date);
             })
-            ->when($request->query('status') === 'active', function ($query) {
-                $query->active();
+            ->when($request->query('status'), function ($query, $status) {
+                $status === 'active'
+                    ? $query->active()
+                    : $query->withStatus(OfflineFlagStatus::from($status));
             })
-            ->when($request->query('status') === 'disputed', function ($query) {
-                $query->disputed();
-            })
+            ->when($request->query('search'), fn ($query, $search) => $query->search($search))
             ->orderBy('flagged_at', 'desc')
             ->paginate($this->perPage($request));
 
@@ -70,11 +92,39 @@ class AdminOfflineFlagController extends Controller
 
     public function show(OfflineTripFlag $flag): JsonResponse
     {
-        $flag->load(['driver', 'passenger', 'ride.city', 'ride.vehicleClass', 'resolvedBy']);
+        $flag->load(['driver.driver.city', 'passenger', 'ride.city', 'ride.vehicleClass', 'resolvedBy']);
+
+        $lookbackDays = (int) config('offline_detection.sanction_lookback_days', 30);
+
+        $previousFlags = OfflineTripFlag::forDriver($flag->driver_id)
+            ->whereKeyNot($flag->id)
+            ->where('flagged_at', '>=', $flag->flagged_at->copy()->subDays($lookbackDays))
+            ->where('flagged_at', '<=', $flag->flagged_at)
+            ->with('ride:id,reference_number')
+            ->latest('flagged_at')
+            ->get()
+            ->map(fn (OfflineTripFlag $previous) => [
+                'id' => $previous->id,
+                'reference_number' => $previous->reference_number,
+                'ride_reference_number' => $previous->ride?->reference_number,
+                'flagged_at' => $previous->flagged_at?->toISOString(),
+                'sanction_tier' => [
+                    'value' => $previous->sanction_tier->value,
+                    'label' => $previous->sanction_tier->label(),
+                ],
+                'status' => [
+                    'value' => $previous->status()->value,
+                    'label' => $previous->status()->label(),
+                ],
+            ]);
 
         return response()->json([
             'message' => 'Offline trip flag details retrieved.',
             'flag' => new OfflineFlagResource($flag),
+            // The driver's other flags in the 30 days up to this one.
+            'previous_flags' => $previousFlags,
+            'previous_flags_window_days' => $lookbackDays,
+            'history' => $this->history($flag),
         ]);
     }
 
@@ -82,30 +132,34 @@ class AdminOfflineFlagController extends Controller
     {
         $admin = $request->user();
         $outcome = DisputeOutcome::from($request->validated('outcome'));
+        $notes = $request->validated('notes');
 
         $oldValues = [
             'dispute_outcome' => $flag->dispute_outcome?->value,
         ];
 
-        $flag->update([
-            'dispute_outcome' => $outcome,
-            'dispute_resolved_by_admin_id' => $admin->id,
-            'resolved_at' => now(),
-        ]);
+        DB::transaction(function () use ($flag, $admin, $outcome, $notes, $oldValues) {
+            $flag->update([
+                'dispute_outcome' => $outcome,
+                'review_notes' => $notes,
+                'dispute_resolved_by_admin_id' => $admin->id,
+                'resolved_at' => now(),
+            ]);
 
-        if ($outcome === DisputeOutcome::Overturned) {
-            $this->sanctionService->reverseSanction($flag);
-        }
+            if ($outcome === DisputeOutcome::Overturned) {
+                $this->sanctionService->reverseSanction($flag);
+            }
 
-        AuditLog::record($flag, 'offline_flag_reviewed', $admin, $oldValues, [
-            'dispute_outcome' => $outcome->value,
-            'resolution_notes' => $request->validated('notes'),
-        ]);
+            AuditLog::record($flag, 'offline_flag_reviewed', $admin, $oldValues, [
+                'dispute_outcome' => $outcome->value,
+                'resolution_notes' => $notes,
+            ]);
+        });
 
         $flag->load(['driver', 'passenger', 'ride', 'resolvedBy']);
 
         return response()->json([
-            'message' => "Dispute {$outcome->label()}.",
+            'message' => ($flag->is_disputed ? 'Dispute' : 'Flag')." {$outcome->label()}.",
             'flag' => new OfflineFlagResource($flag),
         ]);
     }
@@ -117,24 +171,57 @@ class AdminOfflineFlagController extends Controller
         $oldTier = $flag->sanction_tier;
         $newTier = SanctionTier::from($oldTier->value + 1);
 
-        $flag->update([
-            'sanction_tier' => $newTier,
-            'sanction_action' => $newTier->action(),
-        ]);
+        DB::transaction(function () use ($request, $flag, $admin, $oldTier, $newTier) {
+            $flag->update([
+                'sanction_tier' => $newTier,
+                'sanction_action' => $newTier->action(),
+            ]);
 
-        $this->sanctionService->enforceSanction($flag->driver_id, $newTier);
+            $this->sanctionService->enforceSanction($flag->driver_id, $newTier);
 
-        AuditLog::record($flag, 'offline_flag_escalated', $admin, [
-            'sanction_tier' => $oldTier->value,
-        ], [
-            'sanction_tier' => $newTier->value,
-            'notes' => $request->validated('notes'),
-        ]);
+            AuditLog::record($flag, 'offline_flag_escalated', $admin, [
+                'sanction_tier' => $oldTier->value,
+            ], [
+                'sanction_tier' => $newTier->value,
+                'notes' => $request->validated('notes'),
+            ]);
+        });
 
         $flag->load(['driver', 'passenger', 'ride']);
 
         return response()->json([
             'message' => "Sanction escalated to {$newTier->label()}.",
+            'flag' => new OfflineFlagResource($flag),
+        ]);
+    }
+
+    public function deEscalate(DeEscalateFlagFormRequest $request, OfflineTripFlag $flag): JsonResponse
+    {
+        $admin = $request->user();
+
+        $oldTier = $flag->sanction_tier;
+        $newTier = SanctionTier::from($oldTier->value - 1);
+
+        DB::transaction(function () use ($request, $flag, $admin, $oldTier, $newTier) {
+            $flag->update([
+                'sanction_tier' => $newTier,
+                'sanction_action' => $newTier->action(),
+            ]);
+
+            $this->sanctionService->deEscalate($flag, $newTier);
+
+            AuditLog::record($flag, 'offline_flag_de_escalated', $admin, [
+                'sanction_tier' => $oldTier->value,
+            ], [
+                'sanction_tier' => $newTier->value,
+                'notes' => $request->validated('notes'),
+            ]);
+        });
+
+        $flag->load(['driver', 'passenger', 'ride']);
+
+        return response()->json([
+            'message' => "Sanction reduced to {$newTier->label()}.",
             'flag' => new OfflineFlagResource($flag),
         ]);
     }
@@ -205,5 +292,46 @@ class AdminOfflineFlagController extends Controller
             'message' => 'Driver permanently deactivated after admin review.',
             'flag' => new OfflineFlagResource($flag),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function history(OfflineTripFlag $flag): array
+    {
+        return AuditLog::query()
+            ->where('auditable_type', $flag->getMorphClass())
+            ->where('auditable_id', $flag->id)
+            ->whereIn('event', array_keys(self::HISTORY_EVENTS))
+            ->with('actor')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->map(function (AuditLog $log) {
+                $new = $log->new_values ?? [];
+                $old = $log->old_values ?? [];
+
+                $description = self::HISTORY_EVENTS[$log->event];
+                if ($log->event === 'offline_flag_reviewed' && isset($new['dispute_outcome'])) {
+                    $description = ucfirst($new['dispute_outcome']);
+                }
+                if (isset($old['sanction_tier'], $new['sanction_tier'])) {
+                    $description .= " from Level {$old['sanction_tier']} to Level {$new['sanction_tier']}";
+                }
+
+                return [
+                    'event' => $log->event,
+                    'description' => $description,
+                    'notes' => $new['notes'] ?? $new['resolution_notes'] ?? $new['dispute_notes'] ?? null,
+                    'actor' => $log->actor ? [
+                        'id' => $log->actor->id,
+                        'name' => trim($log->actor->first_name.' '.$log->actor->last_name),
+                        'role' => $log->actor->admin_role?->value ?? $log->actor->type?->value,
+                    ] : null,
+                    'created_at' => $log->created_at?->toISOString(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

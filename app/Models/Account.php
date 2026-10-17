@@ -7,6 +7,7 @@ use App\Enums\AccountType;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
@@ -22,6 +23,9 @@ class Account extends Model
         'status',
         'balance',
         'balance_version',
+        'frozen_at',
+        'frozen_reason',
+        'frozen_by_admin_id',
     ];
 
     protected function casts(): array
@@ -31,6 +35,7 @@ class Account extends Model
             'status' => AccountStatus::class,
             'balance' => 'integer',
             'balance_version' => 'integer',
+            'frozen_at' => 'datetime',
         ];
     }
 
@@ -44,6 +49,11 @@ class Account extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(LedgerEntry::class);
+    }
+
+    public function frozenBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'frozen_by_admin_id');
     }
 
     public function holds(): HasMany

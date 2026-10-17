@@ -15,7 +15,7 @@ class EscalateFlagFormRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'notes' => ['nullable', 'string', 'max:2000'],
+            'notes' => ['required', 'string', 'min:10', 'max:2000'],
         ];
     }
 

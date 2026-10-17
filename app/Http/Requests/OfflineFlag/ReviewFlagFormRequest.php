@@ -32,12 +32,9 @@ class ReviewFlagFormRequest extends FormRequest
                     return;
                 }
 
-                if (! $flag->is_disputed) {
-                    $validator->errors()->add('flag', 'This flag has not been disputed.');
-                }
-
-                if ($flag->dispute_outcome && $flag->dispute_outcome !== DisputeOutcome::Pending) {
-                    $validator->errors()->add('flag', 'This dispute has already been resolved.');
+                // A flag can be reviewed whether or not the driver disputed it.
+                if ($flag->hasReviewOutcome()) {
+                    $validator->errors()->add('flag', 'This flag has already been reviewed.');
                 }
             },
         ];

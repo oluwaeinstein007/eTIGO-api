@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Enums\EvReservationStatus;
+use App\Observers\EvAvailabilityObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ObservedBy(EvAvailabilityObserver::class)]
 class EvReservation extends Model
 {
     use HasFactory, HasUuids;

@@ -128,9 +128,8 @@ it('rejects promo when global limit reached', function () {
 
 it('accepts city-restricted promo at validation time (context checked at apply)', function () {
     $city = City::factory()->create();
-    PromoCode::factory()->create([
+    PromoCode::factory()->inCities($city)->create([
         'code' => 'CITYONLY',
-        'city_id' => $city->id,
     ]);
 
     $response = $this->withToken($this->token)
@@ -140,7 +139,7 @@ it('accepts city-restricted promo at validation time (context checked at apply)'
 
     $response->assertOk()
         ->assertJsonPath('valid', true)
-        ->assertJsonPath('promo.city_id', $city->id);
+        ->assertJsonPath('promo.city_ids', [$city->id]);
 });
 
 it('accepts vehicle-class-restricted promo at validation time', function () {
@@ -255,7 +254,7 @@ it('returns available promos for user', function () {
 it('includes city-specific promos when city_id provided', function () {
     $city = City::factory()->create();
     PromoCode::factory()->create(['code' => 'UNIVERSAL']);
-    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
+    PromoCode::factory()->inCities($city)->create(['code' => 'CITYPROMO']);
 
     $response = $this->withToken($this->token)
         ->getJson('/api/v1/promos/available?city_id='.$city->id);
@@ -269,7 +268,7 @@ it('includes city-specific promos when city_id provided', function () {
 it('excludes city-specific promos when no city_id provided', function () {
     $city = City::factory()->create();
     PromoCode::factory()->create(['code' => 'UNIVERSAL']);
-    PromoCode::factory()->create(['code' => 'CITYPROMO', 'city_id' => $city->id]);
+    PromoCode::factory()->inCities($city)->create(['code' => 'CITYPROMO']);
 
     $response = $this->withToken($this->token)
         ->getJson('/api/v1/promos/available');

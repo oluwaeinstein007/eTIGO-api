@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
-use App\Enums\DisputeOutcome;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\OfflineTripFlag;
@@ -17,10 +16,7 @@ class DriverComplianceController extends Controller
 
         $activeFlags = OfflineTripFlag::forDriver($user->id)
             ->withinLookback()
-            ->where(function ($q) {
-                $q->where('is_disputed', false)
-                    ->orWhere('dispute_outcome', '!=', DisputeOutcome::Overturned);
-            })
+            ->notOverturned()
             ->count();
 
         $totalFlags = OfflineTripFlag::forDriver($user->id)->count();

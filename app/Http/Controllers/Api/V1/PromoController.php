@@ -47,14 +47,8 @@ class PromoController extends Controller
         $cityId = $request->query('city_id');
 
         $promos = PromoCode::active()
-            ->where(function ($query) use ($cityId) {
-                $query->whereNull('city_id');
-
-                if ($cityId) {
-                    $query->orWhere('city_id', $cityId);
-                }
-            })
-            ->with(['city', 'vehicleClass'])
+            ->availableInCity($cityId)
+            ->with(['cities', 'vehicleClass'])
             ->orderBy('expires_at')
             ->get();
 

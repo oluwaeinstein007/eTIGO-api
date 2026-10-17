@@ -18,7 +18,8 @@ enum SosIncidentStatus: string
         return match ($this) {
             self::Triggered => 'Triggered',
             self::CheckInSent => 'Check-In Sent',
-            self::Acknowledged => 'Acknowledged',
+            // The person who raised the SOS answered the check-in: "I'm safe".
+            self::Acknowledged => 'Confirmed Safe',
             self::Escalated => 'Escalated',
             self::OperatorAssigned => 'Operator Assigned',
             self::Dispatched => 'Dispatched',

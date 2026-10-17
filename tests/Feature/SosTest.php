@@ -320,7 +320,7 @@ describe('Admin SOS Endpoints', function () {
             ->assertJsonPath('incident.status', 'dispatched');
     });
 
-    it('rejects dispatch without operator assignment', function () {
+    it('takes an unassigned incident when dispatching it', function () {
         $incident = SosIncident::factory()->escalated()->create([
             'ride_id' => $this->activeRide->id,
             'triggered_by_user_id' => $this->passenger->id,
@@ -332,7 +332,31 @@ describe('Admin SOS Endpoints', function () {
             ['Authorization' => "Bearer {$this->operatorToken}"],
         );
 
-        $response->assertStatus(422);
+        $response->assertOk()
+            ->assertJsonPath('incident.status', 'dispatched')
+            ->assertJsonPath('incident.operator_id', $this->safetyOperator->id);
+
+        expect($incident->fresh()->operator_assigned_at)->not->toBeNull()
+            ->and($incident->eventLogs()->pluck('event_type')->all())->toBe([
+                'transition:escalated->operator_assigned',
+                'transition:operator_assigned->dispatched',
+            ]);
+    });
+
+    it('rejects a second dispatch', function () {
+        $incident = SosIncident::factory()->operatorAssigned()->create([
+            'ride_id' => $this->activeRide->id,
+            'triggered_by_user_id' => $this->passenger->id,
+            'operator_id' => $this->safetyOperator->id,
+            'status' => SosIncidentStatus::Dispatched,
+        ]);
+
+        $this->postJson(
+            "/api/v1/admin/sos/{$incident->id}/dispatch",
+            ['emergency_service_type' => 'police'],
+            ['Authorization' => "Bearer {$this->operatorToken}"],
+        )->assertStatus(422)
+            ->assertJsonPath('message', 'Emergency services have already been dispatched for this incident.');
     });
 
     it('allows resolution with notes', function () {

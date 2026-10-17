@@ -21,6 +21,8 @@ class LocationUpdateRequest extends FormRequest
             'lng' => ['required', 'numeric', 'between:-180,180'],
             'heading' => ['sometimes', 'numeric', 'between:0,360'],
             'speed' => ['sometimes', 'numeric', 'min:0'],
+            // Horizontal accuracy in metres (iOS horizontalAccuracy, Android getAccuracy()).
+            'accuracy' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:10000'],
             'timestamp' => ['sometimes', 'date'],
         ];
     }

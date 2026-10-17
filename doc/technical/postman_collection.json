@@ -7061,7 +7061,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"lat\": 9.0579,\n  \"lng\": 7.4951,\n  \"heading\": 45.0,\n  \"speed\": 30.0\n}"
+                  "raw": "{\n  \"lat\": 9.0579,\n  \"lng\": 7.4951,\n  \"heading\": 45.0,\n  \"speed\": 30.0,\n  \"accuracy\": 12.5\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/driver/location",
@@ -7073,7 +7073,7 @@
                     "location"
                   ]
                 },
-                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0\u2013360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n- `timestamp` (optional): a date/time; accepted but not used \u2014 the server's time is recorded\n\n**Rate Limit:** 429 if called more than once per second.\n\nLocations stop counting 2 minutes after the last one. After 5 minutes without one the driver gets a `driver_location_missing` push, and after 30 minutes the server sets them offline (never during a trip). The app must keep sending locations whenever the driver is online, including in the background (Android foreground service, iOS background location) and after it is reopened."
+                "description": "Update driver's real-time GPS location. Rate-limited to 1 request/second per driver. Stores coordinates in Redis geo set and broadcasts a `driver.location.updated` event via WebSocket to ride participants and admin dashboard. Returns throttled ETA when the driver has an active ride.\n\n**Requires:** Online, approved driver with valid Sanctum token.\n\n**Validation:**\n- `lat` (required): Latitude between -90 and 90\n- `lng` (required): Longitude between -180 and 180\n- `heading` (optional): Bearing 0\u2013360 degrees\n- `speed` (optional): Speed in km/h, >= 0\n- `timestamp` (optional): a date/time; accepted but not used \u2014 the server's time is recorded\n\n**Rate Limit:** 429 if called more than once per second.\n\nLocations stop counting 2 minutes after the last one. After 5 minutes without one the driver gets a `driver_location_missing` push, and after 30 minutes the server sets them offline (never during a trip). The app must keep sending locations whenever the driver is online, including in the background (Android foreground service, iOS background location) and after it is reopened.\n\n`accuracy` (optional, metres): the phone's horizontal GPS accuracy; shown to compliance reviewers on anti-offline flags."
               },
               "response": [
                 {
@@ -16725,7 +16725,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/sos/active?per_page=20",
+                  "raw": "{{base_url}}/admin/sos/active?status=&queue_status=&search=&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -16736,19 +16736,24 @@
                   ],
                   "query": [
                     {
-                      "key": "per_page",
-                      "value": "20",
-                      "description": "Items per page (default 20)"
+                      "key": "status",
+                      "value": ""
                     },
                     {
-                      "key": "status",
-                      "value": "",
-                      "description": "Filter by status: triggered, check_in_sent, escalated, operator_assigned, dispatched",
-                      "disabled": true
+                      "key": "queue_status",
+                      "value": ""
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
                     }
                   ]
                 },
-                "description": "List all active (non-resolved, non-cancelled) SOS incidents, sorted by severity and urgency. Escalated incidents appear first, then triggered, check-in sent, operator assigned, and dispatched.\n\n**Auth:** Admin token (safety_operator role)."
+                "description": "List all active (non-resolved, non-cancelled) SOS incidents, sorted by severity and urgency. Escalated incidents appear first, then triggered, check-in sent, operator assigned, and dispatched.\n\n**Auth:** Admin token (safety_operator role).\n\n**Console fields:** `queue_status` filter (`unacknowledged`, `acknowledged`, `resolved`); `search` by SOS reference, ride reference, or passenger/driver name or phone. Each incident has `reference_number` (SOS-000123), `queue_status`, `wait_seconds`, `operator_assigned_at`, `escalates_at`, and the ride's passenger and driver."
               },
               "response": [
                 {
@@ -16780,7 +16785,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/sos/history?per_page=20",
+                  "raw": "{{base_url}}/admin/sos/history?status=&queue_status=&search=&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -16791,43 +16796,24 @@
                   ],
                   "query": [
                     {
-                      "key": "per_page",
-                      "value": "20",
-                      "description": "Items per page (default 20)"
-                    },
-                    {
                       "key": "status",
-                      "value": "",
-                      "description": "Filter by status",
-                      "disabled": true
+                      "value": ""
                     },
                     {
-                      "key": "trigger_type",
-                      "value": "",
-                      "description": "Filter by trigger type: manual, auto",
-                      "disabled": true
+                      "key": "queue_status",
+                      "value": ""
                     },
                     {
-                      "key": "ride_id",
-                      "value": "",
-                      "description": "Filter by ride UUID",
-                      "disabled": true
+                      "key": "search",
+                      "value": ""
                     },
                     {
-                      "key": "date_from",
-                      "value": "",
-                      "description": "Filter from date (ISO 8601)",
-                      "disabled": true
-                    },
-                    {
-                      "key": "date_to",
-                      "value": "",
-                      "description": "Filter to date (ISO 8601)",
-                      "disabled": true
+                      "key": "per_page",
+                      "value": "20"
                     }
                   ]
                 },
-                "description": "Browse the complete SOS incident history with optional filters for status, trigger type, ride, and date range. Results are ordered newest first.\n\n**Auth:** Admin token (safety_operator role)."
+                "description": "Browse the complete SOS incident history with optional filters for status, trigger type, ride, and date range. Results are ordered newest first.\n\n**Auth:** Admin token (safety_operator role).\n\n**Console fields:** `queue_status` filter (`unacknowledged`, `acknowledged`, `resolved`); `search` by SOS reference, ride reference, or passenger/driver name or phone. Each incident has `reference_number` (SOS-000123), `queue_status`, `wait_seconds`, `operator_assigned_at`, `escalates_at`, and the ride's passenger and driver."
               },
               "response": [
                 {
@@ -16869,7 +16855,7 @@
                     "{{sos_incident_id}}"
                   ]
                 },
-                "description": "Get full details of an SOS incident including ride context (passenger, driver, vehicle class, city) and the complete event log timeline.\n\n**Auth:** Admin token (safety_operator role)."
+                "description": "Incident with its readable audit trail (`event_logs[].description`, `actor_type` system/operator/passenger/driver), `escalates_at` for the countdown, plus top-level `route` (planned polyline) and `driver_location` (last known position while open)."
               },
               "response": [
                 {
@@ -16963,7 +16949,7 @@
                     "dispatch"
                   ]
                 },
-                "description": "Records the emergency services handoff (`operator_assigned` \u2192 `dispatched`). `emergency_service_type`: `police`, `ambulance`, `fire` or `all`. An operator must hold the incident first (422)."
+                "description": "Record that emergency services were called (`emergency_service_type` police, ambulance, fire or all). If no operator has taken the alert yet, the caller takes it first. 422 if already dispatched or closed."
               },
               "response": [
                 {
@@ -17042,6 +17028,57 @@
                   "body": "{\n  \"message\": \"This incident has already been closed.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"incident\": [\n      \"This incident has already been closed.\"\n    ]\n  }\n}"
                 }
               ]
+            },
+            {
+              "name": "Log Call",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/sos/{{sos_incident_id}}/calls",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "sos",
+                    "{{sos_incident_id}}",
+                    "calls"
+                  ]
+                },
+                "description": "Add a call the operator made (from their own phone) to the incident's audit trail. `called_party`: passenger (default), driver, emergency_contact, other. `outcome`: reached, no_answer, busy, unreachable.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"called_party\": \"passenger\",\n  \"outcome\": \"no_answer\",\n  \"phone\": \"+2348012345678\",\n  \"notes\": \"Rang twice, went to voicemail.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Logged",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Call logged.\",\n  \"incident\": {\n    \"id\": \"uuid\",\n    \"reference_number\": \"SOS-000123\",\n    \"event_logs\": [\n      {\n        \"event_type\": \"operator_call\",\n        \"description\": \"Called the passenger: no answer\",\n        \"actor_type\": \"operator\"\n      }\n    ]\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -17063,7 +17100,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/offline-flags?per_page=20",
+                  "raw": "{{base_url}}/admin/offline-flags?status=&search=&sanction_tier=&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -17073,55 +17110,24 @@
                   ],
                   "query": [
                     {
-                      "key": "per_page",
-                      "value": "20",
-                      "description": "Items per page (default 20)"
+                      "key": "status",
+                      "value": ""
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
                     },
                     {
                       "key": "sanction_tier",
-                      "value": "",
-                      "description": "Filter by tier: 1 (Warning), 2 (Suspension), 3 (Deactivation)",
-                      "disabled": true
+                      "value": ""
                     },
                     {
-                      "key": "is_disputed",
-                      "value": "",
-                      "description": "Filter by disputed status: true/false",
-                      "disabled": true
-                    },
-                    {
-                      "key": "dispute_outcome",
-                      "value": "",
-                      "description": "Filter by outcome: pending, upheld, overturned",
-                      "disabled": true
-                    },
-                    {
-                      "key": "driver_id",
-                      "value": "",
-                      "description": "Filter by driver user ID",
-                      "disabled": true
-                    },
-                    {
-                      "key": "date_from",
-                      "value": "",
-                      "description": "Filter from date (ISO 8601)",
-                      "disabled": true
-                    },
-                    {
-                      "key": "date_to",
-                      "value": "",
-                      "description": "Filter to date (ISO 8601)",
-                      "disabled": true
-                    },
-                    {
-                      "key": "status",
-                      "value": "",
-                      "description": "Filter: active (unresolved), disputed (pending dispute)",
-                      "disabled": true
+                      "key": "per_page",
+                      "value": "20"
                     }
                   ]
                 },
-                "description": "List all offline trip flags with optional filters. Includes driver, passenger, ride, and resolver relationships.\n\n**Auth:** Admin token (operations or safety_operator role)."
+                "description": "List flags, newest first. `status`: flagged, disputed, upheld, overturned (or `active` = unresolved). `search`: flag reference (FLG-000045), ride reference, or driver name, phone or driver ID. Each flag has `reference_number` and `status`."
               },
               "response": [
                 {
@@ -17180,7 +17186,7 @@
                     "{{flag_id}}"
                   ]
                 },
-                "description": "Get detailed information about a specific offline trip flag including detection data, ride details, and resolution info.\n\n**Auth:** Admin token (operations or safety_operator role)."
+                "description": "Flag with `detection_summary` (why it was flagged), `evidence` (route match, cancel distance from pickup, time on route, GPS accuracy), `dispute` (notes, filed_at, channel), `review_notes`, `driver_city`, plus top-level `previous_flags` (driver's flags in the prior 30 days) and `history` (each step with reason and who)."
               },
               "response": [
                 {
@@ -17198,7 +17204,7 @@
               ]
             },
             {
-              "name": "Review Disputed Flag",
+              "name": "Review Flag (Uphold / Overturn)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -17231,7 +17237,7 @@
                     "review"
                   ]
                 },
-                "description": "Review a disputed offline trip flag. Outcome must be 'upheld' or 'overturned'. If overturned, the sanction is reversed and the driver may be reinstated.\n\n**Auth:** Admin token (operations or safety_operator role)."
+                "description": "Uphold or overturn any flag not yet reviewed, disputed or not. `notes` (10\u20132000) is kept as `review_notes`. Overturning lifts the sanction. 422 `This flag has already been reviewed.`"
               },
               "response": [
                 {
@@ -17282,7 +17288,7 @@
                     "escalate"
                   ]
                 },
-                "description": "Manually escalate the sanction tier of a flag (L1\u2192L2 or L2\u2192L3). Cannot escalate beyond tier 3. Enforces the new sanction immediately.\n\n**Auth:** Admin token (operations or safety_operator role)."
+                "description": "Move the flag up one level (L1\u2192L2, L2\u2192L3) and apply the sanction. `notes` is **required** (10\u20132000) and shows in the flag history."
               },
               "response": [
                 {
@@ -17296,6 +17302,69 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Sanction escalated to 48-Hour Suspension.\",\n  \"flag\": {\n    \"id\": \"01a14039-601d-701e-89a7-e660cd2f5841\",\n    \"ride_id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"driver_id\": \"01a14039-55af-738a-91c8-1644f022f18a\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"sanction_tier\": {\n      \"value\": 2,\n      \"label\": \"48-Hour Suspension\"\n    },\n    \"sanction_action\": \"suspended_48h\",\n    \"is_disputed\": false,\n    \"detection_data\": {\n      \"flagged\": true,\n      \"collocation_points\": 8,\n      \"total_trajectory_points\": 10,\n      \"route_match_percentage\": 80.0,\n      \"average_distance_meters\": 42.5,\n      \"point_distances\": [\n        38.2,\n        41.0,\n        55.7,\n        36.9,\n        47.3,\n        40.1,\n        39.8,\n        44.6,\n        260.4,\n        410.3\n      ],\n      \"threshold_meters\": 200,\n      \"min_points_required\": 3,\n      \"match_percentage_required\": 60\n    },\n    \"flagged_at\": \"2026-10-15T15:41:04.000000Z\",\n    \"resolved_at\": null,\n    \"driver\": {\n      \"id\": \"01a14039-55af-738a-91c8-1644f022f18a\",\n      \"reference_number\": null,\n      \"first_name\": \"Segun\",\n      \"last_name\": \"Obaseki\",\n      \"phone\": \"+2348200000003\",\n      \"email\": \"segun@demo.etigo.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"ride\": {\n      \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"driver_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4541000\",\n        \"lng\": \"3.3947000\",\n        \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n      },\n      \"status\": \"completed\",\n      \"status_label\": \"Completed\",\n      \"is_scheduled\": false,\n      \"scheduled_pickup_at\": null,\n      \"scheduled\": null,\n      \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n      \"fare_estimate_amount\": \"4088.00\",\n      \"final_fare_amount\": \"4088.00\",\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 10,\n      \"duration_minutes\": 25,\n      \"co2_saved_kg\": 1.2,\n      \"payment_method\": \"cash\",\n      \"payment_status\": \"collected\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"matched_at\": \"2026-10-15T15:41:02.000000Z\",\n      \"started_at\": \"2026-10-15T15:41:02.000000Z\",\n      \"completed_at\": \"2026-10-15T15:41:02.000000Z\",\n      \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:03.000000Z\"\n    },\n    \"created_at\": \"2026-10-15T15:41:04.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "De-escalate Flag Sanction",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/offline-flags/{{flag_id}}/de-escalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "offline-flags",
+                    "{{flag_id}}",
+                    "de-escalate"
+                  ]
+                },
+                "description": "Move the flag down one level (L3\u2192L2 keeps the driver suspended but ends the deactivation review; L2\u2192L1 lifts the suspension). Only changes the driver when this is their latest flag and the suspension came from compliance. `notes` required (10\u20132000). To remove all sanctions, overturn the flag instead.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"First offence pattern; reducing to a suspension.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 De-escalated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Sanction reduced to 48-Hour Suspension.\",\n  \"flag\": {\n    \"id\": \"uuid\",\n    \"reference_number\": \"FLG-000045\",\n    \"sanction_tier\": {\n      \"value\": 2,\n      \"label\": \"48-Hour Suspension\"\n    },\n    \"status\": {\n      \"value\": \"flagged\",\n      \"label\": \"Flagged\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Lowest tier",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This flag is already at the lowest sanction tier.\",\n  \"errors\": {\n    \"flag\": [\n      \"This flag is already at the lowest sanction tier.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -17452,7 +17521,7 @@
                     "ev-stations"
                   ]
                 },
-                "description": "Create a new EV charging station. Stalls are auto-generated based on `total_stalls`. Requires admin (operations) role. `status` is optional (`active`, `maintenance`, `inactive`)."
+                "description": "Create a new EV charging station. Stalls are auto-generated based on `total_stalls`. Requires admin (operations) role. `status` is optional (`active`, `maintenance`, `inactive`).\n\n`city_id` is optional: left out, it is worked out from `lat`/`lng` (422 on `city_id` if outside every active city). `connector_types`, `power_output_kw`, `pricing_per_kwh` and `operating_hours` are returned on the station."
               },
               "response": [],
               "event": [
@@ -17498,7 +17567,7 @@
                     "{{ev_station_id}}"
                   ]
                 },
-                "description": "View station details including stall-level availability and current occupants."
+                "description": "Station with stalls (current driver and vehicle), `availability`, and `queue`: drivers waiting in join order with name, vehicle, plate, `joined_at` and `wait_seconds`."
               },
               "response": []
             },
@@ -17522,7 +17591,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Updated Station Name\",\n  \"address\": \"New Address\",\n  \"connector_types\": [\n    \"CCS2\",\n    \"CHAdeMO\",\n    \"Type2\"\n  ],\n  \"power_output_kw\": 200,\n  \"pricing_per_kwh\": 12000,\n  \"operating_hours\": {\n    \"open\": \"05:30\",\n    \"close\": \"23:00\"\n  }\n}"
+                  "raw": "{\n  \"name\": \"Updated Hub Name\",\n  \"total_stalls\": 8\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/ev-stations/{{ev_station_id}}",
@@ -17535,7 +17604,7 @@
                     "{{ev_station_id}}"
                   ]
                 },
-                "description": "Update station details. All fields are optional. `status` can be changed here too (`active`, `maintenance`, `inactive`); stall count is managed with Manage Stalls."
+                "description": "All fields optional. `total_stalls` adds stalls at the end, or removes the highest-numbered ones if they are free (422 `Stall N is in use\u2026` otherwise)."
               },
               "response": []
             },
@@ -18800,7 +18869,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/wallets?search=ade&status=active",
+                  "raw": "{{base_url}}/admin/wallets?search=jane doe&status=active&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -18811,15 +18880,19 @@
                   "query": [
                     {
                       "key": "search",
-                      "value": "ade"
+                      "value": "jane doe"
                     },
                     {
                       "key": "status",
                       "value": "active"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
                     }
                   ]
                 },
-                "description": "Passenger wallets, newest first, 20 per page (fixed). Filters: `search` (passenger name/email/phone), `status` (active/frozen/closed), `min_balance`/`max_balance` (kobo), `page`. Each wallet is the account only; owner details are not included."
+                "description": "Passenger wallets with `owner` (name, phone, email, passenger ID), `last_activity_at`, balance, held and status (`active`, `frozen`, `closed`). Search by name, full name, phone, email or passenger ID."
               },
               "response": [
                 {
@@ -18878,7 +18951,7 @@
                     "{{account_id}}"
                   ]
                 },
-                "description": "Returns wallet with active holds and recent transactions."
+                "description": "Wallet with `owner`, `frozen` (when, reason, who and their role, while frozen), active holds with their ride (reference, vehicle class, route, status), 20 recent entries with `transaction_type`, and `permissions.can_freeze`. 404 for non-passenger accounts."
               },
               "response": [
                 {
@@ -18892,6 +18965,132 @@
                     }
                   ],
                   "body": "{\n  \"wallet\": {\n    \"id\": \"01a1421a-6c61-72e2-bede-3d8a288efc05\",\n    \"type\": \"passenger_wallet\",\n    \"type_label\": \"Passenger Wallet\",\n    \"currency\": \"NGN\",\n    \"status\": \"active\",\n    \"status_label\": \"Active\",\n    \"balance\": 500000,\n    \"available_balance\": 500000,\n    \"held\": 0,\n    \"created_at\": \"2026-10-16T00:26:30+00:00\"\n  },\n  \"active_holds\": [],\n  \"recent_transactions\": [\n    {\n      \"id\": \"01a1421a-6c6f-7210-adca-4f16034d13ab\",\n      \"type\": \"credit\",\n      \"type_label\": \"Credit\",\n      \"amount\": 500000,\n      \"running_balance\": 500000,\n      \"created_at\": \"2026-10-16T00:26:30+00:00\",\n      \"source_type\": null,\n      \"source_id\": null,\n      \"journal\": {\n        \"id\": \"01a1421a-6c66-7103-b8dd-4c4e7313f430\",\n        \"reference\": \"JRN-B25RAULM5HB3-261016\",\n        \"description\": \"Wallet top-up via Paystack\",\n        \"metadata\": {\n          \"tx_ref\": \"TOPUP-8F2K4M9Q1ZXA\"\n        },\n        \"posted_at\": \"2026-10-16T00:26:30+00:00\"\n      }\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Wallet Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets/{{account_id}}/transactions?type=&status=&date_from=2026-10-01&date_to=2026-10-17&search=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets",
+                    "{{account_id}}",
+                    "transactions"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": ""
+                    },
+                    {
+                      "key": "status",
+                      "value": ""
+                    },
+                    {
+                      "key": "date_from",
+                      "value": "2026-10-01"
+                    },
+                    {
+                      "key": "date_to",
+                      "value": "2026-10-17"
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Every money movement plus pending/failed top-ups, newest first, paged. Filters: `type` (top_up, ride_payment, refund, tip, cancellation_fee, balance_due, cash_change, adjustment, reversal\u2026), `status` (success, pending, failed), `direction`, `date_from`/`date_to` (Y-m-d, Lagos days), `search` (reference, description or ride reference)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Transactions",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"transactions\": [\n    {\n      \"id\": \"uuid\",\n      \"source\": \"ledger\",\n      \"type\": {\n        \"value\": \"ride_payment\",\n        \"label\": \"Ride Payment\"\n      },\n      \"direction\": \"debit\",\n      \"amount\": 150000,\n      \"status\": \"success\",\n      \"reference\": \"JRN-OF9URBRSSFAR-261016\",\n      \"description\": \"Ride settlement for ride ...\",\n      \"ride_id\": \"uuid\",\n      \"ride_reference_number\": \"TRP-NG-000412\",\n      \"created_at\": \"2026-10-16T18:02:11+00:00\"\n    },\n    {\n      \"id\": \"uuid\",\n      \"source\": \"top_up_attempt\",\n      \"type\": {\n        \"value\": \"top_up\",\n        \"label\": \"Wallet Top-up\"\n      },\n      \"direction\": \"credit\",\n      \"amount\": 100000,\n      \"status\": \"pending\",\n      \"reference\": \"TOPUP-8F2K4M9Q1ZXA\",\n      \"description\": \"Wallet top-up\",\n      \"ride_id\": null,\n      \"ride_reference_number\": null,\n      \"created_at\": \"2026-10-16T17:55:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Wallet Audit Trail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/wallets/{{account_id}}/audit-trail?per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "wallets",
+                    "{{account_id}}",
+                    "audit-trail"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Staff changes to the wallet, newest first: freezes, unfreezes and manual adjustments, with reason and who did it (name and role)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Audit Trail",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"entries\": [\n    {\n      \"id\": \"uuid\",\n      \"event\": \"wallet.frozen\",\n      \"description\": \"Wallet frozen\",\n      \"reason\": \"Chargeback investigation opened.\",\n      \"amount\": null,\n      \"actor\": {\n        \"id\": \"uuid\",\n        \"name\": \"Kemi Ade\",\n        \"role\": \"finance\"\n      },\n      \"created_at\": \"2026-10-17T09:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             },
@@ -18925,7 +19124,7 @@
                     "freeze"
                   ]
                 },
-                "description": "Freeze a passenger wallet. Requires `reason` (min 10 chars).",
+                "description": "Freeze a passenger wallet. Requires `reason` (min 10 chars).\n\nNow returns the updated `wallet` (with the `frozen` block after a freeze).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"Suspicious activity detected \\u2014 multiple rapid top-ups from unknown cards\"\n}"
@@ -18988,7 +19187,7 @@
                     "unfreeze"
                   ]
                 },
-                "description": "Unfreeze a frozen passenger wallet. Requires `reason` (min 10 chars).",
+                "description": "Unfreeze a frozen passenger wallet. Requires `reason` (min 10 chars).\n\nNow returns the updated `wallet` (with the `frozen` block after a freeze).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"Investigation complete \\u2014 account cleared. Unfreezing per support ticket #1234\"\n}"
@@ -19479,7 +19678,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/admin/promos?status=active&search=WELCOME",
+                  "raw": "{{base_url}}/admin/promos?status=active&city_id=&search=WELCOME&per_page=20",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -19493,12 +19692,20 @@
                       "value": "active"
                     },
                     {
+                      "key": "city_id",
+                      "value": ""
+                    },
+                    {
                       "key": "search",
                       "value": "WELCOME"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
                     }
                   ]
                 },
-                "description": "Paginated promo codes. Filters: `status` (active/expired/inactive/scheduled/cancelled), `city_id`, `search` (code/description). Includes redemption counts."
+                "description": "List promos, newest first. `status`: `active`, `scheduled`, `paused`, `expired`, `cancelled` (`inactive` still means paused). `city_id`: promos targeted at that city. `search`: code or description."
               },
               "response": [
                 {
@@ -19543,10 +19750,10 @@
                     "promos"
                   ]
                 },
-                "description": "Create a new promo code. `discount_type`: percentage or fixed_amount. Supports geo-fencing, tier targeting, peak/off-peak restrictions. `geo_fence` is a circle (`center_lat`, `center_lng`, `radius_km` 0.1\u2013500) or `{\"polygon\": [{\"lat\", \"lng\"}, \u2026]}` with at least 3 points. `min_tier_level` 1\u20135; `min_order_count`/`max_order_count` target riders by completed rides; `per_user_limit` defaults to 1 (max 100); `is_active` defaults to true.",
+                "description": "Create a promo code. `city_ids`: cities it runs in (empty or left out = every city; the old single `city_id` is still accepted). `rider_eligibility`: `all`, `first_ride` or `returning` (sets and overrides `min_order_count`/`max_order_count`). `timing`: `any_time`, `peak_only` or `off_peak_only` (sets and overrides `peak_only`/`off_peak_only`). `geo_fence` is a circle or a polygon of at least 3 points. `min_tier_level` 1\u20135; `per_user_limit` defaults to 1 (max 100); `is_active` false saves it paused. Responses carry `status`, `rider_eligibility`, `timing`, `city_ids` and `cities`.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"code\": \"LAGOS25\",\n  \"description\": \"25% off rides in Lagos\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 25,\n  \"max_discount_cap\": 2000,\n  \"total_redemption_limit\": 1000,\n  \"per_user_limit\": 3,\n  \"starts_at\": \"2026-10-15T00:00:00Z\",\n  \"expires_at\": \"2026-11-15T23:59:59Z\",\n  \"city_id\": \"9a1b2c3d-4e5f-6789-0abc-def123456789\",\n  \"vehicle_class_id\": null,\n  \"minimum_fare_amount\": 1500,\n  \"min_tier_level\": 2,\n  \"min_order_count\": 0,\n  \"max_order_count\": 5,\n  \"peak_only\": false,\n  \"off_peak_only\": false,\n  \"geo_fence\": {\n    \"center_lat\": 6.5244,\n    \"center_lng\": 3.3792,\n    \"radius_km\": 15\n  },\n  \"is_active\": true\n}"
+                  "raw": "{\n  \"code\": \"LAGOS25\",\n  \"description\": \"25% off for first rides in Lagos and Abuja\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 25,\n  \"max_discount_cap\": 1000,\n  \"total_redemption_limit\": 2000,\n  \"per_user_limit\": 1,\n  \"starts_at\": \"2026-10-15T00:00:00Z\",\n  \"expires_at\": \"2026-11-15T23:59:59Z\",\n  \"city_ids\": [\n    \"9a1b2c3d-4e5f-6789-0abc-def123456789\"\n  ],\n  \"rider_eligibility\": \"first_ride\",\n  \"timing\": \"peak_only\",\n  \"min_tier_level\": 2,\n  \"vehicle_class_id\": null,\n  \"minimum_fare_amount\": 1500,\n  \"is_active\": true\n}"
                 }
               },
               "response": [
@@ -19560,7 +19767,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Promo code created successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": 25,\n    \"is_active\": true\n  }\n}"
+                  "body": "{\n  \"message\": \"Promo code created successfully.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": \"25.00\",\n    \"max_discount_cap\": \"1000.00\",\n    \"total_redemption_limit\": 2000,\n    \"per_user_limit\": 1,\n    \"status\": {\n      \"value\": \"active\",\n      \"label\": \"Active\"\n    },\n    \"rider_eligibility\": {\n      \"value\": \"first_ride\",\n      \"label\": \"First-time passengers only\"\n    },\n    \"min_order_count\": null,\n    \"max_order_count\": 0,\n    \"timing\": {\n      \"value\": \"peak_only\",\n      \"label\": \"Peak hours only\"\n    },\n    \"peak_only\": true,\n    \"off_peak_only\": false,\n    \"city_ids\": [\n      \"9a1b2c3d-4e5f-6789-0abc-def123456789\"\n    ],\n    \"is_active\": true,\n    \"is_cancelled\": false\n  }\n}"
                 }
               ],
               "event": [
@@ -19652,10 +19859,10 @@
                     "{{promo_id}}"
                   ]
                 },
-                "description": "Update an existing promo code. All fields from create are accepted. Returns 422 if the promo has been cancelled.",
+                "description": "Update a promo; only the fields sent change. Leaving `city_ids` out keeps the cities; `[]` makes the promo run everywhere. 422 for a cancelled promo.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"description\": \"50% off your first 3 rides\",\n  \"per_user_limit\": 3,\n  \"expires_at\": \"2027-03-31T23:59:59Z\"\n}"
+                  "raw": "{\n  \"description\": \"Now off-peak only, in every city\",\n  \"timing\": \"off_peak_only\",\n  \"city_ids\": []\n}"
                 }
               },
               "response": [
@@ -19686,7 +19893,7 @@
               ]
             },
             {
-              "name": "Toggle Promo Status",
+              "name": "Toggle Promo Status (deprecated)",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -19715,7 +19922,7 @@
                     "status"
                   ]
                 },
-                "description": "Activate or deactivate a promo code. Toggles `is_active`. Returns 422 if the promo has been cancelled."
+                "description": "**Deprecated:** use Pause Promo / Resume Promo. Pauses an active promo or resumes a paused one. 422 if the promo has been cancelled."
               },
               "response": [
                 {
@@ -19741,6 +19948,124 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Cannot change status of a cancelled promo code.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Pause Promo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/pause",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}",
+                    "pause"
+                  ]
+                },
+                "description": "Pause a promo so it cannot be redeemed until resumed. Pausing an already-paused promo returns 200 unchanged. 422 for a cancelled promo."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Paused",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code paused.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": \"25.00\",\n    \"max_discount_cap\": \"1000.00\",\n    \"total_redemption_limit\": 2000,\n    \"per_user_limit\": 1,\n    \"status\": {\n      \"value\": \"paused\",\n      \"label\": \"Paused\"\n    },\n    \"rider_eligibility\": {\n      \"value\": \"first_ride\",\n      \"label\": \"First-time passengers only\"\n    },\n    \"min_order_count\": null,\n    \"max_order_count\": 0,\n    \"timing\": {\n      \"value\": \"peak_only\",\n      \"label\": \"Peak hours only\"\n    },\n    \"peak_only\": true,\n    \"off_peak_only\": false,\n    \"city_ids\": [\n      \"9a1b2c3d-4e5f-6789-0abc-def123456789\"\n    ],\n    \"is_active\": false,\n    \"is_cancelled\": false\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Cancelled Promo",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot change status of a cancelled promo code.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resume Promo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/promos/{{promo_id}}/resume",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "promos",
+                    "{{promo_id}}",
+                    "resume"
+                  ]
+                },
+                "description": "Resume a paused promo (shows as `scheduled` if its start is still ahead). 422 for a cancelled promo or one past its end date."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Resumed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Promo code resumed.\",\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": \"25.00\",\n    \"max_discount_cap\": \"1000.00\",\n    \"total_redemption_limit\": 2000,\n    \"per_user_limit\": 1,\n    \"status\": {\n      \"value\": \"active\",\n      \"label\": \"Active\"\n    },\n    \"rider_eligibility\": {\n      \"value\": \"first_ride\",\n      \"label\": \"First-time passengers only\"\n    },\n    \"min_order_count\": null,\n    \"max_order_count\": 0,\n    \"timing\": {\n      \"value\": \"peak_only\",\n      \"label\": \"Peak hours only\"\n    },\n    \"peak_only\": true,\n    \"off_peak_only\": false,\n    \"city_ids\": [\n      \"9a1b2c3d-4e5f-6789-0abc-def123456789\"\n    ],\n    \"is_active\": true,\n    \"is_cancelled\": false\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Expired",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This promo code has expired. Move its end date later to run it again.\"\n}"
                 }
               ]
             },
@@ -19839,7 +20164,7 @@
                     }
                   ]
                 },
-                "description": "Returns performance metrics for a promo: total/unique redemptions, total/average discount given, total fare value, usage percentage, daily breakdown, and recent redemptions. Supports optional `start_date` and `end_date` query params (YYYY-MM-DD) to filter by date range."
+                "description": "Figures for a date range (`Y-m-d`, Africa/Lagos days, max 366; defaults to the promo start until today). `redemptions_by_day` has an entry for every day in the range. `lifetime_redemptions`, `remaining_redemptions` and `usage_percentage` cover the promo's whole life (null without a limit)."
               },
               "response": [
                 {
@@ -19852,7 +20177,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"WELCOME50\"\n  },\n  \"performance\": {\n    \"total_redemptions\": 42,\n    \"unique_users\": 38,\n    \"total_discount_given\": 84000.0,\n    \"average_discount\": 2000.0,\n    \"remaining_redemptions\": 958,\n    \"total_fare_value\": 420000.00,\n    \"usage_percentage\": 4.2,\n    \"redemptions_by_day\": {\n      \"2026-10-12\": {\n        \"count\": 5,\n        \"total_discount\": 10000.0\n      },\n      \"2026-10-13\": {\n        \"count\": 3,\n        \"total_discount\": 6000.0\n      }\n    }\n  },\n  \"recent_redemptions\": []\n}"
+                  "body": "{\n  \"promo\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"code\": \"LAGOS25\",\n    \"discount_type\": \"percentage\",\n    \"discount_value\": \"25.00\",\n    \"max_discount_cap\": \"1000.00\",\n    \"total_redemption_limit\": 2000,\n    \"per_user_limit\": 1,\n    \"status\": {\n      \"value\": \"active\",\n      \"label\": \"Active\"\n    },\n    \"rider_eligibility\": {\n      \"value\": \"first_ride\",\n      \"label\": \"First-time passengers only\"\n    },\n    \"min_order_count\": null,\n    \"max_order_count\": 0,\n    \"timing\": {\n      \"value\": \"peak_only\",\n      \"label\": \"Peak hours only\"\n    },\n    \"peak_only\": true,\n    \"off_peak_only\": false,\n    \"city_ids\": [\n      \"9a1b2c3d-4e5f-6789-0abc-def123456789\"\n    ],\n    \"is_active\": true,\n    \"is_cancelled\": false\n  },\n  \"performance\": {\n    \"period\": {\n      \"start_date\": \"2026-10-01\",\n      \"end_date\": \"2026-10-03\",\n      \"timezone\": \"Africa/Lagos\"\n    },\n    \"total_redemptions\": 12,\n    \"unique_users\": 11,\n    \"total_discount_given\": 24000.0,\n    \"total_fare_value\": 96000.0,\n    \"average_discount\": 2000.0,\n    \"lifetime_redemptions\": 640,\n    \"total_redemption_limit\": 2000,\n    \"remaining_redemptions\": 1360,\n    \"usage_percentage\": 32.0,\n    \"redemptions_by_day\": [\n      {\n        \"date\": \"2026-10-01\",\n        \"count\": 0,\n        \"total_discount\": 0\n      },\n      {\n        \"date\": \"2026-10-02\",\n        \"count\": 5,\n        \"total_discount\": 10000.0\n      },\n      {\n        \"date\": \"2026-10-03\",\n        \"count\": 7,\n        \"total_discount\": 14000.0\n      }\n    ]\n  },\n  \"recent_redemptions\": []\n}"
                 }
               ]
             }

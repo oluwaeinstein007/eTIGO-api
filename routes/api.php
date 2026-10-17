@@ -520,7 +520,9 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/', [AdminPromoController::class, 'store']);
         Route::get('/{promo}', [AdminPromoController::class, 'show']);
         Route::put('/{promo}', [AdminPromoController::class, 'update']);
-        Route::patch('/{promo}/status', [AdminPromoController::class, 'toggleStatus']);
+        Route::patch('/{promo}/status', [AdminPromoController::class, 'toggleStatus']); // deprecated: use pause / resume
+        Route::post('/{promo}/pause', [AdminPromoController::class, 'pause']);
+        Route::post('/{promo}/resume', [AdminPromoController::class, 'resume']);
         Route::post('/{promo}/cancel', [AdminPromoController::class, 'cancel']);
         Route::get('/{promo}/performance', [AdminPromoController::class, 'performance']);
     });
@@ -532,6 +534,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{incident}/assign', [AdminSosController::class, 'assign']);
         Route::post('/{incident}/dispatch', [AdminSosController::class, 'dispatch']);
         Route::post('/{incident}/resolve', [AdminSosController::class, 'resolve']);
+        Route::post('/{incident}/calls', [AdminSosController::class, 'logCall']);
     });
 
     Route::middleware('admin.role:operations')->prefix('ev-stations')->group(function () {
@@ -550,6 +553,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{flag}', [AdminOfflineFlagController::class, 'show']);
         Route::post('/{flag}/review', [AdminOfflineFlagController::class, 'review']);
         Route::post('/{flag}/escalate', [AdminOfflineFlagController::class, 'escalate']);
+        Route::post('/{flag}/de-escalate', [AdminOfflineFlagController::class, 'deEscalate']);
         Route::post('/{flag}/confirm-deactivation', [AdminOfflineFlagController::class, 'confirmDeactivation']);
     });
 
@@ -590,6 +594,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance,support')->prefix('wallets')->group(function () {
         Route::get('/', [AdminWalletController::class, 'index']);
         Route::get('/{account}', [AdminWalletController::class, 'show']);
+        Route::get('/{account}/transactions', [AdminWalletController::class, 'transactions']);
+        Route::get('/{account}/audit-trail', [AdminWalletController::class, 'auditTrail']);
         Route::post('/{account}/freeze', [AdminWalletController::class, 'freeze'])->middleware('admin.role:finance');
         Route::post('/{account}/unfreeze', [AdminWalletController::class, 'unfreeze'])->middleware('admin.role:finance');
     });

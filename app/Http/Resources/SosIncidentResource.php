@@ -13,12 +13,17 @@ class SosIncidentResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'reference_number' => $this->reference_number,
             'ride_id' => $this->ride_id,
             'triggered_by_user_id' => $this->triggered_by_user_id,
             'trigger_type' => $this->trigger_type->value,
             'trigger_type_label' => $this->trigger_type->label(),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'queue_status' => $this->when($isAdmin, fn () => [
+                'value' => $this->queueStatus()->value,
+                'label' => $this->queueStatus()->label(),
+            ]),
             'gps_lat' => $this->gps_lat,
             'gps_lng' => $this->gps_lng,
             'vehicle_details' => $this->when($isAdmin, fn () => $this->vehicle_details),
@@ -26,7 +31,10 @@ class SosIncidentResource extends JsonResource
             'check_in_sent_at' => $this->check_in_sent_at?->toISOString(),
             'check_in_acknowledged_at' => $this->check_in_acknowledged_at?->toISOString(),
             'escalated_at' => $this->escalated_at?->toISOString(),
+            'escalates_at' => $this->when($isAdmin, fn () => $this->escalatesAt()?->toISOString()),
             'operator_id' => $this->when($isAdmin, fn () => $this->operator_id),
+            'operator_assigned_at' => $this->when($isAdmin, fn () => $this->operator_assigned_at?->toISOString()),
+            'wait_seconds' => $this->when($isAdmin, fn () => $this->waitSeconds()),
             'operator_notes' => $this->when($isAdmin, fn () => $this->operator_notes),
             'resolved_at' => $this->resolved_at?->toISOString(),
             'triggered_by' => new UserResource($this->whenLoaded('triggeredBy')),

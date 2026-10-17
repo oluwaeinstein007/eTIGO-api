@@ -325,11 +325,14 @@ class TelemetryServerCommand extends Command
 
         $heading = isset($payload['heading']) ? (float) $payload['heading'] : 0.0;
         $speed = isset($payload['speed']) ? (float) $payload['speed'] : 0.0;
+        $accuracy = isset($payload['accuracy']) && is_numeric($payload['accuracy']) && $payload['accuracy'] >= 0
+            ? (float) $payload['accuracy']
+            : null;
         $driverId = $connection->driverId;
         $userId = $connection->userId;
 
         // 1. Direct in-memory write to Redis GEO (< 0.5ms)
-        $locationService->updateLocation($driverId, $lat, $lng, $heading, $speed, $userId);
+        $locationService->updateLocation($driverId, $lat, $lng, $heading, $speed, $userId, $accuracy);
 
         $location = [
             'lat' => $lat,

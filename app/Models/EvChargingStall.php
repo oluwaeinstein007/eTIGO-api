@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\EvStallStatus;
+use App\Observers\EvAvailabilityObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy(EvAvailabilityObserver::class)]
 class EvChargingStall extends Model
 {
     use HasFactory, HasUuids;
