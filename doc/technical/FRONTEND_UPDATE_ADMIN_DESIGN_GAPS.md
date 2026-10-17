@@ -84,7 +84,7 @@ Paste these into the **Backend response** column of the comparison document.
 | 27 | Transactions tab | **Changed.** New `GET /admin/wallets/{account}/transactions`: paged, `search`, `type`, `status`, `direction`, `date_from`/`date_to`. |
 | 27 | Type | **Changed.** `type: { value, label }`: Wallet Top-up, Ride Payment, Ride Refund, Driver Tip, plus Cancellation Fee, Balance Due, Cash Change Credit, Manual Adjustment, Reversal. `recent_transactions` entries also carry `transaction_type`. |
 | 27 | Status | **Changed.** `success`, `pending`, `failed`; pending and failed are top-ups the card provider hasn't confirmed. |
-| 28 | View-only for operations | **Stays as access rule, helper added.** Operations has no wallet access; Support is the read-only role (§6). Use `permissions.can_freeze` to show the notice. |
+| 28 | View-only for operations | **Changed.** Operations can now open wallets read-only (list, details, transactions, audit trail), like Support. Only Finance and Super Admin can freeze. `permissions.can_freeze` is `false` for Operations and Support: use it to show the view-only notice. |
 
 ---
 
@@ -143,7 +143,7 @@ type DayBar = { date: string; count: number; total_discount: number };
 - **Details:** passenger block from `wallet.owner` (`reference_number` is the passenger ID); frozen banner from `wallet.frozen`; holds from `active_holds[].ride`.
 - **Transactions tab:** `GET /admin/wallets/{id}/transactions` with `page`, `per_page`, `search`, `type`, `status`, `date_from`, `date_to`. Amounts are in kobo; `direction` says credit or debit.
 - **Audit trail tab:** `GET /admin/wallets/{id}/audit-trail`.
-- **Freeze buttons:** show them when `permissions.can_freeze` is true; otherwise show the view-only notice. Freeze and unfreeze now return the updated `wallet`.
+- **Freeze buttons:** show them when `permissions.can_freeze` is true; otherwise (Operations, Support) show the view-only notice. Freeze and unfreeze now return the updated `wallet`.
 
 ---
 
@@ -164,7 +164,6 @@ type DayBar = { date: string; count: number; total_discount: number };
 | 19 Maintenance status | "Under Maintenance" is a real station state; drivers can't reserve it. | Add the third status. |
 | 20 Map position | Drivers find stations on a map, so the station needs coordinates. The city can now be worked out from them. | Add an address autocomplete or map pin that supplies `lat`/`lng`. |
 | 24 Closed wallets | Wallets can be closed; hiding the state would show them as active. | Add a "Closed" badge. |
-| 28 Operations access to wallets | Wallets hold passenger financial data. Today only Finance and Support (read-only) can open them. Giving Operations access is a permissions change the client should approve. | Show the view-only notice to Support. If Operations needs access, the client confirms and we add it in one line. |
 
 ## 7. Changes outside the admin dashboard
 

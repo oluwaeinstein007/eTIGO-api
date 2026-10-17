@@ -591,7 +591,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     // ── Wallet & Ledger Administration ──
 
-    Route::middleware('admin.role:finance,support')->prefix('wallets')->group(function () {
+    // Operations and Support can look; only Finance can freeze or unfreeze.
+    Route::middleware('admin.role:finance,support,operations')->prefix('wallets')->group(function () {
         Route::get('/', [AdminWalletController::class, 'index']);
         Route::get('/{account}', [AdminWalletController::class, 'show']);
         Route::get('/{account}/transactions', [AdminWalletController::class, 'transactions']);

@@ -213,3 +213,30 @@ it('keeps statuses the design does not show', function () {
         ->getJson('/api/v1/admin/wallets?status=closed')
         ->assertJsonPath('wallets.0.status', 'closed');
 });
+
+it('lets operations view wallets but not freeze them', function () {
+    $operations = User::factory()->admin(AdminRole::Operations)->create();
+    $token = $operations->createToken('auth', ['admin'])->plainTextToken;
+
+    $this->withToken($token)->getJson('/api/v1/admin/wallets')->assertOk();
+    $this->withToken($token)->getJson("/api/v1/admin/wallets/{$this->wallet->id}/transactions")->assertOk();
+    $this->withToken($token)->getJson("/api/v1/admin/wallets/{$this->wallet->id}/audit-trail")->assertOk();
+    $this->withToken($token)
+        ->getJson("/api/v1/admin/wallets/{$this->wallet->id}")
+        ->assertOk()
+        ->assertJsonPath('permissions.can_freeze', false);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/wallets/{$this->wallet->id}/freeze", ['reason' => 'Operations should not be able to do this.'])
+        ->assertForbidden();
+
+    expect($this->wallet->fresh()->status)->toBe(AccountStatus::Active);
+});
+
+it('keeps wallets closed to safety operators', function () {
+    $safety = User::factory()->safetyOperator()->create();
+
+    $this->withToken($safety->createToken('auth', ['admin'])->plainTextToken)
+        ->getJson('/api/v1/admin/wallets')
+        ->assertForbidden();
+});
