@@ -12,6 +12,10 @@ class RideRequestDispatched implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets;
 
+    /**
+     * @param  bool  $isThirdParty  Booked by the passenger for someone else;
+     *                              $passengerName is then the rider's first name
+     */
     public function __construct(
         public string $driverUserId,
         public string $rideId,
@@ -32,8 +36,6 @@ class RideRequestDispatched implements ShouldBroadcastNow
         public ?float $durationMinutes,
         // Set for a scheduled ride: the pickup time the passenger booked.
         public ?string $scheduledPickupAt = null,
-        // Booked by the passenger for someone else: passengerName is then the
-        // rider's first name.
         public bool $isThirdParty = false,
     ) {}
 

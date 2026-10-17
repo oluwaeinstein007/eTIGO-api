@@ -42,7 +42,7 @@ class RiderNotificationUpdated implements ShouldBroadcastNow, ShouldDispatchAfte
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{ride_id: string, rider_notification_status: string, rider_notification_channel: string|null, rider_notified_at: string|null, booker_sees_pin: bool, booker_sees_tracking: bool}
      */
     public function broadcastWith(): array
     {

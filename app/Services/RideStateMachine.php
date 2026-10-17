@@ -139,6 +139,11 @@ class RideStateMachine
         return $ride;
     }
 
+    /**
+     * Side effects of a committed transition: pushes, broadcasts and, on a
+     * ride booked for someone else, the rider's WhatsApp/SMS messages
+     * (ThirdPartyRoutingService). None of them may fail the transition.
+     */
     private function publishTransition(
         Ride $ride,
         RideStatus $from,
@@ -168,7 +173,6 @@ class RideStateMachine
             // Reverb failures must not roll back a committed ride transition.
         }
 
-        // A ride booked for someone else: the rider hears by WhatsApp/SMS.
         $riderMessage = match ($newStatus) {
             RideStatus::DriverEnRoute => ThirdPartyRoutingService::DRIVER_DETAILS,
             RideStatus::DriverArrived => ThirdPartyRoutingService::DRIVER_ARRIVED,

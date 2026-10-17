@@ -52,6 +52,13 @@ class ThirdPartyRoutingService
 
     /**
      * Queue a message to the rider, if this ride and the policy call for one.
+     *
+     * A cancellation is sent only to a rider who was already told about the
+     * ride. The PIN-carrying messages reset the status to `pending`, except
+     * after `failed`: a booker shown the PIN because the rider could not be
+     * reached keeps seeing it until a new message gets through. If the job
+     * cannot be queued there is no retry or failed() hook, so the message is
+     * marked failed at once.
      */
     public function queue(Ride $ride, string $type): void
     {
@@ -65,7 +72,6 @@ class ThirdPartyRoutingService
             self::DRIVER_DETAILS, self::REMINDER => true,
             self::PIN_UPDATE => (bool) $ride->pin_recipient?->includesRider(),
             self::DRIVER_ARRIVED => $tripUpdates,
-            // Only a rider who was already told about the ride hears it is off.
             self::CANCELLED => $tripUpdates
                 && ($ride->rider_notified_at !== null || $ride->scheduledRide?->reminder_sent_at !== null),
             default => false,
@@ -75,8 +81,6 @@ class ThirdPartyRoutingService
             return;
         }
 
-        // A booker who was already given the PIN because the rider could not
-        // be reached keeps seeing it until a new message gets through.
         if (in_array($type, self::TRACKED, true) && $ride->rider_notification_status !== RiderNotificationStatus::Failed) {
             $ride->forceFill(['rider_notification_status' => RiderNotificationStatus::Pending])->save();
             $this->broadcast($ride);
@@ -85,8 +89,6 @@ class ThirdPartyRoutingService
         try {
             SendThirdPartyRiderMessageJob::dispatch($ride->id, $type)->afterCommit();
         } catch (\Throwable $e) {
-            // With no job there is no retry or failed() hook: fall back now,
-            // so the booker is shown the PIN.
             Log::error('Third-party rider message could not be queued', ['ride_id' => $ride->id, 'type' => $type, 'error' => $e->getMessage()]);
             $this->markFailed($ride->id, $type);
         }
