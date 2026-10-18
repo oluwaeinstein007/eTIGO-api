@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\PaymentGateway;
 use App\Enums\AccountType;
 use App\Enums\BalanceDueReason;
+use App\Enums\BalanceDueStatus;
 use App\Enums\CancellationReason;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
@@ -14,6 +15,8 @@ use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
+use App\Models\Journal;
+use App\Models\PassengerBalanceDue;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
@@ -47,10 +50,18 @@ class ScheduledRideCancellationFeeService
         CancellationReason::DriverNoShow,
     ];
 
+    /**
+     * Fee statuses a passenger can still contest in a dispute: collected,
+     * being collected, owed as a balance due, or a card charge finance must
+     * check. A waived fee has nothing left to contest.
+     */
+    private const DISPUTABLE_STATUSES = ['pending', 'charging', 'charged', 'balance_due', 'failed'];
+
     public function __construct(
         private LedgerService $ledgerService,
         private PaymentGateway $paymentGateway,
         private PassengerBalanceService $balanceService,
+        private WalletRefundService $refunds,
     ) {}
 
     /**
@@ -311,6 +322,140 @@ class ScheduledRideCancellationFeeService
         }
 
         return (string) $result['transaction_id'];
+    }
+
+    /**
+     * The booking of a cancelled ride whose late-cancellation fee the
+     * passenger can dispute, or null when there is none.
+     */
+    public function disputableFee(Ride $ride): ?ScheduledRide
+    {
+        if ($ride->status !== RideStatus::Cancelled) {
+            return null;
+        }
+
+        $scheduled = ScheduledRide::where('ride_id', $ride->id)->first();
+
+        return $scheduled !== null
+            && (float) $scheduled->late_cancellation_fee > 0
+            && in_array($scheduled->late_cancellation_fee_status, self::DISPUTABLE_STATUSES, true)
+            ? $scheduled
+            : null;
+    }
+
+    /**
+     * What a dispute can still give back for the fee, in kobo: the part
+     * collected and not yet refunded, or the whole fee while it is still
+     * owed as a balance due (given back by waiving it). 0 while a charge is
+     * still in progress.
+     */
+    public function refundableKobo(Ride $ride): int
+    {
+        $scheduled = $this->disputableFee($ride);
+
+        if ($scheduled === null) {
+            return 0;
+        }
+
+        $feeKobo = (int) round((float) $scheduled->late_cancellation_fee * 100);
+
+        return match ($scheduled->late_cancellation_fee_status) {
+            'charged' => max(0, $feeKobo - $this->refunds->refundedAmountKobo($ride)),
+            'balance_due' => $this->outstandingBalance($ride) !== null ? $feeKobo : 0,
+            default => 0,
+        };
+    }
+
+    /**
+     * Give a late-cancellation fee back after a dispute. A collected fee is
+     * refunded to the passenger's wallet and, unless E-tiGo absorbs it, taken
+     * back from the driver who received it in full. A fee still owed is
+     * waived, in full: a balance due cannot be partly waived.
+     *
+     * @return array{refund_kobo: int, clawback_kobo: int}
+     *
+     * @throws \DomainException
+     */
+    public function refund(Ride $ride, int $amountKobo, string $reason, User $admin, bool $clawback, ?string $disputeId = null): array
+    {
+        return DB::transaction(function () use ($ride, $amountKobo, $reason, $admin, $clawback, $disputeId) {
+            // Serialise refunds of the same ride, as WalletRefundService does.
+            $ride = Ride::lockForUpdate()->findOrFail($ride->id);
+            $scheduled = $this->disputableFee($ride);
+            $remaining = $this->refundableKobo($ride);
+
+            if ($scheduled === null || $remaining <= 0) {
+                throw new \DomainException('There is no cancellation fee left to refund on this ride.');
+            }
+
+            if ($amountKobo > $remaining) {
+                throw new \DomainException('Refund exceeds remaining refundable amount of ₦'.number_format($remaining / 100, 2).'.');
+            }
+
+            if ($scheduled->late_cancellation_fee_status === 'balance_due') {
+                if ($amountKobo !== $remaining) {
+                    throw new \DomainException('An unpaid cancellation fee can only be waived in full (₦'.number_format($remaining / 100, 2).').');
+                }
+
+                $this->balanceService->waive($this->outstandingBalance($ride), $admin, $reason);
+
+                return ['refund_kobo' => $amountKobo, 'clawback_kobo' => 0];
+            }
+
+            $key = 'refund-'.$ride->id.'-'.Str::random(8);
+
+            $this->refunds->refundToWallet($ride, $amountKobo, $reason, $key, [
+                'dispute_id' => $disputeId,
+                'refunded_by_admin_id' => $admin->id,
+                'reason' => $reason,
+                'category' => 'scheduled_late_cancellation_fee_refund',
+            ]);
+
+            $clawbackKobo = 0;
+            $driver = $clawback ? $this->paidDriver($ride, $scheduled) : null;
+
+            if ($driver !== null) {
+                // The driver received the whole fee, so the whole refund comes back from them.
+                $this->refunds->clawbackDriverEarnings($ride, $amountKobo, "clawback-{$key}", $driver);
+                $clawbackKobo = $amountKobo;
+            }
+
+            AuditLog::record($ride, 'scheduled_ride_late_cancellation_fee_refunded', $admin, null, [
+                'refund_kobo' => $amountKobo,
+                'clawback_kobo' => $clawbackKobo,
+                'dispute_id' => $disputeId,
+            ]);
+
+            return ['refund_kobo' => $amountKobo, 'clawback_kobo' => $clawbackKobo];
+        });
+    }
+
+    private function outstandingBalance(Ride $ride): ?PassengerBalanceDue
+    {
+        return PassengerBalanceDue::where('ride_id', $ride->id)
+            ->where('reason', BalanceDueReason::LateCancellationFee)
+            ->where('status', BalanceDueStatus::Outstanding)
+            ->first();
+    }
+
+    /**
+     * The driver the fee was paid to: charged at once, or paid later as a
+     * balance due.
+     */
+    private function paidDriver(Ride $ride, ScheduledRide $scheduled): ?Driver
+    {
+        $driverId = Journal::where('idempotency_key', "scheduled-cancel-fee-{$scheduled->id}")->first()?->metadata['driver_id'] ?? null;
+
+        if ($driverId !== null) {
+            return Driver::find($driverId);
+        }
+
+        $payee = PassengerBalanceDue::where('ride_id', $ride->id)
+            ->where('reason', BalanceDueReason::LateCancellationFee)
+            ->where('status', BalanceDueStatus::Paid)
+            ->value('payee_driver_id');
+
+        return $payee !== null ? Driver::where('user_id', $payee)->first() : null;
     }
 
     private function finish(ScheduledRide $scheduled, string $status, ?string $note): void

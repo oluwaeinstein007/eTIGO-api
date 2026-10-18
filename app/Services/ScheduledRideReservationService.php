@@ -223,7 +223,8 @@ class ScheduledRideReservationService
     /**
      * Drop a booking's reservation (the booking itself stays). Reasons:
      * driver_released, admin_released, pickup_changed, driver_unavailable,
-     * vehicle_blocked (papers expired), shift_changed (outside the driver's shifts).
+     * vehicle_blocked (papers expired), shift_changed (outside the driver's shifts),
+     * driver_suspended (suspended or deactivated).
      * Must run inside a transaction with the ride and booking locked.
      */
     public function clearReservation(Ride $ride, ScheduledRide $scheduled, string $reason, ?User $actor = null): void
@@ -245,6 +246,42 @@ class ScheduledRideReservationService
         AuditLog::record($ride, 'scheduled_ride_reservation_released', $actor, ['driver_user_id' => $driverId], ['reason' => $reason]);
 
         DB::afterCommit(fn () => $this->notifyReleased($ride, $driverId, $reason));
+    }
+
+    /**
+     * Release the driver's upcoming reservations at once (their car was taken
+     * off the road, or they can no longer drive), so the bookings go back to
+     * the pool in time. $keep skips the ones that still stand. Each booking is
+     * released in its own transaction; returns how many were released.
+     *
+     * @param  (\Closure(ScheduledRide): bool)|null  $keep
+     */
+    public function releaseAllFor(string $driverUserId, string $reason, ?\Closure $keep = null): int
+    {
+        $released = 0;
+
+        ScheduledRide::query()
+            ->upcoming()
+            ->where('reserved_driver_id', $driverUserId)
+            ->get()
+            ->reject(fn (ScheduledRide $scheduled) => $keep !== null && $keep($scheduled))
+            ->each(function (ScheduledRide $scheduled) use ($driverUserId, $reason, &$released) {
+                try {
+                    DB::transaction(function () use ($scheduled, $driverUserId, $reason, &$released) {
+                        $ride = Ride::lockForUpdate()->find($scheduled->ride_id);
+                        $locked = ScheduledRide::lockForUpdate()->find($scheduled->id);
+
+                        if ($ride !== null && $locked !== null && $locked->isUpcoming() && $locked->reserved_driver_id === $driverUserId) {
+                            $this->clearReservation($ride, $locked, $reason);
+                            $released++;
+                        }
+                    });
+                } catch (\Throwable $e) {
+                    Log::warning('Could not release scheduled ride reservation', ['scheduled_ride_id' => $scheduled->id, 'reason' => $reason, 'error' => $e->getMessage()]);
+                }
+            });
+
+        return $released;
     }
 
     /**
@@ -362,6 +399,7 @@ class ScheduledRideReservationService
                 'pickup_changed' => 'The passenger changed the pickup time or place, so your reservation was released.',
                 'vehicle_blocked' => "Your car's papers have expired, so your reserved pickup was released. Upload the renewed paper to drive again.",
                 'shift_changed' => 'Your shifts changed and this reserved pickup is no longer inside one, so it was released.',
+                'driver_suspended' => 'Your account is not active, so your reserved pickup was released.',
                 default => 'Operations released your reserved pickup.',
             };
 

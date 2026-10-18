@@ -475,6 +475,17 @@ class DriverManagementController extends Controller
                 ], 409)];
             }
 
+            // Shared fleet cars stay in their city, so the driver's shifts
+            // on them must be cancelled or given to someone else first.
+            $shifts = $locked->shifts()->workable()->where('ends_at', '>', now())->count();
+
+            if ($shifts > 0) {
+                return ['error' => response()->json([
+                    'message' => "The driver has {$shifts} upcoming fleet shifts. Cancel or reassign them before changing city.",
+                    'upcoming_shifts' => $shifts,
+                ], 409)];
+            }
+
             $wasOnline = $locked->is_online;
             $oldCityId = $locked->city_id;
 
@@ -483,15 +494,22 @@ class DriverManagementController extends Controller
                 'is_online' => false,
             ]);
 
+            // Plans for the old city would count there as cover that will
+            // not come; the driver plans again for the new city.
+            $plansRemoved = $locked->availabilityPlans()
+                ->where('city_id', $oldCityId)
+                ->where('ends_at', '>', now())
+                ->delete();
+
             AuditLog::record(
                 $locked,
                 'driver_city_changed',
                 $admin,
                 ['city_id' => $oldCityId],
-                ['city_id' => $city->id, 'reason' => $validated['reason']],
+                ['city_id' => $city->id, 'reason' => $validated['reason'], 'availability_plans_removed' => $plansRemoved],
             );
 
-            return ['was_online' => $wasOnline];
+            return ['was_online' => $wasOnline, 'plans_removed' => $plansRemoved];
         });
 
         if (isset($outcome['error'])) {
@@ -532,6 +550,9 @@ class DriverManagementController extends Controller
         }
         if (! $city->launch_status->allowsDriversOnline()) {
             $warnings[] = "{$city->name} has not launched yet, so the driver cannot go online until it is live.";
+        }
+        if ($outcome['plans_removed'] > 0) {
+            $warnings[] = "The driver's {$outcome['plans_removed']} upcoming availability plan(s) in their old city were removed.";
         }
 
         return response()->json([

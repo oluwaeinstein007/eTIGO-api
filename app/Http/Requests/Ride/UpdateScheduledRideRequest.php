@@ -54,6 +54,16 @@ class UpdateScheduledRideRequest extends FormRequest
 
                 if ($this->safe()->collect()->isEmpty()) {
                     $validator->errors()->add('ride', 'Send at least one field to change.');
+
+                    return;
+                }
+
+                // A new pickup must stay in the booking's city.
+                $ride = $this->route('ride');
+
+                if ($this->filled('pickup_lat') && $ride?->city_id
+                    && ($error = StoreRideRequest::pickupCityError($ride->city_id, (float) $this->input('pickup_lat'), (float) $this->input('pickup_lng')))) {
+                    $validator->errors()->add('pickup_lat', $error);
                 }
             },
         ];

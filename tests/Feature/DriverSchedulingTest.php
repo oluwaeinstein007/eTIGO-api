@@ -2,7 +2,10 @@
 
 use App\Contracts\MapsGateway;
 use App\Enums\AdminRole;
+use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverShiftStatus;
+use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
@@ -13,6 +16,7 @@ use App\Models\City;
 use App\Models\CommissionConfig;
 use App\Models\Driver;
 use App\Models\DriverAvailabilityPlan;
+use App\Models\DriverDocument;
 use App\Models\DriverShift;
 use App\Models\FleetAgreement;
 use App\Models\Notification;
@@ -27,6 +31,7 @@ use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\DriverShiftService;
 use App\Services\OperationsAlertService;
+use App\Services\VehicleMaintenanceService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Queue;
@@ -618,4 +623,150 @@ it('lets operations change the scheduling settings', function () {
 
     ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/driver-scheduling', ['shift_min_minutes' => 600, 'shift_max_hours' => 8])
         ->assertStatus(422);
+});
+
+// === DRIVERS WHO STOP DRIVING, MOVE CITY OR TAKE THEIR OWN CAR (Phase 2 review) ===
+
+it('frees a suspended driver\'s shifts and reserved pickups at once and tells operations', function () {
+    NotificationFacade::fake();
+
+    $active = ($this->shift)($this->day, '2026-10-19 06:00', '2026-10-19 14:00', ['status' => DriverShiftStatus::Active, 'started_at' => now()->subHours(2)]);
+    $tomorrow = ($this->shift)($this->day, '2026-10-20 06:00', '2026-10-20 14:00');
+
+    $rideId = ($this->as)($this->passengerToken)->postJson('/api/v1/rides', [
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+        'pickup_address' => '123 Test Street',
+        'destination_lat' => 6.4541,
+        'destination_lng' => 3.3947,
+        'destination_address' => '456 Dest Street',
+        'payment_method' => 'cash',
+        'scheduled_pickup_at' => '2026-10-20T09:00:00Z',
+    ])->assertCreated()->json('ride.id');
+    ($this->as)($this->dayToken)->postJson("/api/v1/driver/scheduled-rides/{$rideId}/reserve")->assertOk();
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->day->id}/suspend", ['reason' => 'Complaint under review'])->assertOk();
+
+    expect($active->fresh()->status)->toBe(DriverShiftStatus::Completed)
+        ->and($active->fresh()->ends_at->equalTo(now()))->toBeTrue()
+        ->and($tomorrow->fresh()->status)->toBe(DriverShiftStatus::Cancelled)
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('reserved_driver_id'))->toBeNull()
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('reservation_released_reason'))->toBe('driver_suspended');
+
+    NotificationFacade::assertSentTo($this->admin, OperationsAlertNotification::class);
+
+    // The freed slots can go to another driver straight away.
+    ($this->as)($this->adminToken)->postJson('/api/v1/admin/driver-shifts', [
+        'driver_id' => $this->night->id,
+        'vehicle_id' => $this->car->id,
+        'starts_at' => '2026-10-20T06:00:00Z',
+        'ends_at' => '2026-10-20T14:00:00Z',
+    ])->assertCreated();
+});
+
+it('refuses to move a driver with upcoming shifts to another city, and drops plans for the old city', function () {
+    $abuja = City::factory()->create(['name' => 'Abuja', 'currency_code' => 'NGN', 'timezone' => 'Africa/Lagos']);
+    ($this->shift)($this->day, '2026-10-20 06:00', '2026-10-20 14:00');
+
+    ($this->as)($this->adminToken)->putJson("/api/v1/admin/drivers/{$this->day->id}/city", ['city_id' => $abuja->id, 'reason' => 'Relocating'])
+        ->assertStatus(409)
+        ->assertJsonPath('upcoming_shifts', 1);
+
+    $user = User::factory()->create(['type' => UserType::Driver]);
+    $driver = Driver::factory()->approved()->create(['user_id' => $user->id, 'city_id' => $this->city->id]);
+    Vehicle::factory()->create(['driver_id' => $driver->id, 'vehicle_class_id' => $this->vehicleClass->id]);
+    $plan = fn (string $start, string $end) => DriverAvailabilityPlan::create([
+        'driver_id' => $driver->id,
+        'city_id' => $this->city->id,
+        'starts_at' => Carbon::parse($start, 'UTC'),
+        'ends_at' => Carbon::parse($end, 'UTC'),
+    ]);
+    $past = $plan('2026-10-18 08:00', '2026-10-18 10:00');
+    $plan('2026-10-21 08:00', '2026-10-21 10:00');
+
+    ($this->as)($this->adminToken)->putJson("/api/v1/admin/drivers/{$driver->id}/city", ['city_id' => $abuja->id, 'reason' => 'Relocating'])
+        ->assertOk()
+        ->assertJsonFragment(["The driver's 1 upcoming availability plan(s) in their old city were removed."]);
+
+    expect(DriverAvailabilityPlan::where('driver_id', $driver->id)->pluck('id')->all())->toBe([$past->id]);
+});
+
+it('counts only drivers who can drive in the city as planned cover', function () {
+    $planFor = function (Driver $driver) {
+        DriverAvailabilityPlan::create([
+            'driver_id' => $driver->id,
+            'city_id' => $this->city->id,
+            'starts_at' => Carbon::parse('2026-10-23 17:00', 'UTC'),
+            'ends_at' => Carbon::parse('2026-10-23 19:00', 'UTC'),
+        ]);
+    };
+
+    $planFor(Driver::factory()->approved()->create(['city_id' => $this->city->id]));
+    $planFor($suspended = Driver::factory()->approved()->create(['city_id' => $this->city->id]));
+    $planFor($moved = Driver::factory()->approved()->create(['city_id' => $this->city->id]));
+
+    $suspended->update(['status' => DriverStatus::Suspended]);
+    $moved->update(['city_id' => City::factory()->create()->id]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/availability-coverage?'.http_build_query([
+        'city_id' => $this->city->id,
+        'from' => '2026-10-23T17:00:00Z',
+        'to' => '2026-10-23T19:00:00Z',
+    ]))->assertOk()
+        ->assertJsonPath('coverage.drivers_with_plans', 1)
+        ->assertJsonPath('coverage.hours.0.planned_drivers', 1);
+});
+
+it('does not give a car of their own to a driver still on a shared car\'s timetable', function () {
+    ($this->shift)($this->day, '2026-10-20 06:00', '2026-10-20 14:00');
+    $own = Vehicle::factory()->fleet()->create(['driver_id' => null, 'vehicle_class_id' => $this->vehicleClass->id]);
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/fleet-vehicles/{$own->id}/assign", [
+        'driver_id' => $this->day->id,
+        'daily_remittance_target' => 15000,
+        'total_vehicle_cost' => 9000000,
+        'agreement_start_date' => '2026-10-20',
+    ])->assertStatus(422)
+        ->assertJsonPath('message', 'This driver has upcoming shifts on a shared fleet car. Cancel or reassign them before giving the driver a car of their own.');
+
+    expect($own->fresh()->driver_id)->toBeNull();
+});
+
+it('releases the pickups shift drivers reserved on a shared car when its papers block it', function () {
+    ($this->shift)($this->day, '2026-10-20 06:00', '2026-10-20 14:00');
+
+    $rideId = ($this->as)($this->passengerToken)->postJson('/api/v1/rides', [
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+        'pickup_address' => '123 Test Street',
+        'destination_lat' => 6.4541,
+        'destination_lng' => 3.3947,
+        'destination_address' => '456 Dest Street',
+        'payment_method' => 'cash',
+        'scheduled_pickup_at' => '2026-10-20T09:00:00Z',
+    ])->assertCreated()->json('ride.id');
+    ($this->as)($this->dayToken)->postJson("/api/v1/driver/scheduled-rides/{$rideId}/reserve")->assertOk();
+
+    // Nobody holds the car now; its insurance ran out well past the grace period.
+    DriverDocument::create([
+        'driver_id' => null,
+        'vehicle_id' => $this->car->id,
+        'type' => DocumentType::InsuranceCertificate,
+        'file_path' => 'driver-documents/test.pdf',
+        'original_filename' => 'paper.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1000,
+        'expires_at' => '2026-10-01',
+        'status' => DocumentStatus::Approved,
+        'reviewed_at' => now(),
+    ]);
+    app(VehicleMaintenanceService::class)->refresh($this->car->fresh());
+
+    expect($this->car->fresh()->isBlocked())->toBeTrue()
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('reserved_driver_id'))->toBeNull()
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('reservation_released_reason'))->toBe('vehicle_blocked');
 });

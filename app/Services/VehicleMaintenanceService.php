@@ -12,6 +12,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\DriverShift;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\User;
@@ -306,8 +307,9 @@ class VehicleMaintenanceService
             ));
 
             $this->safely(fn () => $this->takeOfflineUnlessOnTrip($driver));
-            $this->safely(fn () => $this->releaseReservations($driver));
         }
+
+        $this->safely(fn () => $this->releaseReservations($vehicle, $driver));
 
         if ($vehicle->is_fleet) {
             $this->operations->send(
@@ -371,24 +373,34 @@ class VehicleMaintenanceService
         }
     }
 
-    private function releaseReservations(Driver $driver): void
+    /**
+     * Release the reserved pickups the blocked car was going to do. A shared
+     * car's shift drivers each lose the pickups that fall in their shifts on
+     * this car, and keep those covered by shifts on another car.
+     */
+    private function releaseReservations(Vehicle $vehicle, ?Driver $holder): void
     {
         $reservations = app(ScheduledRideReservationService::class);
 
-        ScheduledRide::query()
-            ->upcoming()
-            ->where('reserved_driver_id', $driver->user_id)
-            ->pluck('ride_id')
-            ->each(fn (string $rideId) => DB::transaction(function () use ($rideId, $driver, $reservations) {
-                $ride = Ride::lockForUpdate()->find($rideId);
-                $scheduled = ScheduledRide::where('ride_id', $rideId)->lockForUpdate()->first();
+        if (! $vehicle->shift_mode) {
+            if ($holder !== null) {
+                $reservations->releaseAllFor($holder->user_id, 'vehicle_blocked');
+            }
 
-                if ($ride === null || $scheduled === null || ! $scheduled->isUpcoming() || $scheduled->reserved_driver_id !== $driver->user_id) {
-                    return;
-                }
+            return;
+        }
 
-                $reservations->clearReservation($ride, $scheduled, 'vehicle_blocked');
-            }));
+        $shifts = app(DriverShiftService::class);
+
+        Driver::query()
+            ->whereIn('id', DriverShift::where('vehicle_id', $vehicle->id)->workable()->where('ends_at', '>', now())->select('driver_id'))
+            ->when($holder !== null, fn ($query) => $query->orWhere('id', $holder->id))
+            ->get()
+            ->each(fn (Driver $driver) => $reservations->releaseAllFor(
+                $driver->user_id,
+                'vehicle_blocked',
+                fn (ScheduledRide $scheduled) => $shifts->shiftCovering($driver, $scheduled->scheduled_pickup_at)?->vehicle_id !== $vehicle->id,
+            ));
     }
 
     /**

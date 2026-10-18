@@ -48,6 +48,12 @@ class FleetRemittanceService
             throw new \DomainException('This car is shared on shifts. Turn shift mode off before putting it on a hire-purchase agreement.');
         }
 
+        // One car per driver: a driver still on a shared car's timetable
+        // cannot also take a car of their own.
+        if ($driver->shifts()->workable()->where('ends_at', '>', now())->exists()) {
+            throw new \DomainException('This driver has upcoming shifts on a shared fleet car. Cancel or reassign them before giving the driver a car of their own.');
+        }
+
         return DB::transaction(function () use ($driver, $vehicle, $dailyTarget, $totalVehicleCost, $startDate, $admin) {
             $agreement = FleetAgreement::create([
                 'driver_id' => $driver->id,

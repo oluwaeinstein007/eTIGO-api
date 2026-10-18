@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\MapsGateway;
 use App\Enums\CityLaunchStatus;
 use App\Models\City;
+use Illuminate\Support\Collection;
 
 class CityDetectionService
 {
@@ -60,6 +61,36 @@ class CityDetectionService
      */
     private function findCityByBoundary(float $lat, float $lng, array $launchStatuses): ?City
     {
+        return $this->citiesAt($lat, $lng, $launchStatuses)->first();
+    }
+
+    /**
+     * The city a pickup point really lies in when that is not the city the
+     * booking names, or null when the point is in the named city (a point on
+     * a shared border is in both) or in no drawn city at all. Any launch
+     * status counts, so a pickup in a city that has not opened cannot be
+     * booked under a live city's name and prices. Boundaries only: no
+     * reverse geocoding call.
+     */
+    public function conflictingCity(string $cityId, float $lat, float $lng): ?City
+    {
+        $cities = $this->citiesAt($lat, $lng, CityLaunchStatus::cases());
+
+        if ($cities->isEmpty() || $cities->contains('id', $cityId)) {
+            return null;
+        }
+
+        return $cities->first();
+    }
+
+    /**
+     * Cities whose drawn boundary contains the point, smallest first.
+     *
+     * @param  list<CityLaunchStatus>  $launchStatuses
+     * @return Collection<int, City>
+     */
+    private function citiesAt(float $lat, float $lng, array $launchStatuses): Collection
+    {
         $candidates = [];
 
         $cities = City::whereIn('launch_status', $launchStatuses)
@@ -92,14 +123,10 @@ class CityDetectionService
             }
         }
 
-        if (empty($candidates)) {
-            return null;
-        }
-
-        // When overlapping boundaries match, return the smallest (most specific) city
+        // When overlapping boundaries match, the smallest (most specific) city first
         usort($candidates, fn ($a, $b) => $a['area'] <=> $b['area']);
 
-        return $candidates[0]['city'];
+        return collect($candidates)->pluck('city');
     }
 
     /**

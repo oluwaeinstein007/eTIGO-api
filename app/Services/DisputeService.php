@@ -52,6 +52,7 @@ class DisputeService
         private WalletRefundService $refunds,
         private PaymentService $payments,
         private NotificationService $notifications,
+        private ScheduledRideCancellationFeeService $cancellationFees,
     ) {}
 
     /**
@@ -799,6 +800,22 @@ class DisputeService
         $ride = $dispute->ride;
         $clawbackKobo = 0;
 
+        // A disputed late-cancellation fee on a cancelled booking.
+        if ($ride->status !== RideStatus::Completed) {
+            $result = $this->cancellationFees->refund(
+                $ride,
+                (int) round($amount * 100),
+                "Refund for dispute {$dispute->reference_number}",
+                $admin,
+                $clawback,
+                $dispute->id,
+            );
+
+            $this->recordRefund($dispute, $amount, $method, $result['clawback_kobo']);
+
+            return $result['clawback_kobo'];
+        }
+
         if ($method === DisputeRefundMethod::Card) {
             $this->payments->refundPayment($ride->payment, $amount);
         } else {
@@ -840,7 +857,22 @@ class DisputeService
         $ride = $dispute->ride;
 
         if ($ride->status !== RideStatus::Completed) {
-            throw new \DomainException('Only completed rides can be refunded.');
+            // A cancelled booking: only its late-cancellation fee, to the wallet.
+            if ($this->cancellationFees->disputableFee($ride) === null) {
+                throw new \DomainException('Only completed rides can be refunded.');
+            }
+
+            if ($method === DisputeRefundMethod::Card) {
+                throw new \DomainException('A cancellation fee is refunded to the wallet, or waived while it is still owed.');
+            }
+
+            $remaining = $this->cancellationFees->refundableKobo($ride);
+
+            if ((int) round($amount * 100) > $remaining) {
+                throw new \DomainException('Refund exceeds remaining refundable amount of ₦'.number_format($remaining / 100, 2).'.');
+            }
+
+            return;
         }
 
         if ($method === DisputeRefundMethod::Card) {

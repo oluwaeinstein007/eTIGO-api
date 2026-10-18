@@ -6,6 +6,7 @@ use App\Enums\DisputeRefundMethod;
 use App\Enums\DisputeStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
+use App\Services\ScheduledRideCancellationFeeService;
 use App\Services\WalletRefundService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -59,6 +60,21 @@ class ResolveDisputeFormRequest extends FormRequest
 
                 $ride = $dispute->ride;
                 $payment = $ride->payment;
+                $amount = (float) $this->input('refund_amount');
+
+                // A disputed late-cancellation fee: refunded to the wallet, or
+                // waived in full while still owed.
+                if ($ride->status !== RideStatus::Completed && ($fees = app(ScheduledRideCancellationFeeService::class))->disputableFee($ride) !== null) {
+                    $remainingKobo = $fees->refundableKobo($ride);
+
+                    if ($this->input('refund_method') === DisputeRefundMethod::Card->value) {
+                        $validator->errors()->add('refund_amount', 'A cancellation fee is refunded to the wallet, or waived while it is still owed.');
+                    } elseif ((int) round($amount * 100) > $remainingKobo) {
+                        $validator->errors()->add('refund_amount', 'Refund cannot exceed the remaining refundable amount of ₦'.number_format($remainingKobo / 100, 2).'.');
+                    }
+
+                    return;
+                }
 
                 if (! $payment || $ride->status !== RideStatus::Completed) {
                     $validator->errors()->add('refund_amount', 'No payment found for this ride.');
@@ -66,7 +82,6 @@ class ResolveDisputeFormRequest extends FormRequest
                     return;
                 }
 
-                $amount = (float) $this->input('refund_amount');
                 $remainingKobo = app(WalletRefundService::class)->remainingRefundableKobo($ride);
 
                 if ($this->input('refund_method') === DisputeRefundMethod::Card->value) {

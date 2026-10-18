@@ -58,6 +58,10 @@ class EstimateRideRequest extends FormRequest
                 if ($pickupLat === $destLat && $pickupLng === $destLng) {
                     $validator->errors()->add('destination_lat', 'Pickup and destination cannot be the same location.');
                 }
+
+                if ($error = StoreRideRequest::pickupCityError($this->input('city_id'), $pickupLat, $pickupLng)) {
+                    $validator->errors()->add('pickup_lat', $error);
+                }
             },
         ];
     }

@@ -242,6 +242,57 @@ class DriverShiftService
     }
 
     /**
+     * The driver can no longer drive (suspended, deactivated or rejected):
+     * a shift in progress ends now and upcoming ones are cancelled, so
+     * operations can give the car to another driver straight away rather
+     * than wait for the shifts to be missed. Operations are told which
+     * slots were freed. Returns how many shifts were freed.
+     */
+    public function withdrawDriver(Driver $driver, string $reason): int
+    {
+        $lines = [];
+
+        $driver->shifts()
+            ->workable()
+            ->where('ends_at', '>', now())
+            ->pluck('id')
+            ->each(function (string $id) use ($reason, &$lines) {
+                DB::transaction(function () use ($id, $reason, &$lines) {
+                    $shift = DriverShift::lockForUpdate()->with('vehicle')->find($id);
+
+                    if ($shift === null || ! $shift->isWorkable() || $shift->ends_at->lte(now())) {
+                        return;
+                    }
+
+                    if ($shift->status === DriverShiftStatus::Active) {
+                        $shift->update(['status' => DriverShiftStatus::Completed, 'ended_at' => now(), 'ends_at' => now()]);
+                    } else {
+                        $shift->update(['status' => DriverShiftStatus::Cancelled, 'cancelled_at' => now(), 'cancellation_reason' => $reason]);
+                    }
+
+                    AuditLog::record($shift, 'driver_shift_withdrawn', null, null, ['reason' => $reason, 'status' => $shift->status->value]);
+
+                    $lines[] = "{$shift->vehicle?->plate_number}: {$this->window($shift)}";
+                });
+            });
+
+        if ($lines !== []) {
+            $name = trim(($driver->user?->first_name ?? '').' '.($driver->user?->last_name ?? '')) ?: 'A driver';
+
+            app(OperationsAlertService::class)->send(
+                label: 'Shifts freed',
+                headline: count($lines) === 1 ? '1 fleet shift needs a new driver' : count($lines).' fleet shifts need a new driver',
+                body: "{$name} can no longer drive ({$reason}), so their shifts were cancelled. Give these slots to another driver.",
+                lines: $lines,
+                actionPath: '/admin/driver-shifts?status=cancelled',
+                actionLabel: 'Open shifts',
+            );
+        }
+
+        return count($lines);
+    }
+
+    /**
      * Put a fleet car on a shift timetable, or take it off one. A car on
      * hire purchase belongs to the driver buying it, so it cannot be shared.
      *

@@ -166,6 +166,7 @@ class AdminDisputeController extends Controller
             'ride.vehicleClass',
             'ride.city',
             'ride.payment.paymentMethod',
+            'ride.scheduledRide',
             'notes.admin',
             'evidence',
         ]);
