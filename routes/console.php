@@ -28,6 +28,11 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Artisan::command('vehicles:check-maintenance', function () {
+    ProcessVehicleMaintenanceJob::dispatchSync();
+    $this->info('Vehicle maintenance checked: items updated, reminders and the operations digest sent.');
+})->purpose('Run the daily vehicle maintenance check now (items, reminders, expired-papers block)');
+
 Schedule::job(new ExpireStaleHoldsJob)->hourly();
 Schedule::job(new ExpireAbandonedTopupsJob)->everyFifteenMinutes();
 Schedule::job(new SettleDriverEarningsJob)->hourly()->withoutOverlapping();

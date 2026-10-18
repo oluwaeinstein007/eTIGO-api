@@ -301,6 +301,24 @@
         "value": "",
         "type": "default",
         "enabled": true
+      },
+      {
+        "key": "shift_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "availability_plan_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
+      },
+      {
+        "key": "maintenance_record_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
       }
     ]
   }

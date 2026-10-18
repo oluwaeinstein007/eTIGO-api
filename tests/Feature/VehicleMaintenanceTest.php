@@ -129,7 +129,7 @@ it('shows the driver their car status, starting with no records', function () {
         ->assertJsonCount(5, 'items')
         ->assertJsonPath('items.0.type', 'service')
         ->assertJsonPath('items.0.status', 'unknown')
-        ->assertJsonPath('items.0.message', 'Add the date of your last Routine service.');
+        ->assertJsonPath('items.0.message', 'Add the date of your last routine service.');
 });
 
 // === RECORDS ===

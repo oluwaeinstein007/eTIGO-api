@@ -448,8 +448,8 @@ class VehicleMaintenanceService
                 ? "{$label} expired on {$date}; you can't go online until a renewed paper is approved."
                 : "{$label} expired on {$date}; upload the renewed paper by {$this->blocksFrom($item->due_at, $settings)->subDay()->format('j M Y')} to keep driving.",
             MaintenanceItemStatus::Unknown => $item->type->isLegalPaper()
-                ? "Upload your vehicle's {$label} with its expiry date."
-                : "Add the date of your last {$label}.",
+                ? 'Upload your '.mb_strtolower($label).' with its expiry date.'
+                : 'Add the date of your last '.mb_strtolower($label).'.',
             MaintenanceItemStatus::Ok => "{$label} is up to date.",
         };
     }
