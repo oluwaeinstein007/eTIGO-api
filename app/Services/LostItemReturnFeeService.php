@@ -65,14 +65,23 @@ class LostItemReturnFeeService
                     return;
                 }
 
-                $this->balanceService->record(
+                $balance = $this->balanceService->record(
                     $item->passenger_id,
                     $item->ride,
                     BalanceDueReason::LostItemReturnFee,
                     $feeKobo,
                     $item->driver_id,
                 );
-                $this->finish($item, 'balance_due', ['via' => 'balance_due']);
+
+                // Balances due are one per ride and reason: a second returned
+                // item from the same trip is not charged again.
+                if (! $balance?->wasRecentlyCreated) {
+                    $this->finish($item, 'waived', ['reason' => 'fee_already_recorded_for_ride', 'balance_due_id' => $balance?->id]);
+
+                    return;
+                }
+
+                $this->finish($item, 'balance_due', ['via' => 'balance_due', 'balance_due_id' => $balance->id]);
             });
         } catch (\Throwable $e) {
             // Left pending: the hourly Lost & Found job tries again.

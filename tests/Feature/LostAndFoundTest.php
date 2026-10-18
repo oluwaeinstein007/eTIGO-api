@@ -596,6 +596,24 @@ it('charges no fee when the return fee is off', function () {
 
 // ── Hourly sweep ──
 
+it('charges one return fee per trip, even for a second item', function () {
+    ($this->setting)('return_fee', 2000);
+    $first = ($this->reportedItem)();
+    ($this->respond)($first, true);
+    ($this->as)($this->passengerToken)->postJson("/api/v1/lost-items/{$first->id}/received")
+        ->assertJsonPath('lost_item.return_fee.status', 'balance_due');
+
+    ($this->report)(['category' => 'keys'])->assertCreated();
+    $second = LostItem::where('category', 'keys')->sole();
+    ($this->respond)($second, true);
+
+    ($this->as)($this->passengerToken)->postJson("/api/v1/lost-items/{$second->id}/received")
+        ->assertOk()
+        ->assertJsonPath('lost_item.return_fee.status', 'waived');
+
+    expect(PassengerBalanceDue::count())->toBe(1);
+});
+
 it('hands silent drivers to support and reminds them', function () {
     $item = ($this->reportedItem)();
 
@@ -624,7 +642,9 @@ it('resolves an undisputed return after the auto-resolve period', function () {
     $this->travel(73)->hours();
     app(LostItemService::class)->processOverdue();
 
-    expect($item->fresh()->status)->toBe(LostItemStatus::Resolved);
+    expect($item->fresh()->status)->toBe(LostItemStatus::Resolved)
+        ->and(Notification::where('user_id', $this->passenger->id)->where('title', 'Lost item report resolved')->exists())->toBeTrue()
+        ->and(Notification::where('user_id', $this->driverUser->id)->where('title', 'Item returned')->exists())->toBeTrue();
 });
 
 it('does not auto-resolve a return the passenger disputes', function () {
@@ -655,7 +675,9 @@ it('closes "not found" reports nobody followed up and flags overdue returns', fu
         ->and($counts['return_overdue'])->toBe(1)
         ->and($denied->fresh()->status)->toBe(LostItemStatus::Unresolved)
         ->and($denied->fresh()->closure_reason?->value)->toBe('not_found')
-        ->and($confirmed->fresh()->escalated_at)->not->toBeNull();
+        ->and($confirmed->fresh()->escalated_at)->not->toBeNull()
+        ->and(Notification::where('user_id', $this->passenger->id)->where('title', 'Lost item report closed')->exists())->toBeTrue()
+        ->and(Notification::where('user_id', $this->driverUser->id)->where('title', 'Lost item still to return')->exists())->toBeTrue();
 });
 
 // ── Settings and config ──

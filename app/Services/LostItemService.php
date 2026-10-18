@@ -76,9 +76,10 @@ class LostItemService
 
         try {
             $item = DB::transaction(function () use ($ride, $user, $data, $photoPaths, $settings, $byDriver) {
-                // Serialises reports on the same ride and by the same passenger.
-                Ride::whereKey($ride->id)->lockForUpdate()->first();
+                // Serialises reports by the same passenger and on the same ride
+                // (passenger before ride, the order booking uses).
                 User::whereKey($ride->passenger_id)->lockForUpdate()->first();
+                Ride::whereKey($ride->id)->lockForUpdate()->first();
 
                 if (LostItem::where('ride_id', $ride->id)->open()->exists()) {
                     throw new \DomainException($byDriver
@@ -502,6 +503,14 @@ class LostItemService
 
         foreach ($overdue as $id) {
             if ($this->autoEscalate($id, LostItemStatus::DriverConfirmed, 'The item has not been returned in time.')) {
+                $item = LostItem::find($id);
+                $noun = $item->category->noun();
+                $this->notify($item->passenger_id, NotificationType::LostItemUpdate, $item,
+                    'Support is following up',
+                    "Your {$noun} has not been returned yet, so our support team will help arrange it.");
+                $this->notify($item->driver_id, NotificationType::LostItemUpdate, $item,
+                    'Lost item still to return',
+                    "The passenger's {$noun} has not been returned yet. Please arrange it in the app; our support team will follow up.");
                 $counts['return_overdue']++;
             }
         }
@@ -512,16 +521,22 @@ class LostItemService
             ->pluck('id');
 
         foreach ($returned as $id) {
-            try {
-                $item = $this->transition(LostItem::findOrFail($id), [LostItemStatus::Returned], fn (LostItem $item) => [
-                    'status' => LostItemStatus::Resolved,
-                    'resolved_at' => now(),
-                    'return_fee_status' => $item->returnFeeAmount() > 0 ? 'pending' : null,
-                ], null, 'lost_item.auto_resolved', escalatedOk: false);
+            $item = $this->sweepTransition($id, [LostItemStatus::Returned], fn (LostItem $item) => [
+                'status' => LostItemStatus::Resolved,
+                'resolved_at' => now(),
+                'return_fee_status' => $item->returnFeeAmount() > 0 ? 'pending' : null,
+            ], 'lost_item.auto_resolved');
+
+            if ($item !== null) {
+                $noun = $item->category->noun();
+                $this->notify($item->passenger_id, NotificationType::LostItemUpdate, $item,
+                    'Lost item report resolved',
+                    "We have marked your report for your {$noun} resolved, as your driver returned it. Contact support if anything is not right.");
+                $this->notify($item->driver_id, NotificationType::LostItemUpdate, $item,
+                    'Item returned',
+                    "The lost item report for the passenger's {$noun} is resolved. Thank you for returning it.");
                 $this->collectFee($item);
                 $counts['auto_resolved']++;
-            } catch (\DomainException) {
-                // Changed since the query (confirmed, disputed): nothing to do.
             }
         }
 
@@ -531,15 +546,17 @@ class LostItemService
             ->pluck('id');
 
         foreach ($denied as $id) {
-            try {
-                $this->transition(LostItem::findOrFail($id), [LostItemStatus::DriverDenied], fn () => [
-                    'status' => LostItemStatus::Unresolved,
-                    'closed_at' => now(),
-                    'closure_reason' => LostItemClosureReason::NotFound,
-                ], null, 'lost_item.auto_closed', escalatedOk: false);
+            $item = $this->sweepTransition($id, [LostItemStatus::DriverDenied], fn () => [
+                'status' => LostItemStatus::Unresolved,
+                'closed_at' => now(),
+                'closure_reason' => LostItemClosureReason::NotFound,
+            ], 'lost_item.auto_closed');
+
+            if ($item !== null) {
+                $this->notify($item->passenger_id, NotificationType::LostItemUpdate, $item,
+                    'Lost item report closed',
+                    "We have closed your report for your {$item->category->noun()}, as your driver did not find it. We are sorry it was not recovered.");
                 $counts['auto_closed']++;
-            } catch (\DomainException) {
-                // Escalated or answered since the query.
             }
         }
 
@@ -553,6 +570,28 @@ class LostItemService
         }
 
         return $counts;
+    }
+
+    /**
+     * A sweep change on one report. A report that has moved on since the
+     * query is skipped, and a failure on one report never stops the sweep.
+     *
+     * @param  list<LostItemStatus>  $from
+     * @param  callable(LostItem): array<string, mixed>  $changes
+     */
+    private function sweepTransition(string $id, array $from, callable $changes, string $event): ?LostItem
+    {
+        try {
+            $item = LostItem::find($id);
+
+            return $item ? $this->transition($item, $from, $changes, null, $event, escalatedOk: false) : null;
+        } catch (\DomainException) {
+            return null;
+        } catch (\Throwable $e) {
+            Log::error('Lost & Found sweep failed for a report', ['lost_item_id' => $id, 'event' => $event, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     private function autoEscalate(string $id, LostItemStatus $expected, string $reason): bool

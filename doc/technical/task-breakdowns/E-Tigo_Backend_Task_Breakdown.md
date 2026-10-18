@@ -988,9 +988,9 @@
 | BE2-LF-08 | `[x]` Create `AdminLostItemController@intervene` — `POST /api/v1/admin/lost-items/{item}/intervene`: Admin resolves or adds notes | A-35 | BE2-LF-07 | **Built.** `action`: `note` (internal), `message` (to both), `mark_found`, `resolve` (`waive_return_fee`), `close` (`closure_reason`) |
 | BE2-LF-09 | `[x]` Create `LostItemResource` API resource | — | BE2-LF-02 | **Built.** Cut per viewer (`viewer_role`): the other side's first name only, phone numbers only in `contact` while the driver has the item; internal notes for support only. `LostItemMessageResource` |
 | BE2-LF-10 | `[x]` Hourly sweep `ProcessLostItemsJob` (`LostItemService::processOverdue`) | B-29 | BE2-LF-06 | **Built.** Silent driver after `driver_response_hours` (24) → support + driver reminder; confirmed but not returned after `return_deadline_days` (7) → support; `returned` undisputed for `auto_resolve_hours` (72) → `resolved`; `driver_denied` not followed up for `denied_auto_close_days` (7) → `unresolved`; retries pending return fees |
-| BE2-LF-11 | `[x]` Return fee (`LostItemReturnFeeService`) | B-29 | BE2-LF-06, BE2-SCH-16 | **Built, off by default (OQ-36).** Fixed when the driver confirms; on return taken from the wallet to the driver in full, or recorded as a balance due (`lost_item_return_fee`); support can waive |
+| BE2-LF-11 | `[x]` Return fee (`LostItemReturnFeeService`) | B-29 | BE2-LF-06, BE2-SCH-16 | **Built, off by default (OQ-36).** Fixed when the driver confirms; on return taken from the wallet to the driver in full, or recorded as a balance due (`lost_item_return_fee`); one fee per trip; support can waive |
 | BE2-LF-12 | `[x]` Settings `GET/PUT /admin/settings/lost-and-found` (operations, audit-logged) and `lost_and_found` in `GET /config` | A-35 | BE2-LF-02 | **Built.** `AppSetting::lostAndFound()` over `config/lost_and_found.php`. `/config` gives `enabled`, `report_window_days`, `return_fee`, `categories` |
-| BE2-LF-13 | `[x]` Tests | — | BE2-LF-01–12 | **Built.** `tests/Feature/LostAndFoundTest.php` (40 tests) |
+| BE2-LF-13 | `[x]` Tests | — | BE2-LF-01–12 | **Built.** `tests/Feature/LostAndFoundTest.php` (41 tests) |
 
 ---
 

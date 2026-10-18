@@ -61,7 +61,7 @@ class LostItemResource extends JsonResource
             'ride' => $this->when($this->relationLoaded('ride'), fn () => $this->rideSummary($isAdmin || $isPassenger)),
             'passenger' => $this->when($this->relationLoaded('passenger') && ! $isPassenger, fn () => $isAdmin
                 ? new UserResource($this->passenger)
-                : ['first_name' => $this->ride?->riderFirstName() ?? $this->passenger?->first_name]),
+                : ['first_name' => $this->passengerFirstName()]),
             'driver' => $this->when($this->relationLoaded('driver') && ! $isDriver, fn () => $isAdmin
                 ? ($this->driver ? new UserResource($this->driver) : null)
                 : ['first_name' => $this->driver?->first_name]),
@@ -97,9 +97,17 @@ class LostItemResource extends JsonResource
         }
 
         return [
-            'first_name' => $this->ride?->riderFirstName() ?? $this->passenger?->first_name,
+            'first_name' => $this->passengerFirstName(),
             'phone' => $this->passengerContactPhone(),
         ];
+    }
+
+    /**
+     * Who the driver picked up: the rider on a third-party trip.
+     */
+    private function passengerFirstName(): ?string
+    {
+        return ($this->ride?->is_third_party ? $this->ride->riderFirstName() : null) ?? $this->passenger?->first_name;
     }
 
     /**
