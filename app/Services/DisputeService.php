@@ -52,6 +52,7 @@ class DisputeService
         private WalletRefundService $refunds,
         private PaymentService $payments,
         private NotificationService $notifications,
+        private ScheduledRideCancellationFeeService $cancellationFees,
     ) {}
 
     /**
@@ -377,7 +378,8 @@ class DisputeService
 
             $this->assertRefundable($locked, $refundAmount, $method);
 
-            $total = $refundAmount + (float) ($locked->refund_amount ?? 0);
+            // A waived fee counts towards the reviewer's limit like a refund.
+            $total = $refundAmount + (float) ($locked->refund_amount ?? 0) + (float) ($locked->waived_amount ?? 0);
 
             if ($method === DisputeRefundMethod::Card || ! $this->access->withinRefundLimit($actor, $total)) {
                 $request = $locked->refundRequests()->create([
@@ -799,6 +801,32 @@ class DisputeService
         $ride = $dispute->ride;
         $clawbackKobo = 0;
 
+        // A disputed late-cancellation fee on a cancelled booking.
+        if ($ride->status !== RideStatus::Completed) {
+            $result = $this->cancellationFees->refund(
+                $ride,
+                (int) round($amount * 100),
+                "Refund for dispute {$dispute->reference_number}",
+                $admin,
+                $clawback,
+                $dispute->id,
+            );
+
+            if ($result['waived_kobo'] > 0) {
+                // Nothing was paid back: record the write-off, not a refund.
+                $dispute->update([
+                    'waived_amount' => round((float) ($dispute->waived_amount ?? 0) + $result['waived_kobo'] / 100, 2),
+                    'refund_currency' => $ride->fare_currency ?? 'NGN',
+                ]);
+
+                return 0;
+            }
+
+            $this->recordRefund($dispute, $amount, $method, $result['clawback_kobo']);
+
+            return $result['clawback_kobo'];
+        }
+
         if ($method === DisputeRefundMethod::Card) {
             $this->payments->refundPayment($ride->payment, $amount);
         } else {
@@ -840,7 +868,22 @@ class DisputeService
         $ride = $dispute->ride;
 
         if ($ride->status !== RideStatus::Completed) {
-            throw new \DomainException('Only completed rides can be refunded.');
+            // A cancelled booking: only its late-cancellation fee, to the wallet.
+            if ($this->cancellationFees->disputableFee($ride) === null) {
+                throw new \DomainException('Only completed rides can be refunded.');
+            }
+
+            if ($method === DisputeRefundMethod::Card) {
+                throw new \DomainException('A cancellation fee is refunded to the wallet, or waived while it is still owed.');
+            }
+
+            $remaining = $this->cancellationFees->refundableKobo($ride);
+
+            if ((int) round($amount * 100) > $remaining) {
+                throw new \DomainException('Refund exceeds remaining refundable amount of ₦'.number_format($remaining / 100, 2).'.');
+            }
+
+            return;
         }
 
         if ($method === DisputeRefundMethod::Card) {
@@ -881,6 +924,7 @@ class DisputeService
             'resolution_notes' => $notes,
             'refund_amount' => $dispute->refund_amount,
             'refund_method' => $dispute->refund_method?->value,
+            'waived_amount' => $dispute->waived_amount,
             'appeal' => $dispute->isAppeal() ?: null,
         ], fn ($v) => $v !== null));
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DriverStatus;
 use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\Driver;
@@ -89,7 +90,10 @@ class DriverAvailabilityService
             $to = $to->copy()->startOfHour()->addHour();
         }
 
+        // Only drivers who can drive here now count as cover: plans left by a
+        // suspended driver, or one moved to another city, are not.
         $plans = DriverAvailabilityPlan::where('city_id', $city->id)
+            ->whereHas('driver', fn ($driver) => $driver->where('status', DriverStatus::Approved)->where('city_id', $city->id))
             ->overlapping($from->copy()->utc(), $to->copy()->utc())
             ->get(['driver_id', 'area_label', 'starts_at', 'ends_at']);
 
@@ -128,7 +132,7 @@ class DriverAvailabilityService
             'timezone' => self::TIMEZONE,
             'from' => $from->toIso8601String(),
             'to' => $to->toIso8601String(),
-            'approved_drivers' => Driver::where('city_id', $city->id)->where('status', 'approved')->count(),
+            'approved_drivers' => Driver::where('city_id', $city->id)->where('status', DriverStatus::Approved)->count(),
             'drivers_with_plans' => $plans->pluck('driver_id')->unique()->count(),
             'areas' => $plans->pluck('area_label')->filter()->unique(fn ($label) => mb_strtolower($label))->sort()->values()->all(),
             'peak_hour' => $peak === null ? null : ['starts_at' => $peak['starts_at'], 'planned_drivers' => $peak['planned_drivers']],

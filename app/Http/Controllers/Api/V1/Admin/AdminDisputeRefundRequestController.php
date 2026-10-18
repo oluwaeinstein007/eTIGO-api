@@ -69,8 +69,12 @@ class AdminDisputeRefundRequestController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        $waived = $result['dispute']->waived_amount !== null && $result['dispute']->refund_amount === null;
+
         return response()->json([
-            'message' => 'Refund approved and paid. The dispute is resolved.',
+            'message' => $waived
+                ? 'Approved: the unpaid fee was waived. The dispute is resolved.'
+                : 'Refund approved and paid. The dispute is resolved.',
             'refund_request' => new DisputeRefundRequestResource($result['refund_request']->load(['requestedBy', 'reviewedBy'])),
             'dispute' => new DisputeResource($result['dispute']->load(['reportedBy', 'resolvedBy', 'ride'])),
             'driver_clawback_kobo' => $result['clawback_kobo'],

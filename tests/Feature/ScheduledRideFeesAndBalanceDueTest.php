@@ -13,6 +13,7 @@ use App\Jobs\ChargeScheduledRideCancellationFeeJob;
 use App\Models\Account;
 use App\Models\City;
 use App\Models\CommissionConfig;
+use App\Models\Dispute;
 use App\Models\Driver;
 use App\Models\Hold;
 use App\Models\Notification;
@@ -28,6 +29,7 @@ use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\PassengerBalanceService;
 use App\Services\PaymentService;
+use App\Services\ScheduledRideCancellationFeeService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 
@@ -350,4 +352,99 @@ it('puts card money into the wallet when a balance was waived while the card was
     expect($wallet->balance)->toBe(40_000)
         ->and($balance->fresh()->status->value)->toBe('waived')
         ->and(($this->driverEarnings)())->toBe(0);
+});
+
+// === DISPUTING A LATE-CANCELLATION FEE (Phase 2 review) ===
+
+it('lets the passenger dispute a charged fee and support refund it to the wallet from the driver', function () {
+    $wallet = ($this->wallet)(1_000_000);
+    $rideId = ($this->reservedBooking)(['payment_method' => 'wallet']);
+    ($this->cancel)($rideId)->assertOk()->assertJsonPath('ride.scheduled.late_cancellation_fee_status', 'charged');
+
+    // The driver cannot dispute the cancelled booking; the passenger can.
+    ($this->as)($this->driverToken)->postJson("/api/v1/rides/{$rideId}/dispute", [
+        'category' => 'fare_dispute',
+        'description' => 'I should have been paid more for this.',
+    ])->assertUnprocessable()->assertJsonValidationErrors('ride');
+
+    $disputeId = ($this->as)($this->passengerToken)->postJson("/api/v1/rides/{$rideId}/dispute", [
+        'category' => 'fare_dispute',
+        'description' => 'The driver was nowhere near the pickup when I cancelled.',
+    ])->assertCreated()->json('dispute.id');
+
+    $agent = User::factory()->admin(AdminRole::Support)->create();
+
+    // Card refunds and more than the fee are refused.
+    $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
+        'status' => 'resolved',
+        'resolution_notes' => 'Driver was far away; fee refunded.',
+        'refund_amount' => 400,
+        'refund_method' => 'card',
+    ])->assertUnprocessable()->assertJsonValidationErrors('refund_amount');
+
+    $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
+        'status' => 'resolved',
+        'resolution_notes' => 'Driver was far away; fee refunded.',
+        'refund_amount' => 500,
+    ])->assertUnprocessable()->assertJsonValidationErrors('refund_amount');
+
+    $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
+        'status' => 'resolved',
+        'resolution_notes' => 'Driver was far away; fee refunded.',
+        'refund_amount' => 400,
+    ])->assertOk()
+        ->assertJsonPath('dispute.status', 'resolved')
+        ->assertJsonPath('dispute.refund_method', 'wallet');
+
+    expect($wallet->fresh()->balance)->toBe(1_000_000)
+        ->and(($this->driverEarnings)())->toBe(0)
+        ->and((float) Dispute::findOrFail($disputeId)->driver_clawback_amount)->toBe(400.0)
+        ->and(app(ScheduledRideCancellationFeeService::class)->refundableKobo(Ride::findOrFail($rideId)))->toBe(0);
+});
+
+it('waives an unpaid fee in full when a fee dispute is upheld', function () {
+    $rideId = ($this->reservedBooking)();
+    ($this->cancel)($rideId)->assertOk()->assertJsonPath('ride.scheduled.late_cancellation_fee_status', 'balance_due');
+
+    $disputeId = ($this->as)($this->passengerToken)->postJson("/api/v1/rides/{$rideId}/dispute", [
+        'category' => 'fare_dispute',
+        'description' => 'I cancelled because the driver said he was not coming.',
+    ])->assertCreated()->json('dispute.id');
+
+    $agent = User::factory()->admin(AdminRole::Support)->create();
+
+    // A balance due cannot be part-waived.
+    $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
+        'status' => 'resolved',
+        'resolution_notes' => 'Half of the fee waived as goodwill.',
+        'refund_amount' => 200,
+    ])->assertUnprocessable();
+
+    // A waiver pays nothing back, so it is not recorded as a refund.
+    $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
+        'status' => 'resolved',
+        'resolution_notes' => 'The driver cancelled on the passenger by phone.',
+        'refund_amount' => 400,
+    ])->assertOk()
+        ->assertJsonPath('message', 'Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.')
+        ->assertJsonPath('dispute.status', 'resolved')
+        ->assertJsonPath('dispute.waived_amount', '400.00')
+        ->assertJsonPath('dispute.refund_amount', null)
+        ->assertJsonPath('dispute.refund_method', null);
+
+    expect(PassengerBalanceDue::sole()->status->value)->toBe('waived')
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('late_cancellation_fee_status'))->toBe('waived')
+        ->and(($this->driverEarnings)())->toBe(0);
+
+    ($this->book)(['scheduled_pickup_at' => null])->assertCreated();
+});
+
+it('still refuses disputes on cancelled rides that carry no fee', function () {
+    $rideId = ($this->book)()->assertCreated()->json('ride.id');
+    ($this->cancel)($rideId)->assertOk();
+
+    ($this->as)($this->passengerToken)->postJson("/api/v1/rides/{$rideId}/dispute", [
+        'category' => 'fare_dispute',
+        'description' => 'Nothing was charged but I want to complain.',
+    ])->assertUnprocessable()->assertJsonValidationErrors('ride');
 });

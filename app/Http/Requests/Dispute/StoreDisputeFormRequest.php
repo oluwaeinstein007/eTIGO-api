@@ -4,6 +4,7 @@ namespace App\Http\Requests\Dispute;
 
 use App\Enums\DisputeCategory;
 use App\Enums\RideStatus;
+use App\Services\ScheduledRideCancellationFeeService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -34,14 +35,20 @@ class StoreDisputeFormRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 $ride = $this->route('ride');
+                $user = $this->user();
 
-                if ($ride->status !== RideStatus::Completed) {
-                    $validator->errors()->add('ride', 'You can only dispute a completed ride.');
+                // A cancelled booking can be disputed by its passenger only for
+                // the late-cancellation fee they were charged (SR-4).
+                $feeDispute = $ride->status === RideStatus::Cancelled
+                    && $ride->passenger_id === $user->id
+                    && app(ScheduledRideCancellationFeeService::class)->disputableFee($ride) !== null;
+
+                if ($ride->status !== RideStatus::Completed && ! $feeDispute) {
+                    $validator->errors()->add('ride', 'You can only dispute a completed ride, or a cancellation fee you were charged.');
 
                     return;
                 }
 
-                $user = $this->user();
                 $isParticipant = $ride->passenger_id === $user->id || $ride->driver_id === $user->id;
 
                 if (! $isParticipant) {

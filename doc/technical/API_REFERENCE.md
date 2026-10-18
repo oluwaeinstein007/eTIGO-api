@@ -2559,6 +2559,8 @@ POST /admin/drivers/{driver_id}/suspend
 ```
 Force-sets driver offline, removes them from the live driver map and blocks them from accepting requests.
 
+**Phase 2:** the driver's upcoming scheduled-ride reservations are released at once (reason `driver_suspended`; the passenger gets `scheduled_ride_reservation_released` and the booking goes back to the pool) and their fleet shifts are freed: a shift in progress ends now and upcoming shifts are cancelled (audit `driver_shift_withdrawn`), with one operations email listing the slots to reassign. The same happens whenever an approved driver stops being approved — an automatic sanction suspension or a compliance deactivation included.
+
 | Field  | Type   | Required | Description                |
 |--------|--------|----------|----------------------------|
 | reason | string | Yes      | Reason for suspension (max 500 chars) |
@@ -2709,9 +2711,9 @@ Moves a driver to another city (Phase 2 multi-city). Drivers choose their city d
   ]
 }
 ```
-`warnings` also flags a city that has not launched yet (the driver cannot go online there).
+`warnings` also flags a city that has not launched yet (the driver cannot go online there), and says how many of the driver's upcoming availability plans for the old city were removed (`"The driver's 2 upcoming availability plan(s) in their old city were removed."`).
 
-**Response 409:** `"The driver cannot change city during an active ride."`, or `"The driver has 2 upcoming reserved bookings. Release them before changing city."` with `upcoming_reservations`.
+**Response 409:** `"The driver cannot change city during an active ride."`; `"The driver has 2 upcoming reserved bookings. Release them before changing city."` with `upcoming_reservations`; or `"The driver has 3 upcoming fleet shifts. Cancel or reassign them before changing city."` with `upcoming_shifts` (shared fleet cars stay in their city).
 **Response 422:** the driver is already in that city; missing `reason`.
 
 ---
@@ -2951,6 +2953,7 @@ Assigns an unassigned fleet vehicle to an approved driver. This also creates a f
 **Prerequisites:**
 - Vehicle must be a fleet vehicle (`is_fleet: true`) and unassigned (`driver_id: null`).
 - Driver must be approved and not already have a vehicle assigned.
+- The car is not in shift mode, and the driver has no upcoming shifts on a shared fleet car (Phase 2: one car per driver on E-tiGo).
 
 | Field                   | Type          | Required | Validation                     | Description                        |
 |-------------------------|---------------|----------|--------------------------------|------------------------------------|
@@ -3000,6 +3003,12 @@ Assigns an unassigned fleet vehicle to an approved driver. This also creates a f
 ```json
 {
   "message": "Driver already has a vehicle assigned."
+}
+```
+
+```json
+{
+  "message": "This driver has upcoming shifts on a shared fleet car. Cancel or reassign them before giving the driver a car of their own."
 }
 ```
 
@@ -5243,6 +5252,7 @@ POST /rides/estimate
 **Validation rules:**
 - `city_id` must reference a **live** city. An onboarding city returns 422 `E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.`; a paused one `Rides in Lagos are paused for now. Please try again later.` (`POST /rides` returns the same)
 - Pickup and destination coordinates cannot be identical — returns 422
+- The pickup cannot lie inside **another** city's drawn boundary (Phase 2 multi-city): 422 on `pickup_lat` — `This pickup is in Abuja. Choose Abuja as your city to book it.` when that city is live, or its not-open message (`E-tiGo is not available in Abuja yet. …` / `Rides in Abuja are paused for now. …`). This stops a city that has not opened being booked under a live city's name and prices. A pickup outside every drawn city keeps the named city. `POST /rides` and `PUT /rides/{ride}/scheduled` (new pickup) apply the same check
 
 **How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged (an upfront fare). Only two things can change it: a waiting charge after the free minutes, and a trip that runs significantly longer than the quoted time (more than 25% and at least 10 minutes over), which bills the actual trip time, capped at 3× the quoted time. A quicker trip keeps the quote.
 
@@ -5392,7 +5402,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 
 | Field              | Type    | Required | Description                         |
 |--------------------|---------|----------|-------------------------------------|
-| city_id            | string (UUID) | Yes      | Must exist and be active            |
+| city_id            | string (UUID) | Yes      | Must exist and be live; a pickup inside another city's boundary returns 422 on `pickup_lat` (see [Get Fare Estimates](#get-fare-estimates)) |
 | vehicle_class_id   | string (UUID) | Yes      | Must be active in the specified city |
 | pickup_lat         | number  | Yes      | Pickup latitude (-90 to 90)         |
 | pickup_lng         | number  | Yes      | Pickup longitude (-180 to 180)      |
@@ -6496,7 +6506,7 @@ The dispatcher is a database-driven sweep that the scheduler runs every minute (
 | `reserved_driver` | `null`, or the driver who reserved it: `id`, `first_name`, `profile_photo_url`, `rating`, `vehicle` (`make`, `model`, `colour`, `plate_number`) |
 | `reserved_at` | When the driver reserved it |
 | `reserved_by_operations` | `true` when operations assigned the driver |
-| `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable`, `vehicle_blocked` (the driver's papers expired past the grace period), `shift_changed` (a shared-car driver's shift no longer covers the pickup) |
+| `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable`, `vehicle_blocked` (the driver's papers expired past the grace period), `shift_changed` (a shared-car driver's shift no longer covers the pickup), `driver_suspended` (the driver was suspended or deactivated) |
 | `cancellation_fee_if_cancelled_now` | What cancelling now would cost the passenger (0 when free) |
 | `late_cancellation_fee` | Fee recorded when the passenger cancelled late, else `null` |
 | `late_cancellation_fee_status` | `pending` (being charged), `charged` (paid, including a balance due paid later), `balance_due` (owed by the passenger), `waived` (finance waived the balance), `failed` (card outcome unknown; finance checks), or `null` |
@@ -6649,7 +6659,7 @@ Change the pickup time, pickup, destination or payment method of a booking befor
 
 **Response 200:** `{ "message": "Scheduled ride updated.", "ride": { ... } }`
 
-**Errors:** `403` not your ride. `422` `errors.ride` — `This ride is about to start looking for a driver and can no longer be changed. Cancel it and book again instead.` (at or after `dispatch_at`) or `Only a scheduled ride that has not started can be changed.`; `errors.scheduled_pickup_at` — as for booking; `errors.promo_code` — the code no longer applies to the changed trip; `errors.payment_method` — wallet cannot cover the new quote.
+**Errors:** `403` not your ride. `422` `errors.ride` — `This ride is about to start looking for a driver and can no longer be changed. Cancel it and book again instead.` (at or after `dispatch_at`) or `Only a scheduled ride that has not started can be changed.`; `errors.scheduled_pickup_at` — as for booking; `errors.promo_code` — the code no longer applies to the changed trip; `errors.payment_method` — wallet cannot cover the new quote; `errors.pickup_lat` — the new pickup is inside another city's boundary (a booking stays in its city).
 
 ---
 
@@ -7532,7 +7542,7 @@ GET /admin/availability-coverage?city_id={city_id}&from={iso}&to={iso}
 }
 ```
 
-A plan with no area counts in `planned_drivers` and appears under `area_label: null`.
+A plan with no area counts in `planned_drivers` and appears under `area_label: null`. Only plans of drivers who are approved and in this city now count: a suspended driver's plans, or plans left behind by a driver moved to another city, are not cover.
 
 ### Admin — Driver Scheduling Settings
 ```
@@ -7560,7 +7570,7 @@ Intervals are settings per item and per fuel type. A non-plug-in `hybrid` gets t
 
 **Item status:** `unknown` (no record yet), `ok`, `due_soon` (within 14 days or 500 km), `overdue` (service, tyres, battery — **warning only, never blocks**), `expired` (legal papers).
 
-**Expired papers.** Insurance, roadworthiness or the vehicle licence past its expiry date: a **7-day grace period** (`legal_grace_days`) with a warning (`vehicle_notice` on going online), then the car is **off the road** (`is_blocked`): the driver cannot go online, gets no offers, cannot be assigned by operations, an idle online driver is set offline, and their reserved scheduled pickups are released (reason `vehicle_blocked`, passenger told). **A trip in progress is never ended**; the driver finishes it and gets no new offers. The block lifts as soon as a renewed paper is **approved** (a pending upload does not lift it). Papers with no record yet (e.g. the new roadworthiness and vehicle licence types for older cars) only remind, never block.
+**Expired papers.** Insurance, roadworthiness or the vehicle licence past its expiry date: a **7-day grace period** (`legal_grace_days`) with a warning (`vehicle_notice` on going online), then the car is **off the road** (`is_blocked`): the driver cannot go online, gets no offers, cannot be assigned by operations, an idle online driver is set offline, and their reserved scheduled pickups are released (reason `vehicle_blocked`, passenger told). For a shared (shift-mode) car, every shift driver loses the reserved pickups that fall in their shifts on that car, not only the driver holding it; pickups covered by a shift on another car stay. **A trip in progress is never ended**; the driver finishes it and gets no new offers. The block lifts as soon as a renewed paper is **approved** (a pending upload does not lift it). Papers with no record yet (e.g. the new roadworthiness and vehicle licence types for older cars) only remind, never block.
 
 **Daily at 06:00 Lagos** (`ProcessVehicleMaintenanceJob`): recomputes every car, starts or lifts blocks, sends the driver one `vehicle_maintenance_due` push per car when items change state (once per change), and emails operations one digest of fleet cars that are overdue or expired (plus an alert when a fleet car is blocked).
 
@@ -9616,7 +9626,7 @@ Submit a 1–5 star rating for a completed ride. Passengers rate drivers and dri
 
 ## Disputes
 
-A passenger or driver reports a problem with a completed trip (Phase 2 advanced disputes, PRD B-30, P-27, A-36, A-37, NF-12). The flow follows the OQ-21 recommendation of 16 October 2026, which the client has not confirmed yet; super admins can change every limit and target without a release (see [Dispute Settings](#dispute-settings-admin)). App changes: `FRONTEND_UPDATE_ADVANCED_DISPUTES.md`.
+A passenger or driver reports a problem with a completed trip — or a passenger contests the late-cancellation fee of a cancelled scheduled booking (see [Late-cancellation fee disputes](#late-cancellation-fee-disputes)) (Phase 2 advanced disputes, PRD B-30, P-27, A-36, A-37, NF-12). The flow follows the OQ-21 recommendation of 16 October 2026, which the client has not confirmed yet; super admins can change every limit and target without a release (see [Dispute Settings](#dispute-settings-admin)). App changes: `FRONTEND_UPDATE_ADVANCED_DISPUTES.md`.
 
 1. **File.** The reporter files from the trip (`POST /rides/{ride}/dispute`), with optional photos and audio. Each person can file one dispute per trip.
 2. **Routing.** A new dispute goes to **tier 1** (support agents). A `safety_concern` goes straight to the **Safety team**, which is alerted by email and has a 1-hour first-response target. If the other person on the trip has already filed, the two disputes are linked and handled by the same owner.
@@ -9708,7 +9718,11 @@ audio: <audio file (optional)>
 
 For a `safety_concern` the message is `Report received. Our safety team has been alerted and will contact you shortly.` and `stage_label` is `With our safety team`.
 
-**Errors:** `422` — ride not completed, not a participant, already disputed, invalid category, or file validation failed. `500` — the files could not be stored (nothing is saved; try again).
+**Errors:** `422` — ride not completed (and not a fee dispute, below), not a participant, already disputed, invalid category, or file validation failed (`You can only dispute a completed ride, or a cancellation fee you were charged.`). `500` — the files could not be stored (nothing is saved; try again).
+
+#### Late-cancellation fee disputes
+
+Added in the Phase 2 review (18 Oct 2026). A passenger charged the scheduled-ride late-cancellation fee (SR-4) can contest it from the cancelled booking with the same endpoint and fields. Only the booking's **passenger** can, and only while `ride.scheduled.late_cancellation_fee_status` is `pending`, `charging`, `charged`, `balance_due` or `failed`; a waived fee, or a cancelled ride with no fee, returns the `422` above. The driver cannot dispute a cancelled booking. Routing, targets, escalation and appeals are as for any dispute. If the case is upheld, see [Resolve Dispute](#resolve-dispute): a collected fee is refunded to the wallet, a fee still owed is waived.
 
 ### Reporter fields
 
@@ -9724,6 +9738,7 @@ Every dispute the reporter sees (filing, list, detail, evidence, appeal) carries
 | `appeal.reason_unavailable` | Why the reporter cannot appeal (already appealed, window passed, decision final, no decision yet) |
 | `appeal.appealed_at` | Set once the reporter has appealed |
 | `refund_amount`, `refund_currency`, `refund_method` | What was refunded on the case in total, and where (`wallet` or `card`) |
+| `waived_amount` | An unpaid late-cancellation fee written off when a fee dispute was upheld (nothing was paid back); `null` otherwise |
 
 ### List My Disputes
 
@@ -9972,6 +9987,7 @@ Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about 
 - `card`: back to the card through the gateway. Card payments only, and **always** needs Finance approval.
 - Card and wallet refunds share one balance: never more than what is still refundable on the trip, whatever was refunded before and however.
 - **Limits.** If this refund plus earlier refunds on the case is above the reviewer's limit, or the method is `card`, nothing is paid yet: the decision becomes a refund request and the case stays open (`202`). See [Dispute Refund Requests](#dispute-refund-requests).
+- **Late-cancellation fee** (a cancelled scheduled booking): `wallet` only (`card` → 422). A **charged** fee is refunded to the wallet up to the fee less earlier refunds, and taken back in full from the driver who received it unless `clawback_driver_earnings` is `false` or that driver can no longer be found (`driver_clawback_kobo`). A fee still **owed** (`balance_due`) is waived instead, which lifts the booking block; send the whole fee as `refund_amount` (a balance due cannot be part-waived; another amount → 422). A waiver pays nothing back, so it is recorded as `waived_amount`, not `refund_amount` / `refund_method`, and the message reads `Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.` (approval: `Approved: the unpaid fee was waived. The dispute is resolved.`). The waived amount counts towards the reviewer's limit. The same tier limits and approvals apply.
 
 **Response: `200 OK`** (decided)
 ```json

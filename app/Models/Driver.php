@@ -10,6 +10,7 @@ use App\Enums\KycStatus;
 use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
 use App\Services\DriverShiftService;
+use App\Services\ScheduledRideReservationService;
 use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Driver extends Model
 {
@@ -52,6 +55,27 @@ class Driver extends Model
             if ($driver->isDirty('is_online')) {
                 $driver->online_since = $driver->is_online ? now() : null;
             }
+        });
+
+        // A driver who can no longer drive (suspended by operations or by an
+        // automatic sanction, deactivated, rejected) gives up their reserved
+        // scheduled pickups and fleet shifts at once, so passengers and
+        // operations are not left waiting for pickup time to find out.
+        static::updated(function (Driver $driver) {
+            if (! $driver->wasChanged('status') || $driver->getOriginal('status') !== DriverStatus::Approved || $driver->status === DriverStatus::Approved) {
+                return;
+            }
+
+            $reason = 'driver '.strtolower($driver->status->name);
+
+            DB::afterCommit(function () use ($driver, $reason) {
+                try {
+                    app(ScheduledRideReservationService::class)->releaseAllFor($driver->user_id, 'driver_suspended');
+                    app(DriverShiftService::class)->withdrawDriver($driver, $reason);
+                } catch (\Throwable $e) {
+                    Log::error('Could not release the reservations and shifts of a driver who can no longer drive', ['driver_id' => $driver->id, 'error' => $e->getMessage()]);
+                }
+            });
         });
     }
 

@@ -59,11 +59,16 @@ class WalletRefundService
             ?->notify(new WalletRefundNotification($ride->id, $amountKobo))));
     }
 
-    public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null): void
+    /**
+     * Take a refunded amount back from the driver's available earnings. Pass
+     * $driver when the money went to someone other than the ride's driver
+     * (a late-cancellation fee goes to the driver who had reserved it).
+     */
+    public function clawbackDriverEarnings(Ride $ride, int $amountKobo, ?string $clawbackKey = null, ?Driver $driver = null): void
     {
         $key = $clawbackKey ?? 'clawback-'.$ride->id.'-'.Str::random(8);
 
-        $driver = Driver::where('user_id', $ride->driver_id)->firstOrFail();
+        $driver ??= Driver::where('user_id', $ride->driver_id)->firstOrFail();
 
         $driverAccount = $this->ledgerService->findOrCreateAccount(
             'App\\Models\\Driver',

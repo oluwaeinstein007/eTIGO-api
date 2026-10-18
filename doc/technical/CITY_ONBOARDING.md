@@ -113,9 +113,12 @@ The old on/off switch (`PATCH /admin/cities/{city}/status`) still works: it paus
 
 `PUT /admin/drivers/{driver}/city` with `{ "city_id": "…", "reason": "Relocated" }`
 
-- Refused while the driver is on a trip, or holds reserved scheduled bookings (release those first in **Scheduled Rides**).
+- Refused while the driver is on a trip, holds reserved scheduled bookings (release those first in **Scheduled Rides**), or has upcoming shifts on a shared fleet car (cancel or reassign them first in **Driver Shifts**: the car stays in its city).
 - An online driver is taken offline, because their location is in the old city. They are told about the move.
-- Warnings tell you when the new city does not offer the driver's vehicle class (they would get no trips) or has not launched yet.
+- The driver's upcoming availability plans for the old city are removed; they plan again for the new city.
+- Warnings tell you when the new city does not offer the driver's vehicle class (they would get no trips), has not launched yet, or how many plans were removed.
+
+Once a city's boundary is drawn, passengers cannot book a pickup inside it under another city's name: estimates and bookings are refused with a message pointing them to the right city (or saying it has not opened yet).
 
 ---
 

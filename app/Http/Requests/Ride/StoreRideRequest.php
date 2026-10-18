@@ -5,6 +5,7 @@ namespace App\Http\Requests\Ride;
 use App\Enums\PaymentMethod;
 use App\Models\City;
 use App\Models\PricingConfig;
+use App\Services\CityDetectionService;
 use App\Services\ScheduledRideService;
 use App\Services\ThirdPartyBookingService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -74,6 +75,25 @@ class StoreRideRequest extends FormRequest
         return ['nullable', 'date', 'regex:/(Z|[+-]\d{2}:?\d{2})$/'];
     }
 
+    /**
+     * Why the pickup cannot be booked under this city: it lies inside
+     * another city's boundary (multi-city, OQ-22), so it would get that
+     * city's drivers but this city's prices, and would get round a city
+     * that has not opened. Null when it is fine.
+     */
+    public static function pickupCityError(string $cityId, float $pickupLat, float $pickupLng): ?string
+    {
+        $other = app(CityDetectionService::class)->conflictingCity($cityId, $pickupLat, $pickupLng);
+
+        if ($other === null) {
+            return null;
+        }
+
+        return $other->launch_status->acceptsBookings()
+            ? "This pickup is in {$other->name}. Choose {$other->name} as your city to book it."
+            : $other->launch_status->unavailableMessage($other->name);
+    }
+
     public function messages(): array
     {
         return [
@@ -112,6 +132,10 @@ class StoreRideRequest extends FormRequest
 
                 if ($pickupLat === $destLat && $pickupLng === $destLng) {
                     $validator->errors()->add('destination_lat', 'Pickup and destination cannot be the same location.');
+                }
+
+                if ($error = self::pickupCityError($this->input('city_id'), $pickupLat, $pickupLng)) {
+                    $validator->errors()->add('pickup_lat', $error);
                 }
 
                 $cityVehicleClass = DB::table('city_vehicle_classes')

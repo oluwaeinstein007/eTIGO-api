@@ -166,6 +166,7 @@ class AdminDisputeController extends Controller
             'ride.vehicleClass',
             'ride.city',
             'ride.payment.paymentMethod',
+            'ride.scheduledRide',
             'notes.admin',
             'evidence',
         ]);
@@ -268,7 +269,10 @@ class AdminDisputeController extends Controller
         }
 
         $message = 'Dispute resolved successfully.';
-        if ($refundAmount) {
+        if ($refundAmount && $dispute->waived_amount !== null && $dispute->refund_amount === null) {
+            // An upheld late-cancellation fee dispute where the fee was still owed.
+            $message = "Dispute resolved successfully. The unpaid fee of {$dispute->refund_currency} ".number_format((float) $refundAmount, 2).' was waived.';
+        } elseif ($refundAmount) {
             $message = "Dispute resolved successfully. Refund of {$dispute->refund_currency} ".number_format((float) $refundAmount, 2).' issued.';
         }
 

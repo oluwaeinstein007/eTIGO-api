@@ -194,6 +194,47 @@ it('refuses estimates and bookings outside live cities with a clear message', fu
         ->assertJsonValidationErrors(['city_id' => 'Rides in Lagos are paused for now.']);
 });
 
+it('refuses a pickup inside another city booked under a live city\'s name', function () {
+    Queue::fake();
+    $abuja = ($this->readyCity)();
+    $inAbuja = ['pickup_lat' => 9.0579, 'pickup_lng' => 7.4951, 'destination_lat' => 9.0765, 'destination_lng' => 7.3986];
+
+    // Abuja has not opened: Lagos's name and prices do not get round that.
+    ($this->book)($this->lagos, $inAbuja)->assertUnprocessable()
+        ->assertJsonValidationErrors(['pickup_lat' => 'E-tiGo is not available in Abuja yet.']);
+
+    ($this->as)($this->passengerToken)->postJson('/api/v1/rides/estimate', [
+        'city_id' => $this->lagos->id,
+        ...$inAbuja,
+    ])->assertUnprocessable()->assertJsonValidationErrors('pickup_lat');
+
+    // Once Abuja is live the passenger is pointed to it.
+    $abuja->update(['launch_status' => CityLaunchStatus::Live]);
+    ($this->book)($this->lagos, $inAbuja)->assertUnprocessable()
+        ->assertJsonValidationErrors(['pickup_lat' => 'This pickup is in Abuja. Choose Abuja as your city to book it.']);
+
+    // A pickup outside every drawn city keeps the named city, as before.
+    ($this->book)($this->lagos, ['pickup_lat' => 7.2, 'pickup_lng' => 5.2])->assertCreated();
+});
+
+it('keeps a scheduled booking\'s new pickup inside its city', function () {
+    ($this->readyCity)();
+
+    $rideId = ($this->book)($this->lagos, ['scheduled_pickup_at' => '2026-10-19T12:00:00Z'])->assertCreated()->json('ride.id');
+
+    ($this->as)($this->passengerToken)->putJson("/api/v1/rides/{$rideId}/scheduled", [
+        'pickup_lat' => 9.0579,
+        'pickup_lng' => 7.4951,
+        'pickup_address' => 'Wuse 2, Abuja',
+    ])->assertUnprocessable()->assertJsonValidationErrors('pickup_lat');
+
+    ($this->as)($this->passengerToken)->putJson("/api/v1/rides/{$rideId}/scheduled", [
+        'pickup_lat' => 6.6,
+        'pickup_lng' => 3.35,
+        'pickup_address' => 'Ikeja, Lagos',
+    ])->assertOk();
+});
+
 // === ONBOARDING ANOTHER CITY (BE2-CITY-01) ===
 
 it('onboards and launches a second city without schema changes, leaving the first untouched', function () {

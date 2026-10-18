@@ -26,6 +26,7 @@ Request and response details are in `API_REFERENCE.md` → **Disputes** and **Ad
 - No change to `POST /rides/{ride}/dispute`. Drivers file the same way.
 - Show the `message` from the response: a safety concern now says "Our safety team has been alerted and will contact you shortly."
 - The response now includes `evidence` (all files with `type`, `url`, `caption`) next to the older `evidence_photos` / `evidence_audio`.
+- **New (Phase 2 review, 18 Oct 2026), passenger app:** show **Dispute this fee** on a cancelled scheduled booking whose `scheduled.late_cancellation_fee` is above 0 and whose `scheduled.late_cancellation_fee_status` is not `waived`. It posts to the same `POST /rides/{ride}/dispute` (suggest the `fare_dispute` category). Any other cancelled ride still returns 422 on `ride`.
 
 ### My reports
 - `GET /disputes` (passenger or driver; `status`, `ride_id` filters). Passengers can keep using `GET /passenger/disputes`.
@@ -88,6 +89,7 @@ The decision email (`Report DPT-… — Resolved`) is unchanged. Moving a case t
 - **Breaking:** a refund without `refund_method` now goes to the passenger's wallet. Send `refund_method: "card"` for a card refund; it always goes to Finance for approval.
 - Show `refund_limit` (the admin's limit; `null` = none) next to the amount field.
 - `202` means the refund waits for approval and the case stays open: show the `message` and the `pending_refund_request`.
+- **Late-cancellation fee cases** (the case's ride is a cancelled scheduled booking; `ride.scheduled` is now loaded on the case detail): offer the wallet only. If `ride.scheduled.late_cancellation_fee_status` is `charged`, the refund (up to the fee) goes to the wallet and is taken back from the driver who received it unless `clawback_driver_earnings` is `false`. If it is `balance_due`, the refund waives the unpaid fee: prefill the full fee, because a part amount returns 422. A waiver is shown as `waived_amount` on the case (not `refund_amount` / `refund_method`) and the message says the fee was waived; show it as "Fee waived", not as a refund. The passenger app should do the same.
 
 ### Refund approvals (`/admin/dispute-refund-requests`)
 - New page for support leads, Safety, Finance and super admins: `GET /admin/dispute-refund-requests` (`status=pending` by default). Show **Approve** when `can_approve`, **Withdraw** when `can_withdraw`.

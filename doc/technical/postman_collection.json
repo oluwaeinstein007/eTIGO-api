@@ -2859,7 +2859,7 @@
                     "estimate"
                   ]
                 },
-                "description": "Passenger token. Returns a quote for every active vehicle class in `{{city_id}}` (run **Public \u2192 List Active Cities** first).\n\n- Distance and duration come from the maps provider (Google, then Mapbox, then a straight-line estimate).\n- `fare_estimate` already includes the current surge and the passenger's loyalty-tier discount; the discount is also returned as `booking_fee_discount` (NGN).\n- Booking (`POST /rides`) and the final fare use the same calculation. The quote is an upfront fare: it changes only for a waiting charge or a trip that runs significantly longer than the quoted time.\n- Cross-city or very long trips return a `warnings` array. Inactive cities and identical pickup/destination return 422."
+                "description": "Passenger token. Returns a quote for every active vehicle class in `{{city_id}}` (run **Public \u2192 List Active Cities** first).\n\n- Distance and duration come from the maps provider (Google, then Mapbox, then a straight-line estimate).\n- `fare_estimate` already includes the current surge and the passenger's loyalty-tier discount; the discount is also returned as `booking_fee_discount` (NGN).\n- Booking (`POST /rides`) and the final fare use the same calculation. The quote is an upfront fare: it changes only for a waiting charge or a trip that runs significantly longer than the quoted time.\n- Cross-city or very long trips return a `warnings` array. Inactive cities and identical pickup/destination return 422.\n\n**Pickup in another city (Phase 2 review):** a pickup inside another city's drawn boundary returns 422 on `pickup_lat` \u2014 \"This pickup is in Abuja. Choose Abuja as your city to book it.\", or that city's not-open message when it is in onboarding or paused. A pickup outside every drawn city keeps the named city, as before."
               },
               "response": [
                 {
@@ -3120,7 +3120,7 @@
                     "rides"
                   ]
                 },
-                "description": "Passenger books a ride. Uses `{{city_id}}` and `{{economy_class_id}}` (run **Public \u2192 List Active Cities** and **List City Vehicle Classes** first). **Sets `{{ride_id}}` and `{{share_token}}`.**\n\n- Returns the ride (`reference_number` e.g. `TRP-NG-000123`) and the 4-digit `pin_code` for the driver.\n- One active ride per passenger: a second booking returns 409.\n- `payment_method`: `cash`, `card` (saved default card), `wallet` (a hold for the estimate is placed now) or `bank_transfer`.\n- The surge multiplier and tier discount in effect now are locked in for the final fare.\n- Optional `promo_code`: validated now against city, class, fare, time window, tier and usage limits \u2014 an invalid code rejects the booking with 422; the discount is applied at completion.\n- To book for later, add `scheduled_pickup_at` \u2014 see **Book Scheduled Ride**. Ride responses carry `is_scheduled`, `scheduled_pickup_at` and `scheduled` (null for rides booked for now).\n- While the passenger owes a balance (unpaid late-cancellation fee or wallet fare), booking returns 422 `BALANCE_DUE` with `balance_due`; pay it with **Passenger \u203a Balance Due \u203a Pay Balance Due**."
+                "description": "Passenger books a ride. Uses `{{city_id}}` and `{{economy_class_id}}` (run **Public \u2192 List Active Cities** and **List City Vehicle Classes** first). **Sets `{{ride_id}}` and `{{share_token}}`.**\n\n- Returns the ride (`reference_number` e.g. `TRP-NG-000123`) and the 4-digit `pin_code` for the driver.\n- One active ride per passenger: a second booking returns 409.\n- `payment_method`: `cash`, `card` (saved default card), `wallet` (a hold for the estimate is placed now) or `bank_transfer`.\n- The surge multiplier and tier discount in effect now are locked in for the final fare.\n- Optional `promo_code`: validated now against city, class, fare, time window, tier and usage limits \u2014 an invalid code rejects the booking with 422; the discount is applied at completion.\n- To book for later, add `scheduled_pickup_at` \u2014 see **Book Scheduled Ride**. Ride responses carry `is_scheduled`, `scheduled_pickup_at` and `scheduled` (null for rides booked for now).\n- While the passenger owes a balance (unpaid late-cancellation fee or wallet fare), booking returns 422 `BALANCE_DUE` with `balance_due`; pay it with **Passenger \u203a Balance Due \u203a Pay Balance Due**.\n\n**Pickup in another city (Phase 2 review):** a pickup inside another city's drawn boundary returns 422 on `pickup_lat` \u2014 \"This pickup is in Abuja. Choose Abuja as your city to book it.\", or that city's not-open message when it is in onboarding or paused. A pickup outside every drawn city keeps the named city, as before."
               },
               "response": [
                 {
@@ -3540,7 +3540,7 @@
                     "scheduled"
                   ]
                 },
-                "description": "Changes a booking before `scheduled.dispatch_at`. Send only what changes: `scheduled_pickup_at`, a new pickup (`pickup_lat`, `pickup_lng`, `pickup_address` together), a new destination (`destination_*` together) or `payment_method`. The fare is quoted again and any promo re-checked.\n\n422 `errors.ride` once dispatch is near; `errors.scheduled_pickup_at` for the same limits as booking.\n\nChanging `scheduled_pickup_at` or the pickup releases a driver who reserved the booking; a new destination or payment method keeps them.",
+                "description": "Changes a booking before `scheduled.dispatch_at`. Send only what changes: `scheduled_pickup_at`, a new pickup (`pickup_lat`, `pickup_lng`, `pickup_address` together), a new destination (`destination_*` together) or `payment_method`. The fare is quoted again and any promo re-checked.\n\n422 `errors.ride` once dispatch is near; `errors.scheduled_pickup_at` for the same limits as booking.\n\nChanging `scheduled_pickup_at` or the pickup releases a driver who reserved the booking; a new destination or payment method keeps them.\n\nA new pickup must stay in the booking's city: a pickup inside another city's boundary returns 422 on `pickup_lat` (Phase 2 review).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"payment_method\": \"wallet\"\n}"
@@ -4045,6 +4045,66 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"You already have an active ride. Please complete or cancel it first.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Ride \u2014 Pickup in Another City (422)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"vehicle_class_id\": \"{{economy_class_id}}\",\n  \"pickup_lat\": 9.0579,\n  \"pickup_lng\": 7.4951,\n  \"pickup_address\": \"Wuse 2, Abuja\",\n  \"destination_lat\": 9.0765,\n  \"destination_lng\": 7.3986,\n  \"destination_address\": \"Garki, Abuja\",\n  \"payment_method\": \"cash\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides"
+                  ]
+                },
+                "description": "`city_id` names Lagos but the pickup is inside Abuja's boundary. Returns 422 on `pickup_lat`: the passenger is pointed to Abuja when it is live, or shown Abuja's not-open message (onboarding / paused), so a city that has not opened cannot be booked under a live city's name and prices."
+              },
+              "response": [
+                {
+                  "name": "422 \u2014 Pickup in Another City",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This pickup is in Abuja. Choose Abuja as your city to book it.\",\n  \"errors\": {\n    \"pickup_lat\": [\n      \"This pickup is in Abuja. Choose Abuja as your city to book it.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 City Not Open",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"E-tiGo is not available in Abuja yet. Join the waitlist and we will tell you when we launch.\",\n  \"errors\": {\n    \"pickup_lat\": [\n      \"E-tiGo is not available in Abuja yet. Join the waitlist and we will tell you when we launch.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -5071,7 +5131,7 @@
                     "dispute"
                   ]
                 },
-                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each) and an optional audio recording (mp3, m4a, wav, ogg, webm, aac, max 10MB).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` \u2192 Safety concern\n- `driver_behaviour` \u2192 Driver behaviour\n- `route_deviation` \u2192 Wrong route taken\n- `fare_dispute` \u2192 Fare is incorrect\n- `vehicle_condition` \u2192 Vehicle condition\n- `item_left_behind` \u2192 Lost item\n- `payment_issue` \u2192 Payment issue\n- `other` \u2192 Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10\u20132000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only\n- Audio: max 1, max 10MB, mp3/m4a/wav/ogg/webm/aac only\n\n**Phase 2:** a new dispute goes to support tier 1; a `safety_concern` goes straight to the Safety team (message: \"Report received. Our safety team has been alerted and will contact you shortly.\"). The response now includes `evidence`, `stage`, `stage_label`, `can_add_evidence` and `appeal`."
+                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each) and an optional audio recording (mp3, m4a, wav, ogg, webm, aac, max 10MB).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` \u2192 Safety concern\n- `driver_behaviour` \u2192 Driver behaviour\n- `route_deviation` \u2192 Wrong route taken\n- `fare_dispute` \u2192 Fare is incorrect\n- `vehicle_condition` \u2192 Vehicle condition\n- `item_left_behind` \u2192 Lost item\n- `payment_issue` \u2192 Payment issue\n- `other` \u2192 Something else\n\n**Validation:**\n- Ride must be completed \u2014 or, for the passenger only, a cancelled scheduled booking they were charged (or owe) a late-cancellation fee for (SR-4); see **File Dispute \u2014 Late-Cancellation Fee**\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10\u20132000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only\n- Audio: max 1, max 10MB, mp3/m4a/wav/ogg/webm/aac only\n\n**Phase 2:** a new dispute goes to support tier 1; a `safety_concern` goes straight to the Safety team (message: \"Report received. Our safety team has been alerted and will contact you shortly.\"). The response now includes `evidence`, `stage`, `stage_label`, `can_add_evidence` and `appeal`."
               },
               "response": [
                 {
@@ -5085,6 +5145,85 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo2.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"email\": \"john@example.com\",\n      \"type\": \"passenger\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-12T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-12T12:00:00.000000Z\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('dispute_id', data.dispute.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "File Dispute \u2014 Late-Cancellation Fee",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"fare_dispute\",\n  \"description\": \"The driver was nowhere near the pickup when I cancelled.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/rides/{{scheduled_ride_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{scheduled_ride_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "A passenger contests the late-cancellation fee of a **cancelled scheduled booking** (Phase 2 review). Allowed only for the booking's passenger, and only while the fee is collected, being collected or owed as a balance due (`ride.scheduled.late_cancellation_fee_status` `pending`, `charging`, `charged`, `balance_due` or `failed`); a waived fee, or a cancelled ride with no fee, returns 422 on `ride`. The driver cannot dispute a cancelled booking.\n\nThe case is routed like any dispute (support tier 1). If support upholds it, a collected fee is refunded to the wallet and a fee still owed is waived \u2014 see **Resolve \u2014 Late-Cancellation Fee**."
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Filed",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.\",\n  \"dispute\": {\n    \"id\": \"{{dispute_id}}\",\n    \"ride_id\": \"{{scheduled_ride_id}}\",\n    \"category\": \"fare_dispute\",\n    \"status\": \"open\",\n    \"stage\": \"review\",\n    \"stage_label\": \"With our support team\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 No Fee to Dispute",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You can only dispute a completed ride, or a cancellation fee you were charged.\",\n  \"errors\": {\n    \"ride\": [\n      \"You can only dispute a completed ride, or a cancellation fee you were charged.\"\n    ]\n  }\n}"
                 }
               ],
               "event": [
@@ -13113,7 +13252,7 @@
                     }
                   ]
                 },
-                "description": "Suspend an approved driver. Requires a reason explaining the suspension. The driver will be taken offline and all active tokens revoked. Returns 422 if the driver is not in approved status.",
+                "description": "Suspend an approved driver. Requires a reason explaining the suspension. The driver will be taken offline and all active tokens revoked. Returns 422 if the driver is not in approved status.\n\n**Phase 2:** the driver's upcoming scheduled-ride reservations are released at once (reason `driver_suspended`; the passenger and the driver are told) and their fleet shifts are freed \u2014 a shift in progress ends now, upcoming ones are cancelled \u2014 with an operations alert listing the slots to reassign. The same happens when an automatic sanction suspends the driver or a compliance review deactivates them.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"Multiple safety complaints from passengers.\"\n}"
@@ -13576,7 +13715,7 @@
                     }
                   ]
                 },
-                "description": "Operations moves a driver to another city (OQ-22). `reason` required. Refused (409) while the driver is on an active ride or holds upcoming scheduled-ride reservations (`upcoming_reservations`). An online driver is taken offline. The driver gets a `driver_city_changed` notification. `warnings` when the new city does not offer the driver's vehicle class or has not launched. Audit: `driver_city_changed`.",
+                "description": "Operations moves a driver to another city (OQ-22). `reason` required. Refused (409) while the driver is on an active ride or holds upcoming scheduled-ride reservations (`upcoming_reservations`) or upcoming fleet shifts (`upcoming_shifts`: shared cars stay in their city, so cancel or reassign the shifts first). An online driver is taken offline. The driver gets a `driver_city_changed` notification. The driver's upcoming availability plans for the old city are removed (a warning says how many). `warnings` also when the new city does not offer the driver's vehicle class or has not launched. Audit: `driver_city_changed`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"reason\": \"Relocated to Abuja\"\n}"
@@ -13593,7 +13732,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Driver moved to Abuja.\",\n  \"driver\": {\n    \"id\": \"{{driver_id}}\",\n    \"city_id\": \"{{city_id}}\",\n    \"is_online\": false\n  },\n  \"warnings\": [\n    \"Abuja has not launched yet, so the driver cannot go online until it is live.\"\n  ]\n}"
+                  "body": "{\n  \"message\": \"Driver moved to Abuja.\",\n  \"driver\": {\n    \"id\": \"{{driver_id}}\",\n    \"city_id\": \"{{city_id}}\",\n    \"is_online\": false\n  },\n  \"warnings\": [\n    \"Abuja has not launched yet, so the driver cannot go online until it is live.\",\n    \"The driver's 2 upcoming availability plan(s) in their old city were removed.\"\n  ]\n}"
                 },
                 {
                   "name": "409 \u2014 Reservations",
@@ -13606,6 +13745,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The driver has 2 upcoming reserved bookings. Release them before changing city.\",\n  \"upcoming_reservations\": 2\n}"
+                },
+                {
+                  "name": "409 \u2014 Upcoming Shifts",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The driver has 3 upcoming fleet shifts. Cancel or reassign them before changing city.\",\n  \"upcoming_shifts\": 3\n}"
                 }
               ]
             }
@@ -13939,7 +14090,7 @@
                     "assign"
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nAssigns an unassigned fleet vehicle to an approved driver and creates a fleet agreement automatically in a single transaction.\n\n**Prerequisites:**\n- Vehicle must be fleet (`is_fleet: true`) and unassigned (`driver_id: null`).\n- Driver must be approved and not already have a vehicle assigned.\n\n**Required fields:**\n- `driver_id` (UUID, must exist in drivers)\n- `daily_remittance_target` (number, min: 1000)\n- `total_vehicle_cost` (number, min: 100000)\n- `agreement_start_date` (date Y-m-d, today or future)"
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nAssigns an unassigned fleet vehicle to an approved driver and creates a fleet agreement automatically in a single transaction.\n\n**Prerequisites:**\n- Vehicle must be fleet (`is_fleet: true`) and unassigned (`driver_id: null`).\n- Driver must be approved and not already have a vehicle assigned.\n- The car is not in shift mode, and the driver has no upcoming shifts on a shared fleet car (one car per driver; 422 otherwise).\n\n**Required fields:**\n- `driver_id` (UUID, must exist in drivers)\n- `daily_remittance_target` (number, min: 1000)\n- `total_vehicle_cost` (number, min: 100000)\n- `agreement_start_date` (date Y-m-d, today or future)"
               },
               "response": [
                 {
@@ -13989,6 +14140,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Driver already has a vehicle assigned.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Driver Has Shifts",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This driver has upcoming shifts on a shared fleet car. Cancel or reassign them before giving the driver a car of their own.\"\n}"
                 }
               ]
             },
@@ -15104,7 +15267,7 @@
                     }
                   ]
                 },
-                "description": "Planned drivers per Lagos hour and per area in a city, from drivers' voluntary plans (up to 14 days; default the next 7 days), with the peak and lowest hour and the number of approved drivers."
+                "description": "Planned drivers per Lagos hour and per area in a city, from drivers' voluntary plans (up to 14 days; default the next 7 days), with the peak and lowest hour and the number of approved drivers. Only plans of drivers who are approved and in this city now count: plans left by a suspended driver, or one moved to another city, are not cover."
               },
               "response": [
                 {
@@ -19365,7 +19528,7 @@
                     "resolve"
                   ]
                 },
-                "description": "Resolve or dismiss a case. Optional refund, **to the passenger's wallet by default** (`refund_method: wallet`; works for every payment method), or `card` (card payments only, always needs Finance approval). Card and wallet refunds share one refundable balance. `clawback_driver_earnings` (default true) recovers the driver's share of a wallet refund.\n\n**Limits:** if this refund plus earlier refunds on the case is above the admin's limit (tier 1 \u20a65,000, tier 2 and Safety \u20a650,000, super admin none), or the method is `card`, the response is `202` and a refund request waits for a second admin; the case stays open.\n\n**Errors:** `403` cannot work the case; `422` already closed, refund on dismissal, refund above what is refundable, a refund already waiting for approval."
+                "description": "Resolve or dismiss a case. Optional refund, **to the passenger's wallet by default** (`refund_method: wallet`; works for every payment method), or `card` (card payments only, always needs Finance approval). Card and wallet refunds share one refundable balance. `clawback_driver_earnings` (default true) recovers the driver's share of a wallet refund.\n\n**Limits:** if this refund plus earlier refunds on the case is above the admin's limit (tier 1 \u20a65,000, tier 2 and Safety \u20a650,000, super admin none), or the method is `card`, the response is `202` and a refund request waits for a second admin; the case stays open.\n\n**Errors:** `403` cannot work the case; `422` already closed, refund on dismissal, refund above what is refundable, a refund already waiting for approval.\n\n**Late-cancellation fee disputes** (a cancelled scheduled booking, Phase 2 review): the refund goes to the **wallet only** (`card` \u2192 422). The refundable amount is the fee collected minus earlier refunds, and the driver who received the fee pays it back (`clawback_driver_earnings`). A fee still owed as a balance due is **waived** instead, and only in full (another amount \u2192 422)."
               },
               "response": [
                 {
@@ -19379,6 +19542,81 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Dispute resolved successfully. Refund of NGN 500.00 issued.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": null,\n    \"refund_amount\": \"500.00\",\n    \"refund_currency\": \"NGN\",\n    \"refund_method\": \"wallet\",\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": 1,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  },\n  \"driver_clawback_kobo\": 40000\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resolve \u2014 Late-Cancellation Fee",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Driver was far from the pickup; fee refunded.\",\n  \"refund_amount\": 400\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "resolve"
+                  ]
+                },
+                "description": "Upholds a late-cancellation fee dispute. With the fee **charged**: \u20a6400 goes back to the passenger's wallet and \u20a6400 is taken back from the driver who received it (`driver_clawback_amount`). With the fee still **owed** (`balance_due`): send the whole fee as `refund_amount` and the balance due is waived. A waiver pays nothing back, so the case shows `waived_amount` (not `refund_amount` / `refund_method`). The clawback is skipped when `clawback_driver_earnings` is `false`. `refund_method: card`, more than the fee, or part of an owed fee \u2192 422 on `refund_amount`. Tier refund limits apply as for any refund."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Fee Refunded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute resolved.\",\n  \"dispute\": {\n    \"id\": \"{{dispute_id}}\",\n    \"status\": \"resolved\",\n    \"refund_amount\": \"400.00\",\n    \"refund_method\": \"wallet\",\n    \"driver_clawback_amount\": \"400.00\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Unpaid Fee Waived",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.\",\n  \"dispute\": {\n    \"id\": \"{{dispute_id}}\",\n    \"status\": \"resolved\",\n    \"refund_amount\": null,\n    \"refund_method\": null,\n    \"waived_amount\": \"400.00\"\n  },\n  \"driver_clawback_kobo\": 0\n}"
+                },
+                {
+                  "name": "422 \u2014 Card or Too Much",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A cancellation fee is refunded to the wallet, or waived while it is still owed.\",\n  \"errors\": {\n    \"refund_amount\": [\n      \"A cancellation fee is refunded to the wallet, or waived while it is still owed.\"\n    ]\n  }\n}"
                 }
               ]
             },

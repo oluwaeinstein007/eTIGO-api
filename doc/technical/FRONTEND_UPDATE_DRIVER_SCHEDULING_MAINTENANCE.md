@@ -97,7 +97,8 @@ Scheduled rides: a reserved pickup can be released with `vehicle_blocked` (paper
 - **Edit:** `PUT /admin/driver-shifts/{id}`. Before a shift starts you can change the driver, car or times. Once it is in progress, only `ends_at` (extend it or end it early). **Cancel:** `POST …/cancel` `{ "reason": "…" }`, for shifts not yet started.
 - Show `vehicle.held_by_driver_id` ("car currently with …") and each driver's `is_online`.
 - Missed shifts are also emailed to operations ("Shift missed"); the email links to `/admin/driver-shifts?status=missed`.
-- **Coverage:** `GET /admin/availability-coverage?city_id&from&to` (up to 14 days) gives planned drivers per hour and per area, the peak and lowest hour, and the number of approved drivers. A heat map by hour and area fits it.
+- **Coverage:** `GET /admin/availability-coverage?city_id&from&to` (up to 14 days) gives planned drivers per hour and per area, the peak and lowest hour, and the number of approved drivers. A heat map by hour and area fits it. Only drivers approved and in the city now are counted.
+- **Phase 2 review (18 Oct 2026):** suspending a driver (or a sanction or deactivation) ends their shift in progress and cancels their upcoming shifts; operations get a "Shifts freed" email linking to `/admin/driver-shifts?status=cancelled`. Assigning a hire-purchase car to a driver with upcoming shifts returns 422, and moving a driver with upcoming shifts to another city returns 409.
 
 ### Maintenance
 - **Overview:** `GET /admin/vehicle-maintenance` lists what needs attention, worst first. Filters: `status`, `type`, `fleet_only`, `blocked_only`, `search`. Its `summary` has counts per status, `blocked_vehicles` and `pending_records`.
