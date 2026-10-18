@@ -387,6 +387,18 @@ class DriverShiftService
     public function goOnlineForShift(Driver $driver, DriverShift $shift): void
     {
         DB::transaction(function () use ($driver, $shift) {
+            // Operations may have cancelled, moved or reassigned the shift
+            // since the check: confirm it under its lock.
+            $shift = DriverShift::lockForUpdate()->findOrFail($shift->id);
+            $lead = $this->settings()['shift_online_lead_minutes'];
+
+            if ($shift->driver_id !== $driver->id
+                || ! $shift->isWorkable()
+                || $shift->ends_at->lte(now())
+                || $shift->onlineFrom($lead)->gt(now())) {
+                throw ValidationException::withMessages(['shift' => ['Your shift has changed. Check your shifts and try again.']]);
+            }
+
             $car = Vehicle::lockForUpdate()->findOrFail($shift->vehicle_id);
             $driver = Driver::lockForUpdate()->findOrFail($driver->id);
 

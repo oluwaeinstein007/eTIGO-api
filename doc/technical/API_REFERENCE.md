@@ -1643,6 +1643,8 @@ Toggle driver online/offline status. No body is required; plug-in cars (`electri
 
 **Going online requires:** status `approved` (not `suspended`), a registered vehicle with an assigned vehicle class, completed KYC (`kyc_status` = `verified`), an available earnings balance no lower than the negative-balance threshold (`max_negative_balance`, default −₦5,000 — see Wallet Settings), a car whose papers are not expired past the grace period ([Vehicle Maintenance](#vehicle-maintenance-phase-2)), and, for a shared fleet car, being inside the driver's shift window ([Driver Scheduling](#driver-scheduling-phase-2)). A shared car passes to the shift driver here when the previous driver has handed it over.
 
+Vehicle objects now also carry `shift_mode`, `odometer_km`, `estimated_odometer_km`, `battery_level_percent` (plug-in cars), `is_blocked` and `block_reason`, for drivers and admins only (a passenger seeing their driver's car does not get them).
+
 **Phase 2 response fields (going online):** `shift` (the shift being worked on a shared car, else `null`) and `vehicle_notice` (papers expiring soon or in their grace period, e.g. `"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving."`, else `null`).
 
 **Going offline** is refused with `409` while the driver has an active ride (`matched` → `in_progress`), so passenger tracking and location updates continue until the trip ends.
@@ -7713,7 +7715,7 @@ PUT /admin/settings/vehicle-maintenance
 |---|---|---|
 | enabled | true | Off: items are still tracked and shown; no reminders, no block |
 | intervals | `{"service": {"km": 5000, "months": 3}, "tyres_brakes": {"km": null, "months": 6}, "battery_health": {"km": null, "months": 12}}` | Merged item by item; each item needs `km` (500–100,000) or `months` (1–60) |
-| fuel_type_intervals | `{}` | Per fuel type overrides, e.g. `{"electric": {"service": {"km": 10000, "months": 6}}}` |
+| fuel_type_intervals | `{}` | Per fuel type overrides, e.g. `{"electric": {"service": {"km": 10000, "months": 6}}}`; merged per fuel type and item (other stored overrides are kept); each needs `km` or `months` |
 | due_soon_days | 14 | 0–90 |
 | due_soon_km | 500 | 0–5,000 |
 | legal_grace_days | 7 | 0–60 |

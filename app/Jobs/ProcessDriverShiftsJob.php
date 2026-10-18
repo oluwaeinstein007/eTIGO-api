@@ -197,8 +197,12 @@ class ProcessDriverShiftsJob implements ShouldQueue
                 $shift->update(['status' => DriverShiftStatus::Completed, 'ended_at' => now()]);
                 AuditLog::record($shift, 'driver_shift_completed');
 
+                // Straight into the next shift only when still online; a driver
+                // who went offline leaves it scheduled, so the missed rule applies.
                 if ($next !== null) {
-                    $shifts->markStarted($next);
+                    if ($driver->fresh()->is_online) {
+                        $shifts->markStarted($next);
+                    }
 
                     return;
                 }

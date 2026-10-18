@@ -139,8 +139,9 @@ return new class extends Migration
         DB::table('driver_documents')
             ->whereIn('type', self::VEHICLE_DOCUMENT_TYPES)
             ->whereNull('vehicle_id')
-            ->orderBy('id')
-            ->chunk(500, function ($documents) {
+            // chunkById: linked rows leave the whereNull set, which would make
+            // offset paging skip rows.
+            ->chunkById(500, function ($documents) {
                 $vehicles = DB::table('vehicles')
                     ->whereIn('driver_id', $documents->pluck('driver_id')->filter()->unique()->all())
                     ->get(['id', 'driver_id'])

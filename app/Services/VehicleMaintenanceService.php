@@ -340,22 +340,29 @@ class VehicleMaintenanceService
 
     private function takeOfflineUnlessOnTrip(Driver $driver): void
     {
-        DB::transaction(function () use ($driver) {
+        $setOffline = DB::transaction(function () use ($driver) {
             $driver = Driver::lockForUpdate()->find($driver->id);
 
             if ($driver === null || ! $driver->is_online) {
-                return;
+                return false;
             }
 
             $onTrip = Ride::where('driver_id', $driver->user_id)->whereIn('status', RideStatus::driverOnTripStatuses())->exists();
 
             if ($onTrip) {
-                return;
+                return false;
             }
 
             $driver->update(['is_online' => false]);
             AuditLog::record($driver, 'driver_set_offline_vehicle_blocked');
+
+            return true;
         });
+
+        // A driver on a trip keeps their location (passenger tracking, ETA).
+        if (! $setOffline) {
+            return;
+        }
 
         try {
             app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id);
@@ -395,6 +402,13 @@ class VehicleMaintenanceService
     public function sendReminders(Vehicle $vehicle, Collection $items): array
     {
         $settings = AppSetting::vehicleMaintenance();
+
+        // Off: nothing is sent, and nothing is marked as told, so drivers
+        // hear about every change once reminders are back on.
+        if (! $settings['enabled']) {
+            return [];
+        }
+
         // What the driver should last have been told: the status while it
         // needs attention, nothing once it is back to ok.
         $toldAbout = fn (VehicleMaintenanceItem $item) => $item->status->needsAttention() ? $item->status : null;
@@ -406,7 +420,7 @@ class VehicleMaintenanceService
 
         $toTell = $changed->filter(fn (VehicleMaintenanceItem $item) => $item->status->needsAttention());
 
-        if ($settings['enabled'] && $toTell->isNotEmpty() && $vehicle->driver !== null) {
+        if ($toTell->isNotEmpty() && $vehicle->driver !== null) {
             $this->safely(fn () => $this->notifications->send(
                 userId: $vehicle->driver->user_id,
                 type: NotificationType::VehicleMaintenanceDue,
@@ -420,7 +434,7 @@ class VehicleMaintenanceService
             $item->forceFill(['notified_status' => $toldAbout($item), 'notified_at' => now()])->save();
         }
 
-        if (! $settings['enabled'] || ! $vehicle->is_fleet) {
+        if (! $vehicle->is_fleet) {
             return [];
         }
 

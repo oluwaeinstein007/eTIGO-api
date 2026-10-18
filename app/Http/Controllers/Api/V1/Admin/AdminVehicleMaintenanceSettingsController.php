@@ -64,6 +64,27 @@ class AdminVehicleMaintenanceSettingsController extends Controller
             }
         }
 
+        // Fuel type overrides merge per fuel type and item, like intervals,
+        // and each needs a km or months value (an empty one would never be due).
+        if (isset($validated['fuel_type_intervals'])) {
+            $merged = $current['fuel_type_intervals'];
+
+            foreach ($validated['fuel_type_intervals'] as $fuelType => $types) {
+                foreach ($types as $type => $interval) {
+                    if (empty($interval['km']) && empty($interval['months'])) {
+                        return response()->json([
+                            'message' => 'Each fuel type override needs a km or a months interval.',
+                            'errors' => ["fuel_type_intervals.{$fuelType}.{$type}" => ['Give a km or a months interval.']],
+                        ], 422);
+                    }
+
+                    $merged[$fuelType][$type] = $interval;
+                }
+            }
+
+            $validated['fuel_type_intervals'] = $merged;
+        }
+
         DB::transaction(function () use ($validated, $current, $request) {
             AuditLog::record(
                 $request->user(),

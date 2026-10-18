@@ -9,6 +9,7 @@ use App\Enums\MaintenanceItemStatus;
 use App\Enums\MaintenanceItemType;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Http\Resources\VehicleResource;
 use App\Jobs\ProcessVehicleMaintenanceJob;
 use App\Models\AppSetting;
 use App\Models\City;
@@ -28,6 +29,8 @@ use App\Services\DriverLocationService;
 use App\Services\DriverMatchingService;
 use App\Services\RideService;
 use App\Services\VehicleMaintenanceService;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -521,4 +524,46 @@ it('lets operations change the intervals, per fuel type too', function () {
     ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
         'intervals' => ['insurance' => ['months' => 12]],
     ])->assertStatus(422);
+});
+
+it('merges fuel type overrides and refuses empty ones', function () {
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['electric' => ['service' => ['km' => 10000, 'months' => 6]]],
+    ])->assertOk();
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['cng' => ['service' => ['km' => 4000]]],
+    ])->assertOk()
+        ->assertJsonPath('settings.fuel_type_intervals.electric.service.km', 10000)
+        ->assertJsonPath('settings.fuel_type_intervals.cng.service.km', 4000);
+
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['electric' => ['service' => ['km' => null, 'months' => null]]],
+    ])->assertStatus(422)->assertJsonValidationErrors('fuel_type_intervals.electric.service');
+});
+
+it('keeps the odometer and papers state from passengers', function () {
+    $passengerRequest = Request::create('/');
+    $passengerRequest->setUserResolver(fn () => $this->passenger);
+    $driverRequest = Request::create('/');
+    $driverRequest->setUserResolver(fn () => $this->user);
+
+    $asPassenger = (new VehicleResource($this->vehicle))->toArray($passengerRequest);
+    $asDriver = (new VehicleResource($this->vehicle))->toArray($driverRequest);
+
+    expect(collect($asPassenger)->filter(fn ($v) => ! $v instanceof MissingValue)->keys()->all())
+        ->not->toContain('odometer_km', 'is_blocked', 'block_reason', 'shift_mode')
+        ->and($asDriver)->toHaveKey('is_blocked');
+});
+
+it('sends no reminders and marks nothing while maintenance is off', function () {
+    AppSetting::setValue('vehicle_maintenance.enabled', 'false', 'vehicle_maintenance');
+    ($this->paper)($this->vehicle, DocumentType::InsuranceCertificate, '2026-10-25');
+    ($this->runJob)();
+
+    expect(Notification::where('user_id', $this->user->id)->where('type', 'vehicle_maintenance_due')->exists())->toBeFalse()
+        ->and(VehicleMaintenanceItem::where('vehicle_id', $this->vehicle->id)->whereNotNull('notified_status')->exists())->toBeFalse();
+
+    AppSetting::setValue('vehicle_maintenance.enabled', 'true', 'vehicle_maintenance');
+    ($this->runJob)();
+    expect(Notification::where('user_id', $this->user->id)->where('type', 'vehicle_maintenance_due')->exists())->toBeTrue();
 });

@@ -12,6 +12,10 @@ class VehicleResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Odometer, charge level and papers state are for the driver and
+        // operations, not for a passenger seeing their driver's car.
+        $internal = (bool) ($request->user()?->isAdmin() || $request->user()?->isDriver());
+
         return [
             'id' => $this->id,
             'driver_id' => $this->driver_id,
@@ -32,13 +36,13 @@ class VehicleResource extends JsonResource
             'is_fleet' => (bool) $this->is_fleet,
             'is_assigned' => $this->when($this->is_fleet, $this->driver_id !== null),
             // Shared between drivers on a shift timetable (fleet cars).
-            'shift_mode' => (bool) $this->shift_mode,
-            'odometer_km' => $this->odometer_km,
-            'estimated_odometer_km' => $this->resource->estimatedOdometerKm(),
-            'battery_level_percent' => $this->when((bool) $this->fuel_type?->canCharge(), $this->battery_level_percent),
+            'shift_mode' => $this->when($internal, fn () => (bool) $this->shift_mode),
+            'odometer_km' => $this->when($internal, fn () => $this->odometer_km),
+            'estimated_odometer_km' => $this->when($internal, fn () => $this->resource->estimatedOdometerKm()),
+            'battery_level_percent' => $this->when($internal && (bool) $this->fuel_type?->canCharge(), fn () => $this->battery_level_percent),
             // Expired papers keep the car off the road after the grace period.
-            'is_blocked' => $this->blocked_at !== null,
-            'block_reason' => $this->block_reason,
+            'is_blocked' => $this->when($internal, fn () => $this->blocked_at !== null),
+            'block_reason' => $this->when($internal, fn () => $this->block_reason),
             'vehicle_class_id' => $this->vehicle_class_id,
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_at' => $this->created_at,

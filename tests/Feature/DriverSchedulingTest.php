@@ -434,6 +434,28 @@ it('keeps a driver online straight into their next shift on the same car', funct
         ->and($this->day->fresh()->is_online)->toBeTrue();
 });
 
+it('leaves a back-to-back shift to the missed rule when the driver went offline', function () {
+    $this->car->update(['driver_id' => $this->day->id]);
+    $first = ($this->shift)($this->day, '2026-10-19 00:00', '2026-10-19 08:00', ['status' => DriverShiftStatus::Active]);
+    $second = ($this->shift)($this->day, '2026-10-19 08:00', '2026-10-19 16:00');
+
+    app()->call([new ProcessDriverShiftsJob, 'handle']);
+
+    expect($first->fresh()->status)->toBe(DriverShiftStatus::Completed)
+        ->and($second->fresh()->status)->toBe(DriverShiftStatus::Scheduled);
+});
+
+it('refuses to go online for a shift that changed after the check', function () {
+    $shift = ($this->shift)($this->day, '2026-10-19 07:00', '2026-10-19 15:00');
+    $shift->update(['status' => DriverShiftStatus::Cancelled]);
+
+    expect(fn () => app(DriverShiftService::class)->goOnlineForShift($this->day, $shift))
+        ->toThrow(ValidationException::class);
+
+    expect($this->car->fresh()->driver_id)->toBeNull()
+        ->and($this->day->fresh()->is_online)->toBeFalse();
+});
+
 it('tells the next driver when the car is late because the previous driver is on a trip', function () {
     $this->car->update(['driver_id' => $this->night->id]);
     $this->night->update(['is_online' => true]);
