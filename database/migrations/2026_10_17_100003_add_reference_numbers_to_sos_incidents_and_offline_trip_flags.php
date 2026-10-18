@@ -72,7 +72,7 @@ return new class extends Migration
             SET dispute_channel = 'driver_app',
                 disputed_at = COALESCE(
                     (SELECT MIN(a.created_at) FROM audit_logs AS a
-                     WHERE a.event = 'offline_flag_disputed' AND a.auditable_id = f.id),
+                     WHERE a.event = 'offline_flag_disputed' AND a.auditable_id::text = f.id::text),
                     f.updated_at
                 )
             WHERE f.is_disputed = true
@@ -82,7 +82,7 @@ return new class extends Migration
             UPDATE offline_trip_flags AS f
             SET review_notes = (
                 SELECT a.new_values->>'resolution_notes' FROM audit_logs AS a
-                WHERE a.event = 'offline_flag_reviewed' AND a.auditable_id = f.id
+                WHERE a.event = 'offline_flag_reviewed' AND a.auditable_id::text = f.id::text
                 ORDER BY a.created_at DESC
                 LIMIT 1
             )
