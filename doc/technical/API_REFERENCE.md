@@ -7,7 +7,7 @@
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue).  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals).  
 
 ---
 
@@ -3998,7 +3998,7 @@ POST /admin/admins/invite
 | Field      | Type   | Required | Description                                      |
 |------------|--------|----------|--------------------------------------------------|
 | email      | string | Yes      | Email for the invitation                         |
-| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, or `finance` |
+| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, `support_lead`, or `finance` |
 
 **Response 201:**
 ```json
@@ -4105,7 +4105,7 @@ PUT /admin/admins/{admin_id}
 
 | Field      | Type   | Required | Description                                      |
 |------------|--------|----------|--------------------------------------------------|
-| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, or `finance` |
+| admin_role | string | Yes      | `operations`, `safety_operator`, `support`, `support_lead`, or `finance` |
 
 Cannot modify super admin accounts.
 
@@ -9006,54 +9006,50 @@ Submit a 1–5 star rating for a completed ride. Passengers rate drivers and dri
 
 ## Disputes
 
+A passenger or driver reports a problem with a completed trip (Phase 2 advanced disputes, PRD B-30, P-27, A-36, A-37, NF-12). The flow follows the OQ-21 recommendation of 16 October 2026, which the client has not confirmed yet; super admins can change every limit and target without a release (see [Dispute Settings](#dispute-settings-admin)). App changes: `FRONTEND_UPDATE_ADVANCED_DISPUTES.md`.
+
+1. **File.** The reporter files from the trip (`POST /rides/{ride}/dispute`), with optional photos and audio. Each person can file one dispute per trip.
+2. **Routing.** A new dispute goes to **tier 1** (support agents). A `safety_concern` goes straight to the **Safety team**, which is alerted by email and has a 1-hour first-response target. If the other person on the trip has already filed, the two disputes are linked and handled by the same owner.
+3. **Review.** A reviewer takes the case (the reporter is told "We are looking into your report"). The reporter can add evidence while the case is open (`POST /disputes/{id}/evidence`).
+4. **Escalation.** A case moves up to **tier 2** (support leads) or **tier 3** (management) when a reviewer escalates it or tier 1 misses its target. The reporter only sees "Your case is with our senior team", never an admin's name.
+5. **Decision.** The case is resolved (optionally with a refund, to the wallet by default) or dismissed. The reporter gets an email and a push.
+6. **Appeal.** The reporter can appeal once, within 7 days (`POST /disputes/{id}/appeal`). The case reopens one tier above whoever decided it, for a different reviewer. A tier 3 decision is final.
+
+For an item left in the car, send the passenger to [Lost & Found](#lost--found) instead: it notifies the driver and tracks the return. `item_left_behind` disputes are still accepted.
+
 ### File a Dispute (Report an Issue)
 
 `POST /api/v1/rides/{ride}/dispute`
 
-File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Each participant can submit one dispute per ride. Supports optional evidence photo uploads (up to 5 images).
+**Auth:** Bearer token (the trip's passenger or driver)
 
-**Auth:** Bearer token (passenger or driver)
-
-**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`
-
-**Request Body:**
+**Content-Type:** `multipart/form-data` (with files) or `application/json`
 
 | Field         | Type     | Required | Rules                                              |
 |---------------|----------|----------|----------------------------------------------------|
-| `category`    | string   | Yes      | One of `DisputeCategory` enum values (see below)   |
+| `category`    | string   | Yes      | One of `DisputeCategory` (below)                   |
 | `description` | string   | Yes      | 10–2000 characters                                 |
-| `photos[]`    | file[]   | No       | Up to 5 images (jpg, jpeg, png, webp), max 5MB each |
-| `audio`       | file     | No       | Audio recording (mp3, m4a, wav, ogg, webm, aac), max 10MB |
+| `photos[]`    | file[]   | No       | Up to 5 images (jpg, jpeg, png, webp), max 5 MB each |
+| `audio`       | file     | No       | One recording (mp3, m4a, wav, ogg, webm, aac), max 10 MB |
 
 **DisputeCategory values:**
 
-| Value              | Display Label       |
+| Value              | Display label       |
 |--------------------|---------------------|
-| `safety_concern`   | Safety concern      |
+| `safety_concern`   | Safety concern (goes to the Safety team) |
 | `driver_behaviour` | Driver behaviour    |
 | `route_deviation`  | Wrong route taken   |
 | `fare_dispute`     | Fare is incorrect   |
 | `vehicle_condition`| Vehicle condition   |
-| `item_left_behind` | Lost item           |
+| `item_left_behind` | Lost item (use Lost & Found instead) |
 | `payment_issue`    | Payment issue       |
 | `other`            | Something else      |
 
-For an item left in the car, send the passenger to [Lost & Found](#lost--found) instead: it notifies the driver and tracks the return. `item_left_behind` disputes are still accepted.
-
-**Example Request (JSON):**
-```json
-{
-  "category": "route_deviation",
-  "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge."
-}
-```
-
-**Example Request (multipart/form-data):**
+**Example request (multipart/form-data):**
 ```
 category: route_deviation
 description: The driver took a longer route through Maryland instead of Third Mainland Bridge.
 photos[0]: <image file>
-photos[1]: <image file>
 audio: <audio file (optional)>
 ```
 
@@ -9068,349 +9064,408 @@ audio: <audio file (optional)>
     "category": "route_deviation",
     "category_label": "Wrong route taken",
     "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
-    "evidence_photos": [
-      "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg",
-      "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo2.jpg"
+    "evidence_photos": ["https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg"],
+    "evidence": [
+      {
+        "id": "01a10e6f-...",
+        "type": "photo",
+        "url": "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg",
+        "file_type": "image/jpeg",
+        "file_size_bytes": 482113,
+        "original_name": "IMG_2041.jpg",
+        "caption": null,
+        "uploaded_at": "2026-10-18T12:00:00.000000Z"
+      }
     ],
-    "status": "open",
-    "status_label": "Open",
-    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-    "resolved_at": null,
-    "created_at": "2026-10-12T12:00:00.000000Z",
-    "updated_at": "2026-10-12T12:00:00.000000Z"
-  }
-}
-```
-
-**Error Responses:**
-- `422` — Ride not completed, user not a participant, already disputed, invalid category, or photo validation failed
-
----
-
-### List My Disputes (Passenger)
-
-`GET /api/v1/passenger/disputes`
-
-List all disputes filed by the authenticated passenger. Returns paginated results ordered by most recent first.
-
-**Auth:** Bearer token (passenger)
-
-**Query Parameters:**
-
-| Parameter  | Type | Description                        |
-|------------|------|------------------------------------|
-| `per_page` | int  | Items per page (default: 15, max: 50) |
-| `page`     | int  | Page number                        |
-
-**Response: `200 OK`**
-```json
-{
-  "disputes": [
-    {
-      "id": "...",
-      "reference_number": "DPT-000048",
-      "ride_id": "...",
-      "category": "route_deviation",
-      "category_label": "Wrong route taken",
-      "description": "The driver took a longer route...",
-      "evidence_photos": ["https://..."],
-    "evidence_audio": "https://res.cloudinary.com/etigo/video/upload/disputes/ride-uuid/audio/recording.m4a",
-      "status": "open",
-      "status_label": "Open",
-      "reported_by": { "id": "...", "first_name": "John" },
-      "ride": { "id": "...", "reference_number": "TRP-NG-000142", "destination": { "address": "Eko Atlantic City" } },
-      "resolved_at": null,
-      "created_at": "2026-10-12T12:00:00.000000Z"
-    }
-  ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 15,
-    "total": 1
-  }
-}
-```
-
----
-
-### Show My Dispute (Passenger)
-
-`GET /api/v1/passenger/disputes/{dispute}`
-
-View details of a specific dispute filed by the authenticated passenger.
-
-**Auth:** Bearer token (passenger)
-
-**Response: `200 OK`** — Same structure as individual dispute object above.
-
-**Response 403:** Dispute was not filed by this user.
-
----
-
-## Admin — Dispute Management
-
-**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:support`
-
-**Allowed Roles:** Support (Super Admin always has access)
-
-### List Disputes
-
-`GET /api/v1/admin/disputes`
-
-List all disputes with optional filters and pagination.
-
-**Query Parameters:**
-
-| Parameter  | Type   | Description                                     |
-|------------|--------|-------------------------------------------------|
-| `status`   | string | Filter by status: `open`, `under_review`, `resolved`, `dismissed` |
-| `category` | string | Filter by category (see `DisputeCategory` enum) |
-| `ride_id`  | uuid   | Filter by specific ride ID                      |
-| `city_id`  | uuid   | Filter by city (via ride's city)                |
-| `search`   | string | Search by description or reporter name/email    |
-| `from`     | date   | Filter disputes created on or after (YYYY-MM-DD) |
-| `to`       | date   | Filter disputes created on or before (YYYY-MM-DD) |
-| `per_page` | int    | Items per page (default: 15, max: 100)          |
-| `page`     | int    | Page number                                     |
-
-**Response: `200 OK`**
-```json
-{
-  "disputes": [
-    {
-      "id": "...",
-      "reference_number": "DPT-000048",
-      "ride_id": "...",
-      "category": "fare_dispute",
-      "category_label": "Fare is incorrect",
-      "description": "...",
-      "status": "open",
-      "status_label": "Open",
-      "resolution_notes": null,
-      "refund_amount": null,
-      "refund_currency": null,
-      "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-      "ride": {
-        "id": "...",
-        "reference_number": "TRP-NG-000142",
-        "status": "completed",
-        "city": { "id": "...", "name": "Lagos" },
-        "passenger": { "id": "...", "first_name": "John", "last_name": "Doe", "phone": "+234..." },
-        "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith", "phone": "+234..." }
-      },
-      "resolved_at": null,
-      "created_at": "2026-10-09T12:00:00.000000Z",
-      "updated_at": "2026-10-09T12:00:00.000000Z"
-    }
-  ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 15,
-    "total": 1
-  }
-}
-```
-
-### Show Dispute Detail
-
-`GET /api/v1/admin/disputes/{dispute}`
-
-Return full dispute details including ride, passenger, driver, vehicle class, city, and payment information.
-
-**Auth:** Bearer token (admin)
-
-**Response: `200 OK`**
-```json
-{
-  "dispute": {
-    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
-    "reference_number": "DPT-000048",
-    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
-    "category": "fare_dispute",
-    "category_label": "Fare is incorrect",
-    "description": "The fare charged was significantly higher than the estimated fare.",
     "status": "open",
     "status_label": "Open",
     "resolution_notes": null,
     "refund_amount": null,
     "refund_currency": null,
-    "reported_by": {
-      "id": "f1a2b3c4-d5e6-7890-abcd-111111111111",
-      "first_name": "John",
-      "last_name": "Doe",
-      "phone": "+2348100000001",
-      "email": "john@example.com",
-      "type": "passenger"
-    },
-    "ride": {
-      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
-      "reference_number": "TRP-NG-000142",
-      "status": "completed",
-      "pickup": { "lat": 9.0579, "lng": 7.4951, "address": "123 Main Street, Abuja" },
-      "destination": { "lat": 9.0065, "lng": 7.2632, "address": "456 Airport Road, Abuja" },
-      "fare_estimate_amount": "3500.00",
-      "final_fare_amount": "4200.00",
-      "fare_currency": "NGN",
-      "payment_method": "card",
-      "passenger": { "id": "...", "first_name": "John", "last_name": "Doe", "phone": "+234..." },
-      "driver": { "id": "...", "first_name": "Jane", "last_name": "Smith", "phone": "+234..." },
-      "vehicle_class": { "id": "...", "name": "comfort", "display_name": "Comfort" },
-      "city": { "id": "...", "name": "Abuja" },
-      "payment_details": {
-        "amount": 4200.00,
-        "currency": "NGN",
-        "method": "card",
-        "status": "captured",
-        "card_brand": "visa",
-        "card_last_four": "4081",
-        "tip_amount": null
-      }
-    },
-    "notes": [
-      {
-        "id": "...",
-        "content": "Passenger confirmed the overcharge via screenshots.",
-        "admin": { "id": "...", "first_name": "Support", "last_name": "Agent" },
-        "created_at": "2026-10-09T13:00:00.000000Z",
-        "updated_at": "2026-10-09T13:00:00.000000Z"
-      }
-    ],
+    "refund_method": null,
+    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+    "stage": "review",
+    "stage_label": "With our support team",
+    "can_add_evidence": true,
+    "evidence_slots_left": 9,
+    "appeal": { "can_appeal": false, "reason_unavailable": "You can appeal once a decision has been made.", "deadline": null, "appealed_at": null },
     "resolved_at": null,
-    "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-09T12:00:00.000000Z"
+    "created_at": "2026-10-18T12:00:00.000000Z",
+    "updated_at": "2026-10-18T12:00:00.000000Z"
   }
 }
 ```
 
-### Resolve Dispute
+For a `safety_concern` the message is `Report received. Our safety team has been alerted and will contact you shortly.` and `stage_label` is `With our safety team`.
 
-`POST /api/v1/admin/disputes/{dispute}/resolve`
+**Errors:** `422` — ride not completed, not a participant, already disputed, invalid category, or file validation failed. `500` — the files could not be stored (nothing is saved; try again).
 
-Resolve or dismiss a dispute. Optionally issue a card refund (full or partial) when resolving. Creates an audit log entry.
+### Reporter fields
 
-**Auth:** Bearer token (admin)
+Every dispute the reporter sees (filing, list, detail, evidence, appeal) carries these, and never an admin's name or the internal routing:
 
-**Request Body:**
+| Field | Meaning |
+|-------|---------|
+| `stage` | `review` (support), `senior_review` (tier 2+, or the Safety team) or `decided` |
+| `stage_label` | Show as-is: `With our support team`, `With our senior team`, `With our safety team`, `Decision made` |
+| `evidence` | The files on the case (also the older `evidence_photos` / `evidence_audio` for files sent when filing) |
+| `can_add_evidence`, `evidence_slots_left` | Show "Add evidence" while `can_add_evidence` is `true` |
+| `appeal.can_appeal` | Show "Appeal this decision" when `true`; `appeal.deadline` is the last moment to appeal |
+| `appeal.reason_unavailable` | Why the reporter cannot appeal (already appealed, window passed, decision final, no decision yet) |
+| `appeal.appealed_at` | Set once the reporter has appealed |
+| `refund_amount`, `refund_currency`, `refund_method` | What was refunded on the case in total, and where (`wallet` or `card`) |
 
-| Field              | Type    | Required | Rules                                                     |
-|--------------------|---------|----------|-----------------------------------------------------------|
-| `status`           | string  | Yes      | `resolved` or `dismissed`                                 |
-| `resolution_notes` | string  | Yes      | 10–2000 characters                                        |
-| `refund_amount`    | numeric | No       | Min 1. Must not exceed ride payment. Card payments only.  |
+### List My Disputes
 
-**Notes on `refund_amount`:**
-- Only valid when `status` is `resolved` (cannot refund on dismissal)
-- Only card payments can be refunded — cash payments return a 422 error
-- Supports partial refunds (e.g., refund ₦500 of a ₦3,000 fare)
-- The refund is processed via the payment gateway immediately
-- When the Wallet Infrastructure is built, refunds will support wallet credits and driver clawbacks
+`GET /api/v1/disputes` (passenger or driver) — also `GET /api/v1/passenger/disputes` for older passenger apps.
 
-**Example Request (resolve with refund):**
+Disputes the authenticated user reported, newest first.
+
+| Parameter  | Type   | Description |
+|------------|--------|-------------|
+| `status`   | string | `open`, `under_review`, `resolved` or `dismissed` |
+| `ride_id`  | uuid   | One trip |
+| `per_page` | int    | Default 15, max 50 |
+
+**Response: `200 OK`** — `{ "disputes": [ <dispute as above, with "ride"> ], "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 } }`
+
+### Show My Dispute
+
+`GET /api/v1/disputes/{dispute}` (passenger or driver) — also `GET /api/v1/passenger/disputes/{dispute}`.
+
+**Response: `200 OK`** — `{ "dispute": { ... } }`. **`403`** — the user did not report this dispute.
+
+### Add Evidence
+
+`POST /api/v1/disputes/{dispute}/evidence`
+
+**Auth:** Bearer token (the reporter). Throttled to 10 a minute.
+
+**Content-Type:** `multipart/form-data`
+
+| Field        | Type     | Required | Rules |
+|--------------|----------|----------|-------|
+| `files[]`    | file[]   | Yes      | 1–5 files: images (jpg, jpeg, png, webp, heic) and PDFs up to 5 MB; audio (mp3, m4a, wav, ogg, webm, aac) up to 10 MB |
+| `captions[]` | string[] | No       | One per file, same order, max 255 characters |
+
+A case holds at most `max_evidence_files` (10) files in all. Only while the case is open (including a reopened appeal).
+
+**Response: `201 Created`** — `{ "message": "Evidence added to your report.", "dispute": { ... } }`
+
+**Errors:** `403` — not the reporter. `422` — case closed (`Evidence can only be added while the case is open.`), too many files (`A case can hold at most 10 evidence files.`), or file validation.
+
+### Appeal a Decision
+
+`POST /api/v1/disputes/{dispute}/appeal`
+
+**Auth:** Bearer token (the reporter). Throttled to 5 a minute.
+
+| Field    | Type   | Required | Rules |
+|----------|--------|----------|-------|
+| `reason` | string | Yes      | 10–2000 characters |
+
+Once per dispute, within `appeal_window_days` (7) of the decision. The case reopens as `open`, one tier above the tier it was decided at, and whoever decided it cannot review the appeal. A decision made at tier 3 (management) is final.
+
+**Response: `200 OK`**
 ```json
 {
-  "status": "resolved",
-  "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
-  "refund_amount": 500.00
+  "message": "Appeal received. A senior member of our team will review your case.",
+  "dispute": { "status": "open", "stage": "senior_review", "stage_label": "With our senior team", "appeal": { "can_appeal": false, "reason_unavailable": "You can appeal once a decision has been made.", "appealed_at": "2026-10-19T09:00:00.000000Z" }, "...": "..." }
 }
 ```
 
-**Example Request (resolve without refund):**
-```json
-{
-  "status": "resolved",
-  "resolution_notes": "Driver behaviour addressed. Warning issued to driver."
-}
-```
+**Errors:** `403` — not the reporter. `422` — one of:
 
-**Response: `200 OK` (with refund)**
-```json
-{
-  "message": "Dispute resolved successfully. Refund of NGN 500.00 issued.",
-  "dispute": {
-    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
-    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
-    "category": "fare_dispute",
-    "category_label": "Fare is incorrect",
-    "description": "The fare charged was significantly higher than the estimated fare.",
-    "status": "resolved",
-    "status_label": "Resolved",
-    "resolution_notes": "Fare overcharge confirmed. Partial refund of ₦500 issued to passenger.",
-    "refund_amount": "500.00",
-    "refund_currency": "NGN",
-    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
-    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
-    "resolved_at": "2026-10-10T14:00:00.000000Z",
-    "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-10T14:00:00.000000Z"
-  }
-}
-```
-
-**Response: `200 OK` (without refund)**
-```json
-{
-  "message": "Dispute resolved successfully.",
-  "dispute": {
-    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
-    "ride_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
-    "category": "driver_behaviour",
-    "category_label": "Driver Behaviour",
-    "description": "Driver was rude during the ride.",
-    "status": "resolved",
-    "status_label": "Resolved",
-    "resolution_notes": "Driver behaviour addressed. Warning issued to driver.",
-    "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
-    "resolved_by": { "id": "...", "first_name": "Admin", "last_name": "User", "type": "admin" },
-    "ride": { "id": "e5f6a7b8-c9d0-1234-efab-345678901234", "status": "completed" },
-    "resolved_at": "2026-10-10T14:00:00.000000Z",
-    "created_at": "2026-10-09T12:00:00.000000Z",
-    "updated_at": "2026-10-10T14:00:00.000000Z"
-  }
-}
-```
-
-**Error Responses:**
-- `422` — Dispute already resolved/dismissed, missing resolution notes, refund on dismissal, refund exceeds payment, or cash payment refund attempted
+| Message | When |
+|---------|------|
+| `You can appeal once a decision has been made.` | The case is still open |
+| `This decision has already been appealed once.` | Second appeal |
+| `This decision was made by our management team and is final.` | Decided at tier 3 |
+| `The time to appeal this decision has passed.` | Outside the window |
 
 ---
+
+## Admin — Dispute Management
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:support,support_lead,safety_operator` (super admins always pass).
+
+### Tiers and who can do what
+
+| Tier / queue | Role | Works | Refund limit per dispute |
+|--------------|------|-------|--------------------------|
+| Tier 1 | `support` | New disputes except safety | ₦5,000 |
+| Tier 2 | `support_lead` | Escalations, appeals, missed targets; also tier 1 | ₦50,000 |
+| Safety | `safety_operator` | Safety concerns (they skip tier 1) | ₦50,000 |
+| Tier 3 | `super_admin` | Anything, including final appeals | No limit |
+
+- **Seeing cases.** `support` and `support_lead` see the support queue at every tier. The Safety team and super admins see everything. A safety case is `403` to support roles.
+- **Working cases.** An admin works cases at their tier or below (`available_actions` lists what the viewer can do). A tier 1 agent can only take a case; leads, Safety and super admins can also assign it to someone else who can work it.
+- **Appeals.** Whoever made the original decision (or approved its refund) cannot work the appeal: `403 You made the original decision on this case, so the appeal goes to a different reviewer.`
+- **Evidence (NF-12).** Only the assigned reviewer, higher tiers, the Safety team and super admins see evidence, and only in the detail view. Anyone else gets `evidence_locked: true` and no files: take the case to see them. Each view is audit-logged (`dispute_evidence_viewed`).
+- **Response targets.** First response = taking the case, moving it to under review, or deciding it. Safety: 1 h / 24 h; tier 1: 24 h / 72 h; tier 2: 24 h / 5 days; tier 3: none. The clock restarts when a case changes tier. Every 15 minutes, tier 1 misses move to tier 2 and Safety / tier 2 misses are emailed to super admins.
+- **Linked cases.** When the passenger and the driver both dispute one trip, the cases are linked (`linked_dispute_id`): assigning, escalating or sending one back does the same to the other while it is open.
+- **Admin changes.** Deactivating or deleting an admin returns their open cases to the queue; a role change does so for cases the new role cannot work.
+
+### List Disputes
+
+`GET /api/v1/admin/disputes`
+
+| Parameter  | Type   | Description |
+|------------|--------|-------------|
+| `status`   | string | Comma list: `open`, `under_review`, `resolved`, `dismissed` |
+| `open`     | bool   | `true` = open or under review; `false` = closed |
+| `queue`    | string | `support` or `safety` |
+| `tier`     | int    | 1, 2 or 3 |
+| `assigned` | string | `me`, `unassigned`, or an admin's id |
+| `sla`      | string | `breached` (a target has passed) or `at_risk` (under a quarter of the time left) |
+| `appealed` | bool   | Only appeals (`true`) or none (`false`) |
+| `pending_refund` | bool | Only cases with a refund waiting for approval |
+| `category`, `ride_id`, `city_id` | | As before |
+| `search`   | string | Description, reference number, or the reporter's name or email |
+| `from`, `to` | date | Created on or after / on or before (YYYY-MM-DD) |
+| `sort`     | string | `newest` (default) or `due` (open cases first, soonest target first) |
+| `per_page` | int    | Default 15, max 100 |
+
+**Response: `200 OK`**
+```json
+{
+  "disputes": [
+    {
+      "id": "...",
+      "reference_number": "DPT-000048",
+      "category": "fare_dispute",
+      "status": "under_review",
+      "queue": "support",
+      "queue_label": "Support",
+      "escalation_tier": 2,
+      "tier_label": "Tier 2 — Support lead",
+      "decision_tier": null,
+      "assigned_admin": { "id": "...", "first_name": "Ada", "last_name": "Obi", "admin_role": "support_lead" },
+      "assigned_admin_id": "...",
+      "assigned_at": "2026-10-18T13:00:00.000000Z",
+      "is_mine": true,
+      "escalation": { "escalated_at": "2026-10-18T12:40:00.000000Z", "reason": "Refund above my limit.", "source": "admin", "escalated_by_admin_id": "..." },
+      "sla": {
+        "status": "on_track",
+        "status_label": "On track",
+        "next_due_at": "2026-10-23T12:40:00.000000Z",
+        "first_response_due_at": "2026-10-19T12:40:00.000000Z",
+        "first_responded_at": "2026-10-18T13:00:00.000000Z",
+        "first_response_breached_at": null,
+        "resolution_due_at": "2026-10-23T12:40:00.000000Z",
+        "resolution_breached_at": null
+      },
+      "appeal": null,
+      "evidence_count": 2,
+      "evidence_locked": false,
+      "refund_amount": null,
+      "refund_method": null,
+      "driver_clawback_amount": null,
+      "linked_dispute_id": null,
+      "sos_incident_id": null,
+      "available_actions": ["unassign", "escalate", "send_to_safety", "deescalate", "resolve", "add_note"],
+      "refund_limit": 50000,
+      "reported_by": { "id": "...", "first_name": "John", "last_name": "Doe" },
+      "ride": { "id": "...", "reference_number": "TRP-NG-000142", "city": { "name": "Lagos" } },
+      "created_at": "2026-10-18T12:00:00.000000Z"
+    }
+  ],
+  "summary": {
+    "open": 14, "unassigned": 5, "mine": 3, "overdue": 2, "safety": 1,
+    "tier_1": 9, "tier_2": 3, "tier_3": 1, "appeals": 1, "pending_refunds": 2
+  },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 14 }
+}
+```
+
+The list never includes evidence files (`evidence_count` only). `summary` counts open cases within what the viewer can see. `sla.status`: `on_track`, `at_risk`, `breached`, `met` / `missed` (closed cases), `none` (no target, e.g. tier 3). `available_actions`: `take`, `assign`, `unassign`, `mark_under_review`, `escalate`, `send_to_safety`, `deescalate`, `resolve`, `add_note` (empty when the viewer cannot work the case).
+
+### Show Dispute Detail
+
+`GET /api/v1/admin/disputes/{dispute}`
+
+The list fields plus the ride (passenger, driver and vehicle, class, city, payment), `notes`, `linked_dispute`, `pending_refund_request`, `refund_requests` (history), `resolved_by`, `appeal` (`appealed_at`, `reason`, `original_decision`, `excluded_reviewer_ids`) and, where the viewer may see them, `evidence`, `evidence_photos` and `evidence_audio`.
+
+**Errors:** `403` — a safety case viewed by a support role.
+
+### Take or Assign a Case
+
+`POST /api/v1/admin/disputes/{dispute}/assign`
+
+| Field      | Type | Required | Rules |
+|------------|------|----------|-------|
+| `admin_id` | uuid | No       | Who gets the case; leave out to take it yourself. Leads, Safety and super admins only |
+
+The case moves to `under_review`; the first time, this is its first response and the reporter is told. The linked case gets the same owner.
+
+**Response: `200 OK`** — `{ "message": "You have taken this case.", "dispute": { ... } }`
+
+**Errors:** `403` — the viewer cannot work the case (`This case is at tier 2, above your tier.`, `Safety cases are handled by the Safety team.`, or the appeal rule). `422` — closed case, `You can only take a case yourself.`, or `That admin cannot work this case.`
+
+### Return a Case to the Queue
+
+`DELETE /api/v1/admin/disputes/{dispute}/assign` — clears the assignee (and the linked case's). **Response: `200 OK`** — `Case returned to the queue.`
 
 ### Update Dispute Status
 
 `PATCH /api/v1/admin/disputes/{dispute}/status`
 
-Transition a dispute from `open` to `under_review`.
+Moves an `open` case to `under_review` without assigning it; counts as the first response and the reporter gets a push.
 
 | Field    | Type   | Required | Rules            |
 |----------|--------|----------|------------------|
 | `status` | string | Yes      | `under_review`   |
 
-**Response: `200 OK`**
+**Response: `200 OK`** — `{ "message": "Dispute moved to under review.", "dispute": { ... } }`. **`422`** — `Only open disputes can be moved to under review.`
+
+### Escalate a Case
+
+`POST /api/v1/admin/disputes/{dispute}/escalate`
+
+| Field       | Type   | Required | Rules |
+|-------------|--------|----------|-------|
+| `reason`    | string | Yes      | 10–2000 characters |
+| `to_safety` | bool   | No       | `true` sends a support case to the Safety team instead of up a tier |
+
+Moves the case one tier up (Safety → tier 3), clears the assignee so it lands in the new tier's queue, and restarts the targets. The reporter is told "Your case is with our senior team" (or "...our safety team"); `to_safety` also emails the Safety team and links any SOS incident on the trip.
+
+**Response: `200 OK`** — `{ "message": "Case escalated.", "dispute": { "escalation_tier": 2, "assigned_admin_id": null, "escalation": { "source": "admin", "...": "..." } } }`
+
+**Errors:** `403` — cannot work the case. `422` — `This case is already at tier 3, the highest tier.`, `This case is already with the Safety team.`, or `A closed dispute cannot be escalated. It can only reopen through an appeal.`
+
+### Send a Case Back Down
+
+`POST /api/v1/admin/disputes/{dispute}/deescalate`
+
+| Field  | Type   | Required | Rules |
+|--------|--------|----------|-------|
+| `note` | string | Yes      | 10–2000 characters; saved as a dispute note (instructions for the lower tier) |
+
+Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about safety). The reporter is not notified.
+
+**Errors:** `403` — cannot work the case. `422` — `This case is already at tier 1.` or closed.
+
+### Resolve Dispute
+
+`POST /api/v1/admin/disputes/{dispute}/resolve`
+
+| Field              | Type    | Required | Rules |
+|--------------------|---------|----------|-------|
+| `status`           | string  | Yes      | `resolved` or `dismissed` |
+| `resolution_notes` | string  | Yes      | 10–2000 characters; the reporter sees them |
+| `refund_amount`    | numeric | No       | NGN, min 1; only with `resolved` |
+| `refund_method`    | string  | No       | `wallet` (default) or `card` |
+| `clawback_driver_earnings` | bool | No | Default `true`: recover the driver's share of a wallet refund |
+
+**Refunds.**
+- `wallet` (default, OQ-27): credited to the passenger's wallet at once, for card, wallet, bank-transfer and cash rides, up to what is still refundable on the trip (tips excluded). The driver's share is clawed back unless `clawback_driver_earnings` is `false`.
+- `card`: back to the card through the gateway. Card payments only, never more than the payment, and **always** needs Finance approval.
+- **Limits.** If this refund plus earlier refunds on the case is above the reviewer's limit, or the method is `card`, nothing is paid yet: the decision becomes a refund request and the case stays open (`202`). See [Dispute Refund Requests](#dispute-refund-requests).
+
+**Response: `200 OK`** (decided)
 ```json
 {
-  "message": "Dispute moved to under review.",
-  "dispute": {
-    "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
-    "reference_number": "DPT-000048",
-    "status": "under_review",
-    "status_label": "Under Review",
-    "...": "..."
+  "message": "Dispute resolved successfully. Refund of NGN 3,000.00 issued.",
+  "dispute": { "status": "resolved", "refund_amount": "3000.00", "refund_method": "wallet", "decision_tier": 1, "...": "..." },
+  "driver_clawback_kobo": 240000
+}
+```
+
+**Response: `202 Accepted`** (refund waits for approval)
+```json
+{
+  "message": "The refund needs a second approval. The case stays open until it is approved.",
+  "dispute": { "status": "under_review", "pending_refund_request": { "id": "...", "status": "pending" }, "...": "..." },
+  "refund_request": {
+    "id": "...", "dispute_id": "...", "amount": "8000.00", "currency": "NGN",
+    "method": "wallet", "method_label": "Wallet credit", "clawback_driver_earnings": true,
+    "resolution_notes": "Driver took a much longer route.",
+    "status": "pending", "status_label": "Waiting for approval",
+    "requested_by": { "id": "...", "first_name": "Tolu", "last_name": "Ade", "admin_role": "support" },
+    "reviewed_by": null, "reviewed_at": null, "review_notes": null,
+    "created_at": "2026-10-18T14:00:00.000000Z"
   }
 }
 ```
 
-**Response 422:**
-```json
-{
-  "message": "Only open disputes can be moved to under review."
-}
-```
+**Errors:** `403` — cannot work the case. `422` — already resolved or dismissed, notes missing, refund on a dismissal, refund above what is refundable, card refund on a non-card payment, or `A refund on this case is waiting for approval. Approve, reject or withdraw it first.`
 
 ---
 
-### List Dispute Notes
+### Dispute Refund Requests
+
+**Middleware:** `admin.role:support,support_lead,safety_operator,finance`.
+
+Who can approve or reject: a **card** refund — Finance or a super admin; a **wallet** refund — Finance, a super admin, or a dispute admin who can see the case and whose limit covers the case's total refund. Nobody approves their own request, and the original decider of an appealed case cannot approve its refund. The requester can withdraw their own request.
+
+#### List Refund Requests
+
+`GET /api/v1/admin/dispute-refund-requests?status=pending`
+
+`status`: `pending` (default), `approved`, `rejected`, `cancelled`. Finance sees every request; the dispute roles see requests on cases they can see. Each row adds `can_approve` and `can_withdraw` for the viewer.
+
+```json
+{
+  "refund_requests": [
+    {
+      "id": "...", "amount": "8000.00", "method": "wallet", "status": "pending",
+      "requested_by": { "first_name": "Tolu", "admin_role": "support" },
+      "dispute": { "id": "...", "reference_number": "DPT-000048", "category": "route_deviation", "queue": "support", "escalation_tier": 1, "tier_label": "Tier 1 — Support", "status": "under_review", "refund_amount": null, "ride_id": "..." },
+      "can_approve": true,
+      "can_withdraw": false,
+      "created_at": "..."
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 }
+}
+```
+
+#### Approve a Refund Request
+
+`POST /api/v1/admin/dispute-refund-requests/{refundRequest}/approve` — body `notes` (optional, max 2000).
+
+Pays the refund and resolves the case with the requester's notes; the requester is recorded as the decider. **Response: `200 OK`** — `{ "message": "Refund approved and paid. The dispute is resolved.", "refund_request": { ... }, "dispute": { ... }, "driver_clawback_kobo": 0 }`
+
+**Errors:** `403` — `You cannot approve your own refund request.`, `A refund to the card must be approved by Finance.`, `This refund is above your limit; it needs a higher tier.` `422` — already decided, case closed, or nothing left to refund.
+
+#### Reject or Withdraw a Refund Request
+
+`POST /api/v1/admin/dispute-refund-requests/{refundRequest}/reject` — body `notes` (required, 10–2000).
+
+By an approver → `rejected`; by the requester → `cancelled`. The case stays open for a new decision. **Response: `200 OK`** — `Refund request rejected. The case is still open.`
+
+---
+
+### Dispute Settings (Admin)
+
+`GET /api/v1/admin/settings/disputes` · `PUT /api/v1/admin/settings/disputes`
+
+**Auth:** super admin only (the limits bind the other dispute roles). Every change is audit-logged (`dispute_settings.updated`). New targets apply to cases that enter a tier afterwards.
+
+| Setting | Default | Rules |
+|---------|---------|-------|
+| `tier_1_refund_limit` | 5000 | NGN, ≥ 0 |
+| `tier_2_refund_limit` | 50000 | NGN, not below tier 1 |
+| `safety_refund_limit` | 50000 | NGN |
+| `safety_first_response_minutes` | 60 | 0–1440; 0 = no target |
+| `safety_resolution_hours` | 24 | 0–720 |
+| `tier_1_first_response_hours` | 24 | 0–720 |
+| `tier_1_resolution_hours` | 72 | 0–720 |
+| `tier_2_first_response_hours` | 24 | 0–720 |
+| `tier_2_resolution_hours` | 120 | 0–1440 |
+| `auto_escalate_tier_1` | true | Off: tier 1 misses are only flagged |
+| `appeal_window_days` | 7 | 1–90 |
+| `max_evidence_files` | 10 | 1–30 per case |
+
+**Response: `200 OK`** — `{ "settings": { ... }, "tiers": { "1": "support", "2": "support_lead", "3": "super_admin" } }` (PUT: `{ "message": "Dispute settings updated.", "settings": { ... } }`).
+
+---
+
+### Dispute Notes
+
+Internal notes on a case, visible to admins who can see the case (a safety case's notes are `403` to support roles). Never shown to the reporter.
+
+#### List Dispute Notes
 
 `GET /api/v1/admin/disputes/{dispute}/notes`
 
@@ -9434,7 +9489,7 @@ Returns internal notes for a dispute, paginated.
 
 ---
 
-### Add Dispute Note
+#### Add Dispute Note
 
 `POST /api/v1/admin/disputes/{dispute}/notes`
 
@@ -9458,7 +9513,7 @@ Returns internal notes for a dispute, paginated.
 
 ---
 
-### Update Dispute Note
+#### Update Dispute Note
 
 `PUT /api/v1/admin/disputes/{dispute}/notes/{note}`
 
@@ -9476,7 +9531,7 @@ Returns internal notes for a dispute, paginated.
 
 ---
 
-### Delete Dispute Note
+#### Delete Dispute Note
 
 `DELETE /api/v1/admin/disputes/{dispute}/notes/{note}`
 
@@ -14146,41 +14201,46 @@ State conflicts (409) — a ride or SOS incident changed state between reading a
 |-------------------|------------------------------------------|
 | `super_admin`     | Full platform access                     |
 | `operations`      | Drivers, vehicles, trips, fleet management |
-| `support`         | Passenger/driver complaints, refunds, fare adjustments |
+| `support`         | Passenger/driver complaints, refunds, fare adjustments (dispute tier 1) |
+| `support_lead`    | Dispute tier 2: escalations, appeals, larger refunds; also everything `support` can do |
 | `finance`         | Payments, wallets, payouts, financial reports |
 | `safety_operator` | SOS incidents, safety investigations, suspensions |
 
 ### Admin Role Permissions Matrix
 
-Super Admins always bypass role checks and have full access.
+Super Admins always bypass role checks and have full access. Dispute tiers decide which cases each dispute role can work (see [Admin — Dispute Management](#admin--dispute-management)).
 
-| Endpoint Group | Operations | Support | Finance | Safety |
-|----------------|:----------:|:-------:|:-------:|:------:|
-| `/admin/drivers` | Yes | — | — | Yes |
-| `/admin/cities` | Yes | — | — | — |
-| `/admin/vehicle-classes` | Yes | — | — | — |
-| `/admin/pricing` | Yes | — | Yes | — |
-| `/admin/surge-rules` | Yes | — | — | — |
-| `/admin/rides` (assign) | Yes | — | — | — |
-| `/admin/rides` (refund) | — | — | Yes | — |
-| `/admin/fleet-vehicles` | Yes | — | Yes | — |
-| `/admin/fleet-agreements` | Yes | — | Yes | — |
-| `/admin/gamification` | Yes | — | — | — |
-| `/admin/sos` | — | — | — | Yes |
-| `/admin/offline-flags` | Yes | — | — | Yes |
-| `/admin/ev-stations` | Yes | — | — | — |
-| `/admin/passengers` | — | Yes | — | Yes |
-| `/admin/disputes` | — | Yes | — | — |
-| `/admin/wallets` (view) | Yes | Yes | Yes | — |
-| `/admin/wallets` (freeze) | — | — | Yes | — |
-| `/admin/driver-ledgers` | — | Yes | Yes | — |
-| `/admin/ledger` | — | — | Yes | — |
-| `/admin/adjustments` | — | — | Yes | — |
-| `/admin/payouts` | — | — | Yes | — |
-| `/admin/settings` | — | — | Yes | — |
-| `/admin/reports` (financial) | — | — | Yes | — |
-| `/admin/reports` (operational) | Yes | — | Yes | — |
-| `/admin/admins` | — | — | — | — |
+| Endpoint Group | Operations | Support | Support lead | Finance | Safety |
+|----------------|:----------:|:-------:|:------------:|:-------:|:------:|
+| `/admin/drivers` | Yes | — | — | — | Yes |
+| `/admin/cities` | Yes | — | — | — | — |
+| `/admin/vehicle-classes` | Yes | — | — | — | — |
+| `/admin/pricing` | Yes | — | — | Yes | — |
+| `/admin/surge-rules` | Yes | — | — | — | — |
+| `/admin/rides` (assign) | Yes | — | — | — | — |
+| `/admin/rides` (refund) | — | — | — | Yes | — |
+| `/admin/fleet-vehicles` | Yes | — | — | Yes | — |
+| `/admin/fleet-agreements` | Yes | — | — | Yes | — |
+| `/admin/gamification` | Yes | — | — | — | — |
+| `/admin/sos` | — | — | — | — | Yes |
+| `/admin/offline-flags` | Yes | — | — | — | Yes |
+| `/admin/ev-stations` | Yes | — | — | — | — |
+| `/admin/passengers` | — | Yes | Yes | — | Yes |
+| `/admin/disputes` (support queue) | — | Yes | Yes | — | Yes (view) |
+| `/admin/disputes` (Safety queue) | — | — | — | — | Yes |
+| `/admin/dispute-refund-requests` | — | Yes | Yes | Yes | Yes |
+| `/admin/settings/disputes` | — | — | — | — | — |
+| `/admin/wallets` (view) | Yes | Yes | Yes | Yes | — |
+| `/admin/wallets` (freeze) | — | — | — | Yes | — |
+| `/admin/driver-ledgers` | — | Yes | Yes | Yes | — |
+| `/admin/ledger` | — | — | — | Yes | — |
+| `/admin/adjustments` | — | — | — | Yes | — |
+| `/admin/payouts` | — | — | — | Yes | — |
+| `/admin/settings` | — | — | — | Yes | — |
+| `/admin/reports` (financial) | — | — | — | Yes | — |
+| `/admin/reports` (operational) | Yes | — | — | Yes | — |
+| `/admin/admins` | — | — | — | — | — |
+| `/admin/lost-items` | Yes | Yes | Yes | — | — |
 
 ### Driver Status
 | Value            | Description                              |

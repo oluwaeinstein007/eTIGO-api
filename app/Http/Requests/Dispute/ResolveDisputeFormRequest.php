@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests\Dispute;
 
+use App\Enums\DisputeRefundMethod;
 use App\Enums\DisputeStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\RideStatus;
+use App\Services\WalletRefundService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -24,6 +27,9 @@ class ResolveDisputeFormRequest extends FormRequest
             'status' => ['required', 'string', Rule::in([DisputeStatus::Resolved->value, DisputeStatus::Dismissed->value])],
             'resolution_notes' => ['required', 'string', 'min:10', 'max:2000'],
             'refund_amount' => ['nullable', 'numeric', 'min:1'],
+            // Wallet credit by default (OQ-27). A card refund needs Finance.
+            'refund_method' => ['nullable', 'string', Rule::enum(DisputeRefundMethod::class)],
+            'clawback_driver_earnings' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -52,26 +58,38 @@ class ResolveDisputeFormRequest extends FormRequest
                 $ride = $dispute->ride;
                 $payment = $ride->payment;
 
-                if (! $payment) {
+                if (! $payment || $ride->status !== RideStatus::Completed) {
                     $validator->errors()->add('refund_amount', 'No payment found for this ride.');
 
                     return;
                 }
 
-                if ($payment->method !== PaymentMethod::Card) {
-                    $validator->errors()->add('refund_amount', 'Refunds can only be issued for card payments.');
+                $amount = (float) $this->input('refund_amount');
+
+                if ($this->input('refund_method') === DisputeRefundMethod::Card->value) {
+                    if ($payment->method !== PaymentMethod::Card) {
+                        $validator->errors()->add('refund_amount', 'Card refunds can only be issued for card payments. Refund to the wallet instead.');
+
+                        return;
+                    }
+
+                    if (! $payment->gateway_transaction_id) {
+                        $validator->errors()->add('refund_amount', 'This payment has no gateway transaction and cannot be refunded to the card.');
+
+                        return;
+                    }
+
+                    if ($amount > (float) $payment->amount) {
+                        $validator->errors()->add('refund_amount', 'Refund amount cannot exceed the payment amount of '.$payment->amount.'.');
+                    }
 
                     return;
                 }
 
-                if (! $payment->gateway_transaction_id) {
-                    $validator->errors()->add('refund_amount', 'This payment has no gateway transaction and cannot be refunded.');
+                $remainingKobo = app(WalletRefundService::class)->remainingRefundableKobo($ride);
 
-                    return;
-                }
-
-                if ((float) $this->input('refund_amount') > (float) $payment->amount) {
-                    $validator->errors()->add('refund_amount', 'Refund amount cannot exceed the payment amount of '.$payment->amount.'.');
+                if ((int) round($amount * 100) > $remainingKobo) {
+                    $validator->errors()->add('refund_amount', 'Refund cannot exceed the remaining refundable amount of ₦'.number_format($remainingKobo / 100, 2).'.');
                 }
             },
         ];

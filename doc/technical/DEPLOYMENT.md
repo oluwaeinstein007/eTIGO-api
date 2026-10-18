@@ -121,6 +121,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |
 | Every 15 min | `ReconcilePayoutsJob` | Settle payouts whose transfer outcome is unknown (approved > 10 min, processing > 30 min) against Paystack |
+| Every 15 min | `ProcessDisputeTargetsJob` | Disputes: stamp cases that missed a response target; move tier 1 misses to tier 2 and email super admins about Safety and tier 2 misses (needs a queue worker for the emails) |
 | Every 30 min | `StuckTransactionSweeperJob` | Re-verify pending top-ups with Paystack and credit or abandon them |
 | Hourly | `ExpireStaleHoldsJob` | Release expired wallet holds (after `hold_expiry_hours`) whose ride is no longer active — holds of rides still under way are kept |
 | Hourly | `SettleDriverEarningsJob` | Move pending driver earnings to available (per the settlement-delay setting) |

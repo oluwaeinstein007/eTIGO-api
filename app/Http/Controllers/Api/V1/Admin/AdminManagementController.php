@@ -12,12 +12,15 @@ use App\Models\AdminInvitation;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Notifications\AdminInvitationNotification;
+use App\Services\DisputeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class AdminManagementController extends Controller
 {
+    public function __construct(private DisputeService $disputes) {}
+
     public function index(): JsonResponse
     {
         $admins = User::where('type', UserType::Admin)
@@ -157,6 +160,11 @@ class AdminManagementController extends Controller
             'admin_role' => $admin->fresh()->admin_role->value,
         ]);
 
+        // Cases the new role cannot work go back to their tier's queue.
+        if ($admin->wasChanged('admin_role')) {
+            $this->disputes->releaseAssignments($admin->fresh(), $request->user(), 'Role changed.', onlyIfUnable: true);
+        }
+
         return response()->json([
             'message' => 'Admin updated successfully.',
             'admin' => new UserResource($admin->fresh()),
@@ -181,6 +189,8 @@ class AdminManagementController extends Controller
         $admin->tokens()->delete();
 
         AuditLog::record($admin, 'admin_deactivated', request()->user());
+
+        $this->disputes->releaseAssignments($admin, request()->user(), 'Admin deactivated.');
 
         return response()->json(['message' => 'Admin deactivated successfully.']);
     }
@@ -214,6 +224,7 @@ class AdminManagementController extends Controller
 
         AuditLog::record($admin, 'admin_deleted', request()->user());
 
+        $this->disputes->releaseAssignments($admin, request()->user(), 'Admin deleted.');
         $admin->tokens()->delete();
         $admin->delete();
 

@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added)  
+**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added; OQ-21 dispute tiers built)  
 **Status:** Recommendations for the open Phase 2 questions (OQ-18 to OQ-22, OQ-36 and OQ-37). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. There are two exceptions. OQ-22: **no new city goes live without a launch date from the client.** OQ-36: **no return fee is charged until the client sets one.**
 
 ---
@@ -26,7 +26,7 @@ The recommendations follow two principles:
 | OQ-36 | Lost & Found: should passengers pay a return fee? | **Yes, ₦2,000**, all of it to the driver (Uber/Bolt practice). Built **off** until the client decides | Confirm the amount, or no fee |
 | OQ-37 | Lost & Found: do passenger and driver see each other's number? | **Yes**, once the driver has the item; messages in the app also work | Confirm, or messages only |
 
-Scheduled rides and third-party bookings are built. Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. Their decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
+Scheduled rides and third-party bookings are built. Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A. Their decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
 
 ---
 
@@ -224,6 +224,19 @@ Today every dispute goes to the Support team, and any support admin can refund u
 | Who sees evidence (photos, audio) | Only the assigned reviewer, higher tiers and the Safety team, as Phase 2 requires (NF-12). Every view is audit-logged |
 | What the passenger sees | "Your case is with our senior team", never admin names |
 
+### Built (18 October 2026)
+
+Option A is built. Every limit and response target is a setting a super admin can change at any time, so a different answer from the client is a settings change, not new work. Engineering made these extra choices, which the client has not confirmed either:
+
+| Choice | What we built | Why |
+|--------|---------------|-----|
+| Safety team refund limit | **₦50,000**, the same as tier 2 | Safety cases sit beside tier 2 and often end in a full-fare refund |
+| Tier 1 misses its first-response target (24 h) | The case also moves to tier 2, not only after 72 h unresolved | An unanswered case is the worst experience; the table above says "if missed" for both targets |
+| Appeal of a decision made by a more senior person | The appeal goes one tier above whoever decided. A super admin's decision is final | An appeal should always reach someone more senior than the first decider |
+| Where refunds go | The passenger's E-tiGo wallet by default (OQ-27). A refund to the card is possible, and always needs Finance to approve | Wallet refunds are instant; card refunds move money outside the platform |
+| Who sees evidence at tier 1 | Only the agent who has taken the case, not every agent | Keeps photos and recordings to the fewest people (NF-12) |
+| Alerts | New safety cases email the Safety team; missed Safety and tier 2 targets email the super admins | The dashboard also shows overdue counts |
+
 ---
 
 ## OQ-22 — Which Cities, and When?
@@ -326,7 +339,7 @@ The recommendation is A because E-tiGo has no masked calling yet. Once masked ca
 |---|--------|-------|
 | 1 | Confirm or change OQ-18 to OQ-21 (pick option A, B or C for each) before Week 9; otherwise the recommended defaults are built | Client / Product |
 | 2 | Give the target date for each new city, and confirm the driver minimum (30) | Client |
-| 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000) and who will hold the new Support Lead role | Client / Operations |
+| 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000, Safety ₦50,000) and the choices under OQ-21 "Built", and say who will hold the new Support Lead role | Client / Operations |
 | 4 | Say which fleet cars are shared between drivers (for shift mode) | Operations |
 | 5 | Confirm the permits needed in Abuja (FCT) and Rivers State | Legal |
 | 6 | Lost & Found: choose the return fee (OQ-36) and whether phone numbers are shared (OQ-37) | Client / Product |

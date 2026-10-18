@@ -160,7 +160,7 @@
 |----|------|---------|---------|-------|
 | FE-ADIS-01 | `[ ]` Build dispute queue page: table with ride ID, reporter, category, status, created date; filter by status; count badge for open disputes | A-13 | 📡 BE-RATE-07 | — |
 | FE-ADIS-02 | `[ ]` Build dispute detail page: trip context (map, fare, driver, passenger), dispute description, resolution form (status change + notes), linked ride detail | A-13 | 📡 BE-RATE-08 | — |
-| FE-ADIS-03 | `[ ]` Build dispute resolution form: status selector (under_review/resolved/dismissed), resolution notes (required), submit; confirm dialog | A-14 | 📡 BE-RATE-09 | ⚠ OQ-08: Add refund/fare adjustment fields if in scope |
+| FE-ADIS-03 | `[ ]` Build dispute resolution form: status selector (under_review/resolved/dismissed), resolution notes (required), submit; confirm dialog | A-14 | 📡 BE-RATE-09 | OQ-08 resolved: optional refund (`refund_amount`, `refund_method`); limits and approvals in FE2-ADIS-02 |
 
 ---
 
@@ -341,7 +341,10 @@
 | FE2-ASR-03 | `[ ]` Build **Balances due** page (finance): list with filters `status`, `reason`, `passenger_id` and outstanding total; **Waive** with a reason; add `block_booking_with_balance_due` to wallet settings; add `late_cancellation_fee_basis` / `late_cancellation_fee_vehicle_class` to the scheduled-ride settings page | A-33, A-16 | 📡 BE2-SCH-16 | API ready: `GET /admin/balances-due`, `POST /admin/balances-due/{id}/waive` |
 | FE2-A3P-01 | `[ ]` Build third-party booking settings page: PIN recipient and tracking recipient (booker/rider/both, default both), allowed payment methods, per-booker limits | A-34 | 📡 BE2-3P-05 | OQ-18 recommended defaults. API ready (18 Oct 2026): `GET/PUT /admin/settings/third-party` (operations role; `enabled`, `pin_recipient`, `tracking_recipient`, `allow_cash`, `allow_bank_transfer`, `max_active_per_booker`, `max_rider_numbers_per_day`, `rider_trip_updates`). Ride views: show the `third_party` object (rider, delivery status) on ride detail |
 | FE2-ALF-01 | `[ ]` Build lost & found Admin queue: list of reports with trip, category, status; intervention form | A-35 | 📡 BE2-LF-07, BE2-LF-08 | API ready (18 Oct 2026), roles support and operations: `GET /admin/lost-items` (needs-attention first; `summary` counts; filters incl. `needs_attention`), `GET /admin/lost-items/{id}` (messages and internal notes), `POST /admin/lost-items/{id}/intervene` (`note`, `message`, `mark_found`, `resolve` with `waive_return_fee`, `close` with `closure_reason`). Settings page (operations): `GET/PUT /admin/settings/lost-and-found`. See FRONTEND_UPDATE_LOST_AND_FOUND.md |
-| FE2-ADIS-01 | `[ ]` Build advanced dispute view: evidence viewer (photos), escalation tier badge, SLA countdown, escalate / send back (reason required), refund-request approval for higher tiers, appeal badge; Safety queue for `safety_concern` | A-36, A-37 | 📡 BE2-DISP-03, BE2-DISP-05–10 | OQ-21 recommended: 3 tiers + safety fast track. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) |
+| FE2-ADIS-01 | `[ ]` Build advanced dispute view: evidence viewer (photos), escalation tier badge, SLA countdown, escalate / send back (reason required), refund-request approval for higher tiers, appeal badge; Safety queue for `safety_concern` | A-36, A-37 | 📡 BE2-DISP-03, BE2-DISP-05–10 | OQ-21 recommended: 3 tiers + safety fast track. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md). API ready (18 Oct 2026): queue `GET /admin/disputes` (filters `queue`, `tier`, `assigned`, `sla`, `appealed`, `pending_refund`, `sort=due`; `summary` counts for tabs); detail with `available_actions`, `sla`, `appeal.original_decision`, `linked_dispute`, `evidence_locked` ("Take this case to see the evidence"); `POST/DELETE /admin/disputes/{id}/assign`, `/escalate` (`to_safety`), `/deescalate`. See FRONTEND_UPDATE_ADVANCED_DISPUTES.md |
+| FE2-ADIS-02 | `[ ]` Build refund approvals page and the refund fields on the resolve form: `refund_method` (wallet default, card), `clawback_driver_earnings`, the admin's `refund_limit`; a `202` means "waiting for approval" | A-37 | 📡 BE2-DISP-07 | **Breaking:** resolve refunds now go to the wallet unless `refund_method: card`. `GET /admin/dispute-refund-requests` (`can_approve`, `can_withdraw`), `/approve`, `/reject`. Support leads, Safety, Finance, super admins |
+| FE2-ADIS-03 | `[ ]` Build dispute settings page (super admin): refund limits per tier, response targets, tier 1 auto-escalation, appeal window, evidence limit | A-37 | 📡 BE2-DISP-06, BE2-DISP-09 | `GET/PUT /admin/settings/disputes` |
+| FE2-ADIS-04 | `[ ]` Add the `support_lead` role to the admin invite and edit forms and role badges | A-37 | 📡 BE2-DISP-06 | Same access as `support`, plus tier 2 disputes and refunds up to ₦50,000 |
 | FE2-ACITY-01 | `[ ]` Build multi-city onboarding wizard: step-by-step guide for adding a new city (create city → configure pricing → activate vehicle classes → assign drivers), readiness checklist, and onboarding / live / paused state | A-38 | 📡 BE-CITY-03, BE-PRICE-02, BE-CITY-13, BE2-CITY-03, BE2-CITY-07 | City rollout recommendation: launch gated by the readiness checklist; dates from the client. See [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) (this doc's own OQ-22 is the landing-page question) |
 | FE2-ASHIFT-01 | `[ ]` Build driver shift management page: turn shift mode on per fleet car (only cars shared by two or more drivers), calendar view, assign/edit shifts for those cars, missed-shift alerts; plus a read-only coverage view of drivers' **voluntary** availability plans by hour and area | A-39 | 📡 BE2-SHIFT-04, BE2-SHIFT-07 | OQ-20 recommended model: shifts only for shared fleet cars; availability plans never restrict drivers |
 | FE2-AVEH-01 | `[ ]` Build vehicle maintenance tracker: list of maintenance records, create/edit, overdue alerts | A-39 | 📡 BE2-VEH-04 | — |
@@ -381,10 +384,10 @@
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
 | OQ-07 | Admin role-based tiers | FE-AA-01, FE-AA-03 | `[x]` **Resolved:** super_admin, operations, safety_operator, support |
-| OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | FE-ADIS-03 | `[ ]` Unresolved |
+| OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | FE-ADIS-03 | `[x]` Resolved — yes, to the wallet by default, within the admin's tier limit (FE2-ADIS-02) |
 | OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | FE-AGF-01 | `[ ]` Unresolved |
 | OQ-14 | False-positive rate target and L3 overturn authority? | FE-AAO-04 | `[ ]` Unresolved |
-| OQ-21 | Dispute escalation tiers and ownership? | FE2-ADIS-01 | `[~]` **Recommended (16 Oct 2026):** Tier 1 support (≤ ₦5,000) → Tier 2 support lead (≤ ₦50,000) → Tier 3 super admin; safety straight to the Safety team. Awaiting client confirmation |
+| OQ-21 | Dispute escalation tiers and ownership? | FE2-ADIS-01 | `[~]` **Recommended (16 Oct 2026), backend built 18 Oct 2026:** Tier 1 support (≤ ₦5,000) → Tier 2 support lead (≤ ₦50,000) → Tier 3 super admin; safety straight to the Safety team. Awaiting client confirmation |
 
 ### Landing Page
 
@@ -400,9 +403,9 @@
 
 | App | Phase 1 Tasks | Phase 2 Tasks | Total |
 |-----|--------------|---------------|-------|
-| Admin Dashboard | 83 | 8 | 91 |
+| Admin Dashboard | 83 | 12 | 95 |
 | Landing Page | 12 | — | 12 |
-| **Total** | **95** | **8** | **103** |
+| **Total** | **95** | **12** | **107** |
 
 ---
 

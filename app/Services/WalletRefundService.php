@@ -99,8 +99,9 @@ class WalletRefundService
         string $reason,
         User $admin,
         bool $clawbackDriverEarnings = true,
+        ?string $disputeId = null,
     ): array {
-        return DB::transaction(function () use ($ride, $amountKobo, $reason, $admin, $clawbackDriverEarnings) {
+        return DB::transaction(function () use ($ride, $amountKobo, $reason, $admin, $clawbackDriverEarnings, $disputeId) {
             // Serialise refunds of the same ride so two requests (a double
             // click, or two finance admins) cannot both refund what is left.
             $ride = Ride::lockForUpdate()->findOrFail($ride->id);
@@ -113,7 +114,7 @@ class WalletRefundService
             $refundKey = 'refund-'.$ride->id.'-'.Str::random(8);
 
             $this->refundToWallet($ride, $amountKobo, $reason, $refundKey, [
-                'dispute_id' => $ride->disputes()->latest()->value('id'),
+                'dispute_id' => $disputeId ?? $ride->disputes()->latest()->value('id'),
                 'refunded_by_admin_id' => $admin->id,
                 'reason' => $reason,
             ]);

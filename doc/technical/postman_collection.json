@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, lost & found (queue and settings), operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, lost & found, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Lost & Found queue | \u2705 | \u2014 | \u2705 | \u2014 |\n| Lost & Found settings | \u2705 | \u2014 | \u2014 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Report Lost Item** \u2192 `lost_item_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first. Lost & Found (Phase 2): `doc/technical/FRONTEND_UPDATE_LOST_AND_FOUND.md`.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, lost & found (queue and settings), operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags, disputes (Safety queue; reads all cases) |\n| Support | `support` | Passengers, disputes (tier 1), lost & found, wallets (read-only), driver ledgers (read-only) |\n| Support Lead | `support_lead` | Everything Support has, plus tier 2 disputes (escalations, appeals) and dispute refund approvals up to \u20a650,000 |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes (support queue; Support Lead too) | \u2014 | view | \u2705 | \u2014 |\n| Disputes (Safety queue) | \u2014 | \u2705 | \u2014 | \u2014 |\n| Dispute refund requests | \u2014 | \u2705 | \u2705 (lead approves) | \u2705 |\n| Lost & Found queue | \u2705 | \u2014 | \u2705 | \u2014 |\n| Lost & Found settings | \u2705 | \u2014 | \u2014 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Report Lost Item** \u2192 `lost_item_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first. Lost & Found (Phase 2): `doc/technical/FRONTEND_UPDATE_LOST_AND_FOUND.md`. Advanced disputes (Phase 2): `doc/technical/FRONTEND_UPDATE_ADVANCED_DISPUTES.md`.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -47,6 +47,11 @@
     },
     {
       "key": "dispute_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dispute_refund_request_id",
       "value": "",
       "type": "string"
     },
@@ -4869,7 +4874,7 @@
                     "dispute"
                   ]
                 },
-                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each) and an optional audio recording (mp3, m4a, wav, ogg, webm, aac, max 10MB).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` \u2192 Safety concern\n- `driver_behaviour` \u2192 Driver behaviour\n- `route_deviation` \u2192 Wrong route taken\n- `fare_dispute` \u2192 Fare is incorrect\n- `vehicle_condition` \u2192 Vehicle condition\n- `item_left_behind` \u2192 Lost item\n- `payment_issue` \u2192 Payment issue\n- `other` \u2192 Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10\u20132000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only\n- Audio: max 1, max 10MB, mp3/m4a/wav/ogg/webm/aac only"
+                "description": "File a dispute / report an issue for a completed ride. Both passengers and drivers can file disputes. Supports optional evidence photo uploads (up to 5 images, max 5MB each) and an optional audio recording (mp3, m4a, wav, ogg, webm, aac, max 10MB).\n\n**Content-Type:** `multipart/form-data` (when uploading photos) or `application/json`\n\n**Categories:** `safety_concern`, `driver_behaviour`, `route_deviation`, `fare_dispute`, `vehicle_condition`, `item_left_behind`, `payment_issue`, `other`\n\n**Category Labels:**\n- `safety_concern` \u2192 Safety concern\n- `driver_behaviour` \u2192 Driver behaviour\n- `route_deviation` \u2192 Wrong route taken\n- `fare_dispute` \u2192 Fare is incorrect\n- `vehicle_condition` \u2192 Vehicle condition\n- `item_left_behind` \u2192 Lost item\n- `payment_issue` \u2192 Payment issue\n- `other` \u2192 Something else\n\n**Validation:**\n- Ride must be completed\n- User must be a participant\n- Cannot file more than one dispute per ride per user\n- Description: 10\u20132000 characters\n- Photos: max 5, each max 5MB, jpg/jpeg/png/webp only\n- Audio: max 1, max 10MB, mp3/m4a/wav/ogg/webm/aac only\n\n**Phase 2:** a new dispute goes to support tier 1; a `safety_concern` goes straight to the Safety team (message: \"Report received. Our safety team has been alerted and will contact you shortly.\"). The response now includes `evidence`, `stage`, `stage_label`, `can_add_evidence` and `appeal`."
               },
               "response": [
                 {
@@ -5023,6 +5028,272 @@
                   }
                 ],
                 "url": {
+                  "raw": "{{base_url}}/disputes?per_page=15",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "15"
+                    }
+                  ]
+                },
+                "description": "Disputes the passenger reported, newest first. Filters: `status`, `ride_id`, `per_page` (max 50). Never contains admin names."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 My disputes",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n      \"reference_number\": \"DPT-000048\",\n      \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n      \"category\": \"route_deviation\",\n      \"category_label\": \"Wrong route taken\",\n      \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n      \"evidence\": [\n        {\n          \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n          \"type\": \"photo\",\n          \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n          \"file_type\": \"image/jpeg\",\n          \"file_size_bytes\": 482113,\n          \"original_name\": \"IMG_2041.jpg\",\n          \"caption\": null,\n          \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n        }\n      ],\n      \"evidence_photos\": [\n        \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n      ],\n      \"status\": \"under_review\",\n      \"status_label\": \"Under Review\",\n      \"resolution_notes\": null,\n      \"refund_amount\": null,\n      \"refund_currency\": null,\n      \"refund_method\": null,\n      \"stage\": \"senior_review\",\n      \"stage_label\": \"With our senior team\",\n      \"can_add_evidence\": true,\n      \"evidence_slots_left\": 9,\n      \"appeal\": {\n        \"can_appeal\": false,\n        \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n        \"deadline\": null,\n        \"appealed_at\": null\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show My Dispute",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}"
+                  ]
+                },
+                "description": "One dispute the passenger reported, with `evidence`, `stage_label` and `appeal`. `403` when someone else reported it."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Dispute",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": \"Route checked: the driver avoided a closed road. Toll refunded.\",\n    \"refund_amount\": \"1500.00\",\n    \"refund_currency\": \"NGN\",\n    \"refund_method\": \"wallet\",\n    \"stage\": \"decided\",\n    \"stage_label\": \"Decision made\",\n    \"can_add_evidence\": false,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": true,\n      \"reason_unavailable\": null,\n      \"deadline\": \"2026-10-25T14:00:00.000000Z\",\n      \"appealed_at\": null\n    },\n    \"resolved_at\": \"2026-10-18T14:00:00.000000Z\",\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "403 \u2014 Not the reporter",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Unauthorized.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Evidence",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}/evidence",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}",
+                    "evidence"
+                  ]
+                },
+                "description": "Add 1\u20135 files to an open case (multipart): images (jpg, png, webp, heic) and PDFs up to 5 MB, audio (mp3, m4a, wav, ogg, webm, aac) up to 10 MB; `captions[]` in the same order. At most 10 files per case (`max_evidence_files`). Throttled to 10 a minute.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "files[]",
+                      "type": "file",
+                      "src": []
+                    },
+                    {
+                      "key": "captions[]",
+                      "value": "Bank statement showing the double charge",
+                      "type": "text"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Evidence added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Evidence added to your report.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"senior_review\",\n    \"stage_label\": \"With our senior team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": null\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Case closed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Evidence can only be added while the case is open.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Too many files",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A case can hold at most 10 evidence files.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Appeal Decision",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}/appeal",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}",
+                    "appeal"
+                  ]
+                },
+                "description": "Appeal a decision once, within 7 days (`appeal_window_days`). The case reopens one tier above the tier it was decided at, for a different reviewer. A tier 3 (management) decision is final. Throttled to 5 a minute.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"The app showed the shorter route was open; I was charged for the detour.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Appeal received",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Appeal received. A senior member of our team will review your case.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"senior_review\",\n    \"stage_label\": \"With our senior team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": \"2026-10-19T09:00:00.000000Z\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already appealed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This decision has already been appealed once.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Window passed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The time to appeal this decision has passed.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Final decision",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This decision was made by our management team and is final.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List My Disputes (older path)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
                   "raw": "{{base_url}}/passenger/disputes",
                   "host": [
                     "{{base_url}}"
@@ -5050,7 +5321,7 @@
               ]
             },
             {
-              "name": "Show My Dispute",
+              "name": "Show My Dispute (older path)",
               "request": {
                 "method": "GET",
                 "header": [
@@ -5091,7 +5362,8 @@
                 }
               ]
             }
-          ]
+          ],
+          "description": "The passenger's own disputes (Phase 2 advanced disputes): list, detail, add evidence while the case is open, and appeal a decision once within 7 days. Show `stage_label` as the status line and use `can_add_evidence` and `appeal.can_appeal` for the buttons. Uses `dispute_id` from **Ratings & Disputes \u203a File Dispute**. `/passenger/disputes` is the older path and still works."
         },
         {
           "name": "Lost & Found",
@@ -9707,6 +9979,267 @@
           ]
         },
         {
+          "name": "Driver \u2014 Disputes",
+          "description": "A driver reports a problem with a completed trip and follows the case (Phase 2). If the passenger also reported the trip, the two cases are linked and handled by the same reviewer.",
+          "item": [
+            {
+              "name": "File Dispute (Driver)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/dispute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "dispute"
+                  ]
+                },
+                "description": "The trip's driver files a dispute (one per trip). Same fields as the passenger: `category`, `description`, optional `photos[]` and `audio` (multipart).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"other\",\n  \"description\": \"The passenger refused to pay the toll fee at Lekki.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Filed",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"other\",\n    \"category_label\": \"Something else\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [],\n    \"evidence_photos\": null,\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"review\",\n    \"stage_label\": \"With our support team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": null\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('dispute_id', data.dispute.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List My Disputes (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes"
+                  ]
+                },
+                "description": "Disputes the driver reported. Filters: `status`, `ride_id`."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 My disputes",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n      \"reference_number\": \"DPT-000048\",\n      \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n      \"category\": \"route_deviation\",\n      \"category_label\": \"Wrong route taken\",\n      \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n      \"evidence\": [\n        {\n          \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n          \"type\": \"photo\",\n          \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n          \"file_type\": \"image/jpeg\",\n          \"file_size_bytes\": 482113,\n          \"original_name\": \"IMG_2041.jpg\",\n          \"caption\": null,\n          \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n        }\n      ],\n      \"evidence_photos\": [\n        \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n      ],\n      \"status\": \"under_review\",\n      \"status_label\": \"Under Review\",\n      \"resolution_notes\": null,\n      \"refund_amount\": null,\n      \"refund_currency\": null,\n      \"refund_method\": null,\n      \"stage\": \"senior_review\",\n      \"stage_label\": \"With our senior team\",\n      \"can_add_evidence\": true,\n      \"evidence_slots_left\": 9,\n      \"appeal\": {\n        \"can_appeal\": false,\n        \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n        \"deadline\": null,\n        \"appealed_at\": null\n      },\n      \"resolved_at\": null,\n      \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show My Dispute (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}"
+                  ]
+                },
+                "description": "One dispute the driver reported."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Dispute",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"senior_review\",\n    \"stage_label\": \"With our senior team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": null\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Evidence (Driver)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}/evidence",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}",
+                    "evidence"
+                  ]
+                },
+                "description": "Add files to an open case, as for the passenger.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "files[]",
+                      "type": "file",
+                      "src": []
+                    },
+                    {
+                      "key": "captions[]",
+                      "value": "Dashcam clip",
+                      "type": "text"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Evidence added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Evidence added to your report.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"senior_review\",\n    \"stage_label\": \"With our senior team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": null\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Appeal Decision (Driver)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/disputes/{{dispute_id}}/appeal",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "disputes",
+                    "{{dispute_id}}",
+                    "appeal"
+                  ]
+                },
+                "description": "Appeal once within 7 days, as for the passenger.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"The toll was on the route the passenger asked for.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Appeal received",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Appeal received. A senior member of our team will review your case.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"evidence_photos\": [\n      \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\"\n    ],\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"stage\": \"senior_review\",\n    \"stage_label\": \"With our senior team\",\n    \"can_add_evidence\": true,\n    \"evidence_slots_left\": 9,\n    \"appeal\": {\n      \"can_appeal\": false,\n      \"reason_unavailable\": \"You can appeal once a decision has been made.\",\n      \"deadline\": null,\n      \"appealed_at\": \"2026-10-19T09:00:00.000000Z\"\n    },\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Driver \u2014 Bank Account",
           "item": [
             {
@@ -10710,7 +11243,7 @@
                     "invite"
                   ]
                 },
-                "description": "Sends invitation email with 48-hour expiring link. Cannot invite super_admin role.\n\nValid roles: `operations`, `safety_operator`, `support`, `finance`"
+                "description": "Sends invitation email with 48-hour expiring link. Cannot invite super_admin role.\n\nValid roles: `operations`, `safety_operator`, `support`, `support_lead`, `finance`"
               },
               "response": [
                 {
@@ -16641,11 +17174,11 @@
                     "{{dispute_id}}"
                   ]
                 },
-                "description": "Return full dispute details including the ride with passenger, driver, vehicle class, city, and payment information."
+                "description": "Full case: ride, notes, `linked_dispute`, `pending_refund_request`, `refund_requests`, `appeal.original_decision`, `sla`, `available_actions`; `evidence` only when the viewer may see it (the view is audit-logged). `403` for a safety case viewed by a support role."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Dispute Detail",
+                  "name": "200 \u2014 Dispute detail",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -16654,7 +17187,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"reference_number\": \"DSP-20261009-K7L8M9\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"open\",\n    \"status_label\": \"Open\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"reported_by\": {\n      \"id\": \"f1a2b3c4-d5e6-7890-abcd-111111111111\",\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"phone\": \"+2348100000001\",\n      \"type\": \"passenger\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"reference_number\": \"RDE-20261010-X1Y2Z3\",\n      \"status\": \"completed\",\n      \"pickup\": {\n        \"lat\": 6.4541,\n        \"lng\": 3.3947,\n        \"address\": \"123 Marina Road, Lagos Island\"\n      },\n      \"destination\": {\n        \"lat\": 6.4298,\n        \"lng\": 3.4207,\n        \"address\": \"45 Broad Street, Lagos\"\n      },\n      \"fare_estimate_amount\": \"3500.00\",\n      \"final_fare_amount\": \"4200.00\",\n      \"fare_currency\": \"NGN\",\n      \"payment_method\": \"card\",\n      \"passenger\": {\n        \"id\": \"5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b\",\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\"\n      },\n      \"driver\": {\n        \"id\": \"8d7c6b5a-4e3f-2a1b-0c9d-8e7f6a5b4c3d\",\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\"\n      },\n      \"vehicle_class\": {\n        \"id\": \"c3d4e5f6-a7b8-9012-cdef-123456789012\",\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"city\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"name\": \"Lagos\"\n      },\n      \"payment_details\": {\n        \"amount\": 4200.0,\n        \"currency\": \"NGN\",\n        \"method\": \"card\",\n        \"status\": \"captured\",\n        \"card_brand\": \"visa\",\n        \"card_last_four\": \"4242\",\n        \"tip_amount\": null\n      }\n    },\n    \"notes\": [\n      {\n        \"id\": \"a1b2c3d4-e5f6-7890-note-111111111111\",\n        \"content\": \"Contacted passenger to verify the complaint.\",\n        \"admin\": {\n          \"id\": \"admin-uuid-here\",\n          \"first_name\": \"Admin\",\n          \"last_name\": \"User\"\n        },\n        \"created_at\": \"2026-10-09T13:00:00.000000Z\",\n        \"updated_at\": \"2026-10-09T13:00:00.000000Z\"\n      }\n    ],\n    \"resolved_at\": null,\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-09T12:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"evidence\": [\n      {\n        \"id\": \"01a14ce1-4000-7000-8000-000000000001\",\n        \"type\": \"photo\",\n        \"url\": \"https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg\",\n        \"file_type\": \"image/jpeg\",\n        \"file_size_bytes\": 482113,\n        \"original_name\": \"IMG_2041.jpg\",\n        \"caption\": null,\n        \"uploaded_at\": \"2026-10-18T12:00:00.000000Z\"\n      }\n    ],\n    \"notes\": [],\n    \"refund_requests\": [],\n    \"linked_dispute\": null\n  }\n}"
                 }
               ]
             },
@@ -16678,7 +17211,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Fare overcharge confirmed. Partial refund issued to passenger.\",\n  \"refund_amount\": 500.00\n}"
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Fare overcharge confirmed. Partial refund to the wallet.\",\n  \"refund_amount\": 500.0,\n  \"refund_method\": \"wallet\",\n  \"clawback_driver_earnings\": true\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
@@ -16692,11 +17225,11 @@
                     "resolve"
                   ]
                 },
-                "description": "Resolve or dismiss a dispute. Optionally issue a card refund when resolving. Creates an audit log entry.\n\n**Request fields:**\n- `status`: `resolved` or `dismissed`\n- `resolution_notes`: required, 10\u20132000 characters\n- `refund_amount`: optional, numeric, min 1. Only valid with status `resolved` and card payments.\n\n**Refund rules:**\n- Cannot refund on dismissal\n- Cannot refund cash payments\n- Cannot exceed the ride's payment amount\n- Supports partial refunds\n\n**Validation:**\n- Cannot resolve/dismiss a dispute already in a terminal state"
+                "description": "Resolve or dismiss a case. Optional refund, **to the passenger's wallet by default** (`refund_method: wallet`; works for every payment method), or `card` (card payments only, always needs Finance approval). `clawback_driver_earnings` (default true) recovers the driver's share of a wallet refund.\n\n**Limits:** if this refund plus earlier refunds on the case is above the admin's limit (tier 1 \u20a65,000, tier 2 and Safety \u20a650,000, super admin none), or the method is `card`, the response is `202` and a refund request waits for a second admin; the case stays open.\n\n**Errors:** `403` cannot work the case; `422` already closed, refund on dismissal, refund above what is refundable, a refund already waiting for approval."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Dispute Resolved with Refund",
+                  "name": "200 \u2014 Resolved with wallet refund",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -16705,7 +17238,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Dispute resolved successfully. Refund of NGN 500.00 issued.\",\n  \"dispute\": {\n    \"id\": \"c3d4e5f6-a7b8-9012-cdef-345678901234\",\n    \"ride_id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n    \"category\": \"fare_dispute\",\n    \"category_label\": \"Fare Dispute\",\n    \"description\": \"The fare charged was significantly higher than the estimated fare.\",\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": \"Fare overcharge confirmed. Partial refund issued to passenger.\",\n    \"refund_amount\": \"500.00\",\n    \"refund_currency\": \"NGN\",\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"resolved_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Admin\",\n      \"last_name\": \"User\",\n      \"type\": \"admin\"\n    },\n    \"ride\": {\n      \"id\": \"e5f6a7b8-c9d0-1234-efab-345678901234\",\n      \"status\": \"completed\"\n    },\n    \"resolved_at\": \"2026-10-10T14:00:00.000000Z\",\n    \"created_at\": \"2026-10-09T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-10T14:00:00.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Dispute resolved successfully. Refund of NGN 500.00 issued.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": null,\n    \"refund_amount\": \"500.00\",\n    \"refund_currency\": \"NGN\",\n    \"refund_method\": \"wallet\",\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": 1,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  },\n  \"driver_clawback_kobo\": 40000\n}"
                 }
               ]
             },
@@ -16845,7 +17378,7 @@
                     "status"
                   ]
                 },
-                "description": "Move an open dispute to under_review status. Only open disputes can be transitioned. Creates an audit log entry."
+                "description": "Move an open dispute to under_review status. Only open disputes can be transitioned. Creates an audit log entry.\n\nCounts as the first response; the reporter gets a `dispute_update` push."
               },
               "response": [
                 {
@@ -16871,6 +17404,818 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Only open disputes can be moved to under review.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Disputes \u2014 My Queue, Soonest Due",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes?assigned=me&open=1&sort=due",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "assigned",
+                      "value": "me"
+                    },
+                    {
+                      "key": "open",
+                      "value": "1"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "due"
+                    }
+                  ]
+                },
+                "description": "The viewer's cases, soonest target first. Other filters: `queue` (support/safety), `tier`, `assigned` (`me`, `unassigned`, admin id), `sla` (`breached`, `at_risk`), `appealed`, `pending_refund`, `open`, `status` (comma list). `summary` holds the tab counts."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Queue",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"disputes\": [\n    {\n      \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n      \"reference_number\": \"DPT-000048\",\n      \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n      \"category\": \"route_deviation\",\n      \"category_label\": \"Wrong route taken\",\n      \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n      \"evidence_count\": 1,\n      \"status\": \"under_review\",\n      \"status_label\": \"Under Review\",\n      \"resolution_notes\": null,\n      \"refund_amount\": null,\n      \"refund_currency\": null,\n      \"refund_method\": null,\n      \"queue\": \"support\",\n      \"queue_label\": \"Support\",\n      \"escalation_tier\": 1,\n      \"tier_label\": \"Tier 1 \u2014 Support\",\n      \"decision_tier\": null,\n      \"assigned_admin\": {\n        \"id\": \"...\",\n        \"first_name\": \"Tolu\",\n        \"last_name\": \"Ade\",\n        \"admin_role\": \"support\"\n      },\n      \"assigned_admin_id\": \"...\",\n      \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"is_mine\": true,\n      \"escalation\": null,\n      \"sla\": {\n        \"status\": \"on_track\",\n        \"status_label\": \"On track\",\n        \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n        \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n        \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n        \"first_response_breached_at\": null,\n        \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n        \"resolution_breached_at\": null\n      },\n      \"appeal\": null,\n      \"driver_clawback_amount\": null,\n      \"linked_dispute_id\": null,\n      \"sos_incident_id\": null,\n      \"evidence_locked\": false,\n      \"pending_refund_request\": null,\n      \"available_actions\": [\n        \"unassign\",\n        \"escalate\",\n        \"send_to_safety\",\n        \"resolve\",\n        \"add_note\"\n      ],\n      \"refund_limit\": 5000,\n      \"reported_by\": {\n        \"id\": \"...\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\"\n      },\n      \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n      \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n    }\n  ],\n  \"summary\": {\n    \"open\": 14,\n    \"unassigned\": 5,\n    \"mine\": 3,\n    \"overdue\": 2,\n    \"safety\": 1,\n    \"tier_1\": 9,\n    \"tier_2\": 3,\n    \"tier_3\": 1,\n    \"appeals\": 1,\n    \"pending_refunds\": 2\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 3\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Disputes \u2014 Overdue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes?sla=breached&sort=due",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes"
+                  ],
+                  "query": [
+                    {
+                      "key": "sla",
+                      "value": "breached"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "due"
+                    }
+                  ]
+                },
+                "description": "Open cases past a response target."
+              },
+              "response": []
+            },
+            {
+              "name": "Take Case",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Take the case yourself (no body). Moves it to `under_review`; the first time, it is the first response and the reporter is told. The linked case gets the same owner."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Taken",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You have taken this case.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "403 \u2014 Above your tier",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This case is at tier 2, above your tier.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Original decider on an appeal",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You made the original decision on this case, so the appeal goes to a different reviewer.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Assign Case to Admin",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Leads, Safety and super admins can give the case to another admin who can work it.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"admin_id\": \"{{admin_id}}\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Assigned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Case assigned.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Cannot work it",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"That admin cannot work this case.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Tier 1 agent",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You can only take a case yourself.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Return Case to Queue",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/assign",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "assign"
+                  ]
+                },
+                "description": "Clear the assignee (and the linked case's)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Returned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Case returned to the queue.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": null,\n    \"assigned_admin_id\": null,\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": false,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Escalate Case",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/escalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "escalate"
+                  ]
+                },
+                "description": "Move the case one tier up (Safety \u2192 tier 3). Clears the assignee and restarts the targets; the reporter is told \"Your case is with our senior team\".",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Passenger asks for a refund above my limit.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Escalated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Case escalated.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 2,\n    \"tier_label\": \"Tier 2 \u2014 Support lead\",\n    \"decision_tier\": null,\n    \"assigned_admin\": null,\n    \"assigned_admin_id\": null,\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": false,\n    \"escalation\": {\n      \"escalated_at\": \"2026-10-18T15:00:00.000000Z\",\n      \"reason\": \"Passenger asks for a refund above my limit.\",\n      \"source\": \"admin\",\n      \"escalated_by_admin_id\": \"...\"\n    },\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already tier 3",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This case is already at tier 3, the highest tier.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Closed",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A closed dispute cannot be escalated. It can only reopen through an appeal.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Send Case to Safety Team",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/escalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "escalate"
+                  ]
+                },
+                "description": "Send a support case to the Safety team (tier 2 of the Safety queue). The Safety team is emailed and any SOS incident on the trip is linked.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Passenger says the driver threatened them at drop-off.\",\n  \"to_safety\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Sent to Safety",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Case sent to the Safety team.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"safety\",\n    \"queue_label\": \"Safety\",\n    \"escalation_tier\": 2,\n    \"tier_label\": \"Safety team\",\n    \"decision_tier\": null,\n    \"assigned_admin\": null,\n    \"assigned_admin_id\": null,\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Send Case Back Down",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/deescalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "deescalate"
+                  ]
+                },
+                "description": "Move the case one tier down with instructions (saved as a note). Safety \u2192 support tier 1. The reporter is not notified.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"note\": \"Check the trip route and refund the toll only.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Sent back",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Case sent back down a tier.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already tier 1",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This case is already at tier 1.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resolve \u2014 Refund Needs Approval (202)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/disputes/{{dispute_id}}/resolve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "disputes",
+                    "{{dispute_id}}",
+                    "resolve"
+                  ]
+                },
+                "description": "A refund above the admin's limit, or any card refund, becomes a refund request. The case stays open until a second admin approves.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n  \"refund_amount\": 8000,\n  \"refund_method\": \"wallet\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "202 \u2014 Waiting for approval",
+                  "status": "Accepted",
+                  "code": 202,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The refund needs a second approval. The case stays open until it is approved.\",\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"under_review\",\n    \"status_label\": \"Under Review\",\n    \"resolution_notes\": null,\n    \"refund_amount\": null,\n    \"refund_currency\": null,\n    \"refund_method\": null,\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": {\n      \"id\": \"01a14ce1-5000-7000-8000-000000000009\",\n      \"dispute_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n      \"amount\": \"8000.00\",\n      \"currency\": \"NGN\",\n      \"method\": \"wallet\",\n      \"method_label\": \"Wallet credit\",\n      \"clawback_driver_earnings\": true,\n      \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n      \"status\": \"pending\",\n      \"status_label\": \"Waiting for approval\",\n      \"requested_by\": {\n        \"id\": \"...\",\n        \"first_name\": \"Tolu\",\n        \"last_name\": \"Ade\",\n        \"admin_role\": \"support\"\n      },\n      \"reviewed_by\": null,\n      \"reviewed_at\": null,\n      \"review_notes\": null,\n      \"created_at\": \"2026-10-18T14:00:00.000000Z\"\n    },\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  },\n  \"refund_request\": {\n    \"id\": \"01a14ce1-5000-7000-8000-000000000009\",\n    \"dispute_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"amount\": \"8000.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"wallet\",\n    \"method_label\": \"Wallet credit\",\n    \"clawback_driver_earnings\": true,\n    \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n    \"status\": \"pending\",\n    \"status_label\": \"Waiting for approval\",\n    \"requested_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"reviewed_by\": null,\n    \"reviewed_at\": null,\n    \"review_notes\": null,\n    \"created_at\": \"2026-10-18T14:00:00.000000Z\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('dispute_refund_request_id', data.refund_request.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Refund Requests",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/dispute-refund-requests?status=pending",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "dispute-refund-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending"
+                    }
+                  ]
+                },
+                "description": "Refunds waiting for a second admin (`status`: pending (default), approved, rejected, cancelled). Finance sees all; dispute roles see cases they can see. `can_approve`: card refunds \u2014 Finance or super admin; wallet refunds \u2014 Finance, super admin, or a dispute admin whose limit covers the total. Nobody approves their own."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Pending requests",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"refund_requests\": [\n    {\n      \"id\": \"01a14ce1-5000-7000-8000-000000000009\",\n      \"dispute_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n      \"amount\": \"8000.00\",\n      \"currency\": \"NGN\",\n      \"method\": \"wallet\",\n      \"method_label\": \"Wallet credit\",\n      \"clawback_driver_earnings\": true,\n      \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n      \"status\": \"pending\",\n      \"status_label\": \"Waiting for approval\",\n      \"requested_by\": {\n        \"id\": \"...\",\n        \"first_name\": \"Tolu\",\n        \"last_name\": \"Ade\",\n        \"admin_role\": \"support\"\n      },\n      \"reviewed_by\": null,\n      \"reviewed_at\": null,\n      \"review_notes\": null,\n      \"created_at\": \"2026-10-18T14:00:00.000000Z\",\n      \"dispute\": {\n        \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n        \"reference_number\": \"DPT-000048\",\n        \"category\": \"route_deviation\",\n        \"category_label\": \"Wrong route taken\",\n        \"queue\": \"support\",\n        \"escalation_tier\": 1,\n        \"tier_label\": \"Tier 1 \u2014 Support\",\n        \"status\": \"under_review\",\n        \"refund_amount\": null,\n        \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\"\n      },\n      \"can_approve\": true,\n      \"can_withdraw\": false\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Approve Refund Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/dispute-refund-requests/{{dispute_refund_request_id}}/approve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "dispute-refund-requests",
+                    "{{dispute_refund_request_id}}",
+                    "approve"
+                  ]
+                },
+                "description": "Pay the refund and resolve the case with the requester's notes (the requester is recorded as the decider).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Checked the route replay; approved.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Refund approved and paid. The dispute is resolved.\",\n  \"refund_request\": {\n    \"id\": \"01a14ce1-5000-7000-8000-000000000009\",\n    \"dispute_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"amount\": \"8000.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"wallet\",\n    \"method_label\": \"Wallet credit\",\n    \"clawback_driver_earnings\": true,\n    \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n    \"status\": \"approved\",\n    \"status_label\": \"Approved\",\n    \"requested_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"reviewed_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Ada\",\n      \"last_name\": \"Obi\",\n      \"admin_role\": \"support_lead\"\n    },\n    \"reviewed_at\": \"2026-10-18T15:00:00.000000Z\",\n    \"review_notes\": \"Checked the route replay; approved.\",\n    \"created_at\": \"2026-10-18T14:00:00.000000Z\"\n  },\n  \"dispute\": {\n    \"id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"reference_number\": \"DPT-000048\",\n    \"ride_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fa\",\n    \"category\": \"route_deviation\",\n    \"category_label\": \"Wrong route taken\",\n    \"description\": \"The driver took a longer route through Maryland instead of Third Mainland Bridge.\",\n    \"evidence_count\": 1,\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"resolution_notes\": null,\n    \"refund_amount\": \"8000.00\",\n    \"refund_currency\": \"NGN\",\n    \"refund_method\": \"wallet\",\n    \"queue\": \"support\",\n    \"queue_label\": \"Support\",\n    \"escalation_tier\": 1,\n    \"tier_label\": \"Tier 1 \u2014 Support\",\n    \"decision_tier\": null,\n    \"assigned_admin\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"assigned_admin_id\": \"...\",\n    \"assigned_at\": \"2026-10-18T13:00:00.000000Z\",\n    \"is_mine\": true,\n    \"escalation\": null,\n    \"sla\": {\n      \"status\": \"on_track\",\n      \"status_label\": \"On track\",\n      \"next_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"first_response_due_at\": \"2026-10-19T12:00:00.000000Z\",\n      \"first_responded_at\": \"2026-10-18T13:00:00.000000Z\",\n      \"first_response_breached_at\": null,\n      \"resolution_due_at\": \"2026-10-21T12:00:00.000000Z\",\n      \"resolution_breached_at\": null\n    },\n    \"appeal\": null,\n    \"driver_clawback_amount\": null,\n    \"linked_dispute_id\": null,\n    \"sos_incident_id\": null,\n    \"evidence_locked\": false,\n    \"pending_refund_request\": null,\n    \"available_actions\": [\n      \"unassign\",\n      \"escalate\",\n      \"send_to_safety\",\n      \"resolve\",\n      \"add_note\"\n    ],\n    \"refund_limit\": 5000,\n    \"reported_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\"\n    },\n    \"created_at\": \"2026-10-18T12:00:00.000000Z\",\n    \"updated_at\": \"2026-10-18T13:00:00.000000Z\"\n  },\n  \"driver_clawback_kobo\": 640000\n}"
+                },
+                {
+                  "name": "403 \u2014 Own request",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You cannot approve your own refund request.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Card refund",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"A refund to the card must be approved by Finance.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Above limit",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This refund is above your limit; it needs a higher tier.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Reject or Withdraw Refund Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/dispute-refund-requests/{{dispute_refund_request_id}}/reject",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "dispute-refund-requests",
+                    "{{dispute_refund_request_id}}",
+                    "reject"
+                  ]
+                },
+                "description": "By an approver \u2192 `rejected`; by the requester \u2192 `cancelled` (withdrawn). The case stays open for a new decision.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Route was fine; refund the toll only.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Rejected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Refund request rejected. The case is still open.\",\n  \"refund_request\": {\n    \"id\": \"01a14ce1-5000-7000-8000-000000000009\",\n    \"dispute_id\": \"01a14ce1-3fc9-7156-ab6d-dcd07044d3fd\",\n    \"amount\": \"8000.00\",\n    \"currency\": \"NGN\",\n    \"method\": \"wallet\",\n    \"method_label\": \"Wallet credit\",\n    \"clawback_driver_earnings\": true,\n    \"resolution_notes\": \"Driver took a much longer route; refunding the difference.\",\n    \"status\": \"rejected\",\n    \"status_label\": \"Rejected\",\n    \"requested_by\": {\n      \"id\": \"...\",\n      \"first_name\": \"Tolu\",\n      \"last_name\": \"Ade\",\n      \"admin_role\": \"support\"\n    },\n    \"reviewed_by\": null,\n    \"reviewed_at\": null,\n    \"review_notes\": \"Route was fine; refund the toll only.\",\n    \"created_at\": \"2026-10-18T14:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Dispute Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/disputes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "disputes"
+                  ]
+                },
+                "description": "Super admin only."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"tier_1_refund_limit\": 5000,\n    \"tier_2_refund_limit\": 50000,\n    \"safety_refund_limit\": 50000,\n    \"safety_first_response_minutes\": 60,\n    \"safety_resolution_hours\": 24,\n    \"tier_1_first_response_hours\": 24,\n    \"tier_1_resolution_hours\": 72,\n    \"tier_2_first_response_hours\": 24,\n    \"tier_2_resolution_hours\": 120,\n    \"auto_escalate_tier_1\": true,\n    \"appeal_window_days\": 7,\n    \"max_evidence_files\": 10\n  },\n  \"tiers\": {\n    \"1\": \"support\",\n    \"2\": \"support_lead\",\n    \"3\": \"super_admin\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Dispute Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/disputes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "disputes"
+                  ]
+                },
+                "description": "Super admin only; audit-logged. Send only the settings to change. 0 in a target = no target. The tier 2 limit cannot be below tier 1. New targets apply to cases entering a tier afterwards.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tier_1_refund_limit\": 10000,\n  \"appeal_window_days\": 14\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute settings updated.\",\n  \"settings\": {\n    \"tier_1_refund_limit\": 10000,\n    \"tier_2_refund_limit\": 50000,\n    \"safety_refund_limit\": 50000,\n    \"safety_first_response_minutes\": 60,\n    \"safety_resolution_hours\": 24,\n    \"tier_1_first_response_hours\": 24,\n    \"tier_1_resolution_hours\": 72,\n    \"tier_2_first_response_hours\": 24,\n    \"tier_2_resolution_hours\": 120,\n    \"auto_escalate_tier_1\": true,\n    \"appeal_window_days\": 14,\n    \"max_evidence_files\": 10\n  }\n}"
                 }
               ]
             },
@@ -17106,7 +18451,7 @@
               ]
             }
           ],
-          "description": "**Required Role(s):** Support (Super Admin always has access)"
+          "description": "**Required Role(s):** Support (tier 1), Support lead (tier 2), Safety operator (Safety queue); Super Admin always has access (tier 3). Support roles see the support queue; the Safety team sees everything. An admin works cases at their tier or below \u2014 use `available_actions`. Evidence only for the assignee, higher tiers and Safety (`evidence_locked` otherwise), each view audit-logged. Refund requests: Support lead, Safety, Finance. Settings: Super Admin."
         },
         {
           "name": "Admin \u2014 Lost & Found",

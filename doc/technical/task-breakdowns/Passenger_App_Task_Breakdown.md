@@ -39,10 +39,11 @@
 9. [Scheduled Rides](#9-phase-2--scheduled-rides)
 10. [Third-Party Booking](#10-phase-2--third-party-booking)
 11. [Lost & Found](#11-phase-2--lost--found)
+12. [Disputes: Evidence & Appeals](#12-phase-2--disputes-evidence--appeals)
 
 ### Tracking
 
-12. [Open Questions](#12-open-questions)
+13. [Open Questions](#13-open-questions)
 
 ---
 
@@ -229,7 +230,19 @@
 
 ---
 
-## 12. Open Questions
+## 12. Phase 2 — Disputes: Evidence & Appeals
+
+**PRD refs:** P-27
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE2-PDIS-01 | `[ ]` Build "My reports" list and detail: status line from `stage_label` ("With our support team", "With our senior team", "With our safety team", "Decision made"), decision notes, refund (wallet or card) | P-27 | 📡 BE2-DISP-03, BE2-DISP-12 | API ready (18 Oct 2026): `GET /disputes`, `GET /disputes/{id}` (`/passenger/disputes` still works). Never shows admin names. See FRONTEND_UPDATE_ADVANCED_DISPUTES.md |
+| FE2-PDIS-02 | `[ ]` Build "Add evidence" on an open report: photos, PDFs (≤ 5 MB) and audio (≤ 10 MB), optional caption per file | P-27 | 📡 BE2-DISP-03 | `POST /disputes/{id}/evidence` (multipart `files[]`, `captions[]`); show while `can_add_evidence`; `evidence_slots_left` files left |
+| FE2-PDIS-03 | `[ ]` Build "Appeal this decision": reason (10–2000 characters), deadline shown; `dispute_update` push opens the report | P-27 | 📡 BE2-DISP-10, BE2-DISP-12 | `POST /disputes/{id}/appeal`; show while `appeal.can_appeal`, else `appeal.reason_unavailable`. One appeal within 7 days; a management decision is final |
+
+---
+
+## 13. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -242,7 +255,7 @@
 | OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[~]` **Recommended (16 Oct 2026):** both rider (WhatsApp/SMS + tracking link) and booker (in app); admin-switchable. Awaiting client confirmation |
 | OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[ ]` Unresolved |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[x]` Resolved — the wallet pays what it can; the rest is a balance due the passenger pays before booking again (FE2-PSR-09) |
-| OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[ ]` Unresolved |
+| OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[x]` Resolved — refunds go to the wallet; a card refund is an exception support requests and Finance approves (dispute refunds, 18 Oct 2026) |
 
 ---
 
@@ -251,8 +264,8 @@
 | Section | Tasks |
 |---------|-------|
 | Phase 1 | 66 |
-| Phase 2 | 14 |
-| **Total** | **80** |
+| Phase 2 | 18 |
+| **Total** | **84** |
 
 ---
 
