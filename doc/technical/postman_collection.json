@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, lost & found (queue and settings), operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags |\n| Support | `support` | Passengers, disputes, lost & found, wallets (read-only), driver ledgers (read-only) |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes | \u2014 | \u2014 | \u2705 | \u2014 |\n| Lost & Found queue | \u2705 | \u2014 | \u2705 | \u2014 |\n| Lost & Found settings | \u2705 | \u2014 | \u2014 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Report Lost Item** \u2192 `lost_item_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first. Lost & Found (Phase 2): `doc/technical/FRONTEND_UPDATE_LOST_AND_FOUND.md`.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -241,6 +241,10 @@
     },
     {
       "key": "balance_due_id",
+      "value": ""
+    },
+    {
+      "key": "lost_item_id",
       "value": ""
     }
   ],
@@ -5090,6 +5094,436 @@
           ]
         },
         {
+          "name": "Lost & Found",
+          "description": "Report an item left in the car on a completed trip, follow the report, message the driver and confirm the return (Phase 2). Buttons come from `available_actions`. Run **Report Lost Item** first: it stores `lost_item_id`. Then use **Driver \u203a Driver \u2014 Lost & Found** to answer as the driver. See API_REFERENCE.md \u2192 Lost & Found.",
+          "item": [
+            {
+              "name": "Report Lost Item",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('lost_item_id', data.lost_item.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/lost-items",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "lost-items"
+                  ]
+                },
+                "description": "Report an item left in the car on a completed trip, within `report_window_days` (30) of the trip ending. `category` is one of `GET /config` \u2192 `lost_and_found.categories`. `description` is 5\u20131000 characters. `contact_phone` (optional) is another number for updates, in E.164 or Nigerian local format; ask for it when the lost item is the phone. To add up to 3 photos, use the multipart variant. The driver gets a `lost_item_report` push. Stores `lost_item_id`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"phone\",\n  \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n  \"contact_phone\": \"08031234567\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Reported, driver notified",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"We have asked your driver to check the car. We will let you know as soon as they answer.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n    \"reference_number\": \"LF-000001\",\n    \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n    \"viewer_role\": \"passenger\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"phone\",\n    \"category_label\": \"Phone\",\n    \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n    \"photos\": [],\n    \"status\": \"driver_notified\",\n    \"status_label\": \"Driver notified\",\n    \"is_open\": true,\n    \"driver_response\": null,\n    \"contact_phone\": \"+2348031234567\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"escalation_reason\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 0,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": null,\n    \"ride\": {\n      \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"driver\": {\n      \"first_name\": \"Musa\"\n    },\n    \"available_actions\": [\n      \"cancel\",\n      \"escalate\",\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": null,\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already an open report for this trip",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You already have an open lost item report for this trip.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Report Lost Item \u2014 With Photos",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('lost_item_id', data.lost_item.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/lost-items",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "lost-items"
+                  ]
+                },
+                "description": "Same as **Report Lost Item**, sent as `multipart/form-data` with up to 3 `photos[]` (jpg, jpeg, png or webp, 5 MB each). Photos are returned as links valid for 30 minutes.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "category",
+                      "value": "bag",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Small brown leather backpack, on the floor behind the driver.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "contact_phone",
+                      "value": "+2348031234567",
+                      "type": "text",
+                      "description": "(Optional) Another number to reach you on"
+                    },
+                    {
+                      "key": "photos[]",
+                      "type": "file",
+                      "src": [],
+                      "description": "(Optional) Up to 3 images, max 5MB each. Supported: jpg, jpeg, png, webp"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List My Lost Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items?open=1&ride_id={{ride_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items"
+                  ],
+                  "query": [
+                    {
+                      "key": "open",
+                      "value": "1",
+                      "description": "Open reports only"
+                    },
+                    {
+                      "key": "ride_id",
+                      "value": "{{ride_id}}",
+                      "description": "(Optional) One trip"
+                    }
+                  ]
+                },
+                "description": "The passenger's reports, newest first. Filters: `status`, `open` (1 = open only, 0 = closed only), `ride_id` (to show \"View report\" on a trip), `per_page` (1\u201350)."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Lost Item",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}"
+                  ]
+                },
+                "description": "The report with its messages. Once the driver has the item, `contact` holds the driver's first name and phone number. Anyone not on the trip gets 404."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Driver has the item",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n    \"reference_number\": \"LF-000001\",\n    \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n    \"viewer_role\": \"passenger\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"phone\",\n    \"category_label\": \"Phone\",\n    \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n    \"photos\": [],\n    \"status\": \"driver_confirmed\",\n    \"status_label\": \"Driver has the item\",\n    \"is_open\": true,\n    \"driver_response\": \"It is with me. I am in Ikeja until 6pm.\",\n    \"contact_phone\": \"+2348031234567\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"escalation_reason\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 2000,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": {\n      \"first_name\": \"Musa\",\n      \"phone\": \"+2348020000002\"\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"driver\": {\n      \"first_name\": \"Musa\"\n    },\n    \"messages\": [\n      {\n        \"id\": \"01a14c5e-08ae-715b-9814-00fa5de77b63\",\n        \"sender_role\": \"passenger\",\n        \"sender_name\": \"Ada\",\n        \"is_mine\": true,\n        \"body\": \"Thank you! Can we meet at Ikeja City Mall at 5pm?\",\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      }\n    ],\n    \"available_actions\": [\n      \"confirm_received\",\n      \"escalate\",\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Send Message to Driver",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/messages",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "messages"
+                  ]
+                },
+                "description": "Message the driver about the return (max 1000 characters, 30 per minute). The driver gets a `lost_item_message` push. Not allowed on closed reports.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"body\": \"Thank you! Can we meet at Ikeja City Mall at 5pm?\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Sent",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Message sent.\",\n  \"lost_item_message\": {\n    \"id\": \"01a14c5e-08ae-715b-9814-00fa5de77b63\",\n    \"sender_role\": \"passenger\",\n    \"sender_name\": \"Ada\",\n    \"is_mine\": true,\n    \"body\": \"Thank you! Can we meet at Ikeja City Mall at 5pm?\",\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Confirm Item Received",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/received",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "received"
+                  ]
+                },
+                "description": "The passenger has the item back \u2192 `resolved`. Allowed from `driver_confirmed` or `returned`. The return fee, if any, is taken from the wallet (`return_fee.status: charged`) or recorded as a balance due (`balance_due`)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Resolved, fee charged",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Glad you have it back. The report is now resolved.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n    \"reference_number\": \"LF-000001\",\n    \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n    \"viewer_role\": \"passenger\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"phone\",\n    \"category_label\": \"Phone\",\n    \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n    \"photos\": [],\n    \"status\": \"resolved\",\n    \"status_label\": \"Resolved\",\n    \"is_open\": false,\n    \"driver_response\": \"It is with me. I am in Ikeja until 6pm.\",\n    \"contact_phone\": \"+2348031234567\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"escalation_reason\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 2000,\n      \"currency\": \"NGN\",\n      \"status\": \"balance_due\"\n    },\n    \"contact\": null,\n    \"ride\": {\n      \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"driver\": {\n      \"first_name\": \"Musa\"\n    },\n    \"messages\": [\n      {\n        \"id\": \"01a14c5e-08ae-715b-9814-00fa5de77b63\",\n        \"sender_role\": \"passenger\",\n        \"sender_name\": \"Ada\",\n        \"is_mine\": true,\n        \"body\": \"Thank you! Can we meet at Ikeja City Mall at 5pm?\",\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      }\n    ],\n    \"available_actions\": [],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"resolved_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Ask Support to Help",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/escalate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "escalate"
+                  ]
+                },
+                "description": "Hand the report to support, for example after the driver said \"not found\" or when the return has not happened. Once per report; `reason` is required (5\u2013500 characters). A return under dispute is never resolved automatically.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"I am sure they fell between the seats.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 With support",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Our support team will look into this and contact you.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-08ea-7285-9a2a-ff0afe37d08d\",\n    \"reference_number\": \"LF-000002\",\n    \"ride_id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n    \"viewer_role\": \"passenger\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"keys\",\n    \"category_label\": \"Keys\",\n    \"description\": \"Car keys on a red key ring.\",\n    \"photos\": [],\n    \"status\": \"driver_denied\",\n    \"status_label\": \"Driver did not find it\",\n    \"is_open\": true,\n    \"driver_response\": \"I checked the seats and the boot.\",\n    \"contact_phone\": null,\n    \"escalated\": true,\n    \"escalated_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"escalation_reason\": \"I am sure they fell between the seats.\",\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 0,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": null,\n    \"ride\": {\n      \"id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"driver\": {\n      \"first_name\": \"Musa\"\n    },\n    \"messages\": [],\n    \"available_actions\": [\n      \"cancel\",\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Lost Item Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Withdraw the report (for example, found at home). Only while the status is `reported`, `driver_notified` or `driver_denied`. The driver is told. Optional `reason`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Found it at home.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "422 \u2014 Driver already has the item",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This report is now \\\"Driver has the item\\\" and cannot be changed that way. Refresh and try again.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Promos",
           "item": [
             {
@@ -8968,6 +9402,305 @@
                       "try { remember('repair_id', data.repair.id); } catch (e) {}"
                     ]
                   }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver \u2014 Lost & Found",
+          "description": "Answer lost item reports on your trips, arrange the return and hand in items found in the car (Phase 2). Buttons come from `available_actions` (`respond`, `mark_returned`, `message`). Uses `lost_item_id` from **Passenger \u203a Lost & Found \u203a Report Lost Item**.",
+          "item": [
+            {
+              "name": "List Lost Items on My Trips",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items?open=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items"
+                  ],
+                  "query": [
+                    {
+                      "key": "open",
+                      "value": "1",
+                      "description": "Open reports only"
+                    }
+                  ]
+                },
+                "description": "Reports on the driver's trips, newest first. `open=1` lists the ones still open."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Waiting for an answer",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lost_items\": [\n    {\n      \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n      \"reference_number\": \"LF-000001\",\n      \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"viewer_role\": \"driver\",\n      \"reported_by\": \"passenger\",\n      \"category\": \"phone\",\n      \"category_label\": \"Phone\",\n      \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n      \"photos\": [],\n      \"status\": \"driver_notified\",\n      \"status_label\": \"Driver notified\",\n      \"is_open\": true,\n      \"driver_response\": null,\n      \"escalated\": false,\n      \"escalated_at\": null,\n      \"closure_reason\": null,\n      \"closure_reason_label\": null,\n      \"resolution_notes\": null,\n      \"return_fee\": {\n        \"amount\": 0,\n        \"currency\": \"NGN\",\n        \"status\": null\n      },\n      \"contact\": null,\n      \"ride\": {\n        \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n        \"reference_number\": \"TRP-NG-000142\",\n        \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n        \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n        \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n        \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n        \"city\": \"Lagos\",\n        \"is_third_party\": false,\n        \"vehicle\": null\n      },\n      \"passenger\": {\n        \"first_name\": \"Ada\"\n      },\n      \"available_actions\": [\n        \"respond\",\n        \"message\"\n      ],\n      \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"driver_responded_at\": null,\n      \"returned_at\": null,\n      \"resolved_at\": null,\n      \"closed_at\": null,\n      \"cancelled_at\": null,\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 15,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Respond \u2014 I Have It",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/respond",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "respond"
+                  ]
+                },
+                "description": "The driver has the item \u2192 `driver_confirmed`. `note` (optional, max 500) is shown to the passenger. The passenger is told by push, and by SMS on their `contact_phone`. The response now has `contact`: the passenger's first name and number.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"found\": true,\n  \"note\": \"It is with me. I am in Ikeja until 6pm.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Confirmed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Thank you. We have told the passenger you have their item.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n    \"reference_number\": \"LF-000001\",\n    \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n    \"viewer_role\": \"driver\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"phone\",\n    \"category_label\": \"Phone\",\n    \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n    \"photos\": [],\n    \"status\": \"driver_confirmed\",\n    \"status_label\": \"Driver has the item\",\n    \"is_open\": true,\n    \"driver_response\": \"It is with me. I am in Ikeja until 6pm.\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 2000,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348031234567\"\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": null\n    },\n    \"passenger\": {\n      \"first_name\": \"Ada\"\n    },\n    \"messages\": [],\n    \"available_actions\": [\n      \"mark_returned\",\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Respond \u2014 Not Found",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/respond",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "respond"
+                  ]
+                },
+                "description": "The driver checked and it is not in the car \u2192 `driver_denied`. The driver can still answer `found: true` later.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"found\": false,\n  \"note\": \"I checked the seats and the boot.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Not found",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Thank you for checking. We have told the passenger.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-08ea-7285-9a2a-ff0afe37d08d\",\n    \"reference_number\": \"LF-000002\",\n    \"ride_id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n    \"viewer_role\": \"driver\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"keys\",\n    \"category_label\": \"Keys\",\n    \"description\": \"Car keys on a red key ring.\",\n    \"photos\": [],\n    \"status\": \"driver_denied\",\n    \"status_label\": \"Driver did not find it\",\n    \"is_open\": true,\n    \"driver_response\": \"I checked the seats and the boot.\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 0,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": null,\n    \"ride\": {\n      \"id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": null\n    },\n    \"passenger\": {\n      \"first_name\": \"Ada\"\n    },\n    \"messages\": [],\n    \"available_actions\": [\n      \"respond\",\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Send Message to Passenger",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/messages",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "messages"
+                  ]
+                },
+                "description": "Message the passenger about the return. They get a `lost_item_message` push.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"body\": \"Ikeja City Mall at 5pm works. I will be at the main entrance.\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Mark Item Returned",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lost-items/{{lost_item_id}}/returned",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "returned"
+                  ]
+                },
+                "description": "The item has been handed back \u2192 `returned`. The passenger is asked to confirm. Without an answer the report resolves after `auto_resolve_hours` (72). Only from `driver_confirmed`."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Returned",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Marked as returned. We have asked the passenger to confirm.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0877-730f-a80d-39c2a50ac02b\",\n    \"reference_number\": \"LF-000001\",\n    \"ride_id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n    \"viewer_role\": \"driver\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"phone\",\n    \"category_label\": \"Phone\",\n    \"description\": \"Black iPhone in a blue case, left on the back seat.\",\n    \"photos\": [],\n    \"status\": \"returned\",\n    \"status_label\": \"Returned, awaiting confirmation\",\n    \"is_open\": true,\n    \"driver_response\": \"It is with me. I am in Ikeja until 6pm.\",\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 2000,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348031234567\"\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-084c-73e4-bf1b-1742de2412dc\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": null\n    },\n    \"passenger\": {\n      \"first_name\": \"Ada\"\n    },\n    \"messages\": [\n      {\n        \"id\": \"01a14c5e-08ae-715b-9814-00fa5de77b63\",\n        \"sender_role\": \"passenger\",\n        \"sender_name\": \"Ada\",\n        \"is_mine\": false,\n        \"body\": \"Thank you! Can we meet at Ikeja City Mall at 5pm?\",\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      }\n    ],\n    \"available_actions\": [\n      \"message\"\n    ],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Report Found Item",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('lost_item_id', data.lost_item.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/rides/{{ride_id}}/lost-items",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "rides",
+                    "{{ride_id}}",
+                    "lost-items"
+                  ]
+                },
+                "description": "Hand in an item found in the car after a trip (within `report_window_days`). It starts as `driver_confirmed` and the passenger is told at once. Same fields as the passenger's report; up to 3 `photos[]` as multipart.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"bag\",\n  \"description\": \"Brown leather bag found under the back seat.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Passenger told",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Thank you. We have told the passenger you found their item.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-0942-7380-8501-79e4389e084f\",\n    \"reference_number\": \"LF-000003\",\n    \"ride_id\": \"01a14c5e-093a-71a5-8945-7e5b720136cb\",\n    \"viewer_role\": \"driver\",\n    \"reported_by\": \"driver\",\n    \"category\": \"bag\",\n    \"category_label\": \"Bag or luggage\",\n    \"description\": \"Brown leather bag found under the back seat.\",\n    \"photos\": [],\n    \"status\": \"driver_confirmed\",\n    \"status_label\": \"Driver has the item\",\n    \"is_open\": true,\n    \"driver_response\": null,\n    \"escalated\": false,\n    \"escalated_at\": null,\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 2000,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"contact\": {\n      \"first_name\": \"Ada\",\n      \"phone\": \"+2348010000001\"\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-093a-71a5-8945-7e5b720136cb\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": null\n    },\n    \"passenger\": {\n      \"first_name\": \"Ada\"\n    },\n    \"available_actions\": [\n      \"mark_returned\",\n      \"message\"\n    ],\n    \"driver_notified_at\": null,\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
                 }
               ]
             }
@@ -16374,6 +17107,402 @@
             }
           ],
           "description": "**Required Role(s):** Support (Super Admin always has access)"
+        },
+        {
+          "name": "Admin \u2014 Lost & Found",
+          "description": "Lost & Found queue and settings (Phase 2). Queue: roles `support` and `operations`. Settings: `operations`. Reports waiting on support (escalated by the passenger, the driver silent for 24 h, a return 7 days late, no driver to ask) come first.",
+          "item": [
+            {
+              "name": "List Lost Item Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items?needs_attention=1&per_page=15",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items"
+                  ],
+                  "query": [
+                    {
+                      "key": "needs_attention",
+                      "value": "1",
+                      "description": "Only reports support has to act on"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "15",
+                      "description": "1\u2013100"
+                    }
+                  ]
+                },
+                "description": "The queue: open, escalated reports first, then the newest. Filters: `status` (one or comma-separated), `needs_attention` (1), `open`, `category`, `city_id`, `ride_id`, `passenger_id`, `driver_id`, `search` (LF or trip reference, description), `from`, `to`, `per_page` (1\u2013100). `summary` has `open`, `needs_attention` and `by_status` counts."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Queue",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lost_items\": [\n    {\n      \"id\": \"01a14c5e-08ea-7285-9a2a-ff0afe37d08d\",\n      \"reference_number\": \"LF-000002\",\n      \"ride_id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n      \"viewer_role\": \"support\",\n      \"reported_by\": \"passenger\",\n      \"category\": \"keys\",\n      \"category_label\": \"Keys\",\n      \"description\": \"Car keys on a red key ring.\",\n      \"photos\": [],\n      \"status\": \"driver_denied\",\n      \"status_label\": \"Driver did not find it\",\n      \"is_open\": true,\n      \"driver_response\": \"I checked the seats and the boot.\",\n      \"contact_phone\": null,\n      \"escalated\": true,\n      \"escalated_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"escalation_reason\": \"I am sure they fell between the seats.\",\n      \"escalation_source\": \"passenger\",\n      \"closure_reason\": null,\n      \"closure_reason_label\": null,\n      \"resolution_notes\": null,\n      \"return_fee\": {\n        \"amount\": 0,\n        \"currency\": \"NGN\",\n        \"status\": null\n      },\n      \"ride\": {\n        \"id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n        \"reference_number\": \"TRP-NG-000142\",\n        \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n        \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n        \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n        \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n        \"city\": \"Lagos\",\n        \"is_third_party\": false,\n        \"vehicle\": {\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LAG-123-XY\"\n        }\n      },\n      \"passenger\": {\n        \"id\": \"01a14c5e-0839-721d-bb83-b2fddccb2102\",\n        \"reference_number\": \"P-000001\",\n        \"first_name\": \"Ada\",\n        \"last_name\": \"Okafor\",\n        \"phone\": \"+2348010000001\",\n        \"email\": \"ada@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      },\n      \"driver\": {\n        \"id\": \"01a14c5e-083f-7079-b706-47c4e589f21d\",\n        \"reference_number\": \"D-000014\",\n        \"first_name\": \"Musa\",\n        \"last_name\": \"Bello\",\n        \"phone\": \"+2348020000002\",\n        \"email\": \"musa@demo.etigo.com\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"id\": \"01a14c5e-0846-71e4-982a-53031d8301b9\",\n          \"driver_id\": \"01a14c5e-0842-732e-b0e3-345c288dec27\",\n          \"make\": \"Toyota\",\n          \"model\": \"Corolla\",\n          \"colour\": \"Silver\",\n          \"plate_number\": \"LAG-123-XY\",\n          \"year\": 2025,\n          \"fuel_type\": \"petrol\",\n          \"can_charge\": false,\n          \"is_fleet\": false,\n          \"vehicle_class_id\": \"01a14c5e-0845-72f2-9a23-c88e8e93dc76\",\n          \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n        },\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      },\n      \"resolved_by\": null,\n      \"available_actions\": [],\n      \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"returned_at\": null,\n      \"resolved_at\": null,\n      \"closed_at\": null,\n      \"cancelled_at\": null,\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 2,\n    \"per_page\": 1,\n    \"total\": 2\n  },\n  \"summary\": {\n    \"open\": 1,\n    \"needs_attention\": 1,\n    \"by_status\": {\n      \"resolved\": 1,\n      \"driver_denied\": 1\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Lost Item Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}"
+                  ]
+                },
+                "description": "Full report: passenger and driver (with vehicle), every message and support's internal notes (`is_internal: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Intervene \u2014 Add Internal Note",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}/intervene",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "intervene"
+                  ]
+                },
+                "description": "Internal note, seen only by support.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"note\",\n  \"body\": \"Called the driver; will check again tonight.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Note added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Note added.\",\n  \"lost_item_message\": {\n    \"id\": \"01a14c5e-0912-7174-96c2-1ec427eeb056\",\n    \"sender_role\": \"support\",\n    \"sender_name\": \"Stacey\",\n    \"is_mine\": true,\n    \"body\": \"Called the driver; will check again tonight.\",\n    \"is_internal\": true,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n  },\n  \"lost_item\": {\n    \"id\": \"01a14c5e-08ea-7285-9a2a-ff0afe37d08d\",\n    \"reference_number\": \"LF-000002\",\n    \"ride_id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n    \"viewer_role\": \"support\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"keys\",\n    \"category_label\": \"Keys\",\n    \"description\": \"Car keys on a red key ring.\",\n    \"photos\": [],\n    \"status\": \"driver_denied\",\n    \"status_label\": \"Driver did not find it\",\n    \"is_open\": true,\n    \"driver_response\": \"I checked the seats and the boot.\",\n    \"contact_phone\": null,\n    \"escalated\": true,\n    \"escalated_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"escalation_reason\": \"I am sure they fell between the seats.\",\n    \"escalation_source\": \"passenger\",\n    \"closure_reason\": null,\n    \"closure_reason_label\": null,\n    \"resolution_notes\": null,\n    \"return_fee\": {\n      \"amount\": 0,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"passenger\": {\n      \"id\": \"01a14c5e-0839-721d-bb83-b2fddccb2102\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ada\",\n      \"last_name\": \"Okafor\",\n      \"phone\": \"+2348010000001\",\n      \"email\": \"ada@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a14c5e-083f-7079-b706-47c4e589f21d\",\n      \"reference_number\": \"D-000014\",\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348020000002\",\n      \"email\": \"musa@demo.etigo.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a14c5e-0846-71e4-982a-53031d8301b9\",\n        \"driver_id\": \"01a14c5e-0842-732e-b0e3-345c288dec27\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\",\n        \"year\": 2025,\n        \"fuel_type\": \"petrol\",\n        \"can_charge\": false,\n        \"is_fleet\": false,\n        \"vehicle_class_id\": \"01a14c5e-0845-72f2-9a23-c88e8e93dc76\",\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n    },\n    \"resolved_by\": null,\n    \"messages\": [\n      {\n        \"id\": \"01a14c5e-0912-7174-96c2-1ec427eeb056\",\n        \"sender_role\": \"support\",\n        \"sender_name\": \"Stacey\",\n        \"is_mine\": true,\n        \"body\": \"Called the driver; will check again tonight.\",\n        \"is_internal\": true,\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      }\n    ],\n    \"available_actions\": [],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Intervene \u2014 Message Both Sides",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}/intervene",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "intervene"
+                  ]
+                },
+                "description": "Message to the passenger and the driver, shown as \"E-tiGo Support\". Both get a `lost_item_message` push.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"message\",\n  \"body\": \"We have asked the driver to check the boot again and will update you today.\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Intervene \u2014 Mark Found",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}/intervene",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "intervene"
+                  ]
+                },
+                "description": "Support has confirmed that the driver (or the office) has the item \u2192 `driver_confirmed`. The passenger is told. `notes` is saved as an internal note.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"mark_found\",\n  \"notes\": \"Driver found it in the boot after our call.\"\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Intervene \u2014 Resolve",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}/intervene",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "intervene"
+                  ]
+                },
+                "description": "The item is back with the passenger \u2192 `resolved`. The return fee is collected unless `waive_return_fee` is true (it applies only when the driver had the item).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"resolve\",\n  \"notes\": \"Passenger collected it from the driver.\",\n  \"waive_return_fee\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Intervene \u2014 Close Unresolved",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/lost-items/{{lost_item_id}}/intervene",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "lost-items",
+                    "{{lost_item_id}}",
+                    "intervene"
+                  ]
+                },
+                "description": "Closed without the item being returned \u2192 `unresolved`. `closure_reason`: `not_found`, `unclaimed`, `passenger_unreachable`, `driver_unreachable`, `other`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"close\",\n  \"closure_reason\": \"not_found\",\n  \"notes\": \"Driver checked twice.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Closed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Report closed.\",\n  \"lost_item\": {\n    \"id\": \"01a14c5e-08ea-7285-9a2a-ff0afe37d08d\",\n    \"reference_number\": \"LF-000002\",\n    \"ride_id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n    \"viewer_role\": \"support\",\n    \"reported_by\": \"passenger\",\n    \"category\": \"keys\",\n    \"category_label\": \"Keys\",\n    \"description\": \"Car keys on a red key ring.\",\n    \"photos\": [],\n    \"status\": \"unresolved\",\n    \"status_label\": \"Closed, not recovered\",\n    \"is_open\": false,\n    \"driver_response\": \"I checked the seats and the boot.\",\n    \"contact_phone\": null,\n    \"escalated\": true,\n    \"escalated_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"escalation_reason\": \"I am sure they fell between the seats.\",\n    \"escalation_source\": \"passenger\",\n    \"closure_reason\": \"not_found\",\n    \"closure_reason_label\": \"Item not found\",\n    \"resolution_notes\": \"Driver checked twice.\",\n    \"return_fee\": {\n      \"amount\": 0,\n      \"currency\": \"NGN\",\n      \"status\": null\n    },\n    \"ride\": {\n      \"id\": \"01a14c5e-08e0-7038-8083-56b03933deab\",\n      \"reference_number\": \"TRP-NG-000142\",\n      \"pickup_address\": \"12 Allen Avenue, Ikeja\",\n      \"destination_address\": \"5 Bode Thomas Street, Surulere\",\n      \"started_at\": \"2026-10-19T09:40:00.000000Z\",\n      \"completed_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"city\": \"Lagos\",\n      \"is_third_party\": false,\n      \"vehicle\": {\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\"\n      }\n    },\n    \"passenger\": {\n      \"id\": \"01a14c5e-0839-721d-bb83-b2fddccb2102\",\n      \"reference_number\": \"P-000001\",\n      \"first_name\": \"Ada\",\n      \"last_name\": \"Okafor\",\n      \"phone\": \"+2348010000001\",\n      \"email\": \"ada@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a14c5e-083f-7079-b706-47c4e589f21d\",\n      \"reference_number\": \"D-000014\",\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348020000002\",\n      \"email\": \"musa@demo.etigo.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a14c5e-0846-71e4-982a-53031d8301b9\",\n        \"driver_id\": \"01a14c5e-0842-732e-b0e3-345c288dec27\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"Silver\",\n        \"plate_number\": \"LAG-123-XY\",\n        \"year\": 2025,\n        \"fuel_type\": \"petrol\",\n        \"can_charge\": false,\n        \"is_fleet\": false,\n        \"vehicle_class_id\": \"01a14c5e-0845-72f2-9a23-c88e8e93dc76\",\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n    },\n    \"resolved_by\": {\n      \"id\": \"01a14c5e-0848-72f1-9448-75853403092d\",\n      \"reference_number\": null,\n      \"first_name\": \"Stacey\",\n      \"last_name\": \"Huel\",\n      \"phone\": \"+18702354451\",\n      \"email\": \"aufderhar.isabelle@example.com\",\n      \"type\": \"admin\",\n      \"admin_role\": \"support\",\n      \"phone_verified_at\": \"2026-10-19T10:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n    },\n    \"messages\": [\n      {\n        \"id\": \"01a14c5e-0912-7174-96c2-1ec427eeb056\",\n        \"sender_role\": \"support\",\n        \"sender_name\": \"Stacey\",\n        \"is_mine\": true,\n        \"body\": \"Called the driver; will check again tonight.\",\n        \"is_internal\": true,\n        \"created_at\": \"2026-10-19T10:00:00.000000Z\"\n      }\n    ],\n    \"available_actions\": [],\n    \"driver_notified_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"driver_responded_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"returned_at\": null,\n    \"resolved_at\": null,\n    \"closed_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"cancelled_at\": null,\n    \"created_at\": \"2026-10-19T10:00:00.000000Z\",\n    \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Lost & Found Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/lost-and-found",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "lost-and-found"
+                  ]
+                },
+                "description": "Current settings: runtime overrides over `config/lost_and_found.php`. Role: operations."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"report_window_days\": 30,\n    \"max_open_reports_per_passenger\": 3,\n    \"driver_response_hours\": 24,\n    \"return_deadline_days\": 7,\n    \"auto_resolve_hours\": 72,\n    \"denied_auto_close_days\": 7,\n    \"share_contact_details\": true,\n    \"return_fee\": 2000\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Lost & Found Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/lost-and-found",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "lost-and-found"
+                  ]
+                },
+                "description": "Send any subset of the fields: `enabled`; `report_window_days` (1\u201390, default 30); `max_open_reports_per_passenger` (1\u201320, default 3); `driver_response_hours` (1\u2013168, default 24); `return_deadline_days` (1\u201360, default 7); `auto_resolve_hours` (1\u2013336, default 72); `denied_auto_close_days` (1\u201360, default 7); `share_contact_details` (default true); `return_fee` (NGN 0\u2013100000, default 0 = off, all of it to the driver; applies to items confirmed after the change). Audit-logged.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"return_fee\": 1500\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Lost & Found settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"report_window_days\": 30,\n    \"max_open_reports_per_passenger\": 3,\n    \"driver_response_hours\": 24,\n    \"return_deadline_days\": 7,\n    \"auto_resolve_hours\": 72,\n    \"denied_auto_close_days\": 7,\n    \"share_contact_details\": true,\n    \"return_fee\": 1500\n  }\n}"
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "Admin \u2014 Gamification Management",

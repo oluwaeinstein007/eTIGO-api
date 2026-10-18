@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
 use App\Http\Controllers\Api\V1\Admin\AdminGamificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminLedgerExplorerController;
+use App\Http\Controllers\Api\V1\Admin\AdminLostAndFoundSettingsController;
+use App\Http\Controllers\Api\V1\Admin\AdminLostItemController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminMonitoringController;
 use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
@@ -62,6 +64,7 @@ use App\Http\Controllers\Api\V1\EvStationController;
 use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
+use App\Http\Controllers\Api\V1\LostItemController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Passenger\BalanceDueController;
@@ -270,7 +273,26 @@ Route::middleware('auth:sanctum')->prefix('rides')->group(function () {
     Route::get('/{ride}/receipt', [RideReceiptController::class, 'show']);
     Route::post('/{ride}/rating', [RideRatingController::class, 'store']);
     Route::post('/{ride}/dispute', [RideDisputeController::class, 'store']);
+    Route::post('/{ride}/lost-items', [LostItemController::class, 'store'])
+        ->middleware(['user.type:passenger,driver', 'throttle:5,1']);
     Route::post('/{ride}/sos', [SosController::class, 'trigger']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Lost & Found (Authenticated — the trip's passenger or driver)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum', 'user.type:passenger,driver'])->prefix('lost-items')->group(function () {
+    Route::get('/', [LostItemController::class, 'index']);
+    Route::get('/{lostItem}', [LostItemController::class, 'show']);
+    Route::post('/{lostItem}/respond', [LostItemController::class, 'respond'])->middleware('user.type:driver');
+    Route::post('/{lostItem}/returned', [LostItemController::class, 'returned'])->middleware('user.type:driver');
+    Route::post('/{lostItem}/received', [LostItemController::class, 'received'])->middleware('user.type:passenger');
+    Route::post('/{lostItem}/cancel', [LostItemController::class, 'cancel'])->middleware('user.type:passenger');
+    Route::post('/{lostItem}/escalate', [LostItemController::class, 'escalate'])
+        ->middleware(['user.type:passenger', 'throttle:5,1']);
+    Route::post('/{lostItem}/messages', [LostItemController::class, 'storeMessage'])->middleware('throttle:30,1');
 });
 
 /*
@@ -478,6 +500,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/settings/scheduled-rides', [AdminScheduledRideController::class, 'updateSettings']);
         Route::get('/settings/third-party', [AdminThirdPartySettingsController::class, 'show']);
         Route::put('/settings/third-party', [AdminThirdPartySettingsController::class, 'update']);
+        Route::get('/settings/lost-and-found', [AdminLostAndFoundSettingsController::class, 'show']);
+        Route::put('/settings/lost-and-found', [AdminLostAndFoundSettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {
@@ -569,6 +593,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{dispute}/notes', [AdminDisputeNoteController::class, 'store']);
         Route::put('/{dispute}/notes/{note}', [AdminDisputeNoteController::class, 'update']);
         Route::delete('/{dispute}/notes/{note}', [AdminDisputeNoteController::class, 'destroy']);
+    });
+
+    Route::middleware('admin.role:support,operations')->prefix('lost-items')->group(function () {
+        Route::get('/', [AdminLostItemController::class, 'index']);
+        Route::get('/{lostItem}', [AdminLostItemController::class, 'show']);
+        Route::post('/{lostItem}/intervene', [AdminLostItemController::class, 'intervene']);
     });
 
     Route::middleware('admin.role:support,safety_operator')->prefix('passengers')->group(function () {

@@ -2,12 +2,14 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\ResolvesUploadUrls;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class DisputeResource extends JsonResource
 {
+    use ResolvesUploadUrls;
+
     public function toArray(Request $request): array
     {
         return [
@@ -19,11 +21,11 @@ class DisputeResource extends JsonResource
             'description' => $this->description,
             'evidence_photos' => $this->when($this->evidence_photos, function () {
                 return collect($this->evidence_photos)->map(
-                    fn (string $path) => $this->resolveEvidenceUrl($path),
+                    fn (string $path) => $this->resolveUploadUrl($path),
                 )->all();
             }),
             'evidence_audio' => $this->when($this->evidence_audio, function () {
-                return $this->resolveEvidenceUrl($this->evidence_audio);
+                return $this->resolveUploadUrl($this->evidence_audio);
             }),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
@@ -38,28 +40,5 @@ class DisputeResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
-    }
-
-    private function resolveEvidenceUrl(string $path): ?string
-    {
-        $uploadsDisk = Storage::disk(config('filesystems.uploads'));
-
-        try {
-            return $uploadsDisk->temporaryUrl($path, now()->addMinutes(30));
-        } catch (\RuntimeException) {
-            try {
-                return $uploadsDisk->url($path);
-            } catch (\RuntimeException) {
-                // Ignore — fall through to local fallback
-            }
-        }
-
-        $localDisk = Storage::disk('local');
-
-        try {
-            return $localDisk->temporaryUrl($path, now()->addMinutes(30));
-        } catch (\RuntimeException) {
-            return $localDisk->url($path);
-        }
     }
 }

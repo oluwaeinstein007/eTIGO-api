@@ -13,6 +13,7 @@ use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
+use App\Models\LostItem;
 use App\Models\PassengerBalanceDue;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -422,6 +423,14 @@ class PassengerBalanceService
             return;
         }
 
+        if ($item->reason === BalanceDueReason::LostItemReturnFee) {
+            LostItem::where('ride_id', $item->ride_id)
+                ->where('return_fee_status', 'balance_due')
+                ->update(['return_fee_status' => $feeStatus]);
+
+            return;
+        }
+
         if ($item->status === BalanceDueStatus::Paid) {
             // The fare is now paid in full.
             Payment::where('ride_id', $item->ride_id)->update(['status' => PaymentStatus::Captured, 'failure_reason' => null]);
@@ -432,9 +441,11 @@ class PassengerBalanceService
     private function notifyRecorded(PassengerBalanceDue $item): void
     {
         $amount = '₦'.number_format((float) $item->amount, 2);
-        $body = $item->reason === BalanceDueReason::LateCancellationFee
-            ? "You owe a {$amount} late cancellation fee for your scheduled ride. Pay it in the app before your next booking."
-            : "Your wallet did not cover your last ride. You owe {$amount}; pay it in the app before your next booking.";
+        $body = match ($item->reason) {
+            BalanceDueReason::LateCancellationFee => "You owe a {$amount} late cancellation fee for your scheduled ride. Pay it in the app before your next booking.",
+            BalanceDueReason::LostItemReturnFee => "You owe a {$amount} return fee for the item your driver brought back. Pay it in the app before your next booking.",
+            BalanceDueReason::WalletShortfall => "Your wallet did not cover your last ride. You owe {$amount}; pay it in the app before your next booking.",
+        };
 
         try {
             $this->notificationService->send(

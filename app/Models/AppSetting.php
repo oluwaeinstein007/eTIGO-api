@@ -130,4 +130,28 @@ class AppSetting extends Model
             'rider_trip_updates' => filter_var($value('rider_trip_updates'), FILTER_VALIDATE_BOOLEAN),
         ];
     }
+
+    /**
+     * Lost & Found settings (Phase 2): the admin's runtime overrides
+     * (PUT /admin/settings/lost-and-found) over config/lost_and_found.php.
+     *
+     * @return array{enabled: bool, report_window_days: int, max_open_reports_per_passenger: int, driver_response_hours: int, return_deadline_days: int, auto_resolve_hours: int, denied_auto_close_days: int, share_contact_details: bool, return_fee: float}
+     */
+    public static function lostAndFound(): array
+    {
+        $settings = static::where('group', 'lost_and_found')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["lost_and_found.{$key}"] ?? config("lost_and_found.{$key}");
+
+        return [
+            'enabled' => filter_var($value('enabled'), FILTER_VALIDATE_BOOLEAN),
+            'report_window_days' => (int) $value('report_window_days'),
+            'max_open_reports_per_passenger' => (int) $value('max_open_reports_per_passenger'),
+            'driver_response_hours' => (int) $value('driver_response_hours'),
+            'return_deadline_days' => (int) $value('return_deadline_days'),
+            'auto_resolve_hours' => (int) $value('auto_resolve_hours'),
+            'denied_auto_close_days' => (int) $value('denied_auto_close_days'),
+            'share_contact_details' => filter_var($value('share_contact_details'), FILTER_VALIDATE_BOOLEAN),
+            'return_fee' => round(max(0.0, (float) $value('return_fee')), 2),
+        ];
+    }
 }

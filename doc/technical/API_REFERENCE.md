@@ -7,7 +7,7 @@
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations).  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue).  
 
 ---
 
@@ -755,6 +755,23 @@ No authentication required. Returns app configuration including minimum version 
     "pin_recipient": "both",
     "tracking_recipient": "both",
     "max_active_per_booker": 2
+  },
+  "lost_and_found": {
+    "enabled": true,
+    "report_window_days": 30,
+    "return_fee": 0,
+    "categories": [
+      { "value": "phone", "label": "Phone" },
+      { "value": "wallet_or_purse", "label": "Wallet or purse" },
+      { "value": "bag", "label": "Bag or luggage" },
+      { "value": "keys", "label": "Keys" },
+      { "value": "id_or_documents", "label": "ID card or documents" },
+      { "value": "electronics", "label": "Laptop, tablet or other electronics" },
+      { "value": "clothing", "label": "Clothing" },
+      { "value": "glasses", "label": "Glasses" },
+      { "value": "jewellery", "label": "Jewellery or watch" },
+      { "value": "other", "label": "Something else" }
+    ]
   }
 }
 ```
@@ -764,6 +781,8 @@ No authentication required. Returns app configuration including minimum version 
 `scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. `reservation_fee` is added to every scheduled quote (₦0: the client decided not to charge for reservations). A passenger who cancels a booking a driver has reserved within `late_cancellation_window_minutes` (30) of pickup pays a late-cancellation fee: with `late_cancellation_fee_basis` `economy_base_fare` (the default) it is the economy base fare of the ride's city; with `flat` it is `late_cancellation_fee`; `off` means no fee. The ride shows the exact amount as `scheduled.cancellation_fee_if_cancelled_now`. See [Scheduled Rides](#scheduled-rides).
 
 `third_party_bookings` drives "Book for someone else": hide it when `enabled` is `false`, and offer only `payment_methods` for such a booking. Use `pin_recipient` and `tracking_recipient` to tell the booker what the rider will receive. The ride saves the values in effect at booking. See [Third-Party Bookings](#third-party-bookings).
+
+`lost_and_found` drives "Report a lost item" on a completed trip: show it while `enabled` is `true` and the trip ended less than `report_window_days` ago, and offer `categories`. When `return_fee` is above 0, tell the passenger it is charged when the item comes back. See [Lost & Found](#lost--found).
 
 ---
 
@@ -6727,6 +6746,375 @@ PUT /admin/settings/third-party
 
 ---
 
+## Lost & Found
+
+A passenger who left something in the car reports it against the trip; a driver who finds something hands it in the same way (Phase 2, PRD B-29, P-25, P-26, D-14, A-35). The flow follows Uber, Bolt and Lyft. The defaults are engineering choices of 18 October 2026 that the client has not confirmed yet. Operations can change all of them without a release (see [Lost & Found Settings](#lost--found-settings-admin)).
+
+**How it works**
+
+1. **Report.** The passenger reports the item from the trip (`POST /rides/{ride}/lost-items`) within `report_window_days` (30) of the trip ending. They can give a `contact_phone`, which matters when the lost item is their phone. The driver gets a `lost_item_report` push and the report becomes `driver_notified`. If the driver's account is inactive, the report stays `reported` and goes straight to support.
+2. **Driver answers.** The driver says whether they have it (`POST /lost-items/{id}/respond`). `found: true` → `driver_confirmed`. `found: false` → `driver_denied`. A driver who said "not found" can still answer `found: true` later. The passenger gets a `lost_item_update` push, and an SMS on `contact_phone` when the driver has the item.
+3. **Arranging the return.** Once the driver has the item, each side sees the other's first name and phone number in `contact` (unless `share_contact_details` is off), and both can message on the report (`POST /lost-items/{id}/messages`). Every message is stored and support can read it. Tell users to meet somewhere public.
+4. **Returned.** The driver marks it returned (`POST /lost-items/{id}/returned` → `returned`) and the passenger confirms (`POST /lost-items/{id}/received` → `resolved`). The passenger can also confirm straight from `driver_confirmed`. A return the passenger neither confirms nor disputes resolves on its own after `auto_resolve_hours` (72).
+5. **Return fee.** When `return_fee` is set (₦0, so off, by default), the passenger pays it once the item is back, and the driver receives all of it. The fee is fixed when the driver confirms, so a later settings change does not affect the report. It comes from the wallet when the wallet covers it. Otherwise it becomes a [balance due](#passenger--balance-due) (`lost_item_return_fee`). Support can waive it. A trip carries at most one return fee: a second item returned from the same trip is `waived`.
+6. **Support.** The passenger can ask support to step in once (`POST /lost-items/{id}/escalate`), for example after "not found" or when a return has not happened. Reports also go to support on their own:
+   - when the driver has not answered within `driver_response_hours` (24); the driver is reminded, and the hand-over ends when they answer;
+   - when an item the driver has is not back within `return_deadline_days` (7).
+
+   A "not found" report nobody follows up closes as `unresolved` (`not_found`) after `denied_auto_close_days` (7). Each of these sends a `lost_item_update`.
+7. **Withdrawing.** The passenger can cancel the report until the driver has the item (`POST /lost-items/{id}/cancel`). After that, only support can close it.
+
+A third-party ride's report is made by the booker (the ride's passenger). The driver sees the rider's first name.
+
+**Statuses**
+
+| Status | Meaning | Open |
+|--------|---------|------|
+| `reported` | Filed, but no driver could be asked; support follows up | ✅ |
+| `driver_notified` | The driver has been asked to check the car | ✅ |
+| `driver_confirmed` | The driver has the item; passenger and driver arrange the return | ✅ |
+| `driver_denied` | The driver did not find it | ✅ |
+| `returned` | The driver says it was handed back; waiting for the passenger | ✅ |
+| `resolved` | The passenger has it back | — |
+| `unresolved` | Closed without the item being returned (`closure_reason`) | — |
+| `cancelled` | The passenger withdrew the report | — |
+
+Each trip can have one open report at a time, whoever filed it, and one report can describe several items. Each passenger can have `max_open_reports_per_passenger` (3) open reports at once.
+
+**Categories:** `phone`, `wallet_or_purse`, `bag`, `keys`, `id_or_documents`, `electronics`, `clothing`, `glasses`, `jewellery`, `other`. They are also listed with labels in `GET /config` → `lost_and_found.categories`.
+
+**Closure reasons:** `not_found`, `unclaimed`, `passenger_unreachable`, `driver_unreachable`, `other`.
+
+**The lost item object**
+
+| Field | Description |
+|-------|-------------|
+| `reference_number` | `LF-000001`, for support conversations |
+| `viewer_role` | `passenger`, `driver` or `support`: how the object was cut for the viewer |
+| `reported_by` | `passenger` or `driver` (the driver handed in something they found) |
+| `category`, `category_label`, `description`, `photos` | As reported. `photos` are links valid for 30 minutes |
+| `status`, `status_label`, `is_open` | See the table above |
+| `driver_response` | The driver's note when they answered |
+| `contact_phone` | The extra number the passenger gave (passenger and support only) |
+| `escalated`, `escalated_at`, `escalation_reason` | Whether support has it and why (`escalation_reason`: passenger and support only; `escalation_source`, `passenger` or `system`: support only) |
+| `closure_reason`, `closure_reason_label`, `resolution_notes` | How it was closed |
+| `return_fee` | `{ amount, currency, status }`. `amount` is fixed when the driver confirms (0 = no fee). `status`: `pending`, `charged`, `balance_due`, `waived`, or `null` when no fee is due |
+| `contact` | The other side's `first_name` and `phone`, while the status is `driver_confirmed` or `returned` and `share_contact_details` is on; otherwise `null`. Not on the support view |
+| `ride` | Trip summary: `id`, `reference_number`, `pickup_address`, `destination_address`, `started_at`, `completed_at`, `city`, `is_third_party`, and `vehicle` (`make`, `model`, `colour`, `plate_number`; passenger and support only) |
+| `passenger` / `driver` | The other side's `first_name` (the rider's on a third-party trip); full user objects for support |
+| `messages` | On the detail endpoints only. Each message has `sender_role` (`passenger`, `driver`, `support`), `sender_name` (`E-tiGo Support` for support), `is_mine`, `body` and `created_at`. Support also sees internal notes (`is_internal: true`) |
+| `available_actions` | What the viewer can do now: passenger `cancel`, `confirm_received`, `escalate`, `message`; driver `respond`, `mark_returned`, `message`. Use it to show the buttons |
+| `driver_notified_at`, `driver_responded_at`, `returned_at`, `resolved_at`, `closed_at`, `cancelled_at`, `created_at` | Timeline |
+
+**Notifications** (in-app and push, Account category):
+
+| Event | Recipient | Type |
+|-------|-----------|------|
+| New report; reminder when the driver has not answered | Driver | `lost_item_report` |
+| Driver found it / did not find it, item returned, report resolved or closed, support following up, driver handed in an item | Passenger | `lost_item_update` |
+| Passenger confirmed receipt, passenger cancelled, report resolved or closed | Driver | `lost_item_update` |
+| New message (data: `message_id`) | The other side; both for a support message | `lost_item_message` |
+
+Every push carries `lost_item_id`, `reference_number`, `ride_id` and `status` in its data. Open the report from it.
+
+### Report a Lost Item
+
+```
+POST /rides/{ride}/lost-items
+```
+
+**Auth:** passenger or driver of the ride (others get `403`). **Rate limit:** 5 per minute. **Content-Type:** `multipart/form-data` with photos, otherwise `application/json`.
+
+When the passenger sends it, it is a report of something they lost. When the driver sends it, it is an item they found: it starts as `driver_confirmed` and the passenger is told at once.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| category | string | Yes | See the categories above |
+| description | string | Yes | 5–1000 characters: what it is, colour, where in the car |
+| contact_phone | string | No | Another number to reach the passenger on, in E.164 or Nigerian local format (`080…` → `+23480…`). Ignored on a driver's report |
+| photos[] | file | No | Up to 3 images (jpg, jpeg, png, webp; 5 MB each): a photo of a similar item, or of the item found |
+
+**Response 201:**
+```json
+{
+  "message": "We have asked your driver to check the car. We will let you know as soon as they answer.",
+  "lost_item": {
+    "id": "01a14c5e-0877-730f-a80d-39c2a50ac02b",
+    "reference_number": "LF-000001",
+    "ride_id": "01a14c5e-084c-73e4-bf1b-1742de2412dc",
+    "viewer_role": "passenger",
+    "reported_by": "passenger",
+    "category": "phone",
+    "category_label": "Phone",
+    "description": "Black iPhone in a blue case, left on the back seat.",
+    "photos": [],
+    "status": "driver_notified",
+    "status_label": "Driver notified",
+    "is_open": true,
+    "driver_response": null,
+    "contact_phone": "+2348031234567",
+    "escalated": false,
+    "escalated_at": null,
+    "escalation_reason": null,
+    "closure_reason": null,
+    "closure_reason_label": null,
+    "resolution_notes": null,
+    "return_fee": { "amount": 0, "currency": "NGN", "status": null },
+    "contact": null,
+    "ride": {
+      "id": "01a14c5e-084c-73e4-bf1b-1742de2412dc",
+      "reference_number": "TRP-NG-000142",
+      "pickup_address": "12 Allen Avenue, Ikeja",
+      "destination_address": "5 Bode Thomas Street, Surulere",
+      "started_at": "2026-10-19T07:40:00.000000Z",
+      "completed_at": "2026-10-19T08:00:00.000000Z",
+      "city": "Lagos",
+      "is_third_party": false,
+      "vehicle": { "make": "Toyota", "model": "Corolla", "colour": "Silver", "plate_number": "LAG-123-XY" }
+    },
+    "driver": { "first_name": "Musa" },
+    "available_actions": ["cancel", "escalate", "message"],
+    "driver_notified_at": "2026-10-19T10:00:00.000000Z",
+    "driver_responded_at": null,
+    "returned_at": null,
+    "resolved_at": null,
+    "closed_at": null,
+    "cancelled_at": null,
+    "created_at": "2026-10-19T10:00:00.000000Z",
+    "updated_at": "2026-10-19T10:00:00.000000Z"
+  }
+}
+```
+
+The `message` is `"Thank you. We have told the passenger you found their item."` on a driver's report and `"Your report has been passed to our support team, who will contact you."` when no driver could be asked.
+
+**Response 422:**
+
+| Case | `message` |
+|------|-----------|
+| Ride not completed | `You can only report a lost item for a completed trip.` |
+| Past the report window | `Lost items can be reported up to 30 days after the trip. Please contact support.` |
+| Already an open report on the trip | `You already have an open lost item report for this trip.` (driver: `… Answer it from your lost items list.`) |
+| Too many open reports | `You can have up to 3 open lost item reports. Close one, or contact support.` |
+| Feature off | `Lost & Found is not available at the moment. Please contact support.` |
+| Field errors | `errors.category`, `errors.description`, `errors.contact_phone`, `errors.photos.*` |
+
+### List My Lost Item Reports
+
+```
+GET /lost-items
+```
+
+**Auth:** passenger (their reports) or driver (reports on their trips). Newest first.
+
+| Query | Description |
+|-------|-------------|
+| status | One status |
+| open | `1` open only, `0` closed only |
+| ride_id | Reports for one trip: use it on the trip screen to show "Report a lost item" or "View report" |
+| per_page | 1–50 (default 15) |
+
+**Response 200:** `{ "lost_items": [ …lost item objects without messages… ], "meta": { "current_page", "last_page", "per_page", "total" } }`.
+
+### Get a Lost Item Report
+
+```
+GET /lost-items/{lostItem}
+```
+
+**Auth:** the report's passenger or driver; anyone else gets `404`. Returns the lost item object with `messages`.
+
+```json
+{
+  "lost_item": {
+    "reference_number": "LF-000001",
+    "status": "driver_confirmed",
+    "status_label": "Driver has the item",
+    "driver_response": "It is with me. I am in Ikeja until 6pm.",
+    "return_fee": { "amount": 2000, "currency": "NGN", "status": null },
+    "contact": { "first_name": "Musa", "phone": "+2348020000002" },
+    "messages": [
+      {
+        "id": "01a14c5e-08ae-715b-9814-00fa5de77b63",
+        "sender_role": "passenger",
+        "sender_name": "Ada",
+        "is_mine": true,
+        "body": "Thank you! Can we meet at Ikeja City Mall at 5pm?",
+        "created_at": "2026-10-19T10:05:00.000000Z"
+      }
+    ],
+    "available_actions": ["confirm_received", "escalate", "message"]
+  }
+}
+```
+
+(Abridged: the other fields are as in the report response.)
+
+### Respond to a Lost Item Report (Driver)
+
+```
+POST /lost-items/{lostItem}/respond
+```
+
+**Auth:** the trip's driver (`403` otherwise).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| found | boolean | Yes | `true`: I have it. `false`: I checked and it is not in the car |
+| note | string | No | Up to 500 characters, shown to the passenger (e.g. where and when they can return it) |
+
+**Response 200:** `{ "message": "Thank you. We have told the passenger you have their item.", "lost_item": { … } }`. With `found: true` the driver's view now has `contact` (the passenger's first name and `contact_phone`, else their account phone).
+
+**Response 422:** the report has moved on, e.g. `This report is now "Driver has the item" and cannot be changed that way. Refresh and try again.` "Not found" can only be given before an answer; "found" also after "not found".
+
+### Mark a Lost Item Returned (Driver)
+
+```
+POST /lost-items/{lostItem}/returned
+```
+
+**Auth:** the trip's driver. Only from `driver_confirmed`. → `returned`. The passenger is asked to confirm. Without an answer the report resolves after `auto_resolve_hours`, unless the passenger asks support to step in first.
+
+### Confirm a Lost Item Received (Passenger)
+
+```
+POST /lost-items/{lostItem}/received
+```
+
+**Auth:** the report's passenger. From `driver_confirmed` or `returned`. → `resolved`, and the return fee (if any) is collected. **Response 200** has `return_fee.status` `charged` (from the wallet) or `balance_due`.
+
+### Cancel a Lost Item Report (Passenger)
+
+```
+POST /lost-items/{lostItem}/cancel
+```
+
+**Auth:** the report's passenger. Optional `reason` (max 500, saved as `resolution_notes`). Only while the status is `reported`, `driver_notified` or `driver_denied`. After the driver has the item: `422` `"Your driver has the item, so this report cannot be cancelled. Confirm you got it back, or ask support to close it."`. The driver is told.
+
+### Ask Support to Help (Passenger)
+
+```
+POST /lost-items/{lostItem}/escalate
+```
+
+**Auth:** the report's passenger. **Rate limit:** 5 per minute. Body: `reason` (required, 5–500 characters). Once per report, on an open report not already with support. **Response 422:** `"Our support team is already looking into this report."` or `"This report is closed."`.
+
+### Send a Message on a Lost Item Report
+
+```
+POST /lost-items/{lostItem}/messages
+```
+
+**Auth:** the report's passenger or driver (`404` otherwise). **Rate limit:** 30 per minute. Body: `body` (required, max 1000). The other side gets a `lost_item_message` push.
+
+**Response 201:**
+```json
+{
+  "message": "Message sent.",
+  "lost_item_message": {
+    "id": "01a14c5e-08ae-715b-9814-00fa5de77b63",
+    "sender_role": "passenger",
+    "sender_name": "Ada",
+    "is_mine": true,
+    "body": "Thank you! Can we meet at Ikeja City Mall at 5pm?",
+    "created_at": "2026-10-19T10:05:00.000000Z"
+  }
+}
+```
+
+**Response 422:** `"This report is closed. Contact support if you still need help."`, or for the passenger when the trip has no driver to reach, `"The driver cannot be reached through the app. Our support team will contact you."`.
+
+### Lost Item Queue (Admin)
+
+```
+GET /admin/lost-items
+GET /admin/lost-items/{lostItem}
+```
+
+**Auth:** admin role `support` or `operations` (and `super_admin`). Reports waiting on support (open and escalated) come first, then the newest. The detail includes every message and internal note.
+
+| Query | Description |
+|-------|-------------|
+| status | One status or several, comma-separated (`driver_notified,driver_denied`) |
+| needs_attention | `1`: open reports support has to act on (escalated, or `reported` with no driver) |
+| open | `1` open only, `0` closed only |
+| category, city_id, ride_id, passenger_id, driver_id | Filters |
+| search | Report or trip reference, or text in the description |
+| from, to | Created between these dates |
+| per_page | 1–100 (default 15) |
+
+**Response 200:**
+```json
+{
+  "lost_items": [ { "reference_number": "LF-000002", "viewer_role": "support", "status": "driver_denied", "escalated": true, "escalation_source": "passenger", "passenger": { "...": "full user" }, "driver": { "...": "full user with vehicle" }, "resolved_by": null } ],
+  "meta": { "current_page": 1, "last_page": 2, "per_page": 15, "total": 18 },
+  "summary": {
+    "open": 7,
+    "needs_attention": 2,
+    "by_status": { "driver_notified": 3, "driver_denied": 2, "driver_confirmed": 2, "resolved": 9, "unresolved": 2 }
+  }
+}
+```
+
+### Intervene on a Lost Item Report (Admin)
+
+```
+POST /admin/lost-items/{lostItem}/intervene
+```
+
+**Auth:** admin role `support` or `operations`. Audit-logged.
+
+| `action` | Other fields | Effect |
+|----------|--------------|--------|
+| `note` | `body` (required) | Internal note, seen only by support. **201** |
+| `message` | `body` (required) | Message to passenger and driver from "E-tiGo Support"; both get a push. Also allowed on closed reports. **201** |
+| `mark_found` | `notes` (optional, saved as an internal note) | Support reached the driver, or the item is at the office → `driver_confirmed`; the passenger is told |
+| `resolve` | `notes`, `waive_return_fee` (boolean) | The item is back with the passenger → `resolved`. The return fee is collected unless waived (only when the driver had the item) |
+| `close` | `closure_reason` (required), `notes` | Closed without the item being returned → `unresolved`; the passenger (and the driver, if involved) is told |
+
+`note` and `message` return `{ "message", "lost_item_message", "lost_item" }`; the others return `{ "message", "lost_item" }`. **Response 422:** a closed report cannot be resolved, closed or marked found again; missing `body` or `closure_reason`.
+
+### Lost & Found Settings (Admin)
+
+```
+GET /admin/settings/lost-and-found
+PUT /admin/settings/lost-and-found
+```
+
+**Auth:** admin role `operations` (and `super_admin`). Changes are audit-logged (`lost_and_found_settings.updated`). Defaults come from `config/lost_and_found.php` (`LOST_AND_FOUND_*` environment variables).
+
+| Field | Type | Default | Range | Description |
+|-------|------|---------|-------|-------------|
+| enabled | boolean | `true` | — | Accept new reports. Open ones carry on |
+| report_window_days | integer | 30 | 1–90 | Days after the trip an item can be reported |
+| max_open_reports_per_passenger | integer | 3 | 1–20 | Open reports per passenger |
+| driver_response_hours | integer | 24 | 1–168 | Hours before a report the driver has not answered goes to support (and the driver is reminded) |
+| return_deadline_days | integer | 7 | 1–60 | Days after the driver confirms before an unreturned item goes to support |
+| auto_resolve_hours | integer | 72 | 1–336 | Hours after "returned" before the report resolves without the passenger's confirmation |
+| denied_auto_close_days | integer | 7 | 1–60 | Days a "not found" report stays open for the passenger to ask support |
+| share_contact_details | boolean | `true` | — | Show passenger and driver each other's phone number once the driver has the item |
+| return_fee | number | 0 | 0–100000 | NGN the passenger pays when the item comes back, all of it to the driver. 0 = off. Applies to items confirmed after the change |
+
+**PUT** accepts any subset of the fields. **Response 200:**
+```json
+{
+  "message": "Lost & Found settings updated.",
+  "settings": {
+    "enabled": true,
+    "report_window_days": 30,
+    "max_open_reports_per_passenger": 3,
+    "driver_response_hours": 24,
+    "return_deadline_days": 7,
+    "auto_resolve_hours": 72,
+    "denied_auto_close_days": 7,
+    "share_contact_details": true,
+    "return_fee": 1500
+  }
+}
+```
+
+---
+
 ## Admin — Live Monitoring
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
@@ -8649,6 +9037,8 @@ File a dispute / report an issue for a completed ride. Both passengers and drive
 | `item_left_behind` | Lost item           |
 | `payment_issue`    | Payment issue       |
 | `other`            | Something else      |
+
+For an item left in the car, send the passenger to [Lost & Found](#lost--found) instead: it notifies the driver and tracks the return. `item_left_behind` disputes are still accepted.
 
 **Example Request (JSON):**
 ```json
@@ -11420,6 +11810,7 @@ Fallback for a missed or delayed Paystack webhook. `{reference}` is the `tx_ref`
 Money the passenger owes that could not be collected at the time (client decision, 16 October 2026):
 - **`late_cancellation_fee`** — a scheduled ride's late-cancellation fee that could not be charged (cash or bank-transfer booking, wallet short or frozen, card declined). Paid to the reserved driver in full once collected.
 - **`wallet_shortfall`** — the part of a wallet ride's final fare the wallet could not cover. The ride's payment stays `failed` until the balance is paid; then the payment and the ride's `payment_status` become `captured`, and the driver receives the rest of the fare less the usual commission.
+- **`lost_item_return_fee`** — a [Lost & Found](#lost--found) return fee the wallet could not cover when the item came back. Paid to the driver in full once collected; the report's `return_fee.status` then becomes `charged`.
 
 While anything is outstanding, `POST /rides` returns `422` `BALANCE_DUE` (finance can turn this off with the wallet setting `block_booking_with_balance_due`). The passenger gets a `balance_due` notification when a balance is recorded. Bookings made before the balance arose are not cancelled.
 
@@ -11461,7 +11852,7 @@ GET /passenger/balance-due
 |-------|-------------|
 | `total` | Outstanding total, NGN |
 | `blocks_booking` | Whether booking is refused until it is paid |
-| `items[].reason` | `late_cancellation_fee` or `wallet_shortfall` (`reason_label` for display) |
+| `items[].reason` | `late_cancellation_fee`, `wallet_shortfall` or `lost_item_return_fee` (`reason_label` for display) |
 | `items[].ride` | The ride it came from |
 
 ### Pay Balance Due
@@ -13150,7 +13541,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance and Support can list; only Finance can waive.
 
-Money passengers owe (see [Passenger — Balance Due](#passenger--balance-due)). Filters: `status` (`outstanding`, `paid`, `waived`), `reason` (`late_cancellation_fee`, `wallet_shortfall`), `passenger_id`, `per_page` (1–100, default 25). Newest first. `summary` counts everything outstanding.
+Money passengers owe (see [Passenger — Balance Due](#passenger--balance-due)). Filters: `status` (`outstanding`, `paid`, `waived`), `reason` (`late_cancellation_fee`, `wallet_shortfall`, `lost_item_return_fee`), `passenger_id`, `per_page` (1–100, default 25). Newest first. `summary` counts everything outstanding.
 
 **Response 200:**
 ```json
@@ -13983,6 +14374,24 @@ A transition that is no longer allowed — usually because another request chang
 | `resolved`     | Resolved by admin                        |
 | `dismissed`    | Dismissed by admin                       |
 
+### Lost Item Status
+| Value              | Description                                                     |
+|--------------------|-----------------------------------------------------------------|
+| `reported`         | Filed, no driver could be asked; with support                   |
+| `driver_notified`  | Driver asked to check the car                                   |
+| `driver_confirmed` | Driver has the item; return being arranged                      |
+| `driver_denied`    | Driver did not find it                                          |
+| `returned`         | Driver says it was handed back; awaiting the passenger          |
+| `resolved`         | Passenger has it back (terminal)                                |
+| `unresolved`       | Closed without the item being returned (terminal)               |
+| `cancelled`        | Passenger withdrew the report (terminal)                        |
+
+### Lost Item Category
+`phone`, `wallet_or_purse`, `bag`, `keys`, `id_or_documents`, `electronics`, `clothing`, `glasses`, `jewellery`, `other` (labels in `GET /config` → `lost_and_found.categories`).
+
+### Lost Item Closure Reason
+`not_found`, `unclaimed`, `passenger_unreachable`, `driver_unreachable`, `other`.
+
 ### Fleet Agreement Status
 | Value        | Description                                            |
 |--------------|--------------------------------------------------------|
@@ -14110,6 +14519,9 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Reserved booking cancelled | Driver | `ride_cancelled` | The passenger cancelled a booking the driver had reserved |
 | Scheduled ride could not start | Passenger | `ride_cancelled` | The body explains why (e.g. wallet could not cover the fare) |
 | Rider not reached (third-party ride) | Booker | `third_party_rider_unreachable` | WhatsApp and SMS to the rider failed; the PIN is now on the ride for the booker to pass on (bypasses notification preferences) |
+| Lost item reported / driver reminder | Driver | `lost_item_report` | A passenger may have left something in the car; open the report to answer (data: `lost_item_id`, `reference_number`, `ride_id`, `status`). See [Lost & Found](#lost--found) |
+| Lost item update | Passenger or driver | `lost_item_update` | The report moved on (driver found it or not, returned, resolved, closed, support following up) |
+| Lost item message | Passenger, driver | `lost_item_message` | New message on the report (data adds `message_id`) |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |

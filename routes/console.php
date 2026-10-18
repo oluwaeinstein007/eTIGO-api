@@ -8,6 +8,7 @@ use App\Jobs\ExpireEvReservationsJob;
 use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
+use App\Jobs\ProcessLostItemsJob;
 use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ProcessWeeklyAutoPayoutJob;
 use App\Jobs\ReconcilePayoutsJob;
@@ -37,6 +38,8 @@ Schedule::job(new CheckSilentDriversJob)->everyMinute()->withoutOverlapping();
 // Scheduled rides: start matching shortly before pickup and send reminders.
 Schedule::job(new ProcessScheduledRidesJob)->everyMinute()->withoutOverlapping();
 Schedule::job(new LiftExpiredComplianceSuspensionsJob)->hourly()->withoutOverlapping();
+// Lost & Found: chase silent drivers, resolve undisputed returns, close stale reports.
+Schedule::job(new ProcessLostItemsJob)->hourly()->withoutOverlapping();
 Schedule::command('model:prune', ['--model' => [Notification::class]])->daily();
 Schedule::command('demo:simulate-drivers')
     ->everyMinute()
