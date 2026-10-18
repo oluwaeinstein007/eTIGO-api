@@ -35,7 +35,7 @@ return new class extends Migration
                 WHERE event = 'wallet.frozen'
                 ORDER BY auditable_id, created_at DESC
             ) AS latest
-            WHERE acc.id = latest.auditable_id AND acc.status = 'frozen'
+            WHERE acc.id::text = latest.auditable_id::text AND acc.status = 'frozen'
         ");
     }
 
