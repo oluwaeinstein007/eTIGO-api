@@ -196,7 +196,7 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE-AGF-01 | `[ ]` Build tier configuration page: editable table of tiers (level, name, points threshold, benefits); save with confirmation | A-17 | 📡 BE-GAME-11 | ⚠ OQ-09: Tier naming TBD |
+| FE-AGF-01 | `[ ]` Build tier configuration page: editable table of tiers (level, name, points threshold, benefits); save with confirmation | A-17 | 📡 BE-GAME-11 | OQ-09 resolved: Bronze → Silver → Gold → Platinum → Diamond |
 | FE-AGF-02 | `[ ]` Build point multiplier configuration page: editable table of conditions (EV ride, shared journey, off-peak) with multiplier values and stackability toggle | A-18 | 📡 BE-GAME-12 | — |
 | FE-AGF-03 | `[ ]` Build gamification analytics page: tier distribution pie/bar chart, average carbon scores, top users list, trends over time | A-19 | 📡 BE-GAME-09, BE-GAME-10 | — |
 
@@ -240,7 +240,7 @@
 | FE-AAO-01 | `[ ]` Build offline-trip flags list page: table with driver, ride, sanction tier, dispute status, flag date; filter by tier/status | A-28 | 📡 BE-AO-09 | — |
 | FE-AAO-02 | `[ ]` Build flag detail page: GPS trajectory map of post-cancellation movement, detection data, sanction tier rationale, driver's dispute (if any) | A-28 | 📡 BE-AO-09 | — |
 | FE-AAO-03 | `[ ]` Build flag review form: "Uphold" or "Overturn" decision with mandatory notes; overturn reverses sanction; show impact preview | A-29 | 📡 BE-AO-10 | — |
-| FE-AAO-04 | `[ ]` Build manual escalation action: escalate sanction tier with confirmation; show what the new tier means | A-30 | 📡 BE-AO-11 | ⚠ OQ-14: L3 authority TBD |
+| FE-AAO-04 | `[ ]` Build manual escalation action: escalate sanction tier with confirmation; show what the new tier means | A-30 | 📡 BE-AO-11 | OQ-14 resolved: L3 always needs an admin review; only a super admin can overturn it |
 | FE-AAO-05 | `[ ]` Build anti-offline analytics card: total flags, upheld vs overturned rate, sanctions by tier, trend chart | A-28 | 📡 BE-AO-09 | — |
 
 ---

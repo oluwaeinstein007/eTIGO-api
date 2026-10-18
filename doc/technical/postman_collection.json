@@ -19579,7 +19579,7 @@
                     "resolve"
                   ]
                 },
-                "description": "Upholds a late-cancellation fee dispute. With the fee **charged**: \u20a6400 goes back to the passenger's wallet and \u20a6400 is taken back from the driver who received it (`driver_clawback_amount`). With the fee still **owed** (`balance_due`): send the whole fee as `refund_amount` and the balance due is waived (the passenger can book again). `refund_method: card`, more than the fee, or part of an owed fee \u2192 422 on `refund_amount`. Tier refund limits apply as for any refund."
+                "description": "Upholds a late-cancellation fee dispute. With the fee **charged**: \u20a6400 goes back to the passenger's wallet and \u20a6400 is taken back from the driver who received it (`driver_clawback_amount`). With the fee still **owed** (`balance_due`): send the whole fee as `refund_amount` and the balance due is waived. A waiver pays nothing back, so the case shows `waived_amount` (not `refund_amount` / `refund_method`). The clawback is skipped when `clawback_driver_earnings` is `false`. `refund_method: card`, more than the fee, or part of an owed fee \u2192 422 on `refund_amount`. Tier refund limits apply as for any refund."
               },
               "response": [
                 {
@@ -19593,6 +19593,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Dispute resolved.\",\n  \"dispute\": {\n    \"id\": \"{{dispute_id}}\",\n    \"status\": \"resolved\",\n    \"refund_amount\": \"400.00\",\n    \"refund_method\": \"wallet\",\n    \"driver_clawback_amount\": \"400.00\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Unpaid Fee Waived",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.\",\n  \"dispute\": {\n    \"id\": \"{{dispute_id}}\",\n    \"status\": \"resolved\",\n    \"refund_amount\": null,\n    \"refund_method\": null,\n    \"waived_amount\": \"400.00\"\n  },\n  \"driver_clawback_kobo\": 0\n}"
                 },
                 {
                   "name": "422 \u2014 Card or Too Much",

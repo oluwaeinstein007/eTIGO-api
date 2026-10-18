@@ -381,16 +381,17 @@ class VehicleMaintenanceService
     private function releaseReservations(Vehicle $vehicle, ?Driver $holder): void
     {
         $reservations = app(ScheduledRideReservationService::class);
+        $shifts = app(DriverShiftService::class);
 
-        if (! $vehicle->shift_mode) {
+        // With shifts switched off, a shift-mode car's holder reserves with it
+        // like any car, so all of their reservations go.
+        if (! $vehicle->shift_mode || ! $shifts->settings()['shifts_enabled']) {
             if ($holder !== null) {
                 $reservations->releaseAllFor($holder->user_id, 'vehicle_blocked');
             }
 
             return;
         }
-
-        $shifts = app(DriverShiftService::class);
 
         Driver::query()
             ->whereIn('id', DriverShift::where('vehicle_id', $vehicle->id)->workable()->where('ends_at', '>', now())->select('driver_id'))

@@ -370,9 +370,10 @@ class ScheduledRideCancellationFeeService
      * Give a late-cancellation fee back after a dispute. A collected fee is
      * refunded to the passenger's wallet and, unless E-tiGo absorbs it, taken
      * back from the driver who received it in full. A fee still owed is
-     * waived, in full: a balance due cannot be partly waived.
+     * waived, in full: a balance due cannot be partly waived. A waiver pays
+     * nothing back, so it is reported apart from a refund (waived_kobo).
      *
-     * @return array{refund_kobo: int, clawback_kobo: int}
+     * @return array{refund_kobo: int, clawback_kobo: int, waived_kobo: int}
      *
      * @throws \DomainException
      */
@@ -399,7 +400,7 @@ class ScheduledRideCancellationFeeService
 
                 $this->balanceService->waive($this->outstandingBalance($ride), $admin, $reason);
 
-                return ['refund_kobo' => $amountKobo, 'clawback_kobo' => 0];
+                return ['refund_kobo' => 0, 'clawback_kobo' => 0, 'waived_kobo' => $amountKobo];
             }
 
             $key = 'refund-'.$ride->id.'-'.Str::random(8);
@@ -426,7 +427,7 @@ class ScheduledRideCancellationFeeService
                 'dispute_id' => $disputeId,
             ]);
 
-            return ['refund_kobo' => $amountKobo, 'clawback_kobo' => $clawbackKobo];
+            return ['refund_kobo' => $amountKobo, 'clawback_kobo' => $clawbackKobo, 'waived_kobo' => 0];
         });
     }
 

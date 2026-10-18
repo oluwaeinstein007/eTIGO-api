@@ -378,7 +378,8 @@ class DisputeService
 
             $this->assertRefundable($locked, $refundAmount, $method);
 
-            $total = $refundAmount + (float) ($locked->refund_amount ?? 0);
+            // A waived fee counts towards the reviewer's limit like a refund.
+            $total = $refundAmount + (float) ($locked->refund_amount ?? 0) + (float) ($locked->waived_amount ?? 0);
 
             if ($method === DisputeRefundMethod::Card || ! $this->access->withinRefundLimit($actor, $total)) {
                 $request = $locked->refundRequests()->create([
@@ -811,6 +812,16 @@ class DisputeService
                 $dispute->id,
             );
 
+            if ($result['waived_kobo'] > 0) {
+                // Nothing was paid back: record the write-off, not a refund.
+                $dispute->update([
+                    'waived_amount' => round((float) ($dispute->waived_amount ?? 0) + $result['waived_kobo'] / 100, 2),
+                    'refund_currency' => $ride->fare_currency ?? 'NGN',
+                ]);
+
+                return 0;
+            }
+
             $this->recordRefund($dispute, $amount, $method, $result['clawback_kobo']);
 
             return $result['clawback_kobo'];
@@ -913,6 +924,7 @@ class DisputeService
             'resolution_notes' => $notes,
             'refund_amount' => $dispute->refund_amount,
             'refund_method' => $dispute->refund_method?->value,
+            'waived_amount' => $dispute->waived_amount,
             'appeal' => $dispute->isAppeal() ?: null,
         ], fn ($v) => $v !== null));
 

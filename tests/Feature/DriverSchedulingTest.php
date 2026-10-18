@@ -770,3 +770,41 @@ it('releases the pickups shift drivers reserved on a shared car when its papers 
         ->and(ScheduledRide::where('ride_id', $rideId)->value('reserved_driver_id'))->toBeNull()
         ->and(ScheduledRide::where('ride_id', $rideId)->value('reservation_released_reason'))->toBe('vehicle_blocked');
 });
+
+it('releases every reservation of a blocked shift-mode car\'s holder when shifts are switched off', function () {
+    AppSetting::setValue('driver_scheduling.shifts_enabled', 'false', 'driver_scheduling');
+    $this->car->update(['driver_id' => $this->day->id]);
+
+    $rideId = ($this->as)($this->passengerToken)->postJson('/api/v1/rides', [
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+        'pickup_address' => '123 Test Street',
+        'destination_lat' => 6.4541,
+        'destination_lng' => 3.3947,
+        'destination_address' => '456 Dest Street',
+        'payment_method' => 'cash',
+        'scheduled_pickup_at' => '2026-10-20T09:00:00Z',
+    ])->assertCreated()->json('ride.id');
+
+    // With shifts off the holder reserves with the car like any driver.
+    ($this->as)($this->dayToken)->postJson("/api/v1/driver/scheduled-rides/{$rideId}/reserve")->assertOk();
+
+    DriverDocument::create([
+        'driver_id' => $this->day->id,
+        'vehicle_id' => $this->car->id,
+        'type' => DocumentType::InsuranceCertificate,
+        'file_path' => 'driver-documents/test.pdf',
+        'original_filename' => 'paper.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1000,
+        'expires_at' => '2026-10-01',
+        'status' => DocumentStatus::Approved,
+        'reviewed_at' => now(),
+    ]);
+    app(VehicleMaintenanceService::class)->refresh($this->car->fresh());
+
+    expect($this->car->fresh()->isBlocked())->toBeTrue()
+        ->and(ScheduledRide::where('ride_id', $rideId)->value('reservation_released_reason'))->toBe('vehicle_blocked');
+});

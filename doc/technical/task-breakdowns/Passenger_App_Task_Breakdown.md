@@ -71,7 +71,7 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE-PB-01 | `[ ]` Build home screen map view: show user's current location on map, "Where to?" search bar | P-04 | — | ⚠ OQ-02: Map SDK depends on maps provider |
+| FE-PB-01 | `[ ]` Build home screen map view: show user's current location on map, "Where to?" search bar | P-04 | — | OQ-02 resolved: the backend uses Mapbox (directions, distance) with a place-search failover; the map SDK is the app team's choice |
 | FE-PB-02 | `[ ]` Implement location permissions flow: request on first booking, handle denied/restricted states gracefully with rationale screen | P-04 | — | — |
 | FE-PB-03 | `[ ]` Build destination search screen: text input with autocomplete suggestions from maps API, recent destinations, saved places | P-05 | 📡 SETUP-59 (maps) | Debounce autocomplete calls |
 | FE-PB-04 | `[ ]` Build pickup location refinement: draggable pin on map, address display updates in real time via reverse geocode | P-04 | 📡 SETUP-59 | Allow manual address entry as fallback |
@@ -82,7 +82,7 @@
 | FE-PB-09 | `[ ]` Build promo code entry UI at checkout: text input, "Apply" button; show discount amount or error inline | PR-01 | 📡 BE-PROMO-07 | Discount reflected in fare estimate immediately |
 | FE-PB-10 | `[ ]` Build "Request Ride" confirmation: summary of pickup, destination, vehicle class, fare estimate, payment method, applied promo → confirm CTA | P-08 | 📡 BE-RIDE-03 | — |
 | FE-PB-11 | `[ ]` Build searching-for-driver animation screen: animated indicator, search status, "Cancel" button | P-09 | 📡 BE-RIDE-01 (WS) | Subscribe to ride channel for match event |
-| FE-PB-12 | `[ ]` Build cancellation confirmation dialog: "Are you sure?", show cancellation policy text; on confirm, call cancel endpoint | P-10 | 📡 BE-RIDE-06 | ⚠ OQ-05: Show fee warning if applicable |
+| FE-PB-12 | `[ ]` Build cancellation confirmation dialog: "Are you sure?", show cancellation policy text; on confirm, call cancel endpoint | P-10 | 📡 BE-RIDE-06 | OQ-05 resolved: no fee on rides booked for now. For a scheduled booking show `scheduled.cancellation_fee_if_cancelled_now` (late-cancellation fee, SR-4) before confirming |
 
 ---
 
@@ -140,7 +140,7 @@
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
 | FE-PP-01 | `[ ]` Build promo code entry screen (accessible from profile/settings): text input, "Apply" button, validation feedback (success/error with reason) | PR-01 | 📡 BE-PROMO-07 | — |
-| FE-PP-02 | `[ ]` Build available promos list screen: promos user qualifies for; show code, discount value, conditions, expiry; "Use" button pre-fills at checkout | PR-04 | 📡 BE-PROMO-12 | ⚠ OQ-12: Show this screen only if auto-surfacing promos is in scope |
+| FE-PP-02 | `[ ]` Build available promos list screen: promos user qualifies for; show code, discount value, conditions, expiry; "Use" button pre-fills at checkout | PR-04 | 📡 BE-PROMO-12 | OQ-12 resolved: code-entry only, so this screen is in scope as a list (`GET /promos/available`); "Use" pre-fills the code. Promos are never applied automatically |
 | FE-PP-03 | `[ ]` Build promo applied success state: green badge on fare estimate, discount line in fare breakdown, celebration micro-animation | PR-02 | — | — |
 | FE-PP-04 | `[ ]` Build promo rejection feedback: inline error below input with reason (expired, max redemptions, not in area, tier too low, etc.) | PR-03 | 📡 BE-PROMO-07 | Use specific error reasons from API response |
 | FE-PP-05 | `[ ]` Build promo expiry notification handling: push notification → deep link to promo list or booking screen | PR-05 | 📡 Push notification | — |

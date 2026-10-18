@@ -420,11 +420,17 @@ it('waives an unpaid fee in full when a fee dispute is upheld', function () {
         'refund_amount' => 200,
     ])->assertUnprocessable();
 
+    // A waiver pays nothing back, so it is not recorded as a refund.
     $this->actingAs($agent)->postJson("/api/v1/admin/disputes/{$disputeId}/resolve", [
         'status' => 'resolved',
         'resolution_notes' => 'The driver cancelled on the passenger by phone.',
         'refund_amount' => 400,
-    ])->assertOk()->assertJsonPath('dispute.status', 'resolved');
+    ])->assertOk()
+        ->assertJsonPath('message', 'Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.')
+        ->assertJsonPath('dispute.status', 'resolved')
+        ->assertJsonPath('dispute.waived_amount', '400.00')
+        ->assertJsonPath('dispute.refund_amount', null)
+        ->assertJsonPath('dispute.refund_method', null);
 
     expect(PassengerBalanceDue::sole()->status->value)->toBe('waived')
         ->and(ScheduledRide::where('ride_id', $rideId)->value('late_cancellation_fee_status'))->toBe('waived')

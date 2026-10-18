@@ -734,7 +734,7 @@ On 18 October 2026 engineering reviewed every Phase 2 task against the code. All
 
 ### RV-07 — Passengers Can Dispute a Late-Cancellation Fee <span class="badge eng">ENGINEERING</span> <span class="badge new">NEW</span>
 
-> A passenger charged the scheduled-ride late-cancellation fee (SR-4) can contest it from the cancelled booking. If support upholds it, a fee already paid is refunded to the wallet and taken back from the driver who received it; a fee still owed is waived in full. The usual refund limits and approvals apply. Before, disputes were for completed trips only, so the fee could not be contested in the app.
+> A passenger charged the scheduled-ride late-cancellation fee (SR-4) can contest it from the cancelled booking. If support upholds it, a fee already paid is refunded to the wallet and taken back from the driver who received it when driver clawback is on (the default) and that driver can be identified; a fee still owed is waived in full, and recorded as a waiver rather than a refund. The usual refund limits and approvals apply. Before, disputes were for completed trips only, so the fee could not be contested in the app.
 
 ---
 

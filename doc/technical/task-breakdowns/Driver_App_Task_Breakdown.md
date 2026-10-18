@@ -89,7 +89,7 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE-DE-01 | `[ ]` Build earnings dashboard: today's earnings total, weekly/monthly summary, trips completed count, online hours | D-10 | 📡 BE-RIDE-12, BE-PAY-14 | ⚠ OQ-06: Payout schedule/balance display TBD |
+| FE-DE-01 | `[ ]` Build earnings dashboard: today's earnings total, weekly/monthly summary, trips completed count, online hours | D-10 | 📡 BE-RIDE-12, BE-PAY-14 | OQ-06 resolved: on-demand payouts with finance approval, plus an opt-in weekly auto-payout (Monday 06:00 Lagos). Show the available balance and the driver's payout preference |
 | FE-DE-02 | `[ ]` Build earnings chart: daily/weekly bar chart of earnings over time | D-10 | 📡 BE-RIDE-12 | — |
 | FE-DE-03 | `[ ]` Build ride history list (driver view): past rides with date, passenger, route, fare; tap for detail | D-11 | 📡 BE-RIDE-12 | — |
 | FE-DE-04 | `[ ]` Build ride detail screen (driver view): route on map, fare breakdown, payment method, passenger rating given/received | D-11 | 📡 BE-RIDE-14, BE-PAY-12 | — |
@@ -164,7 +164,7 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE-DEL-11 | `[ ]` Build cash-ride commission indicator: show commission owed on cash rides; negative balance warning on earnings dashboard; block or warn on new ride acceptance above configurable threshold | D-10 | 📡 BE-EARN-05 | ⚠ OQ-29: Cash-ride commission policy TBD |
+| FE-DEL-11 | `[ ]` Build cash-ride commission indicator: show commission owed on cash rides; negative balance warning on earnings dashboard; block or warn on new ride acceptance above configurable threshold | D-10 | 📡 BE-EARN-05 | OQ-29 resolved: commission is debited from the driver ledger; the balance may go to −₦5,000, beyond which the driver cannot accept rides or reserve scheduled rides (warn as it approaches) |
 | FE-DEL-12 | `[ ]` Build earnings push notification handlers: earnings credited, payout approved, payout paid, payout failed; tap navigates to relevant screen | D-10 | 📡 BE-WADM-27 | — |
 | FE-DEL-13 | `[ ]` Handle loading, empty, and error states across all earnings screens: skeleton loaders, empty state illustrations, retry buttons on network failure | D-10 | — | — |
 

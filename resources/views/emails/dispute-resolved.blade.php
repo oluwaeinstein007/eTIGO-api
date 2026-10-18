@@ -59,13 +59,19 @@
         <td class="info-value" style="padding: 6px 0; font-size: 14px; font-weight: 600; color: #166534;">{{ $refundCurrency }} {{ number_format($refundAmount, 2) }}</td>
     </tr>
     @endif
+    @if($waivedAmount ?? null)
+    <tr>
+        <td class="info-label" style="padding: 6px 0; font-size: 13px; color: #6b7280; width: 130px; vertical-align: top;">Fee waived</td>
+        <td class="info-value" style="padding: 6px 0; font-size: 14px; font-weight: 600; color: #166534;">{{ $refundCurrency }} {{ number_format($waivedAmount, 2) }}</td>
+    </tr>
+    @endif
     </table>
 </td>
 </tr>
 </table>
 
-{{-- Refund notice --}}
-@if($refundAmount)
+{{-- Refund or waiver notice --}}
+@if($refundAmount || ($waivedAmount ?? null))
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; margin-bottom: 24px;">
 <tr>
 <td style="padding: 16px 20px;">
@@ -75,8 +81,17 @@
             <div style="width: 28px; height: 28px; background-color: #dcfce7; border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;">&#9989;</div>
         </td>
         <td>
+            @if($refundAmount)
             <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Refund issued</p>
-            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">{{ $refundCurrency }} {{ number_format($refundAmount, 2) }} has been credited to your original payment method. It may take a few business days to appear.</p>
+            @if(($refundMethod ?? null) === 'card')
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">{{ $refundCurrency }} {{ number_format($refundAmount, 2) }} has been refunded to your card. It may take a few business days to appear.</p>
+            @else
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">{{ $refundCurrency }} {{ number_format($refundAmount, 2) }} has been credited to your E-tiGo wallet.</p>
+            @endif
+            @else
+            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Fee waived</p>
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">The {{ $refundCurrency }} {{ number_format($waivedAmount, 2) }} you owed for the late cancellation has been cancelled. You do not need to pay it.</p>
+            @endif
         </td>
     </tr>
     </table>

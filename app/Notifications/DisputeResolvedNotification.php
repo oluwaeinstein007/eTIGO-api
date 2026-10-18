@@ -41,6 +41,8 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
                 'status' => $status,
                 'resolutionNotes' => $this->dispute->resolution_notes,
                 'refundAmount' => $this->dispute->refund_amount,
+                'refundMethod' => $this->dispute->refund_method?->value,
+                'waivedAmount' => $this->dispute->waived_amount,
                 'refundCurrency' => $this->dispute->refund_currency ?? 'NGN',
                 'supportUrl' => $supportUrl,
             ]);

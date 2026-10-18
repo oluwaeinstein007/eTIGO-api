@@ -64,6 +64,8 @@ class DisputeResource extends JsonResource
             'refund_amount' => $this->refund_amount,
             'refund_currency' => $this->refund_currency,
             'refund_method' => $this->refund_method?->value,
+            // An unpaid late-cancellation fee written off (not a refund).
+            'waived_amount' => $this->waived_amount,
             'reported_by' => new UserResource($this->whenLoaded('reportedBy')),
             'ride' => new RideResource($this->whenLoaded('ride')),
             'resolved_at' => $this->resolved_at,

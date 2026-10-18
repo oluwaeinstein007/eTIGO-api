@@ -9738,6 +9738,7 @@ Every dispute the reporter sees (filing, list, detail, evidence, appeal) carries
 | `appeal.reason_unavailable` | Why the reporter cannot appeal (already appealed, window passed, decision final, no decision yet) |
 | `appeal.appealed_at` | Set once the reporter has appealed |
 | `refund_amount`, `refund_currency`, `refund_method` | What was refunded on the case in total, and where (`wallet` or `card`) |
+| `waived_amount` | An unpaid late-cancellation fee written off when a fee dispute was upheld (nothing was paid back); `null` otherwise |
 
 ### List My Disputes
 
@@ -9986,7 +9987,7 @@ Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about 
 - `card`: back to the card through the gateway. Card payments only, and **always** needs Finance approval.
 - Card and wallet refunds share one balance: never more than what is still refundable on the trip, whatever was refunded before and however.
 - **Limits.** If this refund plus earlier refunds on the case is above the reviewer's limit, or the method is `card`, nothing is paid yet: the decision becomes a refund request and the case stays open (`202`). See [Dispute Refund Requests](#dispute-refund-requests).
-- **Late-cancellation fee** (a cancelled scheduled booking): `wallet` only (`card` → 422). A **charged** fee is refunded to the wallet up to the fee less earlier refunds, and taken back in full from the driver who received it unless `clawback_driver_earnings` is `false` (`driver_clawback_kobo`). A fee still **owed** (`balance_due`) is waived instead, which lifts the booking block; send the whole fee as `refund_amount` (a balance due cannot be part-waived; another amount → 422). The same tier limits and approvals apply.
+- **Late-cancellation fee** (a cancelled scheduled booking): `wallet` only (`card` → 422). A **charged** fee is refunded to the wallet up to the fee less earlier refunds, and taken back in full from the driver who received it unless `clawback_driver_earnings` is `false` or that driver can no longer be found (`driver_clawback_kobo`). A fee still **owed** (`balance_due`) is waived instead, which lifts the booking block; send the whole fee as `refund_amount` (a balance due cannot be part-waived; another amount → 422). A waiver pays nothing back, so it is recorded as `waived_amount`, not `refund_amount` / `refund_method`, and the message reads `Dispute resolved successfully. The unpaid fee of NGN 400.00 was waived.` (approval: `Approved: the unpaid fee was waived. The dispute is resolved.`). The waived amount counts towards the reviewer's limit. The same tier limits and approvals apply.
 
 **Response: `200 OK`** (decided)
 ```json
