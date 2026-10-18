@@ -17,7 +17,7 @@ class DriverShiftResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $settings = AppSetting::driverScheduling();
+        $settings = AppSetting::forRequest('driver_scheduling', fn () => AppSetting::driverScheduling());
         $isAdmin = (bool) $request->user()?->isAdmin();
 
         return [

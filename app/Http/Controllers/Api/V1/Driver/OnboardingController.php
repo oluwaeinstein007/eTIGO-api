@@ -170,7 +170,8 @@ class OnboardingController extends Controller
         $existing = $driver->documents()
             ->where('type', $type)
             ->whereIn('status', $vehicleId !== null ? ['pending'] : ['pending', 'approved'])
-            ->when($vehicleId !== null, fn ($q) => $q->where('vehicle_id', $vehicleId))
+            // Includes a pending paper uploaded before papers were linked to cars.
+            ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
             ->first();
 
         $oldFilePath = $existing?->file_path;

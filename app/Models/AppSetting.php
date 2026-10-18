@@ -15,6 +15,26 @@ class AppSetting extends Model
 
     protected $fillable = ['key', 'value', 'group'];
 
+    /**
+     * A settings group read once per HTTP request (e.g. by a resource
+     * rendering a list). Outside a request it is read every time.
+     */
+    public static function forRequest(string $group, \Closure $read): array
+    {
+        if (app()->runningInConsole() && ! app()->runningUnitTests()) {
+            return $read();
+        }
+
+        $attributes = request()->attributes;
+        $key = "app_settings.{$group}";
+
+        if (! $attributes->has($key)) {
+            $attributes->set($key, $read());
+        }
+
+        return $attributes->get($key);
+    }
+
     public static function getValue(string $key, mixed $default = null): mixed
     {
         $setting = static::find($key);

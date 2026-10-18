@@ -30,6 +30,7 @@ use App\Services\OperationsAlertService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function () {
     Queue::fake();
@@ -302,6 +303,20 @@ it('waits for the previous driver to hand the car over', function () {
     ($this->as)($this->dayToken)->postJson('/api/v1/driver/toggle-online')
         ->assertStatus(422)
         ->assertJsonPath('reasons.0', 'Your car is shared on shifts and you have no shift now. Contact fleet operations for your next shift.');
+});
+
+it('never lets two drivers be online with the same car', function () {
+    // The holder came back online after the new driver's check passed.
+    $this->car->update(['driver_id' => $this->night->id]);
+    $this->night->update(['is_online' => true]);
+    $shift = ($this->shift)($this->day, '2026-10-19 07:00', '2026-10-19 15:00');
+
+    expect(fn () => app(DriverShiftService::class)->goOnlineForShift($this->day, $shift))
+        ->toThrow(ValidationException::class);
+
+    expect($this->car->fresh()->driver_id)->toBe($this->night->id)
+        ->and($this->day->fresh()->is_online)->toBeFalse()
+        ->and($shift->fresh()->status)->toBe(DriverShiftStatus::Scheduled);
 });
 
 it('does not apply shifts to drivers of their own car, and stops applying them when turned off', function () {

@@ -395,7 +395,10 @@ class VehicleMaintenanceService
     public function sendReminders(Vehicle $vehicle, Collection $items): array
     {
         $settings = AppSetting::vehicleMaintenance();
-        $changed = $items->filter(fn (VehicleMaintenanceItem $item) => $item->status !== $item->notified_status);
+        // What the driver should last have been told: the status while it
+        // needs attention, nothing once it is back to ok.
+        $toldAbout = fn (VehicleMaintenanceItem $item) => $item->status->needsAttention() ? $item->status : null;
+        $changed = $items->filter(fn (VehicleMaintenanceItem $item) => $toldAbout($item) !== $item->notified_status);
 
         if ($changed->isEmpty()) {
             return [];
@@ -414,10 +417,7 @@ class VehicleMaintenanceService
         }
 
         foreach ($changed as $item) {
-            $item->forceFill([
-                'notified_status' => $item->status->needsAttention() ? $item->status : null,
-                'notified_at' => now(),
-            ])->save();
+            $item->forceFill(['notified_status' => $toldAbout($item), 'notified_at' => now()])->save();
         }
 
         if (! $settings['enabled'] || ! $vehicle->is_fleet) {

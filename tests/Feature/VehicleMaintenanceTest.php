@@ -350,7 +350,12 @@ it('reminds the driver once per change and sends operations one digest of fleet 
     ($this->paper)($this->vehicle, DocumentType::InsuranceCertificate, '2026-10-25');
 
     ($this->runJob)();
+    $firstRun = VehicleMaintenanceItem::where('vehicle_id', $this->vehicle->id)->pluck('notified_at', 'type');
+    $this->travel(1)->days();
     ($this->runJob)();
+
+    // Nothing changed, so nothing is sent or rewritten.
+    expect(VehicleMaintenanceItem::where('vehicle_id', $this->vehicle->id)->pluck('notified_at', 'type')->all())->toEqual($firstRun->all());
 
     $reminders = Notification::where('user_id', $this->user->id)->where('type', 'vehicle_maintenance_due');
     expect($reminders->count())->toBe(1)

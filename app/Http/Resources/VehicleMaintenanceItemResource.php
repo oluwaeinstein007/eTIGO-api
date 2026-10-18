@@ -20,7 +20,7 @@ class VehicleMaintenanceItemResource extends JsonResource
     public function toArray(Request $request): array
     {
         $service = app(VehicleMaintenanceService::class);
-        $settings = AppSetting::vehicleMaintenance();
+        $settings = AppSetting::forRequest('vehicle_maintenance', fn () => AppSetting::vehicleMaintenance());
         $today = $service->today();
         $dueAt = $service->localDate($this->due_at);
         $odometer = $this->relationLoaded('vehicle') ? $this->vehicle->estimatedOdometerKm() : null;

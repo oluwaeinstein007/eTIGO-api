@@ -117,13 +117,11 @@ class DriverController extends Controller
                 ], 422);
             }
 
-            if ($shiftCheck['handover'] !== null) {
-                $this->shiftService->handOver($driver, $shiftCheck['handover']);
-                $driver->unsetRelation('vehicle');
-            }
-
+            // A shift driver takes the car and goes online in one locked step,
+            // so two drivers can never both be online with the same car.
             if ($shift !== null) {
-                $this->shiftService->markStarted($shift);
+                $this->shiftService->goOnlineForShift($driver, $shift);
+                $driver->refresh()->unsetRelation('vehicle');
             }
 
             if ($request->filled('battery_level_percent') && $driver->vehicle?->fuel_type?->canCharge()) {
@@ -134,7 +132,9 @@ class DriverController extends Controller
             }
         }
 
-        $driver->update(['is_online' => ! $driver->is_online]);
+        if ($shift === null) {
+            $driver->update(['is_online' => ! $driver->is_online]);
+        }
 
         if (! $driver->is_online) {
             try {

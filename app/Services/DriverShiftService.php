@@ -377,40 +377,41 @@ class DriverShiftService
     }
 
     /**
-     * Pass the shared car to the shift driver: the previous driver must be
-     * offline and not on a trip. Any other shared car the driver still holds
-     * is released.
+     * The shift driver goes online with the shared car, in one transaction
+     * under the car's and both drivers' row locks: the car passes to them if
+     * the previous driver is offline and not on a trip, any other shared car
+     * they still hold is released, and the shift is marked started.
      *
      * @throws ValidationException
      */
-    public function handOver(Driver $driver, Vehicle $car): Vehicle
+    public function goOnlineForShift(Driver $driver, DriverShift $shift): void
     {
-        return DB::transaction(function () use ($driver, $car) {
-            $car = Vehicle::lockForUpdate()->findOrFail($car->id);
+        DB::transaction(function () use ($driver, $shift) {
+            $car = Vehicle::lockForUpdate()->findOrFail($shift->vehicle_id);
+            $driver = Driver::lockForUpdate()->findOrFail($driver->id);
 
-            if ($car->driver_id === $driver->id) {
-                return $car;
+            if ($car->driver_id !== $driver->id) {
+                $previous = $car->driver_id !== null ? Driver::lockForUpdate()->find($car->driver_id) : null;
+
+                if ($previous !== null
+                    && ($previous->is_online || Ride::where('driver_id', $previous->user_id)->whereIn('status', RideStatus::driverOnTripStatuses())->exists())) {
+                    throw ValidationException::withMessages(['vehicle' => ["{$car->plate_number} is still in use by the previous driver."]]);
+                }
+
+                $other = Vehicle::where('driver_id', $driver->id)->where('id', '!=', $car->id)->lockForUpdate()->get();
+
+                if ($other->contains(fn (Vehicle $vehicle) => ! $vehicle->shift_mode)) {
+                    throw ValidationException::withMessages(['vehicle' => ['You have another car on E-tiGo. Contact fleet operations.']]);
+                }
+
+                $other->each(fn (Vehicle $vehicle) => $vehicle->update(['driver_id' => null]));
+                $car->update(['driver_id' => $driver->id]);
+
+                AuditLog::record($car, 'shift_vehicle_handover', null, ['driver_id' => $previous?->id], ['driver_id' => $driver->id]);
             }
 
-            $previous = $car->driver_id !== null ? Driver::lockForUpdate()->find($car->driver_id) : null;
-
-            if ($previous !== null
-                && ($previous->is_online || Ride::where('driver_id', $previous->user_id)->whereIn('status', RideStatus::driverOnTripStatuses())->exists())) {
-                throw ValidationException::withMessages(['vehicle' => ["{$car->plate_number} is still in use by the previous driver."]]);
-            }
-
-            $other = Vehicle::where('driver_id', $driver->id)->where('id', '!=', $car->id)->lockForUpdate()->get();
-
-            if ($other->contains(fn (Vehicle $vehicle) => ! $vehicle->shift_mode)) {
-                throw ValidationException::withMessages(['vehicle' => ['You have another car on E-tiGo. Contact fleet operations.']]);
-            }
-
-            $other->each(fn (Vehicle $vehicle) => $vehicle->update(['driver_id' => null]));
-            $car->update(['driver_id' => $driver->id]);
-
-            AuditLog::record($car, 'shift_vehicle_handover', null, ['driver_id' => $previous?->id], ['driver_id' => $driver->id]);
-
-            return $car;
+            $driver->update(['is_online' => true]);
+            $this->markStarted($shift);
         });
     }
 
