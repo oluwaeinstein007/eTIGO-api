@@ -125,6 +125,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 | Hourly | `ExpireStaleHoldsJob` | Release expired wallet holds (after `hold_expiry_hours`) whose ride is no longer active — holds of rides still under way are kept |
 | Hourly | `SettleDriverEarningsJob` | Move pending driver earnings to available (per the settlement-delay setting) |
 | Hourly | `LiftExpiredComplianceSuspensionsJob` | Reinstate drivers whose automatic 48-hour suspension has ended |
+| Hourly | `ProcessLostItemsJob` | Lost & Found: hand reports the driver has not answered (24 h) and overdue returns (7 days) to support, resolve undisputed returns (72 h), close stale "not found" reports (7 days), retry pending return fees |
 | Daily 00:00 | `model:prune` (notifications) | Delete in-app notifications older than 90 days |
 | Daily 02:00 | `DailyReconciliationJob` | Compare gateway top-ups/transfers with the ledger |
 | Daily 02:30 | `ledger:check` | Ledger integrity check (balances vs entries) |

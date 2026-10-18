@@ -51,6 +51,8 @@ enum NotificationType: string
 
     // Lost & Found events
     case LostItemReport = 'lost_item_report';
+    case LostItemUpdate = 'lost_item_update';
+    case LostItemMessage = 'lost_item_message';
 
     // Wallet events
     case TopupSuccess = 'topup_success';
@@ -95,6 +97,8 @@ enum NotificationType: string
             self::ScheduledRideReservationReleased => 'Reservation Released',
             self::ThirdPartyRiderUnreachable => 'Rider Not Reached',
             self::LostItemReport => 'Lost Item Report',
+            self::LostItemUpdate => 'Lost Item Update',
+            self::LostItemMessage => 'Lost Item Message',
             self::TopupSuccess => 'Top-up Successful',
             self::TopupFailed => 'Top-up Failed',
             self::RideWalletPayment => 'Wallet Ride Payment',
@@ -156,7 +160,9 @@ enum NotificationType: string
             self::DisputeUpdate,
             self::KycStatusChanged,
             self::VehicleFuelTypeRequired,
-            self::LostItemReport => NotificationCategory::Account,
+            self::LostItemReport,
+            self::LostItemUpdate,
+            self::LostItemMessage => NotificationCategory::Account,
         };
     }
 }

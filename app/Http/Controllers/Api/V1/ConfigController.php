@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\LostItemCategory;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
@@ -25,7 +26,29 @@ class ConfigController extends Controller
             'support_email' => AppSetting::getValue('general.support_email'),
             'scheduled_rides' => self::scheduledRideBookingRules(),
             'third_party_bookings' => self::thirdPartyBookingRules(),
+            'lost_and_found' => self::lostAndFoundRules(),
         ]);
+    }
+
+    /**
+     * What the "report a lost item" screen needs: whether it is on, how long
+     * after a trip it can be used, the categories and the return fee.
+     *
+     * @return array{enabled: bool, report_window_days: int, return_fee: float, categories: list<array{value: string, label: string}>}
+     */
+    private static function lostAndFoundRules(): array
+    {
+        $settings = AppSetting::lostAndFound();
+
+        return [
+            'enabled' => $settings['enabled'],
+            'report_window_days' => $settings['report_window_days'],
+            'return_fee' => $settings['return_fee'],
+            'categories' => array_map(
+                fn (LostItemCategory $category) => ['value' => $category->value, 'label' => $category->label()],
+                LostItemCategory::cases(),
+            ),
+        ];
     }
 
     /**

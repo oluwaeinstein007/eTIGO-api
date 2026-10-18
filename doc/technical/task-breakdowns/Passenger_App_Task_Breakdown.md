@@ -223,9 +223,9 @@
 
 | ID | Task | PRD Ref | API Dep | Notes |
 |----|------|---------|---------|-------|
-| FE2-PLF-01 | `[ ]` Build report lost item screen: select from recent completed rides, choose item category, add description, submit | P-25 | 📡 BE2-LF-03 | Accessible from ride history detail |
-| FE2-PLF-02 | `[ ]` Build lost item status tracker: list of user's reports with status (reported/driver notified/confirmed/denied/resolved); tap for detail | P-26 | 📡 BE2-LF-04 | — |
-| FE2-PLF-03 | `[ ]` Build lost item status update notification handler: push notification on driver response or Admin resolution | P-26 | 📡 Push notification | — |
+| FE2-PLF-01 | `[ ]` Build report lost item screen: select from recent completed rides, choose item category, add description, submit | P-25 | 📡 BE2-LF-03 | Accessible from ride history detail. API ready (18 Oct 2026): `POST /rides/{ride}/lost-items` (`category`, `description`, optional `contact_phone` for when the lost item is the phone, up to 3 `photos[]`). Show it within `lost_and_found.report_window_days` of the trip (`GET /config`, which also lists `categories`); use `GET /lost-items?ride_id=` to show "View report" instead. See FRONTEND_UPDATE_LOST_AND_FOUND.md |
+| FE2-PLF-02 | `[ ]` Build lost item status tracker: list of user's reports with status (reported/driver notified/confirmed/denied/resolved); tap for detail | P-26 | 📡 BE2-LF-04 | API ready: `GET /lost-items`, `GET /lost-items/{id}` (statuses also `returned`, `unresolved`, `cancelled`). Detail screen: message thread (`POST /lost-items/{id}/messages`), driver's name and number from `contact` once they have it, return fee, and buttons from `available_actions`: **Got it back** (`/received`), **Ask support** (`/escalate`), **Cancel** (`/cancel`) |
+| FE2-PLF-03 | `[ ]` Build lost item status update notification handler: push notification on driver response or Admin resolution | P-26 | 📡 Push notification | `lost_item_update` and `lost_item_message`; data has `lost_item_id`: open the report |
 
 ---
 

@@ -2,7 +2,8 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Status:** Recommendations for the five open Phase 2 questions (OQ-18 to OQ-22). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. The exception is OQ-22: **no new city goes live without a launch date from the client.**
+**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added)  
+**Status:** Recommendations for the open Phase 2 questions (OQ-18 to OQ-22, OQ-36 and OQ-37). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. There are two exceptions. OQ-22: **no new city goes live without a launch date from the client.** OQ-36: **no return fee is charged until the client sets one.**
 
 ---
 
@@ -22,8 +23,10 @@ The recommendations follow two principles:
 | OQ-20 | Driver shifts or availability planning? | **Availability planning** for all drivers (voluntary); **shifts** only for E-tiGo fleet cars shared between drivers | Confirm; say which fleet cars are shared |
 | OQ-21 | Dispute escalation tiers and owners? | **3 tiers**: Support → Support Lead → Super Admin, with safety cases going straight to the Safety team | Confirm the refund limits per tier |
 | OQ-22 | Which cities, and when? | **Abuja next, then Port Harcourt**, each launched only when it passes a readiness checklist | **Client must give the target dates** |
+| OQ-36 | Lost & Found: should passengers pay a return fee? | **Yes, ₦2,000**, all of it to the driver (Uber/Bolt practice). Built **off** until the client decides | Confirm the amount, or no fee |
+| OQ-37 | Lost & Found: do passenger and driver see each other's number? | **Yes**, once the driver has the item; messages in the app also work | Confirm, or messages only |
 
-Scheduled rides, the other Phase 2 feature, are already built. Their decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
+Scheduled rides and third-party bookings are built. Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. Their decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
 
 ---
 
@@ -273,6 +276,50 @@ This lets E-tiGo recruit drivers for a few weeks before passengers can book, so 
 
 ---
 
+## OQ-36 and OQ-37 — Lost & Found: Return Fee and Contact Details
+
+*Added 18 October 2026, when Lost & Found was built.*
+
+Lost & Found follows the Uber, Bolt and Lyft model:
+
+1. The passenger reports the item from the trip, up to **30 days** after it.
+2. The driver is notified and says whether they have it.
+3. If they do, the two arrange the return through messages in the app.
+4. The driver marks the item returned and the passenger confirms.
+
+Support steps in when the passenger asks, when the driver does not answer within **24 hours**, or when the return has not happened within **7 days**. Drivers can also hand in items they find. Two choices need the client.
+
+**OQ-36: Should passengers pay a return fee?** Uber and Bolt charge the passenger a fee when the driver brings an item back, and the driver keeps all of it. The fee pays for the driver's time and fuel, and it is why drivers return items at all.
+
+| Option | What happens |
+|--------|--------------|
+| **A — Fee of ₦2,000 (recommended)** | Charged once the item is back: from the wallet, or as a balance due if the wallet is short. All of it goes to the driver. Support can waive it |
+| B — Another amount | Any amount; operations can change it at any time. A new amount applies only to items found after the change |
+| C — No fee (built default until the client decides) | Drivers return items for free |
+
+**OQ-37: Do passenger and driver see each other's phone number?**
+
+| Option | What happens |
+|--------|--------------|
+| **A — Yes, once the driver has the item (recommended, built default)** | Each sees the other's first name and number until the item is back. Messages in the app also work |
+| B — Messages in the app only | No phone numbers are shared. Better for privacy, but returns are slower |
+
+The recommendation is A because E-tiGo has no masked calling yet. Once masked calling exists, the apps can use it instead.
+
+**Edge cases planned for**
+
+| Situation | What happens |
+|-----------|--------------|
+| The lost item is the passenger's phone | The passenger can give another number when reporting. Updates are also sent to it by SMS |
+| The driver says "not found" | The passenger can ask support to look into it. With no follow-up within 7 days, the report closes |
+| The driver later finds it | The driver can change the answer to "found" |
+| The driver says it was returned but the passenger disagrees | The passenger tells support. Otherwise the report closes as resolved after 72 hours |
+| The driver's account is suspended or deleted | The report goes straight to support |
+| A trip booked for someone else | The booker reports it, as for ratings and disputes |
+| Misuse | One open report per trip, and at most 3 open reports per passenger |
+
+---
+
 ## Next Steps
 
 | # | Action | Owner |
@@ -282,7 +329,8 @@ This lets E-tiGo recruit drivers for a few weeks before passengers can book, so 
 | 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000) and who will hold the new Support Lead role | Client / Operations |
 | 4 | Say which fleet cars are shared between drivers (for shift mode) | Operations |
 | 5 | Confirm the permits needed in Abuja (FCT) and Rivers State | Legal |
-| 6 | Build Phase 2 to these defaults; any later change is a settings update | Engineering |
+| 6 | Lost & Found: choose the return fee (OQ-36) and whether phone numbers are shared (OQ-37) | Client / Product |
+| 7 | Build Phase 2 to these defaults; any later change is a settings update | Engineering |
 
 ---
 
