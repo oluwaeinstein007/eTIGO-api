@@ -109,14 +109,17 @@ class DriverController extends Controller
         $driver->load(['user', 'vehicle.vehicleClass', 'city']);
 
         $cityPaused = $driver->is_online && $driver->city?->launch_status === CityLaunchStatus::Paused;
+        $bookingsHonoured = $driver->city?->pause_scheduled_rides !== 'cancel';
 
         return response()->json([
             'message' => $driver->is_online ? 'You are now online.' : 'You are now offline.',
             'driver' => new DriverResource($driver),
             // Paused city: only trips already booked come through.
-            'city_notice' => $cityPaused
-                ? "Rides in {$driver->city->name} are paused. You will only get rides passengers booked before the pause."
-                : null,
+            'city_notice' => match (true) {
+                ! $cityPaused => null,
+                $bookingsHonoured => "Rides in {$driver->city->name} are paused. You will only get rides passengers booked before the pause.",
+                default => "Rides in {$driver->city->name} are paused and upcoming bookings were cancelled. You will not get new trips until rides resume.",
+            },
         ]);
     }
 

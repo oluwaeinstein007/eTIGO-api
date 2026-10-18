@@ -1254,7 +1254,7 @@ PUT /driver/profile
 | Field          | Type    | Required | Description          |
 |----------------|---------|----------|----------------------|
 | licence_number | string  | No       | Driving licence no.  |
-| city_id        | string (UUID) | No       | An onboarding or live city |
+| city_id        | string (UUID) | No       | An onboarding or live city (the driver's current city is accepted whatever its status) |
 
 The city can only be changed while the driver is in `onboarding` or `rejected`. After the application is submitted it returns 422 `Your city can only be changed before you submit your application. Contact support to move city.`; Operations moves drivers with [`PUT /admin/drivers/{driver_id}/city`](#move-driver-to-another-city).
 
@@ -1716,7 +1716,7 @@ The silence counts from the last location, or from going online if none has come
 }
 ```
 
-**Multi-city:** a driver whose city is still `onboarding` cannot go online (last reason above). In a `paused` city the driver can go online for bookings made before the pause; the response then has `city_notice`: `"Rides in Lagos are paused. You will only get rides passengers booked before the pause."` (`null` otherwise).
+**Multi-city:** a driver whose city is still `onboarding` cannot go online (last reason above). In a `paused` city the driver can go online for bookings made before the pause; the response then has `city_notice`: `"Rides in Lagos are paused. You will only get rides passengers booked before the pause."`, or, when operations cancelled the bookings, `"Rides in Lagos are paused and upcoming bookings were cancelled. You will not get new trips until rides resume."` (`null` outside a paused city).
 
 **Response 409 (going offline mid-trip):**
 ```json
@@ -4991,7 +4991,7 @@ What happens:
 - **paused → live:** a resume; no checklist (the city already launched). Clears the pause fields. The waitlist is told.
 - **paused → onboarding:** closes the city again and cancels upcoming bookings.
 
-Cancelling bookings and the notifications run on the queue after the response. Audit events: `city_launched`, `city_resumed`, `city_paused`, `city_returned_to_onboarding`.
+Cancelling bookings and the notifications run on the queue after the response (driver notices in their own job that is never retried, so nobody is told twice). Audit events: `city_launched`, `city_resumed`, `city_paused`, `city_returned_to_onboarding`.
 
 **Response 200:**
 ```json
@@ -14815,7 +14815,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | City launched | Passenger on the waitlist | `city_launched` | "E-tiGo is now in Ibadan" (data: `city_id`). Sent once per wait. See [City Waitlist](#city-waitlist) |
 | City launched / paused | Approved drivers in the city | `city_status_changed` | Live: "go online to start getting trips". Paused: passengers cannot book; trips in progress and (unless cancelled) booked rides go ahead (data: `city_id`, `launch_status`) |
 | Booking cancelled by a city pause | Passenger (and reserved driver) | `ride_cancelled` | Body: "Your scheduled ride was cancelled because E-tiGo has paused rides in Lagos." |
-| Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline |
+| Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline, and that they can go online from launch day when the city is still onboarding |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |

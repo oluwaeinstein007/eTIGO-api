@@ -9,6 +9,7 @@ use App\Enums\NotificationType;
 use App\Enums\RideStatus;
 use App\Exceptions\CityLaunchException;
 use App\Jobs\CityLaunchStatusChangedJob;
+use App\Jobs\NotifyCityDriversJob;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\City;
@@ -118,6 +119,7 @@ class CityLaunchService
         $this->cache->invalidateCities();
 
         CityLaunchStatusChangedJob::dispatch($result['city']->id, $to->value, $admin->id, $result['cancel']);
+        NotifyCityDriversJob::dispatch($result['city']->id, $to->value);
 
         unset($result['cancel']);
 
@@ -126,8 +128,8 @@ class CityLaunchService
 
     /**
      * The follow-up work of a status change, run on the queue: cancel
-     * upcoming bookings if asked, tell the city's drivers, and on going live
-     * tell the waitlist. Skipped when the city has moved on since.
+     * upcoming bookings if asked and, on going live, tell the waitlist. Both
+     * steps are safe to retry. Skipped when the city has moved on since.
      */
     public function applyStatusChange(City $city, CityLaunchStatus $status, ?User $admin, bool $cancelScheduledRides): void
     {
@@ -138,8 +140,6 @@ class CityLaunchService
         if ($cancelScheduledRides && $admin !== null) {
             $this->cancelUpcomingBookings($city, $admin);
         }
-
-        $this->notifyDrivers($city, $status);
 
         if ($status === CityLaunchStatus::Live) {
             $this->notifyWaitlist($city);
@@ -167,8 +167,16 @@ class CityLaunchService
             });
     }
 
-    private function notifyDrivers(City $city, CityLaunchStatus $status): void
+    /**
+     * Tell approved drivers in the city it launched, resumed or paused. Run
+     * by its own job, never retried, so a failure elsewhere cannot resend it.
+     */
+    public function notifyDrivers(City $city, CityLaunchStatus $status): void
     {
+        if ($city->launch_status !== $status) {
+            return;
+        }
+
         [$title, $body] = match ($status) {
             CityLaunchStatus::Live => [
                 "E-tiGo is live in {$city->name}",

@@ -20,9 +20,13 @@ class UpdateDriverProfileRequest extends FormRequest
     {
         return [
             'licence_number' => ['sometimes', 'required', 'string', 'max:50'],
+            // A new city must be open to sign-ups; the driver's current city
+            // is accepted as is, so a form that sends it back still saves.
             'city_id' => [
                 'sometimes', 'required', 'uuid',
-                Rule::exists('cities', 'id')->whereIn('launch_status', [CityLaunchStatus::Onboarding->value, CityLaunchStatus::Live->value]),
+                $this->input('city_id') === $this->user()?->driver?->city_id
+                    ? Rule::exists('cities', 'id')
+                    : Rule::exists('cities', 'id')->whereIn('launch_status', [CityLaunchStatus::Onboarding->value, CityLaunchStatus::Live->value]),
             ],
         ];
     }

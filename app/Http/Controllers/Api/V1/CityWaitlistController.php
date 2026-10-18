@@ -7,6 +7,7 @@ use App\Models\City;
 use App\Models\CityWaitlistEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
  * A passenger asks to be told when a city that is not open yet (onboarding)
@@ -62,7 +63,7 @@ class CityWaitlistController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{city: array{id: string, name: string, launch_status: string}, on_waitlist: bool, joined_at: Carbon|null, notified_at: Carbon|null}
      */
     private function state(City $city, ?CityWaitlistEntry $entry): array
     {

@@ -14,8 +14,9 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * After a city changes launch status (CityLaunchService::applyStatusChange):
- * cancels upcoming bookings when the admin chose to, tells the city's
- * drivers, and on going live tells the waitlist.
+ * cancels upcoming bookings when the admin chose to, and on going live tells
+ * the waitlist. Both steps skip what is already done, so retries are safe.
+ * Drivers are told by NotifyCityDriversJob.
  */
 class CityLaunchStatusChangedJob implements ShouldQueue
 {

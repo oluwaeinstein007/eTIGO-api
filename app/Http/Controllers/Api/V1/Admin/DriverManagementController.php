@@ -415,50 +415,64 @@ class DriverManagementController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        if ($driver->city_id === $validated['city_id']) {
-            return response()->json(['message' => 'The driver is already in this city.'], 422);
-        }
-
-        $hasActiveRide = Ride::where('driver_id', $driver->user_id)
-            ->whereIn('status', RideStatus::activeStatuses())
-            ->exists();
-
-        if ($hasActiveRide) {
-            return response()->json([
-                'message' => 'The driver cannot change city during an active ride.',
-            ], 409);
-        }
-
-        $reservations = ScheduledRide::upcoming()
-            ->where('reserved_driver_id', $driver->user_id)
-            ->count();
-
-        if ($reservations > 0) {
-            return response()->json([
-                'message' => "The driver has {$reservations} upcoming reserved bookings. Release them before changing city.",
-                'upcoming_reservations' => $reservations,
-            ], 409);
-        }
-
         $city = City::findOrFail($validated['city_id']);
         $admin = $request->user();
-        $wasOnline = $driver->is_online;
-        $oldCityId = $driver->city_id;
 
-        DB::transaction(function () use ($driver, $city, $admin, $validated, $oldCityId) {
-            $driver->update([
+        // Checked under the driver's row lock, which ride assignment and
+        // reservations also take, so neither can slip in during the move.
+        $outcome = DB::transaction(function () use ($driver, $city, $admin, $validated) {
+            $locked = Driver::lockForUpdate()->findOrFail($driver->id);
+
+            if ($locked->city_id === $city->id) {
+                return ['error' => response()->json(['message' => 'The driver is already in this city.'], 422)];
+            }
+
+            $hasActiveRide = Ride::where('driver_id', $locked->user_id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($hasActiveRide) {
+                return ['error' => response()->json([
+                    'message' => 'The driver cannot change city during an active ride.',
+                ], 409)];
+            }
+
+            $reservations = ScheduledRide::upcoming()
+                ->where('reserved_driver_id', $locked->user_id)
+                ->count();
+
+            if ($reservations > 0) {
+                return ['error' => response()->json([
+                    'message' => "The driver has {$reservations} upcoming reserved bookings. Release them before changing city.",
+                    'upcoming_reservations' => $reservations,
+                ], 409)];
+            }
+
+            $wasOnline = $locked->is_online;
+            $oldCityId = $locked->city_id;
+
+            $locked->update([
                 'city_id' => $city->id,
                 'is_online' => false,
             ]);
 
             AuditLog::record(
-                $driver,
+                $locked,
                 'driver_city_changed',
                 $admin,
                 ['city_id' => $oldCityId],
                 ['city_id' => $city->id, 'reason' => $validated['reason']],
             );
+
+            return ['was_online' => $wasOnline];
         });
+
+        if (isset($outcome['error'])) {
+            return $outcome['error'];
+        }
+
+        $wasOnline = $outcome['was_online'];
+        $driver->refresh();
 
         if ($wasOnline) {
             try {
@@ -475,7 +489,9 @@ class DriverManagementController extends Controller
             userId: $driver->user_id,
             type: NotificationType::DriverCityChanged,
             title: 'Your City Changed',
-            body: "You now drive in {$city->name}. You will get trips there from now on."
+            body: ($city->launch_status->allowsDriversOnline()
+                ? "You now drive in {$city->name}. You will get trips there from now on."
+                : "You now drive in {$city->name}. E-tiGo has not launched there yet; you can go online from launch day.")
                 .($wasOnline ? ' You have been taken offline; go online again when you are in the city.' : ''),
             data: ['city_id' => (string) $city->id],
         );

@@ -7,6 +7,8 @@ use App\Enums\CityLaunchStatus;
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Jobs\CityLaunchStatusChangedJob;
+use App\Jobs\NotifyCityDriversJob;
 use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\CityWaitlistEntry;
@@ -612,7 +614,9 @@ it('moves a driver to another city, taking them offline', function () {
     $driver->refresh();
     expect($driver->city_id)->toBe($abuja->id)->and($driver->is_online)->toBeFalse();
     $this->assertDatabaseHas('audit_logs', ['event' => 'driver_city_changed', 'auditable_id' => $driver->id]);
-    expect(Notification::where('user_id', $driver->user_id)->where('type', 'driver_city_changed')->exists())->toBeTrue();
+    // Abuja is still onboarding: no promise of trips yet.
+    expect(Notification::where('user_id', $driver->user_id)->where('type', 'driver_city_changed')->value('body'))
+        ->toBe('You now drive in Abuja. E-tiGo has not launched there yet; you can go online from launch day. You have been taken offline; go online again when you are in the city.');
 });
 
 it('refuses to move a driver on a trip or holding reservations', function () {
@@ -730,4 +734,37 @@ it('refuses driver sign-up in a paused city but not a passenger who names it', f
         'phone' => '+2348022222222', 'first_name' => 'Bisi', 'last_name' => 'Ade',
         'type' => 'passenger', 'city_id' => $paused->id,
     ])->assertCreated();
+});
+
+it('tells a driver in a city paused with bookings cancelled that no booked rides are coming', function () {
+    $paused = City::factory()->paused()->create(['name' => 'Kano', 'pause_scheduled_rides' => 'cancel']);
+    $driver = Driver::factory()->approved()->create(['city_id' => $paused->id]);
+    Vehicle::factory()->create(['driver_id' => $driver->id, 'vehicle_class_id' => $this->vehicleClass->id]);
+    $token = $driver->user->createToken('auth', ['driver'])->plainTextToken;
+
+    ($this->as)($token)->postJson('/api/v1/driver/toggle-online')
+        ->assertOk()
+        ->assertJsonPath('city_notice', 'Rides in Kano are paused and upcoming bookings were cancelled. You will not get new trips until rides resume.');
+});
+
+it('lets a driver save their profile with their current city after it is paused', function () {
+    $driver = Driver::factory()->create(['status' => DriverStatus::Onboarding, 'city_id' => $this->lagos->id]);
+    $token = $driver->user->createToken('auth', ['driver'])->plainTextToken;
+    $this->lagos->update(['launch_status' => CityLaunchStatus::Paused]);
+
+    ($this->as)($token)->putJson('/api/v1/driver/profile', ['city_id' => $this->lagos->id, 'licence_number' => 'LAG123'])
+        ->assertOk();
+
+    expect($driver->fresh()->licence_number)->toBe('LAG123');
+});
+
+it('tells drivers once from their own job, separate from the retried follow-up', function () {
+    Queue::fake();
+    $abuja = ($this->readyCity)();
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])->assertOk();
+
+    Queue::assertPushed(NotifyCityDriversJob::class, fn ($job) => $job->cityId === $abuja->id && $job->status === 'live');
+    Queue::assertPushed(CityLaunchStatusChangedJob::class, 1);
+    expect((new NotifyCityDriversJob($abuja->id, 'live'))->tries)->toBe(1);
 });

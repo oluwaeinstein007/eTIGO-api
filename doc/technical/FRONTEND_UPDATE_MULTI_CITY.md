@@ -49,7 +49,7 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 
 ### Going online
 - A driver whose city is still onboarding cannot go online. `POST /driver/toggle-online` returns 422 with the reason "E-tiGo has not launched in {city} yet. You can go online from launch day." in `reasons`. Show the reasons list as you do today.
-- In a paused city the driver can go online, and the response has `city_notice`: "Rides in {city} are paused. You will only get rides passengers booked before the pause." Show it as a banner. It is `null` otherwise.
+- In a paused city the driver can go online, and the response has `city_notice`: "Rides in {city} are paused. You will only get rides passengers booked before the pause." (or, when operations cancelled the bookings, "Rides in {city} are paused and upcoming bookings were cancelled. You will not get new trips until rides resume."). Show it as a banner. It is `null` otherwise.
 
 ### Notifications
 | Type | When | Do |

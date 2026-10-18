@@ -9,6 +9,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
+use App\Models\City;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
@@ -316,7 +317,7 @@ class ScheduledRideService
             // Lock the ride before its booking row, the same order as
             // cancelling and editing, so a cancel during dispatch cannot deadlock.
             $bookedRideId = ScheduledRide::whereKey($scheduledRideId)->value('ride_id');
-            $ride = $bookedRideId ? Ride::lockForUpdate()->with(['passenger', 'city'])->find($bookedRideId) : null;
+            $ride = $bookedRideId ? Ride::lockForUpdate()->with('passenger')->find($bookedRideId) : null;
             $scheduled = ScheduledRide::lockForUpdate()->find($scheduledRideId);
 
             if ($ride === null || $scheduled === null || ! $scheduled->isUpcoming() || $ride->status !== RideStatus::Scheduled) {
@@ -325,6 +326,12 @@ class ScheduledRideService
 
             $rideId = $ride->id;
             $settings = AppSetting::scheduledRides();
+
+            // Read the city's launch status under a shared lock held to the
+            // end of dispatch, so a pause (which locks the city for update)
+            // either lands first and is seen here, or waits for this booking
+            // to leave the "upcoming" set its cancellation sweep reads.
+            $ride->setRelation('city', City::whereKey($ride->city_id)->sharedLock()->first());
 
             // The booking was moved later after the sweep picked it up.
             if (now()->lt($scheduled->dispatchAt($settings['dispatch_lead_minutes']))) {

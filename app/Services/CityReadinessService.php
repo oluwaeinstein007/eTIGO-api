@@ -114,7 +114,7 @@ class CityReadinessService
      *
      * @return Builder<Ride>
      */
-    public function upcomingScheduledRides(City $city)
+    public function upcomingScheduledRides(City $city): Builder
     {
         return Ride::where('city_id', $city->id)
             ->where('status', RideStatus::Scheduled)
@@ -124,7 +124,7 @@ class CityReadinessService
     /**
      * @return Builder<Driver>
      */
-    private function approvedDrivers(City $city)
+    private function approvedDrivers(City $city): Builder
     {
         return Driver::where('city_id', $city->id)
             ->where('status', DriverStatus::Approved)
