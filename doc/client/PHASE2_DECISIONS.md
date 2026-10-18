@@ -26,7 +26,7 @@ The recommendations follow two principles:
 | OQ-36 | Lost & Found: should passengers pay a return fee? | **Yes, ₦2,000**, all of it to the driver (Uber/Bolt practice). Built **off** until the client decides | Confirm the amount, or no fee |
 | OQ-37 | Lost & Found: do passenger and driver see each other's number? | **Yes**, once the driver has the item; messages in the app also work | Confirm, or messages only |
 
-Scheduled rides and third-party bookings are built. Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A. Their decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md).
+Scheduled rides and third-party bookings are built; the scheduled-ride decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md). Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A.
 
 ---
 

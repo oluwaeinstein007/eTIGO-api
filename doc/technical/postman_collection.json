@@ -17225,7 +17225,7 @@
                     "resolve"
                   ]
                 },
-                "description": "Resolve or dismiss a case. Optional refund, **to the passenger's wallet by default** (`refund_method: wallet`; works for every payment method), or `card` (card payments only, always needs Finance approval). `clawback_driver_earnings` (default true) recovers the driver's share of a wallet refund.\n\n**Limits:** if this refund plus earlier refunds on the case is above the admin's limit (tier 1 \u20a65,000, tier 2 and Safety \u20a650,000, super admin none), or the method is `card`, the response is `202` and a refund request waits for a second admin; the case stays open.\n\n**Errors:** `403` cannot work the case; `422` already closed, refund on dismissal, refund above what is refundable, a refund already waiting for approval."
+                "description": "Resolve or dismiss a case. Optional refund, **to the passenger's wallet by default** (`refund_method: wallet`; works for every payment method), or `card` (card payments only, always needs Finance approval). Card and wallet refunds share one refundable balance. `clawback_driver_earnings` (default true) recovers the driver's share of a wallet refund.\n\n**Limits:** if this refund plus earlier refunds on the case is above the admin's limit (tier 1 \u20a65,000, tier 2 and Safety \u20a650,000, super admin none), or the method is `card`, the response is `202` and a refund request waits for a second admin; the case stays open.\n\n**Errors:** `403` cannot work the case; `422` already closed, refund on dismissal, refund above what is refundable, a refund already waiting for approval."
               },
               "response": [
                 {
@@ -18031,7 +18031,7 @@
                     "approve"
                   ]
                 },
-                "description": "Pay the refund and resolve the case with the requester's notes (the requester is recorded as the decider).",
+                "description": "Pay the refund and resolve the case with the requester's notes (the requester is recorded as the decider). A card refund is marked as sent before the provider is called, so it is never sent twice; if the provider refuses, nothing was refunded and you can approve again.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"notes\": \"Checked the route replay; approved.\"\n}"
@@ -18097,6 +18097,30 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Your role cannot approve refunds on this case.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Provider refused card refund",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The payment provider did not accept the card refund: Insufficient merchant balance\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Card refund already sent",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This card refund was already sent to the payment provider. Finance must check the payment before anything else is done with this request.\"\n}"
                 }
               ]
             },

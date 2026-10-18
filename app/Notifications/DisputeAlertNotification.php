@@ -18,7 +18,9 @@ class DisputeAlertNotification extends Notification implements ShouldQueue
 
     public const NEW_SAFETY_CASE = 'new_safety_case';
 
-    public const TARGET_MISSED = 'target_missed';
+    public const FIRST_RESPONSE_MISSED = 'first_response_missed';
+
+    public const RESOLUTION_MISSED = 'resolution_missed';
 
     public function __construct(
         public readonly Dispute $dispute,
@@ -36,7 +38,8 @@ class DisputeAlertNotification extends Notification implements ShouldQueue
         $ref = $this->dispute->reference_number;
         [$label, $headline] = match ($this->reason) {
             self::NEW_SAFETY_CASE => ['New safety case', "Safety case {$ref} needs a first response."],
-            default => ['Response target missed', "Dispute {$ref} is overdue."],
+            self::RESOLUTION_MISSED => ['Resolution target missed', "Dispute {$ref} is overdue for a decision."],
+            default => ['Response target missed', "Dispute {$ref} is waiting for a first response."],
         };
         $due = $this->dispute->nextDueAt();
 

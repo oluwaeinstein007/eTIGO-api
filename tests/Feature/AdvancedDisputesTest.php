@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\PaymentGateway;
 use App\Enums\AdminRole;
 use App\Enums\DisputeCategory;
 use App\Enums\DisputeQueue;
@@ -12,6 +13,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Dispute;
 use App\Models\DisputeEvidence;
+use App\Models\DisputeRefundRequest;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\SosIncident;
@@ -466,6 +468,68 @@ describe('refund limits and approvals', function () {
         $this->actingAs($this->finance)->postJson("/api/v1/admin/dispute-refund-requests/{$requestId}/approve")->assertOk();
     });
 
+    it('never refunds more than is left across wallet and card refunds', function () {
+        $ride = paidRide($this->passenger, $this->driverUser, 5000, PaymentMethod::Card);
+        $ride->payment->update(['gateway_transaction_id' => 'txn_card_1']);
+        $dispute = caseFor($ride, $this->passenger);
+        app(WalletRefundService::class)->refundRide($ride, 300000, 'Earlier refund', $this->finance);
+
+        $this->actingAs($this->superAdmin)->postJson("/api/v1/admin/disputes/{$dispute->id}/resolve", [
+            'status' => 'resolved',
+            'resolution_notes' => 'Refund the full fare to the card.',
+            'refund_amount' => 5000,
+            'refund_method' => 'card',
+        ])->assertUnprocessable()->assertJsonValidationErrors('refund_amount');
+    });
+
+    it('does not send a card refund twice when an approval is retried', function () {
+        $ride = paidRide($this->passenger, $this->driverUser, 5000, PaymentMethod::Card);
+        $ride->payment->update(['gateway_transaction_id' => 'txn_card_2']);
+        $dispute = caseFor($ride, $this->passenger);
+        $requestId = $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/resolve", [
+            'status' => 'resolved',
+            'resolution_notes' => 'Card refund for the overcharge.',
+            'refund_amount' => 1000,
+            'refund_method' => 'card',
+        ])->assertStatus(202)->json('refund_request.id');
+
+        // A provider refund that went out but whose case update failed.
+        DisputeRefundRequest::whereKey($requestId)->update(['refund_sent_at' => now()]);
+
+        $gateway = Mockery::mock(PaymentGateway::class);
+        $gateway->shouldNotReceive('refund');
+        app()->instance(PaymentGateway::class, $gateway);
+
+        $this->actingAs($this->finance)->postJson("/api/v1/admin/dispute-refund-requests/{$requestId}/approve")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'This card refund was already sent to the payment provider. Finance must check the payment before anything else is done with this request.');
+    });
+
+    it('lets a card approval be retried when the provider refused it', function () {
+        $ride = paidRide($this->passenger, $this->driverUser, 5000, PaymentMethod::Card);
+        $ride->payment->update(['gateway_transaction_id' => 'txn_card_3']);
+        $dispute = caseFor($ride, $this->passenger);
+        $requestId = $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/resolve", [
+            'status' => 'resolved',
+            'resolution_notes' => 'Card refund for the overcharge.',
+            'refund_amount' => 1000,
+            'refund_method' => 'card',
+        ])->json('refund_request.id');
+
+        $gateway = Mockery::mock(PaymentGateway::class);
+        $gateway->shouldReceive('refund')->once()->andThrow(new RuntimeException('Insufficient merchant balance'));
+        app()->instance(PaymentGateway::class, $gateway);
+
+        $this->actingAs($this->finance)->postJson("/api/v1/admin/dispute-refund-requests/{$requestId}/approve")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The payment provider did not accept the card refund: Insufficient merchant balance');
+
+        $request = DisputeRefundRequest::find($requestId);
+        expect($request->refund_sent_at)->toBeNull()
+            ->and($request->status->value)->toBe('pending')
+            ->and($dispute->fresh()->isOpen())->toBeTrue();
+    });
+
     it('counts earlier refunds on the case towards the limit', function () {
         $dispute = caseFor($this->ride, $this->passenger, ['refund_amount' => 4000]);
 
@@ -505,6 +569,16 @@ describe('response targets sweep', function () {
             ->and($tier2->fresh()->resolution_breached_at)->not->toBeNull()
             ->and($safety->fresh()->first_response_breached_at)->not->toBeNull();
         Notification::assertSentToTimes($this->superAdmin, DisputeAlertNotification::class, 2);
+    });
+
+    it('names the missed target in the alert subject', function () {
+        $dispute = caseFor($this->ride, $this->passenger, ['escalation_tier' => 2, 'first_responded_at' => now(), 'resolution_due_at' => now()->addHour()]);
+
+        $this->travel(2)->hours();
+        app(DisputeService::class)->processTargets();
+
+        Notification::assertSentTo($this->superAdmin, DisputeAlertNotification::class,
+            fn (DisputeAlertNotification $n) => str_starts_with($n->toMail($this->superAdmin)->subject, 'Resolution target missed'));
     });
 
     it('only flags tier 1 misses when auto-escalation is off', function () {
@@ -606,6 +680,22 @@ describe('appeals', function () {
             'note' => 'Sending back to the agent to redo it.',
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'An appeal must stay above the tier that made the original decision.');
+    });
+
+    it('keeps an appeal above its tier when the linked case is worked at a lower tier', function () {
+        $this->actingAs($this->driverUser)->postJson("/api/v1/rides/{$this->ride->id}/dispute", [
+            'category' => 'other',
+            'description' => 'The passenger left the car door damaged.',
+        ])->assertCreated();
+        $driverCase = Dispute::where('reported_by_user_id', $this->driverUser->id)->firstOrFail();
+
+        $this->actingAs($this->passenger)->postJson("/api/v1/disputes/{$this->dispute->id}/appeal", [
+            'reason' => 'Please have someone senior look again.',
+        ])->assertOk();
+
+        $this->actingAs($this->agent2)->postJson("/api/v1/admin/disputes/{$driverCase->id}/assign")->assertOk();
+
+        expect($this->dispute->fresh()->escalation_tier)->toBe(2);
     });
 
     it('treats a tier 3 decision as final', function () {

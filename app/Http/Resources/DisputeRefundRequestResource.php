@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -43,7 +44,7 @@ class DisputeRefundRequestResource extends JsonResource
     /**
      * @return array{id: string, first_name: ?string, last_name: ?string, admin_role: ?string}|null
      */
-    private function adminSummary($admin): ?array
+    private function adminSummary(?User $admin): ?array
     {
         return $admin ? [
             'id' => $admin->id,

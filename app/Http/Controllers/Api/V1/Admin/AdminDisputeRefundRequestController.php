@@ -36,7 +36,6 @@ class AdminDisputeRefundRequestController extends Controller
 
         $requests = DisputeRefundRequest::with(['dispute', 'requestedBy', 'reviewedBy'])
             ->where('status', $request->input('status', DisputeRefundRequestStatus::Pending->value))
-            // Finance sees every request; dispute roles only cases they can see.
             ->when($admin->admin_role !== AdminRole::Finance, fn ($q) => $q->whereHas('dispute', fn ($q) => $this->access->scopeVisible($q, $admin)))
             ->latest()
             ->paginate(min(max($request->integer('per_page', 15), 1), 100));

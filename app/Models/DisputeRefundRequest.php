@@ -30,6 +30,7 @@ class DisputeRefundRequest extends Model
         'reviewed_by_admin_id',
         'reviewed_at',
         'review_notes',
+        'refund_sent_at',
     ];
 
     protected function casts(): array
@@ -40,6 +41,7 @@ class DisputeRefundRequest extends Model
             'status' => DisputeRefundRequestStatus::class,
             'clawback_driver_earnings' => 'boolean',
             'reviewed_at' => 'datetime',
+            'refund_sent_at' => 'datetime',
         ];
     }
 

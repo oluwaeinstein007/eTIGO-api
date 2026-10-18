@@ -9359,7 +9359,8 @@ Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about 
 
 **Refunds.**
 - `wallet` (default, OQ-27): credited to the passenger's wallet at once, for card, wallet, bank-transfer and cash rides, up to what is still refundable on the trip (tips excluded). The driver's share is clawed back unless `clawback_driver_earnings` is `false`.
-- `card`: back to the card through the gateway. Card payments only, never more than the payment, and **always** needs Finance approval.
+- `card`: back to the card through the gateway. Card payments only, and **always** needs Finance approval.
+- Card and wallet refunds share one balance: never more than what is still refundable on the trip, whatever was refunded before and however.
 - **Limits.** If this refund plus earlier refunds on the case is above the reviewer's limit, or the method is `card`, nothing is paid yet: the decision becomes a refund request and the case stays open (`202`). See [Dispute Refund Requests](#dispute-refund-requests).
 
 **Response: `200 OK`** (decided)
@@ -9426,7 +9427,7 @@ Who can approve or reject: a **card** refund — Finance or a super admin; a **w
 
 Pays the refund and resolves the case with the requester's notes; the requester is recorded as the decider. **Response: `200 OK`** — `{ "message": "Refund approved and paid. The dispute is resolved.", "refund_request": { ... }, "dispute": { ... }, "driver_clawback_kobo": 0 }`
 
-**Errors:** `403` — `You cannot approve your own refund request.`, `A refund to the card must be approved by Finance.`, `This refund is above your limit; it needs a higher tier.`, `Your role cannot approve refunds on this case.` (another team's case) `422` — already decided, case closed, or nothing left to refund.
+**Errors:** `403` — `You cannot approve your own refund request.`, `A refund to the card must be approved by Finance.`, `This refund is above your limit; it needs a higher tier.`, `Your role cannot approve refunds on this case.` (another team's case) `422` — already decided, case closed, nothing left to refund, `The payment provider did not accept the card refund: …` (nothing was refunded; you can approve again), or `This card refund was already sent to the payment provider. Finance must check the payment before anything else is done with this request.` (the provider refunded but closing the case failed; it is never sent twice).
 
 #### Reject or Withdraw a Refund Request
 

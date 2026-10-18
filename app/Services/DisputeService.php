@@ -419,41 +419,116 @@ class DisputeService
      */
     public function approveRefund(DisputeRefundRequest $request, User $approver, ?string $notes = null): array
     {
+        if ($request->method === DisputeRefundMethod::Card) {
+            return $this->approveCardRefund($request, $approver, $notes);
+        }
+
         return DB::transaction(function () use ($request, $approver, $notes) {
-            $locked = DisputeRefundRequest::whereKey($request->id)->lockForUpdate()->firstOrFail();
-
-            if (! $locked->isPending()) {
-                throw new \DomainException('This refund request has already been '.$locked->status->label().'.');
-            }
-
-            $dispute = $this->lockOpen($locked->dispute, 'This dispute is already closed.');
-            $locked->setRelation('dispute', $dispute);
-
-            if ($denial = $this->access->approvalDenial($approver, $locked)) {
-                throw new AccessDeniedException($denial);
-            }
+            [$locked, $dispute] = $this->lockForApproval($request, $approver);
 
             $this->assertRefundable($dispute, (float) $locked->amount, $locked->method);
             $clawbackKobo = $this->payRefund($dispute, $approver, (float) $locked->amount, $locked->method, $locked->clawback_driver_earnings);
 
-            $locked->update([
-                'status' => DisputeRefundRequestStatus::Approved,
-                'reviewed_by_admin_id' => $approver->id,
-                'reviewed_at' => now(),
-                'review_notes' => $notes,
-            ]);
-
-            AuditLog::record($dispute, 'dispute_refund_approved', $approver, null, [
-                'refund_request_id' => $locked->id,
-                'amount' => (float) $locked->amount,
-                'method' => $locked->method->value,
-            ]);
-
-            $decider = $locked->requested_by_admin_id ? User::find($locked->requested_by_admin_id) : null;
-            $dispute = $this->finalise($dispute, $decider ?? $approver, DisputeStatus::Resolved, $locked->resolution_notes);
-
-            return ['dispute' => $dispute, 'refund_request' => $locked, 'clawback_kobo' => $clawbackKobo];
+            return $this->completeApproval($locked, $dispute, $approver, $notes, $clawbackKobo);
         });
+    }
+
+    /**
+     * A card refund goes out through the payment provider, which a database
+     * rollback cannot undo. So the request is marked as sent before the
+     * provider is called, and the case is closed in a second transaction.
+     * If that second step fails after the provider refunded, the mark stays
+     * and the request cannot be approved again (no second refund); Finance
+     * checks the payment.
+     *
+     * @return array{dispute: Dispute, refund_request: DisputeRefundRequest, clawback_kobo: int}
+     */
+    private function approveCardRefund(DisputeRefundRequest $request, User $approver, ?string $notes): array
+    {
+        $sent = DB::transaction(function () use ($request, $approver) {
+            [$locked, $dispute] = $this->lockForApproval($request, $approver);
+
+            if ($locked->refund_sent_at !== null) {
+                throw new \DomainException('This card refund was already sent to the payment provider. Finance must check the payment before anything else is done with this request.');
+            }
+
+            $this->assertRefundable($dispute, (float) $locked->amount, $locked->method);
+            $locked->update(['refund_sent_at' => now()]);
+
+            return $locked;
+        });
+
+        $ride = Dispute::findOrFail($sent->dispute_id)->ride;
+
+        try {
+            $this->payments->refundPayment($ride->payment, (float) $sent->amount);
+        } catch (\Throwable $e) {
+            // The provider refused or the call failed: nothing was refunded,
+            // so the request can be approved again.
+            DisputeRefundRequest::whereKey($sent->id)->update(['refund_sent_at' => null]);
+            Log::warning('Dispute card refund failed', ['refund_request_id' => $sent->id, 'error' => $e->getMessage()]);
+
+            throw new \DomainException('The payment provider did not accept the card refund: '.$e->getMessage());
+        }
+
+        return DB::transaction(function () use ($sent, $approver, $notes) {
+            $locked = DisputeRefundRequest::whereKey($sent->id)->lockForUpdate()->firstOrFail();
+            $dispute = Dispute::whereKey($locked->dispute_id)->lockForUpdate()->firstOrFail();
+
+            $this->recordRefund($dispute, (float) $locked->amount, DisputeRefundMethod::Card, 0);
+
+            return $this->completeApproval($locked, $dispute, $approver, $notes, 0);
+        });
+    }
+
+    /**
+     * Lock a pending request and its open case and check the approver.
+     *
+     * @return array{0: DisputeRefundRequest, 1: Dispute}
+     */
+    private function lockForApproval(DisputeRefundRequest $request, User $approver): array
+    {
+        $locked = DisputeRefundRequest::whereKey($request->id)->lockForUpdate()->firstOrFail();
+
+        if (! $locked->isPending()) {
+            throw new \DomainException('This refund request has already been '.$locked->status->label().'.');
+        }
+
+        $dispute = $this->lockOpen($locked->dispute, 'This dispute is already closed.');
+        $locked->setRelation('dispute', $dispute);
+
+        if ($denial = $this->access->approvalDenial($approver, $locked)) {
+            throw new AccessDeniedException($denial);
+        }
+
+        return [$locked, $dispute];
+    }
+
+    /**
+     * Mark the request approved and resolve the case with the requester's
+     * decision.
+     *
+     * @return array{dispute: Dispute, refund_request: DisputeRefundRequest, clawback_kobo: int}
+     */
+    private function completeApproval(DisputeRefundRequest $locked, Dispute $dispute, User $approver, ?string $notes, int $clawbackKobo): array
+    {
+        $locked->update([
+            'status' => DisputeRefundRequestStatus::Approved,
+            'reviewed_by_admin_id' => $approver->id,
+            'reviewed_at' => now(),
+            'review_notes' => $notes,
+        ]);
+
+        AuditLog::record($dispute, 'dispute_refund_approved', $approver, null, [
+            'refund_request_id' => $locked->id,
+            'amount' => (float) $locked->amount,
+            'method' => $locked->method->value,
+        ]);
+
+        $decider = $locked->requested_by_admin_id ? User::find($locked->requested_by_admin_id) : null;
+        $dispute = $this->finalise($dispute, $decider ?? $approver, DisputeStatus::Resolved, $locked->resolution_notes);
+
+        return ['dispute' => $dispute, 'refund_request' => $locked, 'clawback_kobo' => $clawbackKobo];
     }
 
     /**
@@ -703,7 +778,9 @@ class DisputeService
             }
 
             if (! $isTierOne) {
-                $this->alertSuperAdmins($dispute, "{$dispute->tierLabel()} missed the {$missed} target on this case.");
+                $this->alertSuperAdmins($dispute, "{$dispute->tierLabel()} missed the {$missed} target on this case.", $missed === 'resolution'
+                    ? DisputeAlertNotification::RESOLUTION_MISSED
+                    : DisputeAlertNotification::FIRST_RESPONSE_MISSED);
 
                 return 'alerted';
             }
@@ -714,7 +791,8 @@ class DisputeService
 
     /**
      * Pay a dispute refund and record it on the case. Returns the driver
-     * clawback in kobo.
+     * clawback in kobo. Card refunds outside an approval go through
+     * approveCardRefund instead.
      */
     private function payRefund(Dispute $dispute, User $admin, float $amount, DisputeRefundMethod $method, bool $clawback): int
     {
@@ -735,6 +813,18 @@ class DisputeService
             $clawbackKobo = $result['clawback_kobo'];
         }
 
+        $this->recordRefund($dispute, $amount, $method, $clawbackKobo);
+
+        return $clawbackKobo;
+    }
+
+    /**
+     * Add a refund that has been paid to the case's running totals.
+     */
+    private function recordRefund(Dispute $dispute, float $amount, DisputeRefundMethod $method, int $clawbackKobo): void
+    {
+        $ride = $dispute->ride;
+
         $dispute->update([
             'refund_amount' => round((float) ($dispute->refund_amount ?? 0) + $amount, 2),
             'refund_currency' => $ride->payment?->currency ?? $ride->fare_currency ?? 'NGN',
@@ -743,8 +833,6 @@ class DisputeService
                 ? round((float) ($dispute->driver_clawback_amount ?? 0) + $clawbackKobo / 100, 2)
                 : $dispute->driver_clawback_amount,
         ]);
-
-        return $clawbackKobo;
     }
 
     private function assertRefundable(Dispute $dispute, float $amount, DisputeRefundMethod $method): void
@@ -762,13 +850,10 @@ class DisputeService
                 throw new \DomainException('A card refund needs a card payment taken through the gateway.');
             }
 
-            if ($amount > (float) $payment->amount) {
-                throw new \DomainException('Refund amount cannot exceed the payment amount of '.$payment->amount.'.');
-            }
-
-            return;
         }
 
+        // One refundable balance for both methods, so a card refund after a
+        // wallet refund (or the other way round) never refunds the fare twice.
         $remaining = $this->refunds->remainingRefundableKobo($ride);
 
         if ((int) round($amount * 100) > $remaining) {
@@ -841,7 +926,12 @@ class DisputeService
 
         $changes = [];
 
-        if ($linked->queue !== $dispute->queue || $linked->escalation_tier !== $dispute->escalation_tier) {
+        // An appeal never follows the other case down to (or below) the tier
+        // that made its original decision; only the owner is shared then.
+        $floor = $linked->isAppeal() ? ($linked->original_decision['decision_tier'] ?? null) : null;
+        $belowFloor = $floor !== null && $dispute->escalation_tier <= $floor;
+
+        if (! $belowFloor && ($linked->queue !== $dispute->queue || $linked->escalation_tier !== $dispute->escalation_tier)) {
             $changes = [
                 'queue' => $dispute->queue,
                 'escalation_tier' => $dispute->escalation_tier,
@@ -971,9 +1061,9 @@ class DisputeService
         $this->alertAdmins($dispute, [AdminRole::SafetyOperator], DisputeAlertNotification::NEW_SAFETY_CASE, $detail, [AdminRole::SuperAdmin]);
     }
 
-    private function alertSuperAdmins(Dispute $dispute, string $detail): void
+    private function alertSuperAdmins(Dispute $dispute, string $detail, string $reason): void
     {
-        $this->alertAdmins($dispute, [AdminRole::SuperAdmin], DisputeAlertNotification::TARGET_MISSED, $detail);
+        $this->alertAdmins($dispute, [AdminRole::SuperAdmin], $reason, $detail);
     }
 
     /**

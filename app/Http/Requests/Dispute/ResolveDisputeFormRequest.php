@@ -19,6 +19,9 @@ class ResolveDisputeFormRequest extends FormRequest
     }
 
     /**
+     * Refunds go to the wallet by default (OQ-27); a card refund needs
+     * Finance approval.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -27,7 +30,6 @@ class ResolveDisputeFormRequest extends FormRequest
             'status' => ['required', 'string', Rule::in([DisputeStatus::Resolved->value, DisputeStatus::Dismissed->value])],
             'resolution_notes' => ['required', 'string', 'min:10', 'max:2000'],
             'refund_amount' => ['nullable', 'numeric', 'min:1'],
-            // Wallet credit by default (OQ-27). A card refund needs Finance.
             'refund_method' => ['nullable', 'string', Rule::enum(DisputeRefundMethod::class)],
             'clawback_driver_earnings' => ['sometimes', 'boolean'],
         ];
@@ -65,6 +67,7 @@ class ResolveDisputeFormRequest extends FormRequest
                 }
 
                 $amount = (float) $this->input('refund_amount');
+                $remainingKobo = app(WalletRefundService::class)->remainingRefundableKobo($ride);
 
                 if ($this->input('refund_method') === DisputeRefundMethod::Card->value) {
                     if ($payment->method !== PaymentMethod::Card) {
@@ -78,15 +81,7 @@ class ResolveDisputeFormRequest extends FormRequest
 
                         return;
                     }
-
-                    if ($amount > (float) $payment->amount) {
-                        $validator->errors()->add('refund_amount', 'Refund amount cannot exceed the payment amount of '.$payment->amount.'.');
-                    }
-
-                    return;
                 }
-
-                $remainingKobo = app(WalletRefundService::class)->remainingRefundableKobo($ride);
 
                 if ((int) round($amount * 100) > $remainingKobo) {
                     $validator->errors()->add('refund_amount', 'Refund cannot exceed the remaining refundable amount of ₦'.number_format($remainingKobo / 100, 2).'.');

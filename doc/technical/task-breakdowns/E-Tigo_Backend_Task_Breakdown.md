@@ -1017,7 +1017,7 @@
 | BE2-DISP-10 | `[x]` Appeals: `POST /api/v1/disputes/{dispute}/appeal` by the reporter (passenger or driver), once, within 7 days of resolution; reopens one tier up and excludes the original resolver. If an appeal reverses a refund, claw back via `WalletRefundService` | P-27 | BE2-DISP-04 | **Built.** Reopens at `decision_tier + 1`; a tier 3 decision is final. Excludes the decider and whoever approved the refund. A refund granted on appeal claws back the driver's share as usual (`clawback_driver_earnings`) |
 | BE2-DISP-11 | `[x]` When an admin is deactivated, return their open disputes to their tier queue | A-37 | BE2-DISP-04 | **Built.** Also on delete, and on a role change for the cases the new role cannot work |
 | BE2-DISP-12 | `[x]` Reporter notifications on escalation and appeal ("Your case is with our senior team"), never exposing admin names | P-27 | BE2-DISP-05 | **Built.** `dispute_update` push + in-app on take/under review, escalation, Safety hand-off, appeal and decision; reporter view (`stage_label`, `appeal`, `can_add_evidence`) never includes admin names |
-| BE2-DISP-13 | `[x]` Tests: tier permissions, refund limits and self-approval block, safety routing, SLA auto-escalation, appeal window and reviewer exclusion, terminal-state guards | — | BE2-DISP-01–12 | **Built.** `tests/Feature/AdvancedDisputesTest.php` (38 tests) and `DisputeTest.php` updated for wallet-default refunds |
+| BE2-DISP-13 | `[x]` Tests: tier permissions, refund limits and self-approval block, safety routing, SLA auto-escalation, appeal window and reviewer exclusion, terminal-state guards | — | BE2-DISP-01–12 | **Built.** `tests/Feature/AdvancedDisputesTest.php` (43 tests) and `DisputeTest.php` updated for wallet-default refunds |
 
 ---
 
