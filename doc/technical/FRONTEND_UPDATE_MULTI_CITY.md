@@ -44,7 +44,7 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 
 ### Sign-up and onboarding
 - **Must do:** the sign-up city picker should call `GET /cities?include_onboarding=1`. Cities in onboarding (recruiting drivers before launch) are only in that list. Show `launch_status_label` ("Onboarding" → e.g. "Launching soon") next to them.
-- `POST /auth/register/complete` and `PUT /driver/profile` refuse a paused city: 422 on `city_id`, "The selected city is not open for driver sign-ups."
+- `POST /auth/register/complete` (as a driver) and `PUT /driver/profile` refuse a paused city: 422 on `city_id`, "The selected city is not open for driver sign-ups." `GET /cities/{id}/vehicle-classes` works for onboarding cities, so the preferred-class picker keeps working before launch.
 - A driver can change their city only while their status is `onboarding` or `rejected`. After they submit, `PUT /driver/profile` with a different `city_id` returns 422 "Your city can only be changed before you submit your application. Contact support to move city." Hide or lock the city field once the application is submitted.
 
 ### Going online
@@ -64,7 +64,7 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 ### City list and detail
 - Each city has `launch_status` (`onboarding`, `live`, `paused`), `launch_status_label`, `launch_date`, `launched_at`, `paused_at`, `pause_reason`, `pause_scheduled_rides` and `waitlist_count`. Replace the active/inactive badge with the launch status, and add a `launch_status` filter (comma list) to `GET /admin/cities`. `is_active` still works and means live.
 - `GET /admin/cities/{id}` adds `readiness`: `{ ready, missing, counts }`.
-- Create and edit forms: add **Target launch date** (`launch_date`). A boundary that overlaps another city returns 422 on `boundary` with the city's name; show it on the map field. Time zone and currency are fixed to Africa/Lagos and NGN, so hide or disable those fields.
+- Create and edit forms: add **Target launch date** (`launch_date`). A boundary that overlaps another city returns 422 on `boundary` with the city's name; show it on the map field. Edits that send the unchanged boundary back are not checked. Time zone and currency are fixed to Africa/Lagos and NGN, so hide or disable those fields.
 
 ### Readiness checklist page
 - `GET /admin/cities/{id}/readiness` → `gates[]`, each with `label`, `kind` (`computed` or `manual`), `required`, `status` (`passed`, `failed`, `not_applicable`) and a `detail` sentence. Show a tick, cross or dash per gate with the detail.

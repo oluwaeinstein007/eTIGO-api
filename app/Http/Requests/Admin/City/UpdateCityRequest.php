@@ -27,8 +27,10 @@ class UpdateCityRequest extends FormRequest
             'boundary.type' => ['required_with:boundary', 'string', 'in:Point,Polygon'],
             'boundary.coordinates' => ['required_with:boundary', 'array'],
             'boundary.radius_km' => ['nullable', 'numeric', 'min:0'],
-            'timezone' => ['sometimes', 'string', 'timezone', Rule::in(config('cities.supported_timezones'))],
-            'currency_code' => ['sometimes', 'string', 'size:3', Rule::in(config('cities.supported_currencies'))],
+            // The city's current value is accepted too, so a form that sends
+            // every field back still saves for an older city.
+            'timezone' => ['sometimes', 'string', 'timezone', Rule::in([...config('cities.supported_timezones'), $this->route('city')?->timezone])],
+            'currency_code' => ['sometimes', 'string', 'size:3', Rule::in([...config('cities.supported_currencies'), $this->route('city')?->currency_code])],
             'launch_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'vehicle_class_ids' => ['nullable', 'array'],
             'vehicle_class_ids.*' => ['uuid', 'distinct', 'exists:vehicle_classes,id'],
@@ -64,6 +66,13 @@ class UpdateCityRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 if ($validator->errors()->isNotEmpty() || ! is_array($this->input('boundary'))) {
+                    return;
+                }
+
+                // Only a changed boundary is checked, so other edits still
+                // save while an old overlap is being sorted out (the
+                // readiness checklist keeps flagging it).
+                if ($this->input('boundary') == $this->route('city')?->boundary) {
                     return;
                 }
 

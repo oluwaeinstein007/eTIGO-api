@@ -196,7 +196,7 @@ Called after OTP verification when `is_new_user` is `true`. The phone must have 
 | last_name  | string | Yes      | Last name                            |
 | email      | string | No       | Email address (unique per account type) |
 | type       | string | Yes      | `passenger` or `driver`              |
-| city_id    | string (UUID) | Conditional | Required for drivers. An onboarding or live city (`GET /cities?include_onboarding=1`); a paused city returns 422 `The selected city is not open for driver sign-ups.` |
+| city_id    | string (UUID) | Conditional | Required for drivers. For drivers, an onboarding or live city (`GET /cities?include_onboarding=1`); a paused city returns 422 `The selected city is not open for driver sign-ups.` For passengers, any existing city |
 
 **Response 201 (passenger):**
 ```json
@@ -4306,7 +4306,7 @@ Each city has `launch_status` (`onboarding`, `live`, `paused`) and `launch_statu
 ```
 GET /cities/{city_id}/vehicle-classes
 ```
-Returns active vehicle classes available in a city. No authentication required. Filters by both pivot `is_active` and global `is_active`.
+Returns active vehicle classes available in a city. No authentication required. Filters by both pivot `is_active` and global `is_active`. Works for live and onboarding cities (drivers pick a preferred class before launch); a paused city returns 404.
 
 **Response 200:**
 ```json
@@ -4417,7 +4417,7 @@ POST   /cities/{city_id}/waitlist     (10 per minute)
 DELETE /cities/{city_id}/waitlist
 ```
 
-`POST` returns 201 when the passenger joins (200 if they were already on it) and 422 `E-tiGo is already live in Lagos. You can book now.` for a live city.
+`POST` returns 201 when the passenger joins, or rejoins after being told about an earlier launch (200 if they are already waiting) and 422 `E-tiGo is already live in Lagos. You can book now.` for a live city.
 
 **Response (all three):**
 ```json
@@ -4646,7 +4646,7 @@ New cities start in `onboarding`. Moves: onboarding → live (first launch, need
 
 Admin city responses add `launch_date` (the client's target date, a readiness gate), `launched_at` (first launch), `paused_at`, `pause_reason`, `pause_scheduled_rides` (`honour` or `cancel`) and `readiness_confirmations` (the manual gates); public responses only carry `launch_status`/`launch_status_label`.
 
-**Boundaries cannot overlap.** Create and update return 422 on `boundary` (`This boundary overlaps Lagos. …`) when the boundary overlaps another city's (any status), so a pickup always maps to one city. Cities may share a border: points within 10 m of the other city's edge count as on the edge. **Time zone and currency:** `timezone` must be `Africa/Lagos` and `currency_code` `NGN` (`config/cities.php`), because payout days, promo peaks and fleet business days still run on Lagos time.
+**Boundaries cannot overlap.** Create and update return 422 on `boundary` (`This boundary overlaps Lagos. …`) when the boundary overlaps another city's (any status), so a pickup always maps to one city. An update only checks a boundary that changed, so a form that sends the whole city back still saves other edits. Cities may share a border: points within 10 m of the other city's edge count as on the edge. **Time zone and currency:** `timezone` must be `Africa/Lagos` and `currency_code` `NGN` (`config/cities.php`), because payout days, promo peaks and fleet business days still run on Lagos time. An update also accepts the city's current value unchanged.
 
 ### List Cities
 ```

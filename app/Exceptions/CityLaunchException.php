@@ -6,8 +6,6 @@ namespace App\Exceptions;
  * A city launch-status change that is not allowed: a transition that does
  * not exist, or a first launch that fails the readiness checklist.
  * Controllers answer 422 with the message and the readiness report.
- *
- * @phpstan-type Readiness array<string, mixed>
  */
 class CityLaunchException extends \RuntimeException
 {

@@ -1026,7 +1026,7 @@
 
 **PRD refs:** B-31, A-38
 
-> **Built (18 Oct 2026)** on branch `feature/multi-city-support`; `tests/Feature/MultiCityTest.php` (30 tests). See TECHNICAL §5.1, FRONTEND_UPDATE_MULTI_CITY.md and CITY_ONBOARDING.md.
+> **Built (18 Oct 2026)** on branch `feature/multi-city-support`; `tests/Feature/MultiCityTest.php` (33 tests). See TECHNICAL §5.1, FRONTEND_UPDATE_MULTI_CITY.md and CITY_ONBOARDING.md.
 >
 > **OQ-22 answered in part (16 Oct 2026):** the **target dates are the client's decision**. Engineering recommendation: Lagos → Abuja → Port Harcourt → Ibadan, each launched when it passes a readiness checklist (boundary with no overlap, prices for every class, at least 30 approved drivers, support/safety cover, state permits, charging stations for EV classes); suggested Abuja no earlier than 6 weeks after Lagos is stable. Replace the city on/off switch with onboarding / live / paused states. No schema change is needed for currency or time zone inside Nigeria. Details: [PHASE2_DECISIONS.md — OQ-22](../../client/PHASE2_DECISIONS.md#oq-22--which-cities-and-when).
 

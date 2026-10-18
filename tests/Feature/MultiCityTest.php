@@ -13,6 +13,7 @@ use App\Models\CityWaitlistEntry;
 use App\Models\Driver;
 use App\Models\EvChargingStation;
 use App\Models\Notification;
+use App\Models\OtpCode;
 use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
@@ -667,4 +668,66 @@ it('keeps city launch endpoints to operations', function () {
     ($this->as)($token)->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'paused', 'reason' => 'x'])
         ->assertForbidden();
     ($this->as)($token)->getJson('/api/v1/admin/settings/cities')->assertForbidden();
+});
+
+// === REVIEW FIXES ===
+
+it('still saves other edits to a city whose old boundary overlaps, and its legacy time zone', function () {
+    // Saved before overlaps were checked, in an old default time zone.
+    $ikeja = City::factory()->create([
+        'name' => 'Ikeja',
+        'timezone' => 'UTC',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3515, 6.6018], 'radius_km' => 10],
+    ]);
+
+    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$ikeja->id}", [
+        'name' => 'Ikeja GRA',
+        'timezone' => 'UTC',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3515, 6.6018], 'radius_km' => 10],
+    ])->assertOk()->assertJsonPath('city.name', 'Ikeja GRA');
+
+    // A changed boundary is still checked, and a new foreign time zone refused.
+    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$ikeja->id}", [
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3515, 6.6018], 'radius_km' => 12],
+    ])->assertUnprocessable()->assertJsonValidationErrors('boundary');
+
+    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$ikeja->id}", ['timezone' => 'Africa/Accra'])
+        ->assertUnprocessable()->assertJsonValidationErrors('timezone');
+});
+
+it('starts a new wait when a passenger rejoins after being told about a launch', function () {
+    $paused = City::factory()->paused()->create();
+    CityWaitlistEntry::create(['city_id' => $paused->id, 'user_id' => $this->passenger->id, 'notified_at' => now()->subMonth()]);
+
+    ($this->as)($this->passengerToken)->postJson("/api/v1/cities/{$paused->id}/waitlist")
+        ->assertCreated()
+        ->assertJsonPath('on_waitlist', true)
+        ->assertJsonPath('notified_at', null);
+
+    expect(CityWaitlistEntry::count())->toBe(1);
+});
+
+it('refuses driver sign-up in a paused city but not a passenger who names it', function () {
+    $paused = City::factory()->paused()->create();
+
+    foreach (['+2348011111111', '+2348022222222'] as $phone) {
+        OtpCode::create([
+            'phone' => $phone,
+            'code' => hash('sha256', '123456'),
+            'purpose' => 'login',
+            'expires_at' => now()->addMinutes(5),
+            'verified_at' => now(),
+        ]);
+    }
+
+    ($this->asGuest)()->postJson('/api/v1/auth/register/complete', [
+        'phone' => '+2348011111111', 'first_name' => 'Ada', 'last_name' => 'Obi',
+        'type' => 'driver', 'city_id' => $paused->id,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['city_id' => 'The selected city is not open for driver sign-ups.']);
+
+    ($this->asGuest)()->postJson('/api/v1/auth/register/complete', [
+        'phone' => '+2348022222222', 'first_name' => 'Bisi', 'last_name' => 'Ade',
+        'type' => 'passenger', 'city_id' => $paused->id,
+    ])->assertCreated();
 });

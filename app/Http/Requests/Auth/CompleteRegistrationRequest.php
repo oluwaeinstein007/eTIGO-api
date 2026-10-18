@@ -28,9 +28,12 @@ class CompleteRegistrationRequest extends FormRequest
             ],
             'type' => ['required', 'string', 'in:passenger,driver'],
             // Drivers sign up in onboarding and live cities, not paused ones.
+            // Only a driver's city is stored; passengers' is not checked.
             'city_id' => [
                 'required_if:type,driver', 'nullable', 'uuid',
-                Rule::exists('cities', 'id')->whereIn('launch_status', [CityLaunchStatus::Onboarding->value, CityLaunchStatus::Live->value]),
+                $this->input('type') === 'driver'
+                    ? Rule::exists('cities', 'id')->whereIn('launch_status', [CityLaunchStatus::Onboarding->value, CityLaunchStatus::Live->value])
+                    : Rule::exists('cities', 'id'),
             ],
         ];
     }

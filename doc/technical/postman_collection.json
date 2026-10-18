@@ -554,7 +554,7 @@
                     }
                   ]
                 },
-                "description": "No auth required. Returns the vehicle classes active in the city (`{{city_id}}`), filtered by both the city pivot and the class's own `is_active`. **Sets `{{economy_class_id}}`, `{{comfort_class_id}}`, `{{premium_class_id}}`** and `{{vehicle_class_id}}` (economy). Unknown city \u2192 404 `NOT_FOUND`."
+                "description": "No auth required. Returns the vehicle classes active in the city (`{{city_id}}`), filtered by both the city pivot and the class's own `is_active`. **Sets `{{economy_class_id}}`, `{{comfort_class_id}}`, `{{premium_class_id}}`** and `{{vehicle_class_id}}` (economy). Unknown city \u2192 404 `NOT_FOUND`.\n\n**Multi-city:** works for live and onboarding cities (driver preferred-class picker before launch); 404 for a paused city."
               },
               "response": [
                 {
@@ -2732,7 +2732,7 @@
                     }
                   ]
                 },
-                "description": "Join the waitlist of an onboarding or paused city: 201 (200 if already on it). 422 for a live city. Throttled 10/min."
+                "description": "Join the waitlist of an onboarding or paused city: 201 (also when rejoining after an earlier launch notice; 200 if already waiting). 422 for a live city. Throttled 10/min."
               },
               "response": [
                 {
@@ -14736,7 +14736,7 @@
                     }
                   ]
                 },
-                "description": "Returns paginated cities with aggregate counts.\n\n**Query params:**\n- `is_active` (bool) \u2014 filter by active/inactive status\n- `search` (string) \u2014 filter by city name (partial match)\n- `state` (string) \u2014 filter by Nigerian state (e.g. `Lagos`)\n- `region` (string) \u2014 filter by geopolitical zone (e.g. `South-West`)\n- `per_page` (int) \u2014 results per page (default: 20, max: 100)\n\nEach city includes `vehicle_classes_count` and `drivers_count` for the list view.\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting).\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting)."
+                "description": "Returns paginated cities with aggregate counts.\n\n**Query params:**\n- `is_active` (bool) \u2014 filter by active/inactive status\n- `search` (string) \u2014 filter by city name (partial match)\n- `state` (string) \u2014 filter by Nigerian state (e.g. `Lagos`)\n- `region` (string) \u2014 filter by geopolitical zone (e.g. `South-West`)\n- `per_page` (int) \u2014 results per page (default: 20, max: 100)\n\nEach city includes `vehicle_classes_count` and `drivers_count` for the list view.\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting).\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting).\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting)."
               },
               "response": [
                 {

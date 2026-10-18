@@ -28,15 +28,20 @@ class CityWaitlistController extends Controller
             ], 422);
         }
 
-        $entry = CityWaitlistEntry::updateOrCreate(
-            ['city_id' => $city->id, 'user_id' => $request->user()->id],
-            ['notified_at' => null],
-        );
+        // createOrFirst survives a double tap racing on the unique index.
+        $entry = CityWaitlistEntry::createOrFirst(['city_id' => $city->id, 'user_id' => $request->user()->id]);
+        $joined = $entry->wasRecentlyCreated;
+
+        // Told about an earlier launch: this is a new wait.
+        if (! $joined && $entry->notified_at !== null) {
+            $entry->forceFill(['notified_at' => null, 'created_at' => now()])->save();
+            $joined = true;
+        }
 
         return response()->json([
             'message' => "You are on the waitlist. We will tell you when E-tiGo opens in {$city->name}.",
             ...$this->state($city, $entry),
-        ], $entry->wasRecentlyCreated ? 201 : 200);
+        ], $joined ? 201 : 200);
     }
 
     public function destroy(Request $request, City $city): JsonResponse

@@ -16,7 +16,9 @@ class CityVehicleClassController extends Controller
 
     public function index(City $city): JsonResponse
     {
-        abort_unless($city->is_active, 404);
+        // Drivers pick a preferred class while their city is onboarding;
+        // bookings there are refused by the ride requests anyway.
+        abort_unless($city->launch_status->acceptsDriverSignUps(), 404);
 
         $vehicleClasses = $this->cache->cityVehicleClasses($city->id);
 

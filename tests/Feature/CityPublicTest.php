@@ -42,8 +42,18 @@ it('lists active vehicle classes for a city', function () {
         ->assertJsonPath('vehicle_classes.0.id', $activeVc->id);
 });
 
-it('returns 404 for inactive city vehicle classes', function () {
-    $city = City::factory()->inactive()->create();
+it('lists vehicle classes of a city that is onboarding, for driver sign-up', function () {
+    $city = City::factory()->onboarding()->create();
+    $vc = VehicleClass::factory()->create();
+    $city->vehicleClasses()->attach($vc->id, ['is_active' => true]);
+
+    $this->getJson("/api/v1/cities/{$city->id}/vehicle-classes")
+        ->assertOk()
+        ->assertJsonCount(1, 'vehicle_classes');
+});
+
+it('returns 404 for paused city vehicle classes', function () {
+    $city = City::factory()->paused()->create();
     $vc = VehicleClass::factory()->create();
     $city->vehicleClasses()->attach($vc->id, ['is_active' => true]);
 
