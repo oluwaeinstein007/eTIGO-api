@@ -226,6 +226,10 @@ php artisan vehicles:request-fuel-types --dry-run   # list only
 php artisan vehicles:request-fuel-types
 ```
 
+### After deploying multi-city support (Phase 2)
+
+The migration sets each city's `launch_status`: active cities become `live`, inactive cities that have had trips `paused`, and inactive cities with no trips `onboarding`. Check the result in the admin city list, then give each onboarding city its target `launch_date` once the client has set one. Nothing else is needed; `CITY_*` variables are optional (`.env.example`). The follow-up work of a launch or pause (cancelling bookings when asked, telling drivers and the waitlist) runs on the queue. The procedure for opening a new city is in `doc/technical/CITY_ONBOARDING.md`.
+
 To update environment variables:
 
 ```bash

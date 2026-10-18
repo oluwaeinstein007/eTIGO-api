@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\CityLaunchStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,7 +24,38 @@ class City extends Model
         'timezone',
         'currency_code',
         'is_active',
+        'launch_status',
+        'launch_date',
+        'launched_at',
+        'paused_at',
+        'pause_reason',
+        'pause_scheduled_rides',
+        'readiness_confirmations',
     ];
+
+    protected static function booted(): void
+    {
+        // is_active is kept equal to "live" for the clients and queries that
+        // still read it. A legacy write of is_active alone maps back to a
+        // launch status: on for live; off for onboarding on a new city and
+        // paused on an existing one.
+        static::saving(function (City $city) {
+            if ($city->isDirty('is_active') && ! $city->isDirty('launch_status')) {
+                $city->launch_status = match (true) {
+                    $city->is_active => CityLaunchStatus::Live,
+                    $city->exists => CityLaunchStatus::Paused,
+                    default => CityLaunchStatus::Onboarding,
+                };
+            }
+
+            $city->launch_status ??= CityLaunchStatus::Onboarding;
+            $city->is_active = $city->launch_status === CityLaunchStatus::Live;
+
+            if ($city->is_active) {
+                $city->launched_at ??= now();
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -30,7 +63,42 @@ class City extends Model
             'boundary' => 'array',
             'area_sq_km' => 'decimal:2',
             'is_active' => 'boolean',
+            'launch_status' => CityLaunchStatus::class,
+            'launch_date' => 'date',
+            'launched_at' => 'datetime',
+            'paused_at' => 'datetime',
+            'readiness_confirmations' => 'array',
         ];
+    }
+
+    public function isLive(): bool
+    {
+        return $this->launch_status === CityLaunchStatus::Live;
+    }
+
+    public function acceptsBookings(): bool
+    {
+        return $this->launch_status?->acceptsBookings() ?? false;
+    }
+
+    /**
+     * @param  Builder<City>  $query
+     * @return Builder<City>
+     */
+    public function scopeLive(Builder $query): Builder
+    {
+        return $query->where('launch_status', CityLaunchStatus::Live);
+    }
+
+    /**
+     * Cities a driver can choose when signing up: onboarding and live.
+     *
+     * @param  Builder<City>  $query
+     * @return Builder<City>
+     */
+    public function scopeOpenToDrivers(Builder $query): Builder
+    {
+        return $query->whereIn('launch_status', [CityLaunchStatus::Onboarding, CityLaunchStatus::Live]);
     }
 
     public static function calculateAreaFromPolygon(array $coordinates): float
@@ -97,5 +165,10 @@ class City extends Model
     public function evStations(): HasMany
     {
         return $this->hasMany(EvChargingStation::class);
+    }
+
+    public function waitlistEntries(): HasMany
+    {
+        return $this->hasMany(CityWaitlistEntry::class);
     }
 }

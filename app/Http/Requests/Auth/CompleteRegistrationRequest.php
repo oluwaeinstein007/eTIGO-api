@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Enums\CityLaunchStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +27,14 @@ class CompleteRegistrationRequest extends FormRequest
                 Rule::unique('users', 'email')->where('type', $this->input('type')),
             ],
             'type' => ['required', 'string', 'in:passenger,driver'],
-            'city_id' => ['required_if:type,driver', 'nullable', 'uuid', 'exists:cities,id'],
+            // Drivers sign up in onboarding and live cities, not paused ones.
+            // Only a driver's city is stored; passengers' is not checked.
+            'city_id' => [
+                'required_if:type,driver', 'nullable', 'uuid',
+                $this->input('type') === 'driver'
+                    ? Rule::exists('cities', 'id')->whereIn('launch_status', [CityLaunchStatus::Onboarding->value, CityLaunchStatus::Live->value])
+                    : Rule::exists('cities', 'id'),
+            ],
         ];
     }
 
@@ -37,6 +45,7 @@ class CompleteRegistrationRequest extends FormRequest
     {
         return [
             'email.unique' => 'This email address is already registered as a '.$this->input('type').'.',
+            'city_id.exists' => 'The selected city is not open for driver sign-ups.',
         ];
     }
 }

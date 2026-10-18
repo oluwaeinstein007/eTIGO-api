@@ -150,8 +150,10 @@ class RideNotificationService
 
         $body = "{$cancellerLabel} cancelled the ride.".($reasonLabel ? " Reason: {$reasonLabel}." : '');
 
-        // The scheduled-ride dispatcher records a passenger-facing explanation.
-        if ($ride->cancellation_reason === CancellationReason::ScheduledDispatchFailed->value && $ride->cancellation_details) {
+        // The scheduled-ride dispatcher and a city pause record a
+        // passenger-facing explanation.
+        $explained = [CancellationReason::ScheduledDispatchFailed->value, CancellationReason::CityPaused->value];
+        if (in_array($ride->cancellation_reason, $explained, true) && $ride->cancellation_details) {
             $body = $ride->cancellation_details;
         }
 

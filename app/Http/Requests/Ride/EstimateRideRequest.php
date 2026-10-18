@@ -47,7 +47,7 @@ class EstimateRideRequest extends FormRequest
                 $city = City::find($this->input('city_id'));
 
                 if ($city && ! $city->is_active) {
-                    $validator->errors()->add('city_id', 'This city is not currently active.');
+                    $validator->errors()->add('city_id', $city->launch_status->unavailableMessage($city->name));
                 }
 
                 $pickupLat = $this->float('pickup_lat');

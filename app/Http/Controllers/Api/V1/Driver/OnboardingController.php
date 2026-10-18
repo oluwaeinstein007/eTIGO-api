@@ -118,6 +118,16 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
+        // Once the application is submitted the city is fixed; operations
+        // move approved drivers (PUT /admin/drivers/{driver}/city).
+        $changesCity = $request->has('city_id') && $request->input('city_id') !== $driver->city_id;
+
+        if ($changesCity && ! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected])) {
+            return response()->json([
+                'message' => 'Your city can only be changed before you submit your application. Contact support to move city.',
+            ], 422);
+        }
+
         $driver->update($request->validated());
 
         AuditLog::record($driver, 'profile_updated', $user);

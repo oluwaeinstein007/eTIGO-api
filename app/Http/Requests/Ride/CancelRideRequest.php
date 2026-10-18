@@ -49,6 +49,7 @@ class CancelRideRequest extends FormRequest
             'reason' => ['nullable', 'string', Rule::enum(CancellationReason::class)->except([
                 CancellationReason::SystemTimeout,
                 CancellationReason::ScheduledDispatchFailed,
+                CancellationReason::CityPaused,
             ])],
             'reason_details' => ['nullable', 'string', 'max:500'],
             'custom_description' => ['nullable', 'string', 'max:500'],

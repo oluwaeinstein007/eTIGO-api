@@ -8,6 +8,7 @@ use App\Enums\FuelType;
 use App\Enums\KycStatus;
 use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
+use App\Enums\NotificationType;
 use App\Enums\RideStatus;
 use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
@@ -19,12 +20,15 @@ use App\Http\Resources\DriverResource;
 use App\Http\Resources\RideResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\AuditLog;
+use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverDocument;
 use App\Models\Ride;
+use App\Models\ScheduledRide;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -395,6 +399,118 @@ class DriverManagementController extends Controller
         return response()->json([
             'message' => isset($changes['vehicle_class_id']) ? 'Vehicle class updated.' : 'Vehicle fuel type updated.',
             'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
+        ]);
+    }
+
+    /**
+     * Move a driver to another city (Phase 2 multi-city, OQ-22). Refused
+     * while they are on a trip or hold upcoming reservations, which belong
+     * to the old city. An online driver is taken offline, since their
+     * location is in the old city's matching pool.
+     */
+    public function updateCity(Request $request, Driver $driver): JsonResponse
+    {
+        $validated = $request->validate([
+            'city_id' => ['required', 'uuid', Rule::exists('cities', 'id')],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $city = City::findOrFail($validated['city_id']);
+        $admin = $request->user();
+
+        // Checked under the driver's row lock, which ride assignment and
+        // reservations also take, so neither can slip in during the move.
+        $outcome = DB::transaction(function () use ($driver, $city, $admin, $validated) {
+            $locked = Driver::lockForUpdate()->findOrFail($driver->id);
+
+            if ($locked->city_id === $city->id) {
+                return ['error' => response()->json(['message' => 'The driver is already in this city.'], 422)];
+            }
+
+            $hasActiveRide = Ride::where('driver_id', $locked->user_id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($hasActiveRide) {
+                return ['error' => response()->json([
+                    'message' => 'The driver cannot change city during an active ride.',
+                ], 409)];
+            }
+
+            $reservations = ScheduledRide::upcoming()
+                ->where('reserved_driver_id', $locked->user_id)
+                ->count();
+
+            if ($reservations > 0) {
+                return ['error' => response()->json([
+                    'message' => "The driver has {$reservations} upcoming reserved bookings. Release them before changing city.",
+                    'upcoming_reservations' => $reservations,
+                ], 409)];
+            }
+
+            $wasOnline = $locked->is_online;
+            $oldCityId = $locked->city_id;
+
+            $locked->update([
+                'city_id' => $city->id,
+                'is_online' => false,
+            ]);
+
+            AuditLog::record(
+                $locked,
+                'driver_city_changed',
+                $admin,
+                ['city_id' => $oldCityId],
+                ['city_id' => $city->id, 'reason' => $validated['reason']],
+            );
+
+            return ['was_online' => $wasOnline];
+        });
+
+        if (isset($outcome['error'])) {
+            return $outcome['error'];
+        }
+
+        $wasOnline = $outcome['was_online'];
+        $driver->refresh();
+
+        if ($wasOnline) {
+            try {
+                app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to remove moved driver from the live location index', [
+                    'driver_id' => $driver->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        app(NotificationService::class)->send(
+            userId: $driver->user_id,
+            type: NotificationType::DriverCityChanged,
+            title: 'Your City Changed',
+            body: ($city->launch_status->allowsDriversOnline()
+                ? "You now drive in {$city->name}. You will get trips there from now on."
+                : "You now drive in {$city->name}. E-tiGo has not launched there yet; you can go online from launch day.")
+                .($wasOnline ? ' You have been taken offline; go online again when you are in the city.' : ''),
+            data: ['city_id' => (string) $city->id],
+        );
+
+        $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city']);
+
+        $warnings = [];
+        $vehicleClassId = $driver->vehicle?->vehicle_class_id;
+        if ($vehicleClassId && ! $city->vehicleClasses()->wherePivot('is_active', true)->whereKey($vehicleClassId)->exists()) {
+            $warnings[] = "{$city->name} does not offer the driver's vehicle class ({$driver->vehicle->vehicleClass?->name}), so they will not get trips until it is offered or their class changes.";
+        }
+        if (! $city->launch_status->allowsDriversOnline()) {
+            $warnings[] = "{$city->name} has not launched yet, so the driver cannot go online until it is live.";
+        }
+
+        return response()->json([
+            'message' => "Driver moved to {$city->name}.",
+            'driver' => new DriverResource($driver),
+            'warnings' => $warnings,
         ]);
     }
 

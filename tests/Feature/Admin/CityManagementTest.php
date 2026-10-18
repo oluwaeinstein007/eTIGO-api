@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CityLaunchStatus;
 use App\Models\City;
 use App\Models\User;
 use App\Models\VehicleClass;
@@ -162,8 +163,10 @@ it('toggles city status', function () {
         ->assertJson(['message' => 'City activated successfully.']);
 
     expect($city->fresh()->is_active)->toBeTrue();
-    $this->assertDatabaseHas('audit_logs', ['event' => 'city_deactivated']);
-    $this->assertDatabaseHas('audit_logs', ['event' => 'city_activated']);
+    expect($city->fresh()->launch_status)->toBe(CityLaunchStatus::Live);
+    // The switch pauses and resumes a launched city (Phase 2 multi-city).
+    $this->assertDatabaseHas('audit_logs', ['event' => 'city_paused']);
+    $this->assertDatabaseHas('audit_logs', ['event' => 'city_resumed']);
 });
 
 it('updates city vehicle classes', function () {

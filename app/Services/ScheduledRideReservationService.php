@@ -151,6 +151,10 @@ class ScheduledRideReservationService
                 $this->clearReservation($ride, $scheduled, 'admin_released', $admin);
             }
 
+            // The driver's row lock serialises this with ride assignment and
+            // an operations city move (reservationErrors reads the driver fresh).
+            Driver::where('user_id', $driverUser->id)->lockForUpdate()->first();
+
             $errors = $this->reservationErrors($driverUser, $ride, $admin !== null);
 
             if ($errors !== []) {

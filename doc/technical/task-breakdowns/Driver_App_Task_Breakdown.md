@@ -37,10 +37,11 @@
 
 7. [Scheduling & Vehicle](#7-phase-2--scheduling--vehicle)
 8. [Disputes](#8-phase-2--disputes)
+9. [Cities](#9-phase-2--cities)
 
 ### Tracking
 
-9. [Open Questions](#9-open-questions)
+10. [Open Questions](#10-open-questions)
 
 ---
 
@@ -199,7 +200,18 @@
 
 ---
 
-## 9. Open Questions
+## 9. Phase 2 — Cities
+
+**PRD refs:** B-31, A-38 (multi-city), OQ-22
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE2-DCITY-01 | `[ ]` Sign-up and onboarding city picker: list cities with `GET /cities?include_onboarding=1` and label cities that are launching soon; lock the city once the application is submitted ("Contact support to move city") | D-01, B-31 | 📡 BE2-CITY-03, BE2-CITY-06 | API ready (18 Oct 2026). Paused cities are not offered; `PUT /driver/profile` with another city after submitting returns 422. See FRONTEND_UPDATE_MULTI_CITY.md |
+| FE2-DCITY-02 | `[ ]` Going online: show the "not launched yet" reason from `toggle-online` and the paused-city `city_notice` banner; handle `city_status_changed` and `driver_city_changed` notifications | B-31 | 📡 BE2-CITY-04, BE2-CITY-06 | Drivers in an onboarding city cannot go online; in a paused city they can (for rides booked before the pause) |
+
+---
+
+## 10. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -221,8 +233,8 @@
 | Section | Tasks |
 |---------|-------|
 | Phase 1 | 48 |
-| Phase 2 | 12 |
-| **Total** | **60** |
+| Phase 2 | 14 |
+| **Total** | **62** |
 
 ---
 

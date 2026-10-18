@@ -54,6 +54,11 @@ enum NotificationType: string
     case LostItemUpdate = 'lost_item_update';
     case LostItemMessage = 'lost_item_message';
 
+    // City events (multi-city)
+    case CityLaunched = 'city_launched';
+    case CityStatusChanged = 'city_status_changed';
+    case DriverCityChanged = 'driver_city_changed';
+
     // Wallet events
     case TopupSuccess = 'topup_success';
     case TopupFailed = 'topup_failed';
@@ -99,6 +104,9 @@ enum NotificationType: string
             self::LostItemReport => 'Lost Item Report',
             self::LostItemUpdate => 'Lost Item Update',
             self::LostItemMessage => 'Lost Item Message',
+            self::CityLaunched => 'Now In Your City',
+            self::CityStatusChanged => 'City Update',
+            self::DriverCityChanged => 'Your City Changed',
             self::TopupSuccess => 'Top-up Successful',
             self::TopupFailed => 'Top-up Failed',
             self::RideWalletPayment => 'Wallet Ride Payment',
@@ -162,7 +170,10 @@ enum NotificationType: string
             self::VehicleFuelTypeRequired,
             self::LostItemReport,
             self::LostItemUpdate,
-            self::LostItemMessage => NotificationCategory::Account,
+            self::LostItemMessage,
+            self::CityLaunched,
+            self::CityStatusChanged,
+            self::DriverCityChanged => NotificationCategory::Account,
         };
     }
 }
