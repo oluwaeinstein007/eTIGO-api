@@ -9,6 +9,7 @@ use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
+use App\Services\DriverShiftService;
 use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -87,6 +88,16 @@ class Driver extends Model
     public function vehicle(): HasOne
     {
         return $this->hasOne(Vehicle::class);
+    }
+
+    public function shifts(): HasMany
+    {
+        return $this->hasMany(DriverShift::class);
+    }
+
+    public function availabilityPlans(): HasMany
+    {
+        return $this->hasMany(DriverAvailabilityPlan::class);
     }
 
     public function kycVerifications(): HasMany
@@ -178,7 +189,8 @@ class Driver extends Model
     {
         return $this->isFleetVehicle()
             && $this->isApproved()
-            && $this->vehicle === null;
+            && $this->vehicle === null
+            && ! $this->shifts()->workable()->where('ends_at', '>', now())->exists();
     }
 
     public function isProfileComplete(): bool
@@ -224,10 +236,23 @@ class Driver extends Model
             && $this->vehicle->vehicle_class_id !== null;
     }
 
+    /**
+     * Drivers new ride offers may go to, as far as their car allows: its
+     * papers are not expired past the grace period, and a shared car's
+     * driver is inside their shift (before the offer cut-off).
+     */
+    public function scopeDispatchable(Builder $query): void
+    {
+        $query->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
+        app(DriverShiftService::class)->constrainDispatchable($query);
+    }
+
     public function scopeAwaitingVehicle(Builder $query): void
     {
         $query->where('vehicle_ownership_type', VehicleOwnershipType::FleetVehicle)
             ->where('status', DriverStatus::Approved)
-            ->whereDoesntHave('vehicle');
+            ->whereDoesntHave('vehicle')
+            // Drivers on a shared car's timetable have a car, just not right now.
+            ->whereDoesntHave('shifts', fn (Builder $q) => $q->workable()->where('ends_at', '>', now()));
     }
 }

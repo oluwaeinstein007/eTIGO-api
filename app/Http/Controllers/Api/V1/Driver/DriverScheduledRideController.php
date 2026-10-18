@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Driver;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverScheduledRideResource;
 use App\Models\Ride;
+use App\Services\DriverShiftService;
 use App\Services\ScheduledRideReservationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,9 @@ class DriverScheduledRideController extends Controller
     {
         $driver = $request->user()->driver()->with('vehicle')->first();
 
-        if ($driver === null || $driver->vehicle === null) {
+        // A shared car's driver may not hold the car right now; their
+        // shifts decide what they can reserve.
+        if ($driver === null || ($driver->vehicle === null && ! app(DriverShiftService::class)->isShiftDriver($driver))) {
             return response()->json(['rides' => [], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 0, 'total' => 0]]);
         }
 

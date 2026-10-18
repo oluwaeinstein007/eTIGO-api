@@ -21,7 +21,11 @@ class UploadDocumentRequest extends FormRequest
         return [
             'type' => ['required', 'string', Rule::enum(DocumentType::class)],
             'document' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
-            'expires_at' => ['nullable', 'date', 'after:today'],
+            // Roadworthiness and vehicle licence are only useful with their expiry date.
+            'expires_at' => [
+                Rule::requiredIf(fn () => DocumentType::tryFrom((string) $this->input('type'))?->requiresExpiry() ?? false),
+                'nullable', 'date', 'after:today',
+            ],
         ];
     }
 

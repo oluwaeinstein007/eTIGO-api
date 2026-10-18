@@ -104,7 +104,7 @@ Three long-running pieces must be up for the platform to work, besides Nginx and
 | Process | How it runs | What breaks without it |
 |---------|-------------|------------------------|
 | Queue workers | Supervisor `etigo-worker` (2 processes, `queue:work database`) | Driver matching and offer timeouts, final fare, push/in-app notifications, payout transfers, webhook processing, SOS check-ins and alerts |
-| Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, scheduled-ride dispatch and reminders, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
+| Scheduler | cron: `* * * * * deploy cd /var/www/etigo-api/current && php artisan schedule:run` (`/etc/cron.d/etigo-scheduler`) | Driver earnings settlement, wallet hold and top-up expiry, stuck top-up recovery, daily reconciliation and ledger check, weekly auto-payouts, fleet remittance settlement, scheduled-ride dispatch and reminders, fleet shifts, vehicle maintenance, EV reservation expiry, lifting 48-hour compliance suspensions, notification clean-up |
 | Reverb | Supervisor `etigo-reverb` (`php artisan reverb:start`), proxied by Nginx | Live ride updates, driver offers over WebSocket and the admin SOS console (push notifications and polling endpoints still work) |
 | Telemetry gateway (optional) | `php artisan telemetry:serve start` under Supervisor, port `TELEMETRY_SERVER_PORT` (8081) behind Nginx | High-frequency driver GPS over WebSocket. Without it drivers report location through `POST /driver/location`. `deploy.sh` restarts it (Supervisor `etigo-telemetry`) — it is long-running and would otherwise keep old code |
 
@@ -119,6 +119,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 | Every minute | `ProcessScheduledRidesJob` | Scheduled rides: start matching (or hand the ride to its reserved driver) for bookings whose dispatch time has come, and send passenger and reserved-driver reminders (queues `ScheduledRideDispatchJob` / `ScheduledRideReminderJob`). Needs the scheduler **and** a queue worker; without them scheduled rides never start. Late-cancellation fees are collected by the queued `ChargeScheduledRideCancellationFeeJob` |
 | Every minute (local and staging only) | `demo:simulate-drivers` | Keep the demo drivers from `MonitoringDemoSeeder` reporting their location (does nothing when none are seeded) |
 | Every 5 min | `ExpireEvReservationsJob` | Expire EV stall reservations not activated within 30 min; hand the stall to the next queued driver |
+| Every 5 min | `ProcessDriverShiftsJob` | Shared fleet cars: mark shifts not started after 30 min as missed and email operations, tell drivers when offers stop and when the car is late, end shifts (set the driver offline unless on a trip) |
 | Every 15 min | `ExpireAbandonedTopupsJob` | Mark top-ups never paid as abandoned |
 | Every 15 min | `ReconcilePayoutsJob` | Settle payouts whose transfer outcome is unknown (approved > 10 min, processing > 30 min) against Paystack |
 | Every 15 min | `ProcessDisputeTargetsJob` | Disputes: stamp cases that missed a response target; move tier 1 misses to tier 2 and email super admins about Safety and tier 2 misses (the job itself and its emails are queued, so both need a queue worker) |
@@ -130,6 +131,7 @@ Times are Africa/Lagos where noted, otherwise server time (UTC).
 | Daily 00:00 | `model:prune` (notifications) | Delete in-app notifications older than 90 days |
 | Daily 02:00 | `DailyReconciliationJob` | Compare gateway top-ups/transfers with the ledger |
 | Daily 02:30 | `ledger:check` | Ledger integrity check (balances vs entries) |
+| Daily 06:00 Lagos | `ProcessVehicleMaintenanceJob` | Vehicle maintenance: recompute every car's items, remind drivers once per change, keep cars whose insurance / roadworthiness / vehicle licence expired more than 7 days ago off the road (or lift it), email operations a digest of fleet cars needing work |
 | Daily 04:00 Lagos | `DailyRemittanceSettlementJob` → `RemittanceShortfallAlertJob` (chained) | Settle yesterday's fleet remittances, then update shortfall flags |
 | Monday 06:00 Lagos | `ProcessWeeklyAutoPayoutJob` | Weekly payouts for drivers who chose `weekly_auto` |
 | Monday 08:00 | `NegativeDriverBalanceReportJob` | Report drivers with negative balances (cash commission debt) |
@@ -229,6 +231,16 @@ php artisan vehicles:request-fuel-types
 ### After deploying multi-city support (Phase 2)
 
 The migration sets each city's `launch_status`: active cities become `live`, inactive cities that have had trips `paused`, and inactive cities with no trips `onboarding`. Check the result in the admin city list, then give each onboarding city its target `launch_date` once the client has set one. Nothing else is needed; `CITY_*` variables are optional (`.env.example`). The follow-up work of a launch or pause (cancelling bookings when asked, telling drivers and the waitlist) runs on the queue. The procedure for opening a new city is in `doc/technical/CITY_ONBOARDING.md`.
+
+### After deploying driver scheduling and vehicle maintenance (Phase 2)
+
+The migration links existing vehicle papers (vehicle registration, insurance) to each driver's car; papers it could not match are listed at `GET /admin/vehicle-documents/unlinked` for operations to link. Existing cars get their maintenance items on the first daily run (06:00 Lagos); to do it at once:
+
+```bash
+php artisan vehicles:check-maintenance
+```
+
+The first run sends every driver one push listing what their car needs (most cars have no service date or roadworthiness / vehicle licence on file yet). Missing papers only remind; only an **expired** paper past the 7-day grace period keeps a car off the road. Fleet cars to be shared on shifts need shift mode turned on (`PUT /admin/fleet-vehicles/{vehicle}/shift-mode`) before shifts can be assigned. Nothing else is needed; `DRIVER_SHIFT_*`, `DRIVER_AVAILABILITY_*` and `VEHICLE_MAINTENANCE_*` variables are optional (`.env.example`). Both jobs and their emails need the scheduler and a queue worker.
 
 To update environment variables:
 

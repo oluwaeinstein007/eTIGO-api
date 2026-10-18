@@ -54,6 +54,21 @@ enum NotificationType: string
     case LostItemUpdate = 'lost_item_update';
     case LostItemMessage = 'lost_item_message';
 
+    // Driver scheduling (shared fleet cars)
+    case DriverShiftAssigned = 'driver_shift_assigned';
+    case DriverShiftUpdated = 'driver_shift_updated';
+    case DriverShiftCancelled = 'driver_shift_cancelled';
+    case DriverShiftMissed = 'driver_shift_missed';
+    case DriverShiftEnding = 'driver_shift_ending';
+    case DriverShiftEnded = 'driver_shift_ended';
+    case ShiftHandoverDelayed = 'shift_handover_delayed';
+
+    // Vehicle maintenance
+    case VehicleMaintenanceDue = 'vehicle_maintenance_due';
+    case VehicleBlocked = 'vehicle_blocked';
+    case VehicleUnblocked = 'vehicle_unblocked';
+    case MaintenanceRecordReviewed = 'maintenance_record_reviewed';
+
     // City events (multi-city)
     case CityLaunched = 'city_launched';
     case CityStatusChanged = 'city_status_changed';
@@ -104,6 +119,17 @@ enum NotificationType: string
             self::LostItemReport => 'Lost Item Report',
             self::LostItemUpdate => 'Lost Item Update',
             self::LostItemMessage => 'Lost Item Message',
+            self::DriverShiftAssigned => 'New Shift',
+            self::DriverShiftUpdated => 'Shift Changed',
+            self::DriverShiftCancelled => 'Shift Cancelled',
+            self::DriverShiftMissed => 'Shift Missed',
+            self::DriverShiftEnding => 'Shift Ending',
+            self::DriverShiftEnded => 'Shift Ended',
+            self::ShiftHandoverDelayed => 'Car Running Late',
+            self::VehicleMaintenanceDue => 'Vehicle Check Due',
+            self::VehicleBlocked => 'You Can\'t Go Online',
+            self::VehicleUnblocked => 'You Can Go Online Again',
+            self::MaintenanceRecordReviewed => 'Maintenance Record Checked',
             self::CityLaunched => 'Now In Your City',
             self::CityStatusChanged => 'City Update',
             self::DriverCityChanged => 'Your City Changed',
@@ -159,7 +185,11 @@ enum NotificationType: string
 
             self::PromoExpiring => NotificationCategory::Promotions,
 
-            self::ComplianceWarning => NotificationCategory::Compliance,
+            self::ComplianceWarning,
+            self::VehicleMaintenanceDue,
+            self::VehicleBlocked,
+            self::VehicleUnblocked,
+            self::MaintenanceRecordReviewed => NotificationCategory::Compliance,
 
             self::TierUpgrade => NotificationCategory::Gamification,
 
@@ -173,7 +203,14 @@ enum NotificationType: string
             self::LostItemMessage,
             self::CityLaunched,
             self::CityStatusChanged,
-            self::DriverCityChanged => NotificationCategory::Account,
+            self::DriverCityChanged,
+            self::DriverShiftAssigned,
+            self::DriverShiftUpdated,
+            self::DriverShiftCancelled,
+            self::DriverShiftMissed,
+            self::DriverShiftEnding,
+            self::DriverShiftEnded,
+            self::ShiftHandoverDelayed => NotificationCategory::Account,
         };
     }
 }

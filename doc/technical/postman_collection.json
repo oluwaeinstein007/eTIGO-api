@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "E-tiGo API v1",
-    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet, gamification, promos, EV stations, offline flags, lost & found (queue and settings), operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags, disputes (Safety queue; reads all cases) |\n| Support | `support` | Passengers, disputes (tier 1), lost & found, wallets (read-only), driver ledgers (read-only) |\n| Support Lead | `support_lead` | Everything Support has, plus tier 2 disputes (escalations, appeals) and dispute refund approvals up to \u20a650,000 |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes (support queue; Support Lead too) | \u2014 | view | \u2705 | \u2014 |\n| Disputes (Safety queue) | \u2014 | \u2705 | \u2014 | \u2014 |\n| Dispute refund requests | \u2014 | \u2705 | \u2705 (lead approves) | \u2705 |\n| Lost & Found queue | \u2705 | \u2014 | \u2705 | \u2014 |\n| Lost & Found settings | \u2705 | \u2014 | \u2014 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Report Lost Item** \u2192 `lost_item_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first. Lost & Found (Phase 2): `doc/technical/FRONTEND_UPDATE_LOST_AND_FOUND.md`. Advanced disputes (Phase 2): `doc/technical/FRONTEND_UPDATE_ADVANCED_DISPUTES.md`.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
+    "description": "# E-tiGo API v1\n\n**Ride-hailing platform API for Lagos, Abuja, and other Nigerian cities.**\n\n## Quick Start\n\n### 1. Environment Setup\nSelect **E-tiGo \u2014 Local** or **E-tiGo \u2014 Staging** from the Postman environment dropdown.\n\n### 2. Seeded Test Accounts\n\nAll seeded accounts use the password: `Qwer!234`\n\n#### Admin Accounts\n| Email | Role | Description |\n|-------|------|-------------|\n| `admin@etigo.com` | Super Admin | Default super admin account |\n| `ops@etigo.com` | Operations | Operations manager |\n| `safety@etigo.com` | Safety Operator | SOS/safety console access |\n| `support@etigo.com` | Support | Customer support agent |\n| `finance@etigo.com` | Finance | Finance & payments manager |\n\n#### Passenger Accounts (OTP login)\n| Phone | Email | Name |\n|-------|-------|------|\n| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |\n| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |\n| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |\n| `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |\n| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |\n\n#### Driver Accounts (OTP login)\n| Phone | Email | Name | Status | Vehicle |\n|-------|-------|------|--------|---------|\n| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla (Economy, petrol) |\n| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord (Comfort, hybrid) |\n| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (Premium, electric) |\n| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander (SUV, petrol) |\n| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra (Economy, CNG) |\n| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | \u2014 |\n\n### 3. Seeded Data\n\n#### Cities\n| City | Status | Currency | Radius |\n|------|--------|----------|--------|\n| Lagos | Active | NGN | 40 km |\n| Abuja | Active | NGN | 30 km |\n| Port Harcourt | Active | NGN | 20 km |\n| Ibadan | Inactive | NGN | 20 km |\n\n#### Vehicle Classes\n| Class | Display Name | Capacity |\n|-------|-------------|----------|\n| economy | Economy | 4 |\n| comfort | Comfort | 4 |\n| premium | Premium | 4 |\n| suv | SUV | 6 |\n\n#### Promo Codes\n| Code | Type | Value | Status |\n|------|------|-------|--------|\n| `WELCOME50` | 50% off (max \u20a62,000) | Active | 1 use per user |\n| `RIDE500` | \u20a6500 flat discount | Active | 3 uses per user |\n| `OFFPEAK20` | 20% off (off-peak only) | Active | 5 uses per user |\n| `EXPIRED10` | 10% off | Expired | \u2014 |\n\n### 4. Authentication Flow\n\n**Passengers & Drivers:** Send OTP \u2192 Verify OTP \u2192 (if new user) Complete Registration \u2192 Use bearer token.\n\n**Admins:** POST `/admin/auth/login` with email & password \u2192 Use bearer token.\n\nAll protected endpoints require: `Authorization: Bearer {token}`\n\n### Static OTP (Non-Production Only)\n\nIn **local** and **staging** environments, all OTP codes are **`123456`**. Message delivery is skipped entirely. This lets you create and verify accounts freely without OTP costs.\n\n1. `POST /auth/otp/send` with any valid phone \u2192 returns success immediately\n2. `POST /auth/otp/verify` with same phone + code `123456` \u2192 logs in or prompts registration\n\n**Production always generates random codes and delivers via WhatsApp (with SMS fallback).**\n\n### 5. Rate Limiting\nAuth routes (`/auth/*`, `/admin/auth/*`) are rate-limited to **5 requests/minute** per IP. Exceeding returns `429 Too Many Requests`.\n\n\n\n### 6. Admin Roles & Permissions\n\nE-tiGo uses role-based access control (RBAC) for admin endpoints. Super Admins bypass all role checks.\n\n| Role | Value | Access |\n|------|-------|--------|\n| Super Admin | `super_admin` | Full system access, admin management |\n| Operations | `operations` | Drivers, cities, vehicle classes, pricing, surge, rides, monitoring, fleet (incl. shift mode and driver shifts), vehicle maintenance, availability coverage, gamification, promos, EV stations, offline flags, lost & found (queue and settings), operational reports |\n| Safety Operator | `safety_operator` | SOS console, drivers, passengers, offline flags, disputes (Safety queue; reads all cases) |\n| Support | `support` | Passengers, disputes (tier 1), lost & found, wallets (read-only), driver ledgers (read-only) |\n| Support Lead | `support_lead` | Everything Support has, plus tier 2 disputes (escalations, appeals) and dispute refund approvals up to \u20a650,000 |\n| Finance | `finance` | Pricing, fleet, promos, wallets, ledger, adjustments, payouts, refunds, settings, all reports |\n\n| Endpoint Group | Operations | Safety | Support | Finance |\n|----------------|:----------:|:------:|:-------:|:-------:|\n| Drivers (incl. vehicle class) | \u2705 | \u2705 | \u2014 | \u2014 |\n| Cities / Vehicle Classes / Surge | \u2705 | \u2014 | \u2014 | \u2014 |\n| Pricing | \u2705 | \u2014 | \u2014 | \u2705 |\n| Rides (pending, assign) / Live Monitoring | \u2705 | \u2014 | \u2014 | \u2014 |\n| Rides (refund) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Fleet Vehicles / Fleet Agreements | \u2705 | \u2014 | \u2014 | \u2705 |\n| Gamification | \u2705 | \u2014 | \u2014 | \u2014 |\n| Promos | \u2705 | \u2014 | \u2014 | \u2705 |\n| EV Stations | \u2705 | \u2014 | \u2014 | \u2014 |\n| Offline Trip Flags | \u2705 | \u2705 | \u2014 | \u2014 |\n| SOS Console | \u2014 | \u2705 | \u2014 | \u2014 |\n| Passengers | \u2014 | \u2705 | \u2705 | \u2014 |\n| Disputes (support queue; Support Lead too) | \u2014 | view | \u2705 | \u2014 |\n| Disputes (Safety queue) | \u2014 | \u2705 | \u2014 | \u2014 |\n| Dispute refund requests | \u2014 | \u2705 | \u2705 (lead approves) | \u2705 |\n| Lost & Found queue | \u2705 | \u2014 | \u2705 | \u2014 |\n| Lost & Found settings | \u2705 | \u2014 | \u2014 | \u2014 |\n| Driver Shifts / Availability Coverage | \u2705 | \u2014 | \u2014 | \u2014 |\n| Vehicle Maintenance | \u2705 | \u2014 | \u2014 | \u2014 |\n| Wallets (view) / Driver Ledgers | \u2014 | \u2014 | \u2705 | \u2705 |\n| Wallets (freeze), Ledger, Adjustments, Payouts, Settings | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (financial / reconciliation) | \u2014 | \u2014 | \u2014 | \u2705 |\n| Reports (operational) | \u2705 | \u2014 | \u2014 | \u2705 |\n| Admin Management | \u2014 | \u2014 | \u2014 | \u2014 |\n\n### 7. Variables & Request Chaining\n\nSelect an environment first. Login and registration requests store `passenger_token`, `driver_token` or `admin_token` automatically (in the active environment and the collection).\n\n**Run these once before anything else** \u2014 they store the seeded ids the other requests use:\n\n1. **Public \u2192 List Active Cities** \u2192 `city_id` (Lagos)\n2. **Public \u2192 List City Vehicle Classes** \u2192 `economy_class_id`, `comfort_class_id`, `premium_class_id`, `vehicle_class_id`\n\nOther requests store ids as you go: **Create Ride** \u2192 `ride_id`, `share_token` \u00b7 **Top Up Wallet** \u2192 `topup_reference` \u00b7 **Initialize Payment** \u2192 `payment_reference` \u00b7 **List All Drivers** \u2192 `driver_id`, `driver_user_id` \u00b7 **Available Drivers for Ride** \u2192 `driver_user_id` \u00b7 **Get Driver** \u2192 `document_id` \u00b7 **List Wallets** \u2192 `account_id` \u00b7 **Request Payout** \u2192 `payout_id` \u00b7 **Create Adjustment** \u2192 `adjustment_id` \u00b7 **Trigger SOS** \u2192 `sos_incident_id` \u00b7 **Report Lost Item** \u2192 `lost_item_id` \u00b7 **Create Shift (Rota)** \u2192 `shift_id` \u00b7 **Add Availability Plan** \u2192 `availability_plan_id` \u00b7 **Submit Maintenance Record** / **Maintenance Records Queue** \u2192 `maintenance_record_id` \u00b7 **Reserve EV Stall** \u2192 `ev_reservation_id` \u00b7 **List Fleet Agreements** \u2192 `fleet_agreement_id` \u00b7 **Get Fleet Agreement** \u2192 `remittance_id` \u00b7 **Ledger Transactions** \u2192 `ledger_entry_id`. The admin *Create* requests (city, vehicle class, pricing, surge rule\u2026) overwrite the matching id with the new record \u2014 re-run the two list requests above to switch back to the seeded data.\n\nEvery variable is declared on the collection, so nothing resolves to an undefined `{{...}}`. All ids are UUIDs.\n\n### 8. Sessions\n\nAdmin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 = 8 h). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 = 30 days). An expired token returns `401 UNAUTHENTICATED`.\n\n---\n\n## What Changed for the Apps (October 2026)\nSee `doc/technical/FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` for the payouts, tips, EV, fuel type and surge changes per app, breaking ones first. Lost & Found (Phase 2): `doc/technical/FRONTEND_UPDATE_LOST_AND_FOUND.md`. Advanced disputes (Phase 2): `doc/technical/FRONTEND_UPDATE_ADVANCED_DISPUTES.md`. Driver scheduling and vehicle maintenance (Phase 2): `doc/technical/FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md`.\n\n## Content Type\n- JSON: `Content-Type: application/json`\n- File uploads: `Content-Type: multipart/form-data`\n\n## Error Format\nAll errors return `{ \"message\": \"...\", \"error_code\": \"...\" }`. Validation errors (422) include an `errors` object with field-level details.\n\n| Status | `error_code` | When |\n|--------|--------------|------|\n| 401 | `UNAUTHENTICATED` | Missing, invalid or expired token |\n| 403 | `HTTP_ERROR` | Wrong user type or admin role |\n| 404 | `NOT_FOUND` | `Resource not found.` (bad id) or `The requested endpoint does not exist.` (bad URL) |\n| 409 | `INVALID_STATE_TRANSITION` | The ride/SOS changed state concurrently (body includes `current_status`) |\n| 422 | `VALIDATION_ERROR` | Field validation failed (`errors` object) |\n| 422 | `INVALID_PARAMETER` | A malformed id or date reached the database |\n| 429 | `HTTP_ERROR` | Rate limited \u2014 honour the `Retry-After` header |\n| 500 | `SERVER_ERROR` | Unexpected error (details only when debugging is enabled) |\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -250,6 +250,18 @@
     },
     {
       "key": "lost_item_id",
+      "value": ""
+    },
+    {
+      "key": "shift_id",
+      "value": ""
+    },
+    {
+      "key": "availability_plan_id",
+      "value": ""
+    },
+    {
+      "key": "maintenance_record_id",
       "value": ""
     }
   ],
@@ -7036,7 +7048,7 @@
                     "documents"
                   ]
                 },
-                "description": "Upload a KYC document (driver's licence, vehicle insurance, etc.) as multipart/form-data. Accepted formats: JPEG, PNG, PDF. Max file size: 5MB. Requires driver authentication."
+                "description": "Upload a KYC document (driver's licence, vehicle insurance, etc.) as multipart/form-data. Accepted formats: JPEG, PNG, PDF. Max file size: 5MB. Requires driver authentication.\n\n**Phase 2:** new types `roadworthiness_certificate` and `vehicle_licence` (send `expires_at`, required for both). Vehicle papers (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) are linked to the driver's car, and an approved one stays valid until its renewal is approved (only a pending duplicate is replaced)."
               },
               "response": [
                 {
@@ -8047,6 +8059,10 @@
                   {
                     "key": "Authorization",
                     "value": "Bearer {{driver_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -8059,7 +8075,11 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`."
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"battery_level_percent\": 64\n}"
+                }
               },
               "response": [
                 {
@@ -8085,6 +8105,42 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Unauthenticated.\",\n  \"error_code\": \"UNAUTHENTICATED\"\n}"
+                },
+                {
+                  "name": "200 \u2014 Online on a shared car (shift)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You are now online.\",\n  \"driver\": {\n    \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n    \"reference_number\": \"D-000001\",\n    \"status\": \"approved\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"fuel_type\": \"petrol\",\n      \"can_charge\": false,\n      \"is_fleet\": true,\n      \"shift_mode\": true,\n      \"is_blocked\": false,\n      \"block_reason\": null\n    },\n    \"...\": \"(full driver object as before)\"\n  },\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"active\",\n    \"status_label\": \"In progress\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"vehicle_notice\": null,\n  \"city_notice\": null\n}"
+                },
+                {
+                  "name": "200 \u2014 Online with a papers warning",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"You are now online.\",\n  \"driver\": {\n    \"id\": \"01a14d75-e1de-7021-8265-d7a42ec19a11\",\n    \"reference_number\": \"D-000002\",\n    \"status\": \"approved\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"plate_number\": \"ABC-123XY\",\n      \"fuel_type\": \"electric\",\n      \"can_charge\": true,\n      \"is_fleet\": false,\n      \"shift_mode\": false,\n      \"battery_level_percent\": 64,\n      \"is_blocked\": false,\n      \"block_reason\": null\n    },\n    \"...\": \"(full driver object as before)\"\n  },\n  \"shift\": null,\n  \"vehicle_notice\": \"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving.\",\n  \"city_notice\": null\n}"
+                },
+                {
+                  "name": "422 \u2014 Car off the road (expired papers)",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot go online.\",\n  \"reasons\": [\n    \"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it.\"\n  ]\n}"
                 }
               ]
             },
@@ -9159,6 +9215,226 @@
           "description": "Drivers reserving passengers' scheduled rides in advance. Middleware: `user.type:driver`."
         },
         {
+          "name": "Driver \u2014 Shifts & Availability",
+          "description": "Phase 2 driver scheduling (OQ-20). Availability plans are for every driver and voluntary: they never stop a driver going online and passengers never see them. Shifts exist only for E-tiGo fleet cars in **shift mode** (shared by two or more drivers). A shift driver can go online from 15 min before the start (`online_from`); new offers stop 15 min before the end (`offers_stop_at`); not online 30 min after the start \u2192 `missed` (operations emailed, no fine; can still start late). The car passes to the shift driver when they go online in their window, once the previous driver is offline and not on a trip. All times are settings (`/admin/settings/driver-scheduling`).",
+          "item": [
+            {
+              "name": "My Shifts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/shifts?include_past=0",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "shifts"
+                  ],
+                  "query": [
+                    {
+                      "key": "include_past",
+                      "value": "0",
+                      "description": "Last 30 days, every status"
+                    }
+                  ]
+                },
+                "description": "The driver's shifts on a shared fleet car: `current_shift` (the one they can be online for now), `rules`, and upcoming shifts. `include_past=1` lists the last 30 days, every status. `shift_driver: false` \u2192 the driver's car is not shared; hide the screen.\n\nShifts exist only for E-tiGo fleet cars in **shift mode** (shared by two or more drivers). A shift driver can go online from 15 min before the start (`online_from`); new offers stop 15 min before the end (`offers_stop_at`); not online 30 min after the start \u2192 `missed` (operations emailed, no fine; can still start late). The car passes to the shift driver when they go online in their window, once the previous driver is offline and not on a trip. All times are settings (`/admin/settings/driver-scheduling`)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Upcoming shifts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"shift_driver\": true,\n  \"current_shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"rules\": {\n    \"online_lead_minutes\": 15,\n    \"offer_cutoff_minutes\": 15,\n    \"missed_after_minutes\": 30\n  },\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 2\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List My Availability Plans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/availability-plans",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "availability-plans"
+                  ]
+                },
+                "description": "Upcoming availability plans, soonest first. Voluntary: no penalty for changing or skipping a plan."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Plans",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"plans\": [\n    {\n      \"id\": \"01a14d75-e1cb-725b-b18f-da10daf356ba\",\n      \"city_id\": \"01a14d75-e0f3-70b3-b044-6202a688cf95\",\n      \"area_label\": \"Lekki\",\n      \"starts_at\": \"2026-10-23T17:00:00+00:00\",\n      \"ends_at\": \"2026-10-23T20:00:00+00:00\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e1cc-731d-8110-0eedeaac1adf\",\n      \"city_id\": \"01a14d75-e0f3-70b3-b044-6202a688cf95\",\n      \"area_label\": \"Lekki\",\n      \"starts_at\": \"2026-10-30T17:00:00+00:00\",\n      \"ends_at\": \"2026-10-30T20:00:00+00:00\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('availability_plan_id', data.plans[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Add Availability Plan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/availability-plans",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "availability-plans"
+                  ]
+                },
+                "description": "When and where the driver expects to drive: `starts_at`, `ends_at` (30 min \u2013 12 h, up to 14 days ahead), optional `area_label` (normalised: 'lekki' \u2192 'Lekki') and `repeat_weekly` (0\u20133, all or nothing). Overlapping one of the driver's own plans \u2192 422 on `starts_at`. Approved drivers only.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"starts_at\": \"2026-10-23T18:00:00+01:00\",\n  \"ends_at\": \"2026-10-23T21:00:00+01:00\",\n  \"area_label\": \"Lekki\",\n  \"repeat_weekly\": 1\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Plan saved (repeated next week)",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"2 plans saved.\",\n  \"plans\": [\n    {\n      \"id\": \"01a14d75-e1cb-725b-b18f-da10daf356ba\",\n      \"city_id\": \"01a14d75-e0f3-70b3-b044-6202a688cf95\",\n      \"area_label\": \"Lekki\",\n      \"starts_at\": \"2026-10-23T17:00:00+00:00\",\n      \"ends_at\": \"2026-10-23T20:00:00+00:00\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e1cc-731d-8110-0eedeaac1adf\",\n      \"city_id\": \"01a14d75-e0f3-70b3-b044-6202a688cf95\",\n      \"area_label\": \"Lekki\",\n      \"starts_at\": \"2026-10-30T17:00:00+00:00\",\n      \"ends_at\": \"2026-10-30T20:00:00+00:00\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('availability_plan_id', data.plans[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Remove Availability Plan",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/availability-plans/{{availability_plan_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "availability-plans",
+                    "{{availability_plan_id}}"
+                  ]
+                },
+                "description": "Remove a plan. 404 for another driver's plan; 422 once it has ended."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Plan removed.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Driver \u2014 Compliance & Flags",
           "item": [
             {
@@ -9859,6 +10135,248 @@
                       "try { remember('repair_id', data.repair.id); } catch (e) {}"
                     ]
                   }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver \u2014 Vehicle Maintenance",
+          "description": "Phase 2 vehicle maintenance (OQ-19). Every car: routine service (5,000 km or 3 months), tyres & brakes (6 months), insurance, roadworthiness certificate, vehicle licence. Electric and plug-in hybrid cars also: battery health (12 months) and charge level. Overdue maintenance only warns. **Insurance, roadworthiness or vehicle licence expired more than 7 days ago keeps the car off the road** (no going online, no offers) until a renewed paper is approved; a trip in progress is never ended. Drivers of their own car submit records with proof; fleet cars are recorded by operations. Upload papers with **Driver \u2014 Onboarding \u203a Upload Document** (`roadworthiness_certificate` and `vehicle_licence` need `expires_at`).",
+          "item": [
+            {
+              "name": "Vehicle Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/vehicle/status",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "vehicle",
+                    "status"
+                  ]
+                },
+                "description": "The car's maintenance items (each with a ready-to-show `message`), whether it can be driven (`can_drive`, `block_reason`), odometer and estimate, who records work (`records_managed_by`), pending records, and for plug-in cars the charge level and any active charging reservation."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Electric car, insurance in its grace period",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle\": {\n    \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n    \"plate_number\": \"ABC-123XY\",\n    \"make\": \"Hyundai\",\n    \"model\": \"Kona Electric\",\n    \"fuel_type\": \"electric\",\n    \"is_fleet\": false,\n    \"shift_mode\": false,\n    \"odometer_km\": 43150,\n    \"odometer_read_at\": \"2026-10-19T08:00:00+00:00\",\n    \"estimated_odometer_km\": 43150\n  },\n  \"can_drive\": true,\n  \"block_reason\": null,\n  \"records_managed_by\": \"driver\",\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd157ad44\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd23c0a3b\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last tyres & brakes check.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd28981fd\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"expired\",\n      \"status_label\": \"Expired\",\n      \"due_at\": \"2026-10-13\",\n      \"days_until_due\": -6,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2025-10-19\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": \"2026-10-21\",\n      \"message\": \"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd3161ae4\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your roadworthiness certificate with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd37e9af7\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd3806752\",\n      \"type\": \"battery_health\",\n      \"label\": \"Battery health check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last battery health check.\"\n    }\n  ],\n  \"charging\": {\n    \"battery_level_percent\": 64,\n    \"battery_level_at\": \"2026-10-19T08:00:00+00:00\",\n    \"active_reservation\": null\n  },\n  \"pending_records\": [\n    {\n      \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n      \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"item_type\": \"service\",\n      \"item_label\": \"Routine service\",\n      \"performed_at\": \"2026-09-01\",\n      \"odometer_km\": 42000,\n      \"workshop\": \"Mainland Motors\",\n      \"notes\": null,\n      \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n      \"driver_repair_id\": null,\n      \"status\": \"pending\",\n      \"status_label\": \"Awaiting review\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Maintenance Records",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/vehicle/maintenance-records",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "vehicle",
+                    "maintenance-records"
+                  ]
+                },
+                "description": "The car's maintenance records, newest first (paginated, 20)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Records",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"records\": [\n    {\n      \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n      \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"item_type\": \"service\",\n      \"item_label\": \"Routine service\",\n      \"performed_at\": \"2026-09-01\",\n      \"odometer_km\": 42000,\n      \"workshop\": \"Mainland Motors\",\n      \"notes\": null,\n      \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n      \"driver_repair_id\": null,\n      \"status\": \"pending\",\n      \"status_label\": \"Awaiting review\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Submit Maintenance Record",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/vehicle/maintenance-records",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "vehicle",
+                    "maintenance-records"
+                  ]
+                },
+                "description": "Own cars only (403 for fleet cars). `item_type`: `service` (needs `odometer_km`), `tyres_brakes`, `battery_health` (plug-in cars). `performed_at` today or earlier (within 2 years). `proof` required (receipt or workshop report). Optional `workshop`, `notes`, `driver_repair_id` (a `REP-` request). The record is `pending` until operations approve it; the driver then gets `maintenance_record_reviewed`. An odometer lower than an earlier reading (or higher than a later one) \u2192 422.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "item_type",
+                      "value": "service",
+                      "type": "text"
+                    },
+                    {
+                      "key": "performed_at",
+                      "value": "2026-09-01",
+                      "type": "text"
+                    },
+                    {
+                      "key": "odometer_km",
+                      "value": "42000",
+                      "type": "text"
+                    },
+                    {
+                      "key": "workshop",
+                      "value": "Mainland Motors",
+                      "type": "text"
+                    },
+                    {
+                      "key": "proof",
+                      "type": "file",
+                      "src": [],
+                      "description": "Receipt or report: JPG, PNG or PDF, max 10 MB"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Submitted for review",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Record submitted. E-tiGo will check it shortly.\",\n  \"record\": {\n    \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n    \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n    \"item_type\": \"service\",\n    \"item_label\": \"Routine service\",\n    \"performed_at\": \"2026-09-01\",\n    \"odometer_km\": 42000,\n    \"workshop\": \"Mainland Motors\",\n    \"notes\": null,\n    \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n    \"driver_repair_id\": null,\n    \"status\": \"pending\",\n    \"status_label\": \"Awaiting review\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": null,\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('maintenance_record_id', data.record.id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Record Odometer Reading",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/vehicle/odometer",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "vehicle",
+                    "odometer"
+                  ]
+                },
+                "description": "A new odometer reading (resets the trip-distance count used for the 5,000 km service). A reading lower than the last one \u2192 422.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"odometer_km\": 43150\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Saved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Odometer reading saved.\",\n  \"odometer_km\": 43150,\n  \"odometer_read_at\": \"2026-10-19T08:00:00+00:00\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Lower than the last reading",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The reading is lower than the last one (43150 km). Check the number on the dashboard.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"odometer_km\": [\n      \"The reading is lower than the last one (43150 km). Check the number on the dashboard.\"\n    ]\n  }\n}"
                 }
               ]
             }
@@ -12366,7 +12884,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"action\": \"approve\"\n}"
+                  "raw": "{\n  \"action\": \"approve\",\n  \"expires_at\": \"2027-10-23\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/drivers/:driverId/documents/:documentId/review",
@@ -12394,7 +12912,7 @@
                     }
                   ]
                 },
-                "description": "Approve a single driver document. Only pending documents can be reviewed."
+                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n**Phase 2:** `expires_at` (optional) confirms or corrects the expiry date on the paper. Approving a renewed vehicle paper replaces the car's earlier one and lifts an expired-papers block."
               },
               "response": [
                 {
@@ -14198,6 +14716,1041 @@
             }
           ],
           "description": "**Required Role(s):** Operations, Finance (Super Admin always has access)"
+        },
+        {
+          "name": "Admin \u2014 Driver Shifts & Availability",
+          "description": "Operations. Shared fleet cars on a shift timetable, and the coverage of drivers' voluntary availability plans (OQ-20). Shifts exist only for E-tiGo fleet cars in **shift mode** (shared by two or more drivers). A shift driver can go online from 15 min before the start (`online_from`); new offers stop 15 min before the end (`offers_stop_at`); not online 30 min after the start \u2192 `missed` (operations emailed, no fine; can still start late). The car passes to the shift driver when they go online in their window, once the previous driver is offline and not on a trip. All times are settings (`/admin/settings/driver-scheduling`).",
+          "item": [
+            {
+              "name": "Turn Shift Mode On for a Fleet Car",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}/shift-mode",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}",
+                    "shift-mode"
+                  ]
+                },
+                "description": "`shift_mode: true` lets drivers share the car on shifts. Fleet cars only, and not on an active hire-purchase agreement (a shift-mode car cannot go on hire purchase either). `false` is refused while the car has upcoming shifts. Operations only.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shift_mode\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Shift mode on",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Shift mode is on: drivers share this car on shifts.\",\n  \"vehicle\": {\n    \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n    \"driver_id\": null,\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"LAG-100AA\",\n    \"year\": 2023,\n    \"fuel_type\": \"petrol\",\n    \"can_charge\": false,\n    \"is_fleet\": true,\n    \"is_assigned\": false,\n    \"shift_mode\": true,\n    \"odometer_km\": null,\n    \"estimated_odometer_km\": null,\n    \"is_blocked\": false,\n    \"block_reason\": null,\n    \"vehicle_class_id\": \"01a14d75-e0f5-7215-b42a-f56d4b9ae9c3\",\n    \"vehicle_class\": {\n      \"id\": \"01a14d75-e0f5-7215-b42a-f56d4b9ae9c3\",\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 2,\n      \"icon\": null,\n      \"description\": \"Sunt suscipit facere necessitatibus soluta accusantium tempore.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Shifts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts?vehicle_id={{vehicle_id}}&status=scheduled,active,missed",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts"
+                  ],
+                  "query": [
+                    {
+                      "key": "vehicle_id",
+                      "value": "{{vehicle_id}}",
+                      "description": "Optional"
+                    },
+                    {
+                      "key": "status",
+                      "value": "scheduled,active,missed",
+                      "description": "Optional, comma-separated"
+                    }
+                  ]
+                },
+                "description": "Shifts overlapping `from`\u2013`to` (default: yesterday to 14 days ahead), soonest first, paginated (50), with a `summary` per status. Filters: `vehicle_id`, `driver_id`, `status` (comma-separated). `vehicle.held_by_driver_id` is who has the car now."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Shifts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T16:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"summary\": {\n    \"scheduled\": 2\n  },\n  \"meta\": {\n    \"from\": \"2026-10-18T08:00:00+00:00\",\n    \"to\": \"2026-11-02T08:00:00+00:00\",\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 50,\n    \"total\": 2\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('shift_id', data.shifts[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Shift (Rota)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts"
+                  ]
+                },
+                "description": "Assign a driver to a shift-mode car. 60 min \u2013 12 h, ends in the future, starts within 30 days; overnight shifts work. `repeat_daily_for` (0\u201313) creates the same shift on the following days (all or nothing). Overlaps on the car or the driver \u2192 422 naming the clash. The driver must be approved and have no car of their own; the car must not be off the road. The driver gets one `driver_shift_assigned` push.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"vehicle_id\": \"{{vehicle_id}}\",\n  \"starts_at\": \"2026-10-20T06:00:00+01:00\",\n  \"ends_at\": \"2026-10-20T14:00:00+01:00\",\n  \"notes\": \"Day shift\",\n  \"repeat_daily_for\": 4\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Two shifts created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"2 shifts created.\",\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T16:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                },
+                {
+                  "name": "422 \u2014 Overlap",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"LAG-100AA already has a shift then (Bayo, Mon 19 Oct, 9:00 AM \u2013 6:00 PM).\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"starts_at\": [\n      \"LAG-100AA already has a shift then (Bayo, Mon 19 Oct, 9:00 AM \u2013 6:00 PM).\"\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('shift_id', data.shifts[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Shift",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts/{{shift_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts",
+                    "{{shift_id}}"
+                  ]
+                },
+                "description": "One shift with its driver and car."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Shift",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Shift",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts/{{shift_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts",
+                    "{{shift_id}}"
+                  ]
+                },
+                "description": "Before it starts (`scheduled`/`missed`): `driver_id`, `vehicle_id`, `starts_at`, `ends_at`, `notes`. In progress (`active`): only `ends_at` (extend, or end early; must be in the future) and `notes`. Overlaps re-checked. The driver is told; a new driver gets `driver_shift_assigned` and the old one `driver_shift_cancelled`. Reserved scheduled pickups no longer inside the driver's shifts are released (`shift_changed`).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ends_at\": \"2026-10-19T18:00:00+01:00\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 End time moved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Shift updated.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Shift",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts/{{shift_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts",
+                    "{{shift_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Cancel a shift that has not started (`scheduled` or `missed`); end an active one by changing `ends_at`. `reason` required. The driver gets `driver_shift_cancelled`; their reservations no longer covered are released.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Car booked for its service\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Cancelled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Shift cancelled.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n    \"online_from\": \"2026-10-20T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": \"2026-10-19T08:00:00+00:00\",\n    \"cancellation_reason\": \"Car booked for its service\",\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\"\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": true\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Availability Coverage",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/availability-coverage?city_id={{city_id}}&from=2026-10-23T17:00:00Z&to=2026-10-23T20:00:00Z",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "availability-coverage"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "{{city_id}}",
+                      "description": "Required"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-23T17:00:00Z",
+                      "description": "Optional"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-23T20:00:00Z",
+                      "description": "Optional, at most 14 days after from"
+                    }
+                  ]
+                },
+                "description": "Planned drivers per Lagos hour and per area in a city, from drivers' voluntary plans (up to 14 days; default the next 7 days), with the peak and lowest hour and the number of approved drivers."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Coverage",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"coverage\": {\n    \"city\": {\n      \"id\": \"01a14d75-e0f3-70b3-b044-6202a688cf95\",\n      \"name\": \"Lagos\"\n    },\n    \"timezone\": \"Africa/Lagos\",\n    \"from\": \"2026-10-23T18:00:00+01:00\",\n    \"to\": \"2026-10-23T21:00:00+01:00\",\n    \"approved_drivers\": 1,\n    \"drivers_with_plans\": 1,\n    \"areas\": [\n      \"Lekki\"\n    ],\n    \"peak_hour\": {\n      \"starts_at\": \"2026-10-23T18:00:00+01:00\",\n      \"planned_drivers\": 1\n    },\n    \"lowest_hour\": {\n      \"starts_at\": \"2026-10-23T18:00:00+01:00\",\n      \"planned_drivers\": 1\n    },\n    \"hours\": [\n      {\n        \"starts_at\": \"2026-10-23T18:00:00+01:00\",\n        \"ends_at\": \"2026-10-23T19:00:00+01:00\",\n        \"planned_drivers\": 1,\n        \"areas\": [\n          {\n            \"area_label\": \"Lekki\",\n            \"planned_drivers\": 1\n          }\n        ]\n      },\n      {\n        \"starts_at\": \"2026-10-23T19:00:00+01:00\",\n        \"ends_at\": \"2026-10-23T20:00:00+01:00\",\n        \"planned_drivers\": 1,\n        \"areas\": [\n          {\n            \"area_label\": \"Lekki\",\n            \"planned_drivers\": 1\n          }\n        ]\n      },\n      {\n        \"starts_at\": \"2026-10-23T20:00:00+01:00\",\n        \"ends_at\": \"2026-10-23T21:00:00+01:00\",\n        \"planned_drivers\": 1,\n        \"areas\": [\n          {\n            \"area_label\": \"Lekki\",\n            \"planned_drivers\": 1\n          }\n        ]\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Driver Scheduling Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/driver-scheduling",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "driver-scheduling"
+                  ]
+                },
+                "description": "Shift rules and availability plan limits (operations)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"shifts_enabled\": true,\n    \"shift_online_lead_minutes\": 15,\n    \"shift_offer_cutoff_minutes\": 15,\n    \"shift_missed_after_minutes\": 30,\n    \"shift_min_minutes\": 60,\n    \"shift_max_hours\": 12,\n    \"shift_max_advance_days\": 30,\n    \"availability_max_advance_days\": 14,\n    \"availability_min_minutes\": 30,\n    \"availability_max_hours\": 12,\n    \"availability_max_upcoming\": 42\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Driver Scheduling Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/driver-scheduling",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "driver-scheduling"
+                  ]
+                },
+                "description": "Any subset of `shifts_enabled`, `shift_online_lead_minutes`, `shift_offer_cutoff_minutes`, `shift_missed_after_minutes`, `shift_min_minutes`, `shift_max_hours`, `shift_max_advance_days`, `availability_max_advance_days`, `availability_min_minutes`, `availability_max_hours`, `availability_max_upcoming`. Audit-logged.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shift_offer_cutoff_minutes\": 20\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver scheduling settings updated.\",\n  \"settings\": {\n    \"shifts_enabled\": true,\n    \"shift_online_lead_minutes\": 15,\n    \"shift_offer_cutoff_minutes\": 20,\n    \"shift_missed_after_minutes\": 30,\n    \"shift_min_minutes\": 60,\n    \"shift_max_hours\": 12,\n    \"shift_max_advance_days\": 30,\n    \"availability_max_advance_days\": 14,\n    \"availability_min_minutes\": 30,\n    \"availability_max_hours\": 12,\n    \"availability_max_upcoming\": 42\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 Vehicle Maintenance",
+          "description": "Operations. Maintenance items and records of every car, drivers' proof to approve, a car's papers, and the papers the Phase 2 migration could not link to a car (OQ-19). Expired insurance, roadworthiness or vehicle licence more than 7 days old keeps a car off the road until a renewal is approved; operations cannot assign such a driver either.",
+          "item": [
+            {
+              "name": "Fleet Maintenance Overview",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicle-maintenance?fleet_only=0&status=due_soon,overdue,expired",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicle-maintenance"
+                  ],
+                  "query": [
+                    {
+                      "key": "fleet_only",
+                      "value": "0",
+                      "description": "Fleet cars only"
+                    },
+                    {
+                      "key": "status",
+                      "value": "due_soon,overdue,expired",
+                      "description": "Optional"
+                    }
+                  ]
+                },
+                "description": "Items needing attention across all cars, worst first. Filters: `status` (comma-separated; default `due_soon,overdue,expired`; add `unknown` for cars with no record), `type`, `fleet_only`, `blocked_only`, `search` (plate, make, model). `summary` counts every status plus `blocked_vehicles` and `pending_records`."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Needs attention",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd28981fd\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"expired\",\n      \"status_label\": \"Expired\",\n      \"due_at\": \"2026-10-13\",\n      \"days_until_due\": -6,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2025-10-19\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": \"2026-10-21\",\n      \"message\": \"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving.\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n        \"plate_number\": \"ABC-123XY\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"is_fleet\": false,\n        \"is_blocked\": false,\n        \"driver\": {\n          \"id\": \"01a14d75-e1de-7021-8265-d7a42ec19a11\",\n          \"name\": \"Kemi Gerlach\"\n        }\n      }\n    }\n  ],\n  \"summary\": {\n    \"expired\": 1,\n    \"ok\": 3,\n    \"unknown\": 7,\n    \"blocked_vehicles\": 0,\n    \"pending_records\": 0\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Vehicle Maintenance (One Car)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicles/{{vehicle_id}}/maintenance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicles",
+                    "{{vehicle_id}}",
+                    "maintenance"
+                  ]
+                },
+                "description": "One car's items, records (last 50) and papers, with its odometer and block state. Any car (own or fleet)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Fleet car",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle\": {\n    \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n    \"driver_id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"name\": \"Bayo Akinola\"\n    },\n    \"make\": \"Toyota\",\n    \"model\": \"Corolla\",\n    \"colour\": \"White\",\n    \"plate_number\": \"LAG-100AA\",\n    \"year\": 2023,\n    \"fuel_type\": \"petrol\",\n    \"can_charge\": false,\n    \"is_fleet\": true,\n    \"is_assigned\": true,\n    \"shift_mode\": true,\n    \"odometer_km\": null,\n    \"estimated_odometer_km\": null,\n    \"is_blocked\": false,\n    \"block_reason\": null,\n    \"vehicle_class_id\": \"01a14d75-e0f5-7215-b42a-f56d4b9ae9c3\",\n    \"vehicle_class\": {\n      \"id\": \"01a14d75-e0f5-7215-b42a-f56d4b9ae9c3\",\n      \"name\": \"comfort\",\n      \"display_name\": \"Comfort\",\n      \"capacity\": 2,\n      \"icon\": null,\n      \"description\": \"Sunt suscipit facere necessitatibus soluta accusantium tempore.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T08:00:00.000000Z\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n  },\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1988452d\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19a96ae4\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"ok\",\n      \"status_label\": \"Up to date\",\n      \"due_at\": \"2027-04-10\",\n      \"days_until_due\": 173,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2026-10-10\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Tyres & brakes check is up to date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19f1552f\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your insurance with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1a14694b\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"ok\",\n      \"status_label\": \"Up to date\",\n      \"due_at\": \"2027-04-30\",\n      \"days_until_due\": 193,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2026-10-19\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Roadworthiness certificate is up to date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1b0d3aec\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    }\n  ],\n  \"records\": [\n    {\n      \"id\": \"01a14d75-e24e-705d-bf96-6e91a67e0f9c\",\n      \"vehicle_id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"item_type\": \"tyres_brakes\",\n      \"item_label\": \"Tyres & brakes check\",\n      \"performed_at\": \"2026-10-10\",\n      \"odometer_km\": null,\n      \"workshop\": \"E-tiGo Fleet Workshop\",\n      \"notes\": null,\n      \"proof_url\": null,\n      \"driver_repair_id\": null,\n      \"status\": \"approved\",\n      \"status_label\": \"Approved\",\n      \"rejection_reason\": null,\n      \"submitted_by\": {\n        \"id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n        \"name\": \"Gerry Dickens\",\n        \"type\": \"admin\"\n      },\n      \"reviewed_at\": \"2026-10-19T08:00:00+00:00\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"documents\": [\n    {\n      \"id\": \"01a14d75-e263-72b7-9b3c-c22d40fb54ed\",\n      \"type\": \"roadworthiness_certificate\",\n      \"original_filename\": \"rw.pdf\",\n      \"file_size\": 204800,\n      \"file_url\": \"http://localhost:8000/vehicle-documents/01a14d75-e0f7-73bd-b8b8-f38bab7b7c07/F5mURggv8FPAOqwhGZW9G2e537xdWlmtL4G5Eogj.pdf?expiration=1792398600\",\n      \"expires_at\": \"2027-04-30T00:00:00.000000Z\",\n      \"status\": \"approved\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Record Maintenance on a Car",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicles/{{vehicle_id}}/maintenance-records",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicles",
+                    "{{vehicle_id}}",
+                    "maintenance-records"
+                  ]
+                },
+                "description": "Operations record work (typically on a fleet car); approved at once. Same fields as the driver's record; `proof` optional (send multipart to attach one). Returns the record and the updated items.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"item_type\": \"tyres_brakes\",\n  \"performed_at\": \"2026-10-10\",\n  \"workshop\": \"E-tiGo Fleet Workshop\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Recorded",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Maintenance recorded.\",\n  \"record\": {\n    \"id\": \"01a14d75-e24e-705d-bf96-6e91a67e0f9c\",\n    \"vehicle_id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"is_fleet\": true\n    },\n    \"item_type\": \"tyres_brakes\",\n    \"item_label\": \"Tyres & brakes check\",\n    \"performed_at\": \"2026-10-10\",\n    \"odometer_km\": null,\n    \"workshop\": \"E-tiGo Fleet Workshop\",\n    \"notes\": null,\n    \"proof_url\": null,\n    \"driver_repair_id\": null,\n    \"status\": \"approved\",\n    \"status_label\": \"Approved\",\n    \"rejection_reason\": null,\n    \"submitted_by\": {\n      \"id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"name\": \"Gerry Dickens\",\n      \"type\": \"admin\"\n    },\n    \"reviewed_at\": \"2026-10-19T08:00:00+00:00\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1988452d\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19a96ae4\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"ok\",\n      \"status_label\": \"Up to date\",\n      \"due_at\": \"2027-04-10\",\n      \"days_until_due\": 173,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2026-10-10\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Tyres & brakes check is up to date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19f1552f\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your insurance with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1a14694b\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your roadworthiness certificate with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1b0d3aec\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Upload a Car's Paper",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicles/{{vehicle_id}}/documents",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicles",
+                    "{{vehicle_id}}",
+                    "documents"
+                  ]
+                },
+                "description": "`type`: `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`; `expires_at` required except for the registration. Approved at once; replaces the car's earlier paper of that type; lifts an expired-papers block.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "type",
+                      "value": "roadworthiness_certificate",
+                      "type": "text"
+                    },
+                    {
+                      "key": "expires_at",
+                      "value": "2027-04-30",
+                      "type": "text"
+                    },
+                    {
+                      "key": "document",
+                      "type": "file",
+                      "src": [],
+                      "description": "JPG, PNG or PDF, max 10 MB"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Uploaded",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Document uploaded and approved.\",\n  \"document\": {\n    \"id\": \"01a14d75-e263-72b7-9b3c-c22d40fb54ed\",\n    \"type\": \"roadworthiness_certificate\",\n    \"original_filename\": \"rw.pdf\",\n    \"file_size\": 204800,\n    \"file_url\": \"http://localhost:8000/vehicle-documents/01a14d75-e0f7-73bd-b8b8-f38bab7b7c07/F5mURggv8FPAOqwhGZW9G2e537xdWlmtL4G5Eogj.pdf?expiration=1792398600\",\n    \"expires_at\": \"2027-04-30T00:00:00.000000Z\",\n    \"status\": \"approved\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": \"2026-10-19T08:00:00.000000Z\",\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n  },\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1988452d\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19a96ae4\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"ok\",\n      \"status_label\": \"Up to date\",\n      \"due_at\": \"2027-04-10\",\n      \"days_until_due\": 173,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2026-10-10\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Tyres & brakes check is up to date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c19f1552f\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your insurance with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1a14694b\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"ok\",\n      \"status_label\": \"Up to date\",\n      \"due_at\": \"2027-04-30\",\n      \"days_until_due\": 193,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2026-10-19\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Roadworthiness certificate is up to date.\"\n    },\n    {\n      \"id\": \"01a14d75-e0fd-7134-a447-7e0c1b0d3aec\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Maintenance Records Queue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicle-maintenance/records?status=pending",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicle-maintenance",
+                    "records"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending",
+                      "description": "pending, approved or rejected"
+                    }
+                  ]
+                },
+                "description": "Drivers' records awaiting review, oldest first (`status` also `approved` / `rejected`; `vehicle_id` filter)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Pending",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"records\": [\n    {\n      \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n      \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n        \"plate_number\": \"ABC-123XY\",\n        \"is_fleet\": false\n      },\n      \"item_type\": \"service\",\n      \"item_label\": \"Routine service\",\n      \"performed_at\": \"2026-09-01\",\n      \"odometer_km\": 42000,\n      \"workshop\": \"Mainland Motors\",\n      \"notes\": null,\n      \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n      \"driver_repair_id\": null,\n      \"status\": \"pending\",\n      \"status_label\": \"Awaiting review\",\n      \"rejection_reason\": null,\n      \"submitted_by\": {\n        \"id\": \"01a14d75-e1dd-7032-89e0-e2bb373e16e1\",\n        \"name\": \"Kemi Gerlach\",\n        \"type\": \"driver\"\n      },\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 1\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('maintenance_record_id', data.records[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Review Maintenance Record",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicle-maintenance/records/{{maintenance_record_id}}/review",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicle-maintenance",
+                    "records",
+                    "{{maintenance_record_id}}",
+                    "review"
+                  ]
+                },
+                "description": "`action`: `approve` or `reject` (with `rejection_reason`). Pending records only; approving re-checks the odometer and updates the car's items. The driver gets `maintenance_record_reviewed`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"approve\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Approved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Record approved.\",\n  \"record\": {\n    \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n    \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"plate_number\": \"ABC-123XY\",\n      \"is_fleet\": false\n    },\n    \"item_type\": \"service\",\n    \"item_label\": \"Routine service\",\n    \"performed_at\": \"2026-09-01\",\n    \"odometer_km\": 42000,\n    \"workshop\": \"Mainland Motors\",\n    \"notes\": null,\n    \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n    \"driver_repair_id\": null,\n    \"status\": \"approved\",\n    \"status_label\": \"Approved\",\n    \"rejection_reason\": null,\n    \"submitted_by\": {\n      \"id\": \"01a14d75-e1dd-7032-89e0-e2bb373e16e1\",\n      \"name\": \"Kemi Gerlach\",\n      \"type\": \"driver\"\n    },\n    \"reviewed_at\": \"2026-10-19T08:00:00+00:00\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Unlinked Vehicle Papers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicle-documents/unlinked",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicle-documents",
+                    "unlinked"
+                  ]
+                },
+                "description": "Vehicle papers with no car: the migration links each driver's papers to their car, and lists here those it could not match (the driver had no car, or more than one)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Unlinked",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a14d75-e288-7247-bab0-b3f395fc043d\",\n      \"type\": \"vehicle_registration\",\n      \"original_filename\": \"registration.pdf\",\n      \"file_size\": 1000,\n      \"file_url\": \"http://localhost:8000/y.pdf?expiration=1792398600\",\n      \"expires_at\": null,\n      \"status\": \"approved\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-19T08:00:00.000000Z\",\n      \"driver\": {\n        \"id\": \"01a14d75-e1de-7021-8265-d7a42ec19a11\",\n        \"name\": \"Kemi Gerlach\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 1\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "function remember(key, value) {",
+                      "    if (value === undefined || value === null || value === '') { return; }",
+                      "    pm.collectionVariables.set(key, value);",
+                      "    if (pm.environment.name) { pm.environment.set(key, value); }",
+                      "}",
+                      "try { remember('document_id', data.documents[0].id); } catch (e) {}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Link Paper to a Car",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/vehicle-documents/{{document_id}}/link",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "vehicle-documents",
+                    "{{document_id}}",
+                    "link"
+                  ]
+                },
+                "description": "Link a vehicle paper to a car (`vehicle_id`). Audit-logged; the car's items are re-checked.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicle_id\": \"{{vehicle_id}}\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Linked",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Document linked to the vehicle.\",\n  \"document\": {\n    \"id\": \"01a14d75-e288-7247-bab0-b3f395fc043d\",\n    \"type\": \"vehicle_registration\",\n    \"original_filename\": \"registration.pdf\",\n    \"file_size\": 1000,\n    \"file_url\": \"http://localhost:8000/y.pdf?expiration=1792398600\",\n    \"expires_at\": null,\n    \"status\": \"approved\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": null,\n    \"created_at\": \"2026-10-19T08:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Vehicle Maintenance Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/vehicle-maintenance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "vehicle-maintenance"
+                  ]
+                },
+                "description": "Intervals per item and per fuel type, reminder lead, grace period and whether expired papers block driving."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"enabled\": true,\n    \"intervals\": {\n      \"service\": {\n        \"km\": 5000,\n        \"months\": 3\n      },\n      \"tyres_brakes\": {\n        \"km\": null,\n        \"months\": 6\n      },\n      \"battery_health\": {\n        \"km\": null,\n        \"months\": 12\n      }\n    },\n    \"fuel_type_intervals\": [],\n    \"due_soon_days\": 14,\n    \"due_soon_km\": 500,\n    \"legal_grace_days\": 7,\n    \"block_on_expired_papers\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Vehicle Maintenance Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/vehicle-maintenance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "vehicle-maintenance"
+                  ]
+                },
+                "description": "Any subset of `enabled`, `intervals` (merged item by item; each needs `km` 500\u2013100,000 or `months` 1\u201360), `fuel_type_intervals`, `due_soon_days`, `due_soon_km`, `legal_grace_days`, `block_on_expired_papers`. Applies on each car's next check. Audit-logged.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fuel_type_intervals\": {\n    \"electric\": {\n      \"service\": {\n        \"km\": 10000,\n        \"months\": 6\n      }\n    }\n  }\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Longer service interval for electric cars",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle maintenance settings updated.\",\n  \"settings\": {\n    \"enabled\": true,\n    \"intervals\": {\n      \"service\": {\n        \"km\": 5000,\n        \"months\": 3\n      },\n      \"tyres_brakes\": {\n        \"km\": null,\n        \"months\": 6\n      },\n      \"battery_health\": {\n        \"km\": null,\n        \"months\": 12\n      }\n    },\n    \"fuel_type_intervals\": {\n      \"electric\": {\n        \"service\": {\n          \"km\": 10000,\n          \"months\": 6\n        }\n      }\n    },\n    \"due_soon_days\": 14,\n    \"due_soon_km\": 500,\n    \"legal_grace_days\": 7,\n    \"block_on_expired_papers\": true\n  }\n}"
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "Admin \u2014 Passenger Management",

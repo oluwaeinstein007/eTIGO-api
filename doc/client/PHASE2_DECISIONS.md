@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added; OQ-21 dispute tiers and OQ-22 city launches built)  
+**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added; OQ-21 dispute tiers, OQ-22 city launches, OQ-19 vehicle maintenance and OQ-20 driver scheduling built)  
 **Status:** Recommendations for the open Phase 2 questions (OQ-18 to OQ-22, OQ-36 and OQ-37). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. There are two exceptions. OQ-22: **no new city goes live without a launch date from the client.** OQ-36: **no return fee is charged until the client sets one.**
 
 ---
@@ -26,7 +26,7 @@ The recommendations follow two principles:
 | OQ-36 | Lost & Found: should passengers pay a return fee? | **Yes, ₦2,000**, all of it to the driver (Uber/Bolt practice). Built **off** until the client decides | Confirm the amount, or no fee |
 | OQ-37 | Lost & Found: do passenger and driver see each other's number? | **Yes**, once the driver has the item; messages in the app also work | Confirm, or messages only |
 
-Scheduled rides and third-party bookings are built; the scheduled-ride decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md). Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A. The city launch process (OQ-22: readiness checklist and onboarding / live / paused) was built on 18 October 2026; no city goes live until the client gives its date.
+Scheduled rides and third-party bookings are built; the scheduled-ride decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md). Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A. The city launch process (OQ-22: readiness checklist and onboarding / live / paused) was built on 18 October 2026; no city goes live until the client gives its date. Vehicle maintenance (OQ-19) and driver scheduling (OQ-20) were built on 18 October 2026 to the recommended option A.
 
 ---
 
@@ -118,7 +118,7 @@ A passenger (the **booker**) books and pays for a ride for someone else (the **r
 
 | Situation | What happens |
 |-----------|--------------|
-| Papers expire during a trip | The trip is never interrupted. The block applies the next time the driver tries to go online |
+| Papers expire during a trip | The trip is never interrupted. After it, the driver gets no new trips, and cannot go online again until a new paper is approved |
 | A blocked driver holds a scheduled-ride reservation | The reservation is released straight away and the passenger is told, so the booking returns to the pool in time |
 | The driver changes car | The old car's records stay with it; the new car's records apply |
 | The fuel type is corrected (for example petrol → electric) | EV items are added, or archived if the car is no longer plug-in |
@@ -127,6 +127,19 @@ A passenger (the **booker**) books and pays for a ride for someone else (the **r
 | Kilometres driven outside E-tiGo | Not visible to us, so the time limit (3 months) still triggers the service |
 | Who updates records | **Fleet cars:** E-tiGo operations. **Own cars:** the driver uploads proof (receipt, certificate), operations approve |
 | A service is booked | Uses the existing repair and maintenance request flow (`REP-` numbers), so there is one workshop process |
+
+### Built (18 October 2026)
+
+Option A is built. Every interval, the 14-day reminder and the 7-day grace period are settings operations can change at any time (intervals also per fuel type, for example a longer service interval for electric cars). Engineering made these extra choices, which the client has not confirmed either:
+
+| Choice | What we built | Why |
+|--------|---------------|-----|
+| Cars with no record yet | Most cars have no service date, roadworthiness certificate or vehicle licence on file. These show "No record yet" and the driver is reminded, but **only an expired paper stops a car** | Blocking every car with a missing paper would take the whole fleet off the road on day one |
+| When the block starts | The driver is set offline at once (unless on a trip), gets no new trips, and their reserved scheduled pickups go back to the pool. Operations cannot assign them a ride manually | Stopping new trips straight away is safer than waiting for the driver to go offline and online again |
+| Renewing a paper | The old paper stays valid until the new one is approved, so the driver keeps driving while it is reviewed. The reviewer confirms the expiry date read from the paper | Uploading a renewal early should never take a car off the road |
+| Roadworthiness and vehicle licence | New document types; the expiry date is required | The expiry date is what the reminders and the block use |
+| Kilometres for the service | The last odometer reading plus the length of each E-tiGo trip since; drivers can enter a reading at any time | No car telematics yet; the 3-month limit covers driving outside E-tiGo |
+| Reminders | One message per car when something changes (due soon, overdue, expired), not every day. Operations get one daily email listing fleet cars that need work | Avoids drivers learning to ignore daily reminders |
 
 ---
 
@@ -167,7 +180,20 @@ A passenger (the **booker**) books and pays for a ride for someone else (the **r
 |-----------|--------------|
 | A driver plans hours and doesn't show up | Nothing happens to the driver. The plan is just a forecast |
 | Plans shown to passengers | Never. Plans are for operations only and do not promise a passenger a car |
-| Shared fleet car with a driver who also has their own car | Their shifts apply only to the fleet car |
+| Shared fleet car with a driver who also has their own car | Not supported for now: a driver drives one car on E-tiGo at a time, so a driver with their own car is not given shifts on a shared car |
+
+### Built (18 October 2026)
+
+Option A is built: availability plans for every driver, and shifts for fleet cars that operations put in **shift mode**. All the times above are settings. Engineering made these extra choices, which the client has not confirmed either:
+
+| Choice | What we built | Why |
+|--------|---------------|-----|
+| Handing the car over | The car passes to the next driver when they go online in their shift window, as long as the previous driver is offline and not on a trip. Until then the app tells them who still has it | No key-handover step to forget; the system always knows who has the car |
+| Cars on hire purchase | Cannot be put in shift mode, and a shared car cannot go on hire purchase | A car being bought by one driver is not shared |
+| A missed shift | The driver can still go online for the rest of it; operations can reassign it | A late driver is better than an idle car |
+| Rotas | Operations can create the same shift for up to 14 days in one go | Day and night rotas are the common case |
+| Shift ends | The driver is set offline at the end (after any trip in progress), and stays online when their next shift on the same car starts straight away | The next driver needs the car on time |
+| Availability plans | Up to 14 days ahead, repeatable weekly for 3 weeks, with an optional area name | Enough for weekly planning without stale long-range plans |
 
 ---
 
@@ -355,7 +381,7 @@ The recommendation is A because E-tiGo has no masked calling yet. Once masked ca
 | 1 | Confirm or change OQ-18 to OQ-21 (pick option A, B or C for each) before Week 9; otherwise the recommended defaults are built | Client / Product |
 | 2 | Give the target date for each new city, and confirm the driver minimum (30) and the choices under OQ-22 "Built" | Client |
 | 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000, Safety ₦50,000) and the choices under OQ-21 "Built", and say who will hold the new Support Lead role | Client / Operations |
-| 4 | Say which fleet cars are shared between drivers (for shift mode) | Operations |
+| 4 | Say which fleet cars are shared between drivers (for shift mode), and confirm the maintenance intervals and the choices under OQ-19 and OQ-20 "Built" | Operations / Client |
 | 5 | Confirm the permits needed in Abuja (FCT) and Rivers State | Legal |
 | 6 | Lost & Found: choose the return fee (OQ-36) and whether phone numbers are shared (OQ-37) | Client / Product |
 | 7 | Build Phase 2 to these defaults; any later change is a settings update | Engineering |

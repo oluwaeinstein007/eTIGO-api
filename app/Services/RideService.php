@@ -18,6 +18,7 @@ use App\Models\Ride;
 use App\Models\RideStateTransition;
 use App\Models\ScheduledRide;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Notifications\RideCompletedNotification;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -505,6 +506,15 @@ class RideService
                 ]);
             }
 
+            // Expired papers keep the car off the road, even for operations.
+            $blockedVehicle = Vehicle::whereHas('driver', fn ($q) => $q->where('user_id', $driver->id))->whereNotNull('blocked_at')->first();
+
+            if ($blockedVehicle !== null) {
+                throw ValidationException::withMessages([
+                    'driver_id' => ["This driver's car can't be driven: {$blockedVehicle->block_reason}"],
+                ]);
+            }
+
             $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
 
             if ($ride->status === RideStatus::NoDriverFound) {
@@ -624,6 +634,17 @@ class RideService
                     'ride_id' => $ride->id,
                     'error' => $e->getMessage(),
                 ]);
+            }
+
+            // The trip's distance counts towards the car's km-based service
+            // interval until the next odometer reading (OQ-19).
+            try {
+                app(VehicleMaintenanceService::class)->addTripDistance(
+                    $driver->id,
+                    (float) ($fareDetails['distance_km'] ?? $ride->pricing_snapshot['distance_km'] ?? 0),
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Could not add trip distance to the vehicle', ['ride_id' => $ride->id, 'error' => $e->getMessage()]);
             }
 
             try {

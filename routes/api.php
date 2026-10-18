@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminAvailabilityCoverageController;
 use App\Http\Controllers\Api\V1\Admin\AdminBalanceDueController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityLaunchController;
@@ -12,6 +13,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeRefundRequestController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverSchedulingSettingsController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverShiftController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
@@ -37,6 +40,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminThirdPartySettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
+use App\Http\Controllers\Api\V1\Admin\AdminVehicleMaintenanceController;
+use App\Http\Controllers\Api\V1\Admin\AdminVehicleMaintenanceSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletController;
 use App\Http\Controllers\Api\V1\Admin\AdminWalletSettingsController;
 use App\Http\Controllers\Api\V1\Admin\DriverManagementController;
@@ -51,6 +56,7 @@ use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\DisputeController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
+use App\Http\Controllers\Api\V1\Driver\DriverAvailabilityPlanController;
 use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
 use App\Http\Controllers\Api\V1\Driver\DriverController;
 use App\Http\Controllers\Api\V1\Driver\DriverEarningsController;
@@ -60,7 +66,9 @@ use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverRepairController;
 use App\Http\Controllers\Api\V1\Driver\DriverScheduledRideController;
+use App\Http\Controllers\Api\V1\Driver\DriverShiftController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
+use App\Http\Controllers\Api\V1\Driver\DriverVehicleStatusController;
 use App\Http\Controllers\Api\V1\Driver\EvReservationController;
 use App\Http\Controllers\Api\V1\Driver\KycController;
 use App\Http\Controllers\Api\V1\Driver\NearbyRidesController;
@@ -401,6 +409,18 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::put('/vehicle', [OnboardingController::class, 'updateVehicle']);
     Route::get('/vehicle', [OnboardingController::class, 'vehicle']);
 
+    // Vehicle maintenance (Phase 2, OQ-19)
+    Route::get('/vehicle/status', [DriverVehicleStatusController::class, 'show']);
+    Route::get('/vehicle/maintenance-records', [DriverVehicleStatusController::class, 'records']);
+    Route::post('/vehicle/maintenance-records', [DriverVehicleStatusController::class, 'storeRecord'])->middleware('throttle:10,1');
+    Route::post('/vehicle/odometer', [DriverVehicleStatusController::class, 'storeOdometer'])->middleware('throttle:10,1');
+
+    // Driver scheduling (Phase 2, OQ-20)
+    Route::get('/shifts', [DriverShiftController::class, 'index']);
+    Route::get('/availability-plans', [DriverAvailabilityPlanController::class, 'index']);
+    Route::post('/availability-plans', [DriverAvailabilityPlanController::class, 'store'])->middleware('throttle:20,1');
+    Route::delete('/availability-plans/{plan}', [DriverAvailabilityPlanController::class, 'destroy']);
+
     Route::prefix('remittance')->group(function () {
         Route::get('/today', [DriverRemittanceController::class, 'today']);
         Route::get('/history', [DriverRemittanceController::class, 'history']);
@@ -548,6 +568,31 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{vehicle}', [AdminFleetVehicleController::class, 'update']);
         Route::post('/{vehicle}/assign', [AdminFleetVehicleController::class, 'assign']);
         Route::post('/{vehicle}/unassign', [AdminFleetVehicleController::class, 'unassign']);
+        Route::put('/{vehicle}/shift-mode', [AdminDriverShiftController::class, 'shiftMode'])->middleware('admin.role:operations');
+    });
+
+    // Driver scheduling and vehicle maintenance (Phase 2, OQ-19 / OQ-20)
+    Route::middleware('admin.role:operations')->group(function () {
+        Route::get('/driver-shifts', [AdminDriverShiftController::class, 'index']);
+        Route::post('/driver-shifts', [AdminDriverShiftController::class, 'store']);
+        Route::get('/driver-shifts/{shift}', [AdminDriverShiftController::class, 'show']);
+        Route::put('/driver-shifts/{shift}', [AdminDriverShiftController::class, 'update']);
+        Route::post('/driver-shifts/{shift}/cancel', [AdminDriverShiftController::class, 'cancel']);
+        Route::get('/availability-coverage', AdminAvailabilityCoverageController::class);
+
+        Route::get('/vehicle-maintenance', [AdminVehicleMaintenanceController::class, 'index']);
+        Route::get('/vehicle-maintenance/records', [AdminVehicleMaintenanceController::class, 'records']);
+        Route::post('/vehicle-maintenance/records/{record}/review', [AdminVehicleMaintenanceController::class, 'reviewRecord']);
+        Route::get('/vehicles/{vehicle}/maintenance', [AdminVehicleMaintenanceController::class, 'show']);
+        Route::post('/vehicles/{vehicle}/maintenance-records', [AdminVehicleMaintenanceController::class, 'storeRecord']);
+        Route::post('/vehicles/{vehicle}/documents', [AdminVehicleMaintenanceController::class, 'storeDocument']);
+        Route::get('/vehicle-documents/unlinked', [AdminVehicleMaintenanceController::class, 'unlinkedDocuments']);
+        Route::post('/vehicle-documents/{document}/link', [AdminVehicleMaintenanceController::class, 'linkDocument']);
+
+        Route::get('/settings/driver-scheduling', [AdminDriverSchedulingSettingsController::class, 'show']);
+        Route::put('/settings/driver-scheduling', [AdminDriverSchedulingSettingsController::class, 'update']);
+        Route::get('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'show']);
+        Route::put('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:operations,finance')->prefix('fleet-agreements')->group(function () {

@@ -53,6 +53,21 @@ enum RideStatus: string
         ];
     }
 
+    /**
+     * A driver with a ride in one of these is on a trip.
+     *
+     * @return list<self>
+     */
+    public static function driverOnTripStatuses(): array
+    {
+        return [
+            self::Matched,
+            self::DriverEnRoute,
+            self::DriverArrived,
+            self::InProgress,
+        ];
+    }
+
     public function isTerminal(): bool
     {
         return in_array($this, [

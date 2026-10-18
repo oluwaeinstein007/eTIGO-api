@@ -395,6 +395,7 @@ class AdminMonitoringController extends Controller
             ->where('city_id', $ride->city_id)
             ->whereIn('id', $driverIds)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
+            ->dispatchable()
             ->whereDoesntHave('user', function ($q) {
                 $q->whereHas('driverRides', fn ($r) => $r->whereIn('status', [
                     RideStatus::Matched,

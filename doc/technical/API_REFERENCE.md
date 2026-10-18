@@ -7,7 +7,7 @@
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals).  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance.  
 
 ---
 
@@ -1351,10 +1351,11 @@ Content-Type: multipart/form-data
 
 | Field    | Type   | Required | Description                                                                        |
 |----------|--------|----------|------------------------------------------------------------------------------------|
-| type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `government_id` |
+| type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`, `government_id` |
 | document | file   | Yes      | JPG, PNG, or PDF. Max 10MB.                                                        |
+| expires_at | date | For `roadworthiness_certificate` and `vehicle_licence` | Expiry on the paper (after today). Optional for the other types |
 
-Re-uploading a document of the same type replaces the existing one.
+Re-uploading a document of the same type replaces the existing one, with one exception: **vehicle papers** (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) belong to the driver's car (Phase 2), and an **approved** vehicle paper stays valid until its renewal is approved, so renewing never leaves the car without papers; only a pending upload of the same type is replaced. Papers uploaded before the car is registered are linked to it when it is. Drivers of a fleet car with no car assigned get 422 (operations manage fleet papers). Insurance, roadworthiness and the vehicle licence decide whether the car may be driven: see [Vehicle Maintenance](#vehicle-maintenance-phase-2).
 
 **Response 201:**
 ```json
@@ -1638,9 +1639,13 @@ Submits the driver application for admin review. Only valid when driver status i
 ```
 POST /driver/toggle-online
 ```
-Toggle driver online/offline status. No request body required.
+Toggle driver online/offline status. No body is required; plug-in cars (`electric`, `plug_in_hybrid`) may send `battery_level_percent` (0–100) when going online, shown on [Vehicle Status](#vehicle-status-driver).
 
-**Going online requires:** status `approved` (not `suspended`), a registered vehicle with an assigned vehicle class, completed KYC (`kyc_status` = `verified`), and an available earnings balance no lower than the negative-balance threshold (`max_negative_balance`, default −₦5,000 — see Wallet Settings).
+**Going online requires:** status `approved` (not `suspended`), a registered vehicle with an assigned vehicle class, completed KYC (`kyc_status` = `verified`), an available earnings balance no lower than the negative-balance threshold (`max_negative_balance`, default −₦5,000 — see Wallet Settings), a car whose papers are not expired past the grace period ([Vehicle Maintenance](#vehicle-maintenance-phase-2)), and, for a shared fleet car, being inside the driver's shift window ([Driver Scheduling](#driver-scheduling-phase-2)). A shared car passes to the shift driver here when the previous driver has handed it over.
+
+Vehicle objects now also carry `shift_mode`, `odometer_km`, `estimated_odometer_km`, `battery_level_percent` (plug-in cars), `is_blocked` and `block_reason`, for drivers and admins only (a passenger seeing their driver's car does not get them).
+
+**Phase 2 response fields (going online):** `shift` (the shift being worked on a shared car, else `null`) and `vehicle_notice` (papers expiring soon or in their grace period, e.g. `"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving."`, else `null`).
 
 **Going offline** is refused with `409` while the driver has an active ride (`matched` → `in_progress`), so passenger tracking and location updates continue until the trip ends.
 
@@ -1715,6 +1720,8 @@ The silence counts from the last location, or from going online if none has come
   ]
 }
 ```
+
+Phase 2 reasons: `"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it."` (car off the road), and for shared fleet cars the shift reasons listed under [My Shifts](#my-shifts-driver).
 
 **Multi-city:** a driver whose city is still `onboarding` cannot go online (last reason above). In a `paused` city the driver can go online for bookings made before the pause; the response then has `city_notice`: `"Rides in Lagos are paused. You will only get rides passengers booked before the pause."`, or, when operations cancelled the bookings, `"Rides in Lagos are paused and upcoming bookings were cancelled. You will not get new trips until rides resume."` (`null` outside a paused city).
 
@@ -2459,6 +2466,9 @@ POST /admin/drivers/{driver_id}/documents/{document_id}/review
 |------------------|--------|-----------------------|----------------------|
 | action           | string | Yes                   | `approve` or `reject` |
 | rejection_reason | string | Yes (when rejecting)  | Reason for rejection |
+| expires_at       | date   | No                    | When approving: the expiry date read from the paper (confirms or corrects what the driver entered) |
+
+Approving a renewed vehicle paper replaces the car's earlier approved paper of that type and re-checks the car's maintenance items, which lifts an expired-papers block.
 
 **Response 200:**
 ```json
@@ -6486,7 +6496,7 @@ The dispatcher is a database-driven sweep that the scheduler runs every minute (
 | `reserved_driver` | `null`, or the driver who reserved it: `id`, `first_name`, `profile_photo_url`, `rating`, `vehicle` (`make`, `model`, `colour`, `plate_number`) |
 | `reserved_at` | When the driver reserved it |
 | `reserved_by_operations` | `true` when operations assigned the driver |
-| `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable` |
+| `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable`, `vehicle_blocked` (the driver's papers expired past the grace period), `shift_changed` (a shared-car driver's shift no longer covers the pickup) |
 | `cancellation_fee_if_cancelled_now` | What cancelling now would cost the passenger (0 when free) |
 | `late_cancellation_fee` | Fee recorded when the passenger cancelled late, else `null` |
 | `late_cancellation_fee_status` | `pending` (being charged), `charged` (paid, including a balance due paid later), `balance_due` (owed by the passenger), `waived` (finance waived the balance), `failed` (card outcome unknown; finance checks), or `null` |
@@ -7339,6 +7349,379 @@ PUT /admin/settings/lost-and-found
   }
 }
 ```
+
+---
+
+## Driver Scheduling (Phase 2)
+
+Phase 2 OQ-20 (engineering recommendation of 16 Oct 2026, not yet client-confirmed). Two separate things:
+
+- **Availability plans — every driver, voluntary.** A driver says when and where they expect to drive. There is no penalty for changing or skipping a plan, it **never** stops a driver going online, and passengers never see it. Operations use the plans to spot gaps.
+- **Shifts — only fleet cars in shift mode** (E-tiGo cars shared by two or more drivers). Drivers of their own car, or of a fleet car not in shift mode, have no shifts and drive when they like.
+
+**How a shared car works.** The car's `driver_id` is the driver holding it now. When a shift driver goes online inside their window, the car passes to them, provided the previous driver is offline and not on a trip (else `toggle-online` returns 422 naming who has it). A car on hire purchase (active fleet agreement) cannot be in shift mode, and a driver with their own car cannot be given shifts.
+
+**Shift rules** (settings, `/admin/settings/driver-scheduling`):
+
+| Rule | Default | Setting |
+|---|---|---|
+| Driver can go online | From 15 min before the start until the end | `shift_online_lead_minutes` |
+| New ride offers stop | 15 min before the end (a trip running past the end finishes) | `shift_offer_cutoff_minutes` |
+| Not online after the start | Shift marked `missed` after 30 min; driver and operations told; no fine; can still start late | `shift_missed_after_minutes` |
+| Shift length | 60 min – 12 h, up to 30 days ahead | `shift_min_minutes`, `shift_max_hours`, `shift_max_advance_days` |
+| Scheduled-ride reservations | Only for pickups inside the driver's own shifts, in that shift car's class | — |
+| Overlaps | Refused on the same car and for the same driver (cancelled shifts free their slot) | — |
+
+Times are full ISO 8601 date-times (send a UTC offset); overnight shifts such as 22:00–06:00 work. Responses are in UTC.
+
+**Shift status:** `scheduled` → `active` (driver went online in the window) → `completed`; `scheduled` → `missed` (may still become `active`); `scheduled` / `missed` → `cancelled`.
+
+**Every 5 minutes** (`ProcessDriverShiftsJob`): marks missed shifts (push `driver_shift_missed`, one email to operations per run), tells the driver when offers stop (`driver_shift_ending`), tells the next driver when the car is late because the previous driver is on a trip (`shift_handover_delayed`), and ends shifts past their end (`driver_shift_ended`; the driver is set offline unless on a trip — the shift then ends on a later run — or going straight into their next shift on the same car).
+
+### Shift object
+
+```json
+{
+  "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+  "status": "scheduled",
+  "status_label": "Scheduled",
+  "starts_at": "2026-10-20T05:00:00+00:00",
+  "ends_at": "2026-10-20T13:00:00+00:00",
+  "online_from": "2026-10-20T04:45:00+00:00",
+  "offers_stop_at": "2026-10-20T12:45:00+00:00",
+  "started_at": null,
+  "ended_at": null,
+  "missed_at": null,
+  "cancelled_at": null,
+  "cancellation_reason": null,
+  "notes": "Day shift",
+  "vehicle": { "id": "…", "plate_number": "LAG-100AA", "make": "Toyota", "model": "Corolla", "colour": "White" },
+  "created_at": "2026-10-19T08:00:00+00:00"
+}
+```
+
+Admin responses add `driver` (`id`, `reference_number`, `name`, `phone`, `is_online`), `vehicle.held_by_driver_id` and `created_by_admin_id`.
+
+### My Shifts (Driver)
+```
+GET /driver/shifts
+```
+**Auth:** driver. Query: `include_past` (boolean; default lists shifts not yet ended and not cancelled; `1` lists the last 30 days, every status). Paginated (30).
+
+**Response 200:**
+```json
+{
+  "shift_driver": true,
+  "current_shift": { "...": "shift object, or null outside a shift window" },
+  "rules": { "online_lead_minutes": 15, "offer_cutoff_minutes": 15, "missed_after_minutes": 30 },
+  "shifts": [ { "...": "shift object" } ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 30, "total": 5 }
+}
+```
+
+`shift_driver` is `false` for drivers whose car is not shared; they can ignore shifts.
+
+**Going online** (`POST /driver/toggle-online`) for a shift driver returns 422 reasons such as:
+- `"Your car is shared on shifts. Your next shift starts Tue 20 Oct, 6:00 AM; you can go online from Tue 20 Oct, 5:45 AM."`
+- `"Your car is shared on shifts and you have no shift now. Contact fleet operations for your next shift."`
+- `"LAG-100AA is still with Kemi, who is finishing a trip. You can go online once the car is handed over."`
+
+and on success adds `shift` (the shift object).
+
+### Availability Plans (Driver)
+```
+GET    /driver/availability-plans
+POST   /driver/availability-plans
+DELETE /driver/availability-plans/{plan_id}
+```
+**Auth:** driver (approved, with a city). `GET` lists plans not yet ended, soonest first.
+
+**POST body:**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| starts_at | ISO 8601 | Yes | Now or later; up to 14 days ahead (`availability_max_advance_days`) |
+| ends_at | ISO 8601 | Yes | 30 min – 12 h after `starts_at` |
+| area_label | string | No | 2–60 characters, e.g. "Lekki". Spaces and case are normalised ("lekki " → "Lekki") so the same area groups together |
+| repeat_weekly | integer | No | 0–3: also create the same plan on each of the next N weeks (all or nothing) |
+
+Overlapping one of the driver's own plans → 422 on `starts_at`. At most 42 upcoming plans (`availability_max_upcoming`). Throttled to 20 per minute.
+
+**Response 201:**
+```json
+{
+  "message": "2 plans saved.",
+  "plans": [
+    { "id": "…", "city_id": "…", "area_label": "Lekki Phase 1", "starts_at": "2026-10-23T17:00:00+00:00", "ends_at": "2026-10-23T20:00:00+00:00", "created_at": "…" },
+    { "id": "…", "city_id": "…", "area_label": "Lekki Phase 1", "starts_at": "2026-10-30T17:00:00+00:00", "ends_at": "2026-10-30T20:00:00+00:00", "created_at": "…" }
+  ]
+}
+```
+
+`DELETE` returns 200 `{"message": "Plan removed."}`; 404 for another driver's plan; 422 once the plan has ended.
+
+### Admin — Shift Mode for a Fleet Car
+```
+PUT /admin/fleet-vehicles/{vehicle_id}/shift-mode
+```
+**Auth:** operations. Body: `shift_mode` (boolean). On: fleet cars only, not on an active hire-purchase agreement. Off: refused while the car has upcoming shifts (cancel them first). Returns the vehicle (with `shift_mode`). Audit: `vehicle_shift_mode_on` / `vehicle_shift_mode_off`. A car in shift mode cannot be put on a hire-purchase agreement.
+
+### Admin — Driver Shifts
+```
+GET  /admin/driver-shifts
+POST /admin/driver-shifts
+GET  /admin/driver-shifts/{shift_id}
+PUT  /admin/driver-shifts/{shift_id}
+POST /admin/driver-shifts/{shift_id}/cancel
+```
+**Auth:** operations.
+
+**List** query: `vehicle_id`, `driver_id`, `status` (comma-separated, e.g. `scheduled,missed`), `from`, `to` (default: yesterday to 14 days ahead; shifts overlapping the range). Paginated (50), soonest first; `summary` counts per status in the range.
+
+**Create** body:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| driver_id | UUID | Yes | Approved driver with no car of their own |
+| vehicle_id | UUID | Yes | Fleet car in shift mode, not blocked by expired papers |
+| starts_at, ends_at | ISO 8601 | Yes | 60 min – 12 h; ends in the future; starts within 30 days |
+| notes | string | No | Max 500 |
+| repeat_daily_for | integer | No | 0–13: the same shift on each of the next N days (a rota; all or nothing) |
+
+Response 201 `{"message": "5 shifts created.", "shifts": [...]}`. The driver gets one `driver_shift_assigned` push.
+
+**Update:** before the shift starts (`scheduled` or `missed`): `driver_id`, `vehicle_id`, `starts_at`, `ends_at`, `notes`; a missed shift moved to a later start is `scheduled` again. In progress (`active`): only `ends_at` (to extend it or end it early; must be in the future) and `notes`. Other states: 422. Overlaps are re-checked. A new driver: the old one gets `driver_shift_cancelled`, the new one `driver_shift_assigned`; otherwise `driver_shift_updated`.
+
+**Cancel** body: `reason` (required, 3–500). Only `scheduled` or `missed` shifts (end an active one by changing `ends_at`). The driver gets `driver_shift_cancelled`.
+
+After a move, reassignment or cancellation, the driver's scheduled-ride reservations no longer inside one of their shifts are released (reason `shift_changed`; the passenger is told the booking is still on).
+
+Audit events: `driver_shift_created`, `driver_shift_updated`, `driver_shift_cancelled`, `driver_shift_missed`, `driver_shift_completed`, `shift_vehicle_handover`, `driver_set_offline_shift_ended`.
+
+### Admin — Availability Coverage
+```
+GET /admin/availability-coverage?city_id={city_id}&from={iso}&to={iso}
+```
+**Auth:** operations. `from` defaults to now, `to` to 7 days after `from`; up to 14 days (else 422). Hours are Lagos hours.
+
+**Response 200:**
+```json
+{
+  "coverage": {
+    "city": { "id": "…", "name": "Lagos" },
+    "timezone": "Africa/Lagos",
+    "from": "2026-10-23T18:00:00+01:00",
+    "to": "2026-10-23T22:00:00+01:00",
+    "approved_drivers": 214,
+    "drivers_with_plans": 3,
+    "areas": ["Ikeja", "Lekki"],
+    "peak_hour": { "starts_at": "2026-10-23T19:00:00+01:00", "planned_drivers": 3 },
+    "lowest_hour": { "starts_at": "2026-10-23T18:00:00+01:00", "planned_drivers": 1 },
+    "hours": [
+      {
+        "starts_at": "2026-10-23T19:00:00+01:00",
+        "ends_at": "2026-10-23T20:00:00+01:00",
+        "planned_drivers": 3,
+        "areas": [
+          { "area_label": "Lekki", "planned_drivers": 2 },
+          { "area_label": "Ikeja", "planned_drivers": 1 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+A plan with no area counts in `planned_drivers` and appears under `area_label: null`.
+
+### Admin — Driver Scheduling Settings
+```
+GET /admin/settings/driver-scheduling
+PUT /admin/settings/driver-scheduling
+```
+**Auth:** operations. Any subset of: `shifts_enabled` (bool, default true; off: shift-mode cars stop enforcing their timetable), `shift_online_lead_minutes` (0–120, 15), `shift_offer_cutoff_minutes` (0–120, 15), `shift_missed_after_minutes` (5–240, 30), `shift_min_minutes` (15–720, 60), `shift_max_hours` (1–24, 12), `shift_max_advance_days` (1–90, 30), `availability_max_advance_days` (1–60, 14), `availability_min_minutes` (15–720, 30), `availability_max_hours` (1–24, 12), `availability_max_upcoming` (1–200, 42). The shortest shift or plan cannot be longer than the longest (422). Audit: `driver_scheduling_settings.updated`.
+
+---
+
+## Vehicle Maintenance (Phase 2)
+
+Phase 2 OQ-19 (engineering recommendation of 16 Oct 2026, not yet client-confirmed): general items for every vehicle, plus battery health for electric and plug-in hybrid cars, chosen by fuel type. Records belong to the **vehicle**, so they stay with a car that changes hands.
+
+| Item (`type`) | Applies to | Due | Source |
+|---|---|---|---|
+| `service` | All | 5,000 km or 3 months after the last one, whichever first | Approved maintenance records (odometer required) plus trip distance since the last odometer reading |
+| `tyres_brakes` | All | 6 months | Approved records |
+| `insurance` | All | Expiry date | The vehicle's approved `insurance_certificate` |
+| `roadworthiness` | All | Expiry date | The vehicle's approved `roadworthiness_certificate` |
+| `vehicle_licence` | All | Expiry date | The vehicle's approved `vehicle_licence` |
+| `battery_health` | `electric`, `plug_in_hybrid` | 12 months | Approved records |
+
+Intervals are settings per item and per fuel type. A non-plug-in `hybrid` gets the general items only; correcting the fuel type adds or archives battery health.
+
+**Item status:** `unknown` (no record yet), `ok`, `due_soon` (within 14 days or 500 km), `overdue` (service, tyres, battery — **warning only, never blocks**), `expired` (legal papers).
+
+**Expired papers.** Insurance, roadworthiness or the vehicle licence past its expiry date: a **7-day grace period** (`legal_grace_days`) with a warning (`vehicle_notice` on going online), then the car is **off the road** (`is_blocked`): the driver cannot go online, gets no offers, cannot be assigned by operations, an idle online driver is set offline, and their reserved scheduled pickups are released (reason `vehicle_blocked`, passenger told). **A trip in progress is never ended**; the driver finishes it and gets no new offers. The block lifts as soon as a renewed paper is **approved** (a pending upload does not lift it). Papers with no record yet (e.g. the new roadworthiness and vehicle licence types for older cars) only remind, never block.
+
+**Daily at 06:00 Lagos** (`ProcessVehicleMaintenanceJob`): recomputes every car, starts or lifts blocks, sends the driver one `vehicle_maintenance_due` push per car when items change state (once per change), and emails operations one digest of fleet cars that are overdue or expired (plus an alert when a fleet car is blocked).
+
+**Who records work:** drivers of their **own car** submit records with proof, approved by operations; **fleet cars** are recorded by operations (drivers get 403). Booking a workshop still uses [Driver — Repairs](#driver--repairs); a record can link the `REP-` request (`driver_repair_id`).
+
+### Maintenance item object
+
+```json
+{
+  "id": "…",
+  "type": "insurance",
+  "label": "Insurance",
+  "is_legal_paper": true,
+  "status": "expired",
+  "status_label": "Expired",
+  "due_at": "2026-10-13",
+  "days_until_due": -6,
+  "due_odometer_km": null,
+  "km_until_due": null,
+  "last_done_at": "2025-10-14",
+  "last_odometer_km": null,
+  "blocks_driving": false,
+  "blocks_driving_from": "2026-10-21",
+  "message": "Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving."
+}
+```
+
+`message` is ready to show the driver. `blocks_driving_from` is set for an expired paper still in its grace period. For `service`, `due_odometer_km` / `km_until_due` use the estimated odometer (last reading + trip km since).
+
+### Vehicle Status (Driver)
+```
+GET /driver/vehicle/status
+```
+**Auth:** driver with a vehicle (404 otherwise).
+
+**Response 200:**
+```json
+{
+  "vehicle": {
+    "id": "…", "plate_number": "ABC-123XY", "make": "Toyota", "model": "Corolla",
+    "fuel_type": "electric", "is_fleet": false, "shift_mode": false,
+    "odometer_km": 42000, "odometer_read_at": "2026-09-01T22:59:59+00:00", "estimated_odometer_km": 43180
+  },
+  "can_drive": true,
+  "block_reason": null,
+  "records_managed_by": "driver",
+  "items": [ { "...": "maintenance item object" } ],
+  "charging": {
+    "battery_level_percent": 64,
+    "battery_level_at": "2026-10-19T08:00:00+00:00",
+    "active_reservation": { "id": "…", "status": "reserved", "station": { "id": "…", "name": "Lekki Hub" }, "confirmed_slot": "09:30" }
+  },
+  "pending_records": [ { "...": "maintenance record object" } ]
+}
+```
+
+`charging` is `null` for cars without a charging port. `records_managed_by` is `operations` for fleet cars.
+
+### Maintenance Records (Driver)
+```
+GET  /driver/vehicle/maintenance-records
+POST /driver/vehicle/maintenance-records
+Content-Type: multipart/form-data
+```
+**Auth:** driver. `GET` lists the car's records, newest first (paginated, 20). `POST` (own cars only; 403 for fleet cars; throttled 10/min):
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| item_type | string | Yes | `service`, `tyres_brakes`, `battery_health` (plug-in cars only) |
+| performed_at | date | Yes | Today or earlier, within 2 years |
+| odometer_km | integer | For `service` | Must not be lower than an earlier reading nor higher than a later one |
+| workshop | string | No | Max 120 |
+| notes | string | No | Max 1,000 |
+| driver_repair_id | UUID | No | One of the driver's `REP-` repair requests |
+| proof | file | Yes | Receipt or workshop report: JPG, PNG or PDF, max 10 MB |
+
+Response 201 with `record` (`status: pending`). The driver gets `maintenance_record_reviewed` when operations approve or reject it.
+
+**Maintenance record object:**
+```json
+{
+  "id": "…", "vehicle_id": "…", "item_type": "service", "item_label": "Routine service",
+  "performed_at": "2026-09-01", "odometer_km": 42000, "workshop": "Mainland Motors", "notes": null,
+  "proof_url": "https://…", "driver_repair_id": null,
+  "status": "pending", "status_label": "Awaiting review", "rejection_reason": null,
+  "reviewed_at": null, "created_at": "…"
+}
+```
+
+Admin responses add `vehicle` (`id`, `plate_number`, `is_fleet`) and `submitted_by` (`id`, `name`, `type`).
+
+### Odometer Reading (Driver)
+```
+POST /driver/vehicle/odometer
+```
+Body: `odometer_km` (integer, 0–2,000,000). A reading lower than the last one is refused (422 on `odometer_km`). Resets the trip-distance count. Response 200: `message`, `odometer_km`, `odometer_read_at`. Throttled 10/min.
+
+### Admin — Vehicle Maintenance Overview
+```
+GET /admin/vehicle-maintenance
+```
+**Auth:** operations. Items needing attention across all cars, worst first (expired, overdue, due soon). Query: `status` (comma-separated; default `due_soon,overdue,expired`; add `unknown` for cars with no record), `type`, `fleet_only`, `blocked_only`, `search` (plate, make, model). Paginated (30).
+
+**Response 200:**
+```json
+{
+  "items": [
+    {
+      "...": "maintenance item object",
+      "vehicle": { "id": "…", "plate_number": "FLT-001AA", "make": "Toyota", "model": "Corolla", "is_fleet": true, "is_blocked": true, "driver": { "id": "…", "name": "Bayo Akinola" } }
+    }
+  ],
+  "summary": { "ok": 120, "unknown": 40, "due_soon": 6, "overdue": 3, "expired": 1, "blocked_vehicles": 1, "pending_records": 2 },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 30, "total": 10 }
+}
+```
+
+### Admin — Vehicle Maintenance (One Car)
+```
+GET  /admin/vehicles/{vehicle_id}/maintenance
+POST /admin/vehicles/{vehicle_id}/maintenance-records
+POST /admin/vehicles/{vehicle_id}/documents
+```
+**Auth:** operations. Works for any car (own or fleet).
+
+- `GET` → `vehicle` (with `shift_mode`, `odometer_km`, `estimated_odometer_km`, `is_blocked`, `block_reason`), `items`, `records` (last 50), `documents` (the car's papers).
+- `POST …/maintenance-records` → same fields as the driver's, `proof` optional; the record is approved at once. Response 201 with `record` and the updated `items`. Audit `maintenance_record_added`.
+- `POST …/documents` (multipart) → `type` (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`), `document` (file), `expires_at` (required except for `vehicle_registration`). Approved at once; replaces the car's earlier paper of that type. Response 201 with `document` and `items`. Audit `vehicle_document_uploaded_by_admin`.
+
+### Admin — Maintenance Records Queue
+```
+GET  /admin/vehicle-maintenance/records?status=pending&vehicle_id=
+POST /admin/vehicle-maintenance/records/{record_id}/review
+```
+**Auth:** operations. The queue lists `pending` records oldest first by default (`status` also `approved` / `rejected`). Review body: `action` (`approve` / `reject`), `rejection_reason` (required to reject). Only pending records; approving re-checks the odometer. Audit `maintenance_record_approved` / `maintenance_record_rejected`.
+
+### Admin — Unlinked Vehicle Papers
+```
+GET  /admin/vehicle-documents/unlinked
+POST /admin/vehicle-documents/{document_id}/link
+```
+**Auth:** operations. Papers are now linked to the vehicle. The Phase 2 migration linked each existing paper to its driver's car; papers it could not match (the driver had no car, or more than one) are listed here with the driver. Link body: `vehicle_id`. Audit `vehicle_document_linked`.
+
+### Admin — Vehicle Maintenance Settings
+```
+GET /admin/settings/vehicle-maintenance
+PUT /admin/settings/vehicle-maintenance
+```
+**Auth:** operations. Any subset of:
+
+| Field | Default | Notes |
+|---|---|---|
+| enabled | true | Off: items are still tracked and shown; no reminders, no block |
+| intervals | `{"service": {"km": 5000, "months": 3}, "tyres_brakes": {"km": null, "months": 6}, "battery_health": {"km": null, "months": 12}}` | Merged item by item; each item needs `km` (500–100,000) or `months` (1–60) |
+| fuel_type_intervals | `{}` | Per fuel type overrides, e.g. `{"electric": {"service": {"km": 10000, "months": 6}}}`; merged per fuel type and item (other stored overrides are kept); each needs `km` or `months` |
+| due_soon_days | 14 | 0–90 |
+| due_soon_km | 500 | 0–5,000 |
+| legal_grace_days | 7 | 0–60 |
+| block_on_expired_papers | true | Off: expired papers only warn |
+
+Changes apply on each car's next check (daily run, opening the car, going online). Audit: `vehicle_maintenance_settings.updated`.
 
 ---
 
@@ -14470,6 +14853,9 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | `/admin/reports` (operational) | Yes | — | — | Yes | — |
 | `/admin/admins` | — | — | — | — | — |
 | `/admin/lost-items` | Yes | Yes | Yes | — | — |
+| `/admin/driver-shifts`, `/admin/availability-coverage`, `/admin/fleet-vehicles/{vehicle}/shift-mode` | Yes | — | — | — | — |
+| `/admin/vehicle-maintenance`, `/admin/vehicles/{vehicle}/…`, `/admin/vehicle-documents` | Yes | — | — | — | — |
+| `/admin/settings/driver-scheduling`, `/admin/settings/vehicle-maintenance` | Yes | — | — | — | — |
 
 ### Driver Status
 | Value            | Description                              |
@@ -14506,6 +14892,41 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | `vehicle_registration`   | Vehicle registration    |
 | `insurance_certificate`  | Insurance certificate   |
 | `government_id`          | Government-issued ID    |
+| `roadworthiness_certificate` | Roadworthiness certificate (vehicle; expiry required) |
+| `vehicle_licence`        | Vehicle licence (vehicle; expiry required) |
+
+`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate` and `vehicle_licence` are vehicle papers, linked to the car (`vehicle_id`).
+
+### Driver Shift Status
+| Value | Description |
+|-------|-------------|
+| `scheduled` | Assigned, not started |
+| `active` | The driver went online in the shift window |
+| `completed` | Ended |
+| `missed` | Not online 30 min after the start (can still start late) |
+| `cancelled` | Cancelled by operations |
+
+### Maintenance Item Type
+| Value | Applies to |
+|-------|-----------|
+| `service` | All vehicles |
+| `tyres_brakes` | All vehicles |
+| `insurance` | All vehicles (paper) |
+| `roadworthiness` | All vehicles (paper) |
+| `vehicle_licence` | All vehicles (paper) |
+| `battery_health` | Electric and plug-in hybrid |
+
+### Maintenance Item Status
+| Value | Description |
+|-------|-------------|
+| `unknown` | No record yet |
+| `ok` | Up to date |
+| `due_soon` | Due within 14 days or 500 km |
+| `overdue` | Past due (maintenance; warns only) |
+| `expired` | Paper expired (blocks driving after the grace period) |
+
+### Maintenance Record Status
+`pending` (awaiting operations), `approved`, `rejected`.
 
 ### Document Status
 | Value      | Description                        |
@@ -14815,6 +15236,13 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | City launched | Passenger on the waitlist | `city_launched` | "E-tiGo is now in Ibadan" (data: `city_id`). Sent once per wait. See [City Waitlist](#city-waitlist) |
 | City launched / paused | Approved drivers in the city | `city_status_changed` | Live: "go online to start getting trips". Paused: passengers cannot book; trips in progress and (unless cancelled) booked rides go ahead (data: `city_id`, `launch_status`) |
 | Booking cancelled by a city pause | Passenger (and reserved driver) | `ride_cancelled` | Body: "Your scheduled ride was cancelled because E-tiGo has paused rides in Lagos." |
+| Shift assigned / changed / cancelled | Driver | `driver_shift_assigned` / `driver_shift_updated` / `driver_shift_cancelled` | Shared fleet car shifts (data: `shift_id`). See [Driver Scheduling](#driver-scheduling-phase-2) |
+| Shift missed | Driver | `driver_shift_missed` | Not online 30 min after the start; operations were told; going online now still works |
+| Offers stopping / shift ended | Driver | `driver_shift_ending` / `driver_shift_ended` | 15 min before the end no new trips; at the end the driver was set offline (unless on a trip) and should hand the car over |
+| Car running late | Driver | `shift_handover_delayed` | The previous driver is still on a trip with the shared car |
+| Vehicle check due | Driver | `vehicle_maintenance_due` | Items became due soon, overdue, expired or still need a record; once per change (data: `vehicle_id`). See [Vehicle Maintenance](#vehicle-maintenance-phase-2) |
+| Car off the road / back on | Driver | `vehicle_blocked` / `vehicle_unblocked` | Papers expired past the grace period (bypasses preferences; reserved pickups released) / a renewal was approved |
+| Maintenance record checked | Driver | `maintenance_record_reviewed` | Operations approved or rejected a submitted record (data: `vehicle_id`, `record_id`) |
 | Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline, and that they can go online from launch day when the city is still onboarding |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |

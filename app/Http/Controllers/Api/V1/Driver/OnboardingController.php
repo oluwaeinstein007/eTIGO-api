@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Driver;
 
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
 use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
@@ -147,6 +148,15 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
+        $type = DocumentType::from($request->validated('type'));
+        // Vehicle papers belong to the car, so they stay with it if it
+        // changes hands (OQ-19).
+        $vehicleId = $type->isVehicleDocument() ? $driver->vehicle?->id : null;
+
+        if ($type->isVehicleDocument() && $vehicleId === null && $driver->isFleetVehicle()) {
+            return response()->json(['message' => 'Your fleet car\'s papers are managed by E-tiGo operations.'], 422);
+        }
+
         $file = $request->file('document');
         $path = $file->store("driver-documents/{$driver->id}", config('filesystems.uploads'));
 
@@ -154,21 +164,28 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'File upload failed. Please try again.'], 503);
         }
 
+        // An approved vehicle paper stays valid until its replacement is
+        // approved, so renewing never leaves the car without papers; only a
+        // pending upload of the same type is replaced.
         $existing = $driver->documents()
-            ->where('type', $request->validated('type'))
-            ->whereIn('status', ['pending', 'approved'])
+            ->where('type', $type)
+            ->whereIn('status', $vehicleId !== null ? ['pending'] : ['pending', 'approved'])
+            // Includes a pending paper uploaded before papers were linked to cars.
+            ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
             ->first();
 
         $oldFilePath = $existing?->file_path;
 
         try {
-            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing) {
+            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing, $type, $vehicleId) {
                 if ($existing) {
                     $existing->delete();
                 }
 
                 return $driver->documents()->create([
-                    'type' => $request->validated('type'),
+                    'vehicle_id' => $vehicleId,
+                    'uploaded_by' => $request->user()->id,
+                    'type' => $type,
                     'file_path' => $path,
                     'original_filename' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
@@ -230,6 +247,12 @@ class OnboardingController extends Controller
         $vehicle = $driver->vehicle()->create($request->validated());
 
         AuditLog::record($vehicle, 'vehicle_registered', $user);
+
+        // Papers uploaded before the car was added belong to it.
+        $driver->documents()
+            ->whereIn('type', DocumentType::vehicleDocumentValues())
+            ->whereNull('vehicle_id')
+            ->update(['vehicle_id' => $vehicle->id]);
 
         if (! $vehicle->is_fleet) {
             VerifyVehiclePlateJob::dispatch($driver, $vehicle->plate_number);
