@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\CancellationReason;
+use App\Enums\CityLaunchStatus;
 use App\Enums\NotificationType;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
@@ -36,6 +37,7 @@ class ScheduledRideService
         'account_suspended' => 'Your scheduled ride was cancelled because your account is suspended.',
         'service_unavailable' => 'Your scheduled ride was cancelled because this ride type is no longer available in your city.',
         'missed_dispatch_window' => 'Sorry, we could not start your scheduled ride in time. Please book a new ride.',
+        'city_paused' => 'Your scheduled ride was cancelled because E-tiGo has paused rides in your city.',
     ];
 
     public function __construct(
@@ -334,6 +336,7 @@ class ScheduledRideService
             $failure = match (true) {
                 now()->gte($graceEnd) => 'missed_dispatch_window',
                 ! $ride->passenger?->is_active => 'account_suspended',
+                $this->isCityClosed($ride) => 'city_paused',
                 ! $this->isServiceAvailable($ride) => 'service_unavailable',
                 default => null,
             };
@@ -417,9 +420,25 @@ class ScheduledRideService
         return $outcome;
     }
 
+    /**
+     * Bookings made while the city was live still go ahead after a pause,
+     * unless the admin chose to cancel them (OQ-22).
+     */
+    private function isCityClosed(Ride $ride): bool
+    {
+        $city = $ride->city;
+
+        if ($city === null) {
+            return false;
+        }
+
+        return ! $city->launch_status->dispatchesScheduledRides()
+            || ($city->launch_status === CityLaunchStatus::Paused && $city->pause_scheduled_rides === 'cancel');
+    }
+
     private function isServiceAvailable(Ride $ride): bool
     {
-        if (! $ride->city?->is_active) {
+        if ($ride->city === null) {
             return false;
         }
 

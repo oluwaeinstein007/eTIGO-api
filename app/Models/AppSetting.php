@@ -132,6 +132,26 @@ class AppSetting extends Model
     }
 
     /**
+     * Multi-city launch settings (Phase 2, OQ-22): the admin's runtime
+     * overrides (PUT /admin/settings/cities) over config/cities.php.
+     *
+     * @return array{launch_min_approved_drivers: int, require_ev_charging: bool, pause_scheduled_rides: string}
+     */
+    public static function cities(): array
+    {
+        $settings = static::where('group', 'cities')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["cities.{$key}"] ?? config("cities.{$key}");
+
+        $pauseScheduledRides = (string) $value('pause_scheduled_rides');
+
+        return [
+            'launch_min_approved_drivers' => max(0, (int) $value('launch_min_approved_drivers')),
+            'require_ev_charging' => filter_var($value('require_ev_charging'), FILTER_VALIDATE_BOOLEAN),
+            'pause_scheduled_rides' => in_array($pauseScheduledRides, ['honour', 'cancel'], true) ? $pauseScheduledRides : 'honour',
+        ];
+    }
+
+    /**
      * Lost & Found settings (Phase 2): the admin's runtime overrides
      * (PUT /admin/settings/lost-and-found) over config/lost_and_found.php.
      *

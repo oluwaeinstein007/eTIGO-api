@@ -52,7 +52,7 @@ Run `php artisan db:seed` to populate the database with the test data below.
 
 ### Seeded Reference Data
 
-**Cities:** Lagos (active, 40km), Abuja (active, 30km), Port Harcourt (active, 20km), Ibadan (inactive, 20km)
+**Cities:** Lagos (live, 40km), Abuja (live, 30km), Port Harcourt (live, 20km), Ibadan (onboarding, 20km)
 
 **Vehicle Classes:** Economy (4 pax), Comfort (4 pax), Premium (4 pax), SUV (6 pax)
 
@@ -196,7 +196,7 @@ Called after OTP verification when `is_new_user` is `true`. The phone must have 
 | last_name  | string | Yes      | Last name                            |
 | email      | string | No       | Email address (unique per account type) |
 | type       | string | Yes      | `passenger` or `driver`              |
-| city_id    | string (UUID) | Conditional | Required for drivers. Must exist in cities table |
+| city_id    | string (UUID) | Conditional | Required for drivers. An onboarding or live city (`GET /cities?include_onboarding=1`); a paused city returns 422 `The selected city is not open for driver sign-ups.` |
 
 **Response 201 (passenger):**
 ```json
@@ -1254,7 +1254,9 @@ PUT /driver/profile
 | Field          | Type    | Required | Description          |
 |----------------|---------|----------|----------------------|
 | licence_number | string  | No       | Driving licence no.  |
-| city_id        | string (UUID) | No       | Must exist in cities table |
+| city_id        | string (UUID) | No       | An onboarding or live city |
+
+The city can only be changed while the driver is in `onboarding` or `rejected`. After the application is submitted it returns 422 `Your city can only be changed before you submit your application. Contact support to move city.`; Operations moves drivers with [`PUT /admin/drivers/{driver_id}/city`](#move-driver-to-another-city).
 
 **Response 200:**
 ```json
@@ -1708,10 +1710,13 @@ The silence counts from the last location, or from going online if none has come
     "Driver account is not approved.",
     "No vehicle registered.",
     "KYC verification is not complete.",
-    "Outstanding negative balance exceeds the allowed threshold."
+    "Outstanding negative balance exceeds the allowed threshold.",
+    "E-tiGo has not launched in Ibadan yet. You can go online from launch day."
   ]
 }
 ```
+
+**Multi-city:** a driver whose city is still `onboarding` cannot go online (last reason above). In a `paused` city the driver can go online for bookings made before the pause; the response then has `city_notice`: `"Rides in Lagos are paused. You will only get rides passengers booked before the pause."` (`null` otherwise).
 
 **Response 409 (going offline mid-trip):**
 ```json
@@ -2668,6 +2673,36 @@ Confirms or changes the vehicle class and/or fuel type of a driver's vehicle. Dr
 
 **Response 409:** `"The vehicle class cannot be changed while the driver is on an active ride."`
 **Response 422:** No registered vehicle, or `vehicle_class_id` missing/inactive.
+
+---
+
+### Move Driver to Another City
+```
+PUT /admin/drivers/{driver_id}/city
+```
+Moves a driver to another city (Phase 2 multi-city). Drivers choose their city during onboarding; after they apply, only Operations can move them. An online driver is taken offline (their location is in the old city's matching pool) and every driver gets a `driver_city_changed` notification. Audited as `driver_city_changed` with the reason.
+
+**Roles:** `operations`, `safety_operator` (and `super_admin`).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| city_id | string (UUID) | Yes | Any city (onboarding, live or paused) |
+| reason | string | Yes | Max 500 |
+
+**Response 200:**
+```json
+{
+  "message": "Driver moved to Abuja.",
+  "driver": { "id": "uuid", "city_id": "uuid", "is_online": false, "...": "..." },
+  "warnings": [
+    "Abuja does not offer the driver's vehicle class (premium), so they will not get trips until it is offered or their class changes."
+  ]
+}
+```
+`warnings` also flags a city that has not launched yet (the driver cannot go online there).
+
+**Response 409:** `"The driver cannot change city during an active ride."`, or `"The driver has 2 upcoming reserved bookings. Release them before changing city."` with `upcoming_reservations`.
+**Response 422:** the driver is already in that city; missing `reason`.
 
 ---
 
@@ -4205,7 +4240,13 @@ Permanently deletes an admin account. Cannot delete yourself or a super admin.
 ```
 GET /cities
 ```
-Returns all active cities. No authentication required.
+Returns the live cities. No authentication required.
+
+| Query Param | Type | Description |
+|-------------|------|-------------|
+| include_onboarding | boolean | `1` for the driver sign-up picker: also returns cities in `onboarding` (recruiting drivers before launch). Never returns paused cities |
+
+Each city has `launch_status` (`onboarding`, `live`, `paused`) and `launch_status_label`. `is_active` is `true` exactly when the city is live. See [Multi-City Launches](#multi-city-launches).
 
 **Response 200:**
 ```json
@@ -4222,6 +4263,8 @@ Returns all active cities. No authentication required.
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
+      "launch_status": "live",
+      "launch_status_label": "Live",
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     },
@@ -4312,7 +4355,7 @@ Returns active vehicle classes available in a city. No authentication required. 
 GET /cities/detect
 ```
 
-No authentication required. Detects which active city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
+No authentication required. Detects which live city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
 
 | Query Param | Type   | Required | Description                           |
 |-------------|--------|----------|---------------------------------------|
@@ -4347,6 +4390,46 @@ No authentication required. Detects which active city a set of coordinates falls
   "resolved_address": "123 Main Street, Unknown Town, Nigeria"
 }
 ```
+
+**Response 404 (in a city that is not open):** inside a city that is `onboarding` or `paused`, the 404 names the city so the app can offer the [waitlist](#city-waitlist):
+```json
+{
+  "message": "E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.",
+  "resolved_address": "Ring Road, Ibadan, Nigeria",
+  "unavailable_city": {
+    "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+    "name": "Ibadan",
+    "launch_status": "onboarding",
+    "waitlist_open": true
+  }
+}
+```
+
+---
+
+## City Waitlist
+
+**Auth:** passenger. Phase 2 multi-city (OQ-22): a passenger asks to be told when a city that is `onboarding` or `paused` goes live. They get one `city_launched` notification when it does; joining again later starts a new wait.
+
+```
+GET    /cities/{city_id}/waitlist
+POST   /cities/{city_id}/waitlist     (10 per minute)
+DELETE /cities/{city_id}/waitlist
+```
+
+`POST` returns 201 when the passenger joins (200 if they were already on it) and 422 `E-tiGo is already live in Lagos. You can book now.` for a live city.
+
+**Response (all three):**
+```json
+{
+  "message": "You are on the waitlist. We will tell you when E-tiGo opens in Ibadan.",
+  "city": { "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f", "name": "Ibadan", "launch_status": "onboarding" },
+  "on_waitlist": true,
+  "joined_at": "2026-10-18T10:00:00.000000Z",
+  "notified_at": null
+}
+```
+`message` is only on `POST` and `DELETE`. After the launch notification, `on_waitlist` is `false` and `notified_at` is set.
 
 ---
 
@@ -4549,13 +4632,30 @@ Authorization: Bearer {token}
 
 Single-city responses (show, create, update, toggle status, update vehicle classes) include a `warnings` array that flags vehicle classes with no pricing in effect. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
+#### Multi-City Launches
+
+*Phase 2 (OQ-22, engineering recommendation of 16 Oct 2026, not yet client-confirmed).* A city has a `launch_status`:
+
+| Status | Drivers | Passengers |
+|--------|---------|------------|
+| `onboarding` | Can sign up, do KYC and be approved; cannot go online | Cannot get estimates or book; can join the [waitlist](#city-waitlist) |
+| `live` | Normal | Normal |
+| `paused` | Can go online for bookings made before the pause; no new sign-ups | Cannot book; trips in progress finish; upcoming bookings go ahead unless the admin cancelled them |
+
+New cities start in `onboarding`. Moves: onboarding → live (first launch, needs every required [readiness gate](#get-city-readiness)), live → paused, paused → live (resume, no checklist), paused → onboarding (cancels upcoming bookings). `is_active` stays and is always `launch_status == live`, for older clients.
+
+Admin city responses add `launch_date` (the client's target date, a readiness gate), `launched_at` (first launch), `paused_at`, `pause_reason`, `pause_scheduled_rides` (`honour` or `cancel`) and `readiness_confirmations` (the manual gates); public responses only carry `launch_status`/`launch_status_label`.
+
+**Boundaries cannot overlap.** Create and update return 422 on `boundary` (`This boundary overlaps Lagos. …`) when the boundary overlaps another city's (any status), so a pickup always maps to one city. Cities may share a border: points within 10 m of the other city's edge count as on the edge. **Time zone and currency:** `timezone` must be `Africa/Lagos` and `currency_code` `NGN` (`config/cities.php`), because payout days, promo peaks and fleet business days still run on Lagos time.
+
 ### List Cities
 ```
 GET /admin/cities
 ```
 | Query Param | Type    | Description                       |
 |-------------|---------|-----------------------------------|
-| is_active   | boolean | Filter by active/inactive status  |
+| is_active   | boolean | Filter by active/inactive status (active = live) |
+| launch_status | string | Comma list of `onboarding`, `live`, `paused` |
 | search      | string  | Filter by city name (partial)     |
 | state       | string  | Filter by state (e.g. `Lagos`)    |
 | region      | string  | Filter by region (e.g. `South-West`) |
@@ -4576,6 +4676,15 @@ GET /admin/cities
       "timezone": "Africa/Lagos",
       "currency_code": "NGN",
       "is_active": true,
+      "launch_status": "live",
+      "launch_status_label": "Live",
+      "launch_date": null,
+      "launched_at": "2026-10-01T10:00:00.000000Z",
+      "paused_at": null,
+      "pause_reason": null,
+      "pause_scheduled_rides": null,
+      "readiness_confirmations": null,
+      "waitlist_count": 0,
       "vehicle_classes_count": 3,
       "drivers_count": 12,
       "unpriced_vehicle_classes_count": 0,
@@ -4604,10 +4713,11 @@ POST /admin/cities
 | state             | string | Yes      | Nigerian state (e.g. `Lagos`, `FCT`, `Rivers`)       |
 | boundary          | object | No       | GeoJSON with `type`, `coordinates`, optional `radius_km` |
 | vehicle_class_ids | array  | No       | Array of vehicle class UUIDs to assign               |
-| timezone          | string | No       | Valid PHP timezone (default: `Africa/Lagos`)          |
-| currency_code     | string | No       | 3-letter currency code (default: `NGN`)              |
+| timezone          | string | No       | `Africa/Lagos` only for now (default)                 |
+| currency_code     | string | No       | `NGN` only for now (default)                          |
+| launch_date       | string | No       | `YYYY-MM-DD`: the client's target launch date (readiness gate) |
 
-`region` is auto-derived from `state`. `area_sq_km` is auto-computed from the boundary (π×r² for Point, spherical excess for Polygon).
+The city starts in `onboarding`. A `boundary` that overlaps another city returns 422. `region` is auto-derived from `state`. `area_sq_km` is auto-computed from the boundary (π×r² for Point, spherical excess for Polygon).
 
 **Response 201:**
 ```json
@@ -4623,7 +4733,11 @@ POST /admin/cities
     "area_sq_km": 1963.5,
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
-    "is_active": true,
+    "is_active": false,
+    "launch_status": "onboarding",
+    "launch_status_label": "Onboarding",
+    "launch_date": "2026-12-01",
+    "launched_at": null,
     "vehicle_classes": [],
     "created_at": "2026-10-06T14:00:00.000000Z",
     "updated_at": "2026-10-06T14:00:00.000000Z"
@@ -4637,7 +4751,7 @@ POST /admin/cities
 ```
 GET /admin/cities/{city_id}
 ```
-Returns city with loaded vehicle classes and aggregate counts.
+Returns city with loaded vehicle classes and aggregate counts, plus `readiness`: `{ "ready", "missing", "counts" }` from the [readiness checklist](#get-city-readiness).
 
 **Response 200:**
 ```json
@@ -4716,7 +4830,7 @@ Same fields as create, all optional (partial update supported). Slug auto-regene
 ```
 PATCH /admin/cities/{city_id}/status
 ```
-Toggles `is_active` between true and false. Creates audit log entry.
+**Legacy switch, kept for existing dashboards; use [Change City Launch Status](#change-city-launch-status).** A live city is paused (upcoming bookings follow the `pause_scheduled_rides` setting, default honour); an onboarding city launches (422 with `readiness` when a required gate fails); a paused city resumes. The response adds `scheduled_rides`, `scheduled_rides_to_cancel` and `active_rides`. Audit events: `city_launched`, `city_resumed`, `city_paused` (before Phase 2: `city_activated` / `city_deactivated`).
 
 **Response 200:**
 ```json
@@ -4799,6 +4913,119 @@ Syncs the pivot table — entries not included are removed.
   }
 }
 ```
+
+---
+
+### Get City Readiness
+```
+GET /admin/cities/{city_id}/readiness
+```
+The city readiness checklist (OQ-22). A first launch needs every **required** gate to pass; resuming a paused city does not.
+
+| Gate | Kind | Passes when |
+|------|------|-------------|
+| `boundary` | computed | A boundary is drawn and overlaps no other city |
+| `pricing` | computed | At least one class is offered and every offered class has pricing in effect |
+| `drivers` | computed | Approved, KYC-verified drivers in the city ≥ `launch_min_approved_drivers` (default 30) |
+| `ev_charging` | computed | At least one active charging station, when approved drivers in the city have plug-in vehicles (`electric`, `plug_in_hybrid`); otherwise `not_applicable` |
+| `support_cover` | manual | An admin confirmed support and Safety cover for the city's hours |
+| `permits` | manual | An admin confirmed state permits are `obtained` or `not_required` |
+| `launch_date` | computed | The client's target `launch_date` is set (no city goes live without one) |
+| `launch_promos` | computed, optional | Active promo codes limited to the city (never blocks) |
+
+**Response 200:**
+```json
+{
+  "city": { "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f", "name": "Ibadan", "launch_status": "onboarding", "...": "..." },
+  "readiness": {
+    "ready": false,
+    "missing": ["drivers", "support_cover"],
+    "gates": [
+      { "gate": "boundary", "label": "Map boundary drawn, with no overlap", "kind": "computed", "required": true, "status": "passed", "detail": "Boundary drawn with no overlap." },
+      { "gate": "pricing", "label": "Prices set for every vehicle class offered", "kind": "computed", "required": true, "status": "passed", "detail": "All 3 vehicle classes offered have prices in effect.", "offered_classes": 3, "unpriced_classes": [] },
+      { "gate": "drivers", "label": "Enough approved, KYC-verified drivers", "kind": "computed", "required": true, "status": "failed", "detail": "12 of 30 approved, KYC-verified drivers.", "approved": 12, "minimum": 30 },
+      { "gate": "ev_charging", "label": "Charging stations live for plug-in drivers", "kind": "computed", "required": true, "status": "not_applicable", "detail": "No approved drivers with plug-in vehicles.", "plug_in_drivers": 0, "active_stations": 0 },
+      { "gate": "support_cover", "label": "Support and Safety cover for the city", "kind": "manual", "required": true, "status": "failed", "detail": "Not confirmed yet.", "confirmation": null },
+      { "gate": "permits", "label": "State transport permits or registrations", "kind": "manual", "required": true, "status": "passed", "detail": "Confirmed: permits obtained.", "confirmation": { "confirmed_at": "2026-10-18T10:00:00+00:00", "confirmed_by_admin_id": "uuid", "note": "Oyo permit ref 123", "value": "obtained" } },
+      { "gate": "launch_date", "label": "Launch date agreed with the client", "kind": "computed", "required": true, "status": "passed", "detail": "Target launch date: 2026-12-01.", "launch_date": "2026-12-01" },
+      { "gate": "launch_promos", "label": "Launch promo codes limited to the city", "kind": "computed", "required": false, "status": "failed", "detail": "No promo codes limited to the city (optional).", "promo_codes": 0 }
+    ],
+    "counts": { "approved_drivers": 12, "min_approved_drivers": 30, "waitlist": 418, "active_rides": 0, "upcoming_scheduled_rides": 0 }
+  }
+}
+```
+`status` is `passed`, `failed` or `not_applicable`. `counts` shows what a pause would affect (`active_rides`, `upcoming_scheduled_rides`) and the passengers waiting.
+
+---
+
+### Confirm Readiness Gate
+```
+POST /admin/cities/{city_id}/readiness/{gate}
+```
+Confirms or clears a **manual** gate (`support_cover`, `permits`); any other gate returns 422. Stored on the city with who and when; audit-logged (`city_readiness_confirmed` / `city_readiness_cleared`).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| confirmed | boolean | No | Default `true`; `false` clears the gate |
+| value | string | For `permits` | `obtained` or `not_required` |
+| note | string | No | Max 500, e.g. the permit reference |
+
+**Response 200:** `{ "message": "Readiness gate confirmed.", "readiness": { … } }`
+
+---
+
+### Change City Launch Status
+```
+POST /admin/cities/{city_id}/launch-status
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| status | string | Yes | `onboarding`, `live` or `paused` |
+| reason | string | When pausing | Max 500, shown to admins |
+| scheduled_rides | string | No (pause only) | `honour`: upcoming bookings still go ahead (default, from the `pause_scheduled_rides` setting). `cancel`: each is cancelled with reason `city_paused`; the passenger (and any reserved driver) is told |
+
+What happens:
+- **onboarding → live:** every required readiness gate must pass, else 422 with `readiness`. The waitlist gets `city_launched`; approved drivers in the city get `city_status_changed`.
+- **live → paused:** trips in progress are never touched. New estimates and bookings are refused. Drivers get `city_status_changed`. A booking that reaches dispatch in a city paused with `cancel` fails with `dispatch_failure_reason` `city_paused`.
+- **paused → live:** a resume; no checklist (the city already launched). Clears the pause fields. The waitlist is told.
+- **paused → onboarding:** closes the city again and cancels upcoming bookings.
+
+Cancelling bookings and the notifications run on the queue after the response. Audit events: `city_launched`, `city_resumed`, `city_paused`, `city_returned_to_onboarding`.
+
+**Response 200:**
+```json
+{
+  "message": "Lagos is paused.",
+  "city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos", "launch_status": "paused", "is_active": false, "paused_at": "2026-10-18T10:00:00.000000Z", "pause_reason": "Flooding on the mainland", "pause_scheduled_rides": "honour", "...": "..." },
+  "previous_status": "live",
+  "scheduled_rides": "honour",
+  "scheduled_rides_to_cancel": 0,
+  "active_rides": 14,
+  "readiness": { "...": "..." },
+  "warnings": []
+}
+```
+Other messages: `"Ibadan is live."`, `"Lagos has resumed."`, `"Ibadan is back in onboarding."`.
+
+**Response 422:** `"Ibadan is not ready to launch. Complete the readiness checklist first."` (with `readiness`); `"Ibadan cannot move from Onboarding to Paused."`; `"Lagos is already Live."`; missing `reason` when pausing; `scheduled_rides` when not pausing.
+
+---
+
+### City Settings
+```
+GET /admin/settings/cities
+PUT /admin/settings/cities
+```
+**Roles:** `operations` (and `super_admin`). Defaults in `config/cities.php`; every change is audit-logged (`city_settings.updated`).
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| launch_min_approved_drivers | 30 | Approved, KYC-verified drivers a city needs before its first launch (0–10000) |
+| require_ev_charging | true | Require an active charging station when the city has plug-in drivers |
+| pause_scheduled_rides | `honour` | What a pause does to upcoming bookings when the admin does not choose: `honour` or `cancel` |
+
+**Response 200:** `{ "settings": { "launch_min_approved_drivers": 30, "require_ev_charging": true, "pause_scheduled_rides": "honour" } }` (`PUT` adds `"message": "City settings updated."`).
 
 ---
 
@@ -5004,7 +5231,7 @@ POST /rides/estimate
 | scheduled_pickup_at | string (ISO 8601) | No | Quote a [scheduled ride](#scheduled-rides) for this pickup time. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`) and be in the future. Surge is then the surge in effect **at that time**: time-based and manual rules covering it apply, demand-based surge never does. Each estimate then also has `reservation_fee` (NGN, already included in `fare_estimate`; 0 while the fee is off). |
 
 **Validation rules:**
-- `city_id` must reference an **active** city — inactive cities return 422
+- `city_id` must reference a **live** city. An onboarding city returns 422 `E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.`; a paused one `Rides in Lagos are paused for now. Please try again later.` (`POST /rides` returns the same)
 - Pickup and destination coordinates cannot be identical — returns 422
 
 **How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged (an upfront fare). Only two things can change it: a waiting charge after the free minutes, and a trip that runs significantly longer than the quoted time (more than 25% and at least 10 minutes over), which bills the actual trip time, capped at 3× the quoted time. A quicker trip keeps the quote.
@@ -5527,7 +5754,7 @@ The other party is notified with who cancelled — the passenger, the driver, or
 
 | Field          | Type   | Required | Description                                    |
 |----------------|--------|----------|------------------------------------------------|
-| reason         | string | No       | Cancellation reason (see `CancellationReason` enum). The system-only `system_timeout` and `scheduled_dispatch_failed` are rejected with `422` |
+| reason         | string | No       | Cancellation reason (see `CancellationReason` enum). The system-only `system_timeout`, `scheduled_dispatch_failed` and `city_paused` are rejected with `422` |
 | reason_details | string | No       | Additional details (max 500 chars). Send the free text for a reason with `allows_custom_description` here |
 
 `custom_description`, `custom_reason` and `description` (strings, max 500) are also accepted, but they are **not stored**. Only `reason_details` is saved and shown to the other party.
@@ -6238,7 +6465,7 @@ A passenger can book a ride for a later time (Phase 2, PRD P-20–P-22, B-27). B
 4. **Reminder** — `reminder_minutes` (default 60) before pickup the passenger gets a `scheduled_ride_reminder` push. If the wallet would not cover the fare it says so, so there is time to top up. A booking made inside that window gets no separate reminder.
 5. **Driver reservation (optional)** — until dispatch, a driver in the same city and vehicle class can reserve the booking (`POST /driver/scheduled-rides/{ride}/reserve`), or operations can assign one (`POST /admin/scheduled-rides/{ride}/assign`). The passenger gets `scheduled_ride_reserved` and sees the driver in `scheduled.reserved_driver`. Changing the pickup time or place releases the driver. In the `driver_reservation_buffer_minutes` (60) before a reserved pickup the driver gets no on-demand offers. See [Driver — Scheduled Ride Reservations](#driver--scheduled-ride-reservations).
 6. **Dispatch** — `dispatch_lead_minutes` (default 15) before pickup the dispatcher places the wallet hold, issues the PIN and moves the ride to `searching`. If a driver reserved it and is online (location under 2 minutes old), free and still in the right vehicle class, the ride goes **straight to them** (`searching → matched → driver_en_route`, the usual `ride_matched` / `ride_assigned` pushes). Otherwise the reservation is released (`reservation_released_reason: driver_unavailable`, both told) and normal matching starts (`scheduled_ride_dispatched` push). From there it is a normal ride; the PIN appears on the ride for the passenger (`pin_code` in `GET /passenger/active-ride` or `GET /rides/{ride}`). Matching keeps trying until `matching_grace_minutes` (default 10) after the pickup time, and never for less than the standard `matching_timeout` (5 minutes), before `no_driver_found`.
-7. **When dispatch cannot happen** — the booking is cancelled with `cancellation_reason` `scheduled_dispatch_failed`, a passenger-facing `cancellation_details`, and a `ride_cancelled` push carrying the same text. Reasons (`scheduled.dispatch_failure_reason`): `insufficient_wallet_balance`, `wallet_unavailable` (frozen wallet), `account_suspended`, `service_unavailable` (city or vehicle class withdrawn), `missed_dispatch_window` (the pickup plus grace period passed, e.g. the passenger was still on another trip). While the passenger is on another ride the dispatcher waits and tries again each minute until then.
+7. **When dispatch cannot happen** — the booking is cancelled with `cancellation_reason` `scheduled_dispatch_failed`, a passenger-facing `cancellation_details`, and a `ride_cancelled` push carrying the same text. Reasons (`scheduled.dispatch_failure_reason`): `insufficient_wallet_balance`, `wallet_unavailable` (frozen wallet), `account_suspended`, `city_paused` (the city was paused with bookings cancelled, or moved back to onboarding; bookings in a city paused with `honour` still dispatch), `service_unavailable` (vehicle class withdrawn), `missed_dispatch_window` (the pickup plus grace period passed, e.g. the passenger was still on another trip). While the passenger is on another ride the dispatcher waits and tries again each minute until then.
 
 8. **Fees** (set by the client on 16 October 2026; see `doc/client/SCHEDULED_RIDES_DECISIONS.md`) — **No reservation fee** (`reservation_fee` ₦0). **Late cancellation:** when the passenger cancels a booking **a driver has reserved** within `late_cancellation_window_minutes` (**30**) of the ride time, they pay the **economy base fare** of the ride's city (`late_cancellation_fee_basis: economy_base_fare`; if the city has no economy pricing, the base fare the ride was quoted with). It is free before the window and free when no driver has reserved the booking, and never charged for `emergency`, `safety_concern`, `vehicle_mismatch` or `driver_no_show`, or when operations or the system cancel. The reserved driver receives it in full. Wallet and saved-card bookings are charged at once (queued job). **What cannot be collected — every cash or bank-transfer booking, a wallet that cannot cover it, a declined card — becomes a [balance due](#passenger--balance-due)**; the passenger cannot book again until it is paid. Show `scheduled.cancellation_fee_if_cancelled_now` in the cancel confirmation.
 
@@ -14214,7 +14441,8 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | Endpoint Group | Operations | Support | Support lead | Finance | Safety |
 |----------------|:----------:|:-------:|:------------:|:-------:|:------:|
 | `/admin/drivers` | Yes | — | — | — | Yes |
-| `/admin/cities` | Yes | — | — | — | — |
+| `/admin/cities` (incl. readiness, launch status) | Yes | — | — | — | — |
+| `/admin/settings/cities` | Yes | — | — | — | — |
 | `/admin/vehicle-classes` | Yes | — | — | — | — |
 | `/admin/pricing` | Yes | — | — | Yes | — |
 | `/admin/surge-rules` | Yes | — | — | — | — |
@@ -14479,6 +14707,7 @@ A transition that is no longer allowed — usually because another request chang
 | `other`              | Other reason                             |
 | `system_timeout`     | System timeout                           |
 | `scheduled_dispatch_failed` | A scheduled ride could not start; `cancellation_details` explains why to the passenger. Set by the system only, never offered as a choice |
+| `city_paused` | E-tiGo paused rides in the city and cancelled upcoming bookings; `cancellation_details` explains it to the passenger. Set by the system only |
 
 ### Tier Level
 | Value | Name       | Points Required | Booking Discount | Priority Matching | EV Fee Waived |
@@ -14583,6 +14812,10 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Lost item reported / driver reminder | Driver | `lost_item_report` | A passenger may have left something in the car; open the report to answer (data: `lost_item_id`, `reference_number`, `ride_id`, `status`). See [Lost & Found](#lost--found) |
 | Lost item update | Passenger or driver | `lost_item_update` | The report moved on (driver found it or not, returned, resolved, closed, support following up) |
 | Lost item message | Passenger, driver | `lost_item_message` | New message on the report (data adds `message_id`) |
+| City launched | Passenger on the waitlist | `city_launched` | "E-tiGo is now in Ibadan" (data: `city_id`). Sent once per wait. See [City Waitlist](#city-waitlist) |
+| City launched / paused | Approved drivers in the city | `city_status_changed` | Live: "go online to start getting trips". Paused: passengers cannot book; trips in progress and (unless cancelled) booked rides go ahead (data: `city_id`, `launch_status`) |
+| Booking cancelled by a city pause | Passenger (and reserved driver) | `ride_cancelled` | Body: "Your scheduled ride was cancelled because E-tiGo has paused rides in Lagos." |
+| Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |

@@ -2,7 +2,7 @@
 
 **Prepared by:** Engineering Team  
 **Date:** 16 October 2026  
-**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added; OQ-21 dispute tiers built)  
+**Updated:** 18 October 2026 (OQ-36 and OQ-37, Lost & Found, added; OQ-21 dispute tiers and OQ-22 city launches built)  
 **Status:** Recommendations for the open Phase 2 questions (OQ-18 to OQ-22, OQ-36 and OQ-37). **None has been confirmed by the client yet.** We ask the client to confirm each one or pick another option **before the Phase 2 build starts (Week 9)**. If there is no answer by then, engineering builds to the recommended defaults: every rule is a setting operations can change later without a release, so this locks nothing in. There are two exceptions. OQ-22: **no new city goes live without a launch date from the client.** OQ-36: **no return fee is charged until the client sets one.**
 
 ---
@@ -26,7 +26,7 @@ The recommendations follow two principles:
 | OQ-36 | Lost & Found: should passengers pay a return fee? | **Yes, ₦2,000**, all of it to the driver (Uber/Bolt practice). Built **off** until the client decides | Confirm the amount, or no fee |
 | OQ-37 | Lost & Found: do passenger and driver see each other's number? | **Yes**, once the driver has the item; messages in the app also work | Confirm, or messages only |
 
-Scheduled rides and third-party bookings are built; the scheduled-ride decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md). Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A.
+Scheduled rides and third-party bookings are built; the scheduled-ride decisions (SR-1 to SR-7) are in the [Scheduled Rides Decisions Report](SCHEDULED_RIDES_DECISIONS.md). Lost & Found was built on 18 October 2026 to the defaults in OQ-36 and OQ-37 below. The dispute tiers (OQ-21) were built on 18 October 2026 to the recommended option A. The city launch process (OQ-22: readiness checklist and onboarding / live / paused) was built on 18 October 2026; no city goes live until the client gives its date.
 
 ---
 
@@ -287,6 +287,21 @@ This lets E-tiGo recruit drivers for a few weeks before passengers can book, so 
 | Boundaries overlap | Rejected when saved, so a pickup always maps to one city |
 | Time zone and currency | All Nigerian cities use Lagos time and naira, so nothing changes. A city outside Nigeria would need some Lagos-time rules (payout day, promo peak hours) moved to the city's own time zone |
 
+### Built (18 October 2026)
+
+The checklist and the three city states are built. Operations can open a city, check its readiness, launch it, pause it and resume it from the admin dashboard, and the driver minimum is a setting. **No city goes live without a launch date**: the date is one of the checklist items. Lagos, Abuja and Port Harcourt, which were already switched on, are live; Ibadan is in onboarding. Engineering made these extra choices, which the client has not confirmed either:
+
+| Choice | What we built | Why |
+|--------|---------------|-----|
+| Resuming a paused city | No checklist the second time: a paused city can go live again at once | A pause is an emergency brake (flooding, unrest, fuel scarcity); reopening should not wait for paperwork. Operations sees the checklist before resuming |
+| Charging stations | Required only when the city's approved drivers include electric or plug-in hybrid cars | No ride type is EV-only today, so a city without EV drivers does not need stations |
+| Drivers in a paused city | They can stay online, but only get rides passengers booked before the pause | Those bookings still need drivers |
+| Drivers in an onboarding city | They can be approved but cannot go online until launch day | There are no passengers yet, so they would wait for nothing |
+| Passengers in a city that is not open | The app says "E-tiGo is not available in {city} yet" and offers **Notify me**. Everyone on the list gets one message on launch day | Turns early interest into first riders; the dashboard shows how many are waiting |
+| Pausing with bookings | Each booking that is cancelled is cancelled free of charge, with a message saying why | The passenger did nothing wrong |
+| Changing city | A driver chooses their city until they apply; after that only Operations can move them | Permits and documents are state-specific, so a move needs a check |
+| Boundaries | An overlap with any city is refused, including cities not yet live. Cities may share a border | So a pickup always belongs to exactly one city, now and after future launches |
+
 ---
 
 ## OQ-36 and OQ-37 — Lost & Found: Return Fee and Contact Details
@@ -338,7 +353,7 @@ The recommendation is A because E-tiGo has no masked calling yet. Once masked ca
 | # | Action | Owner |
 |---|--------|-------|
 | 1 | Confirm or change OQ-18 to OQ-21 (pick option A, B or C for each) before Week 9; otherwise the recommended defaults are built | Client / Product |
-| 2 | Give the target date for each new city, and confirm the driver minimum (30) | Client |
+| 2 | Give the target date for each new city, and confirm the driver minimum (30) and the choices under OQ-22 "Built" | Client |
 | 3 | Confirm the dispute refund limits (₦5,000 / ₦50,000, Safety ₦50,000) and the choices under OQ-21 "Built", and say who will hold the new Support Lead role | Client / Operations |
 | 4 | Say which fleet cars are shared between drivers (for shift mode) | Operations |
 | 5 | Confirm the permits needed in Abuja (FCT) and Rivers State | Legal |

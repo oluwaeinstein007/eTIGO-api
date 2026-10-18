@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\CityLaunchStatus;
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
+use App\Exceptions\CityLaunchException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\City\StoreCityRequest;
 use App\Http\Requests\Admin\City\UpdateCityRequest;
@@ -11,6 +13,8 @@ use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Services\AppCacheService;
+use App\Services\CityLaunchService;
+use App\Services\CityReadinessService;
 use App\Services\PricingCoverageService;
 use App\Support\NigerianStates;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +27,8 @@ class AdminCityController extends Controller
     public function __construct(
         private AppCacheService $cache,
         private PricingCoverageService $coverage,
+        private CityLaunchService $launch,
+        private CityReadinessService $readiness,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -31,6 +37,14 @@ class AdminCityController extends Controller
 
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        if ($request->filled('launch_status')) {
+            $statuses = array_filter(array_map(
+                fn (string $status) => CityLaunchStatus::tryFrom(trim($status)),
+                explode(',', (string) $request->input('launch_status')),
+            ));
+            $query->whereIn('launch_status', $statuses);
         }
 
         if ($request->filled('search')) {
@@ -45,7 +59,11 @@ class AdminCityController extends Controller
             $query->where('region', $request->input('region'));
         }
 
-        $query->withCount(['vehicleClasses', 'drivers']);
+        $query->withCount([
+            'vehicleClasses',
+            'drivers',
+            'waitlistEntries' => fn ($q) => $q->whereNull('notified_at'),
+        ]);
 
         $cities = $query->latest()->paginate($this->perPage($request));
 
@@ -135,10 +153,18 @@ class AdminCityController extends Controller
                 'drivers as active_drivers_count' => fn ($q) => $q
                     ->where('is_online', true)
                     ->where('status', DriverStatus::Approved),
+                'waitlistEntries' => fn ($q) => $q->whereNull('notified_at'),
             ]);
+
+        $readiness = $this->readiness->report($city);
 
         return response()->json([
             'city' => new CityResource($city),
+            'readiness' => [
+                'ready' => $readiness['ready'],
+                'missing' => $readiness['missing'],
+                'counts' => $readiness['counts'],
+            ],
             'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }
@@ -199,28 +225,33 @@ class AdminCityController extends Controller
         ]);
     }
 
+    /**
+     * The old on/off switch, kept for existing dashboards: a live city is
+     * paused (upcoming bookings follow the pause setting); an onboarding
+     * city launches (readiness checklist) and a paused one resumes. New
+     * clients use POST /admin/cities/{city}/launch-status.
+     */
     public function toggleStatus(Request $request, City $city): JsonResponse
     {
-        $admin = $request->user();
-        $oldStatus = $city->is_active;
+        $to = $city->isLive() ? CityLaunchStatus::Paused : CityLaunchStatus::Live;
 
-        DB::transaction(function () use ($city, $admin, $oldStatus) {
-            $city->update(['is_active' => ! $city->is_active]);
+        try {
+            $result = $this->launch->changeStatus($city, $to, $request->user());
+        } catch (CityLaunchException $e) {
+            return response()->json(array_filter([
+                'message' => $e->getMessage(),
+                'readiness' => $e->readiness,
+            ]), 422);
+        }
 
-            AuditLog::record(
-                $city,
-                $city->is_active ? 'city_activated' : 'city_deactivated',
-                $admin,
-                ['is_active' => $oldStatus],
-                ['is_active' => $city->is_active],
-            );
-        });
-
-        $this->cache->invalidateCities();
+        $city = $result['city'];
 
         return response()->json([
-            'message' => $city->is_active ? 'City activated successfully.' : 'City deactivated successfully.',
+            'message' => $city->isLive() ? 'City activated successfully.' : 'City deactivated successfully.',
             'city' => new CityResource($city),
+            'scheduled_rides' => $result['scheduled_rides'],
+            'scheduled_rides_to_cancel' => $result['scheduled_rides_to_cancel'],
+            'active_rides' => $result['active_rides'],
             'warnings' => $this->coverage->warningsForCity($city),
         ]);
     }

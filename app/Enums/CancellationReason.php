@@ -19,6 +19,7 @@ enum CancellationReason: string
     case Other = 'other';
     case SystemTimeout = 'system_timeout';
     case ScheduledDispatchFailed = 'scheduled_dispatch_failed';
+    case CityPaused = 'city_paused';
 
     public function title(): string
     {
@@ -38,6 +39,7 @@ enum CancellationReason: string
             self::Other => 'Other',
             self::SystemTimeout => 'System timeout',
             self::ScheduledDispatchFailed => 'Scheduled ride could not start',
+            self::CityPaused => 'Rides paused in the city',
         };
     }
 
@@ -64,6 +66,7 @@ enum CancellationReason: string
             self::Other => 'Provide a custom reason if none of the options above apply.',
             self::SystemTimeout => 'The request timed out before a driver could accept the trip.',
             self::ScheduledDispatchFailed => 'The scheduled ride could not start looking for a driver (for example, the wallet could not cover the fare).',
+            self::CityPaused => 'E-tiGo paused rides in the city and cancelled upcoming bookings.',
         };
     }
 
@@ -95,7 +98,7 @@ enum CancellationReason: string
      */
     public function isSystemReason(): bool
     {
-        return in_array($this, [self::SystemTimeout, self::ScheduledDispatchFailed], true);
+        return in_array($this, [self::SystemTimeout, self::ScheduledDispatchFailed, self::CityPaused], true);
     }
 
     public function isDriverReason(): bool

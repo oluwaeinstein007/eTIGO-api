@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\MapsGateway;
+use App\Enums\CityLaunchStatus;
 use App\Models\City;
 
 class CityDetectionService
@@ -12,9 +13,14 @@ class CityDetectionService
     ) {}
 
     /**
+     * The city at a point. Only live cities by default; pass more launch
+     * statuses to also find a city that is not open yet (boundaries do not
+     * overlap, so a point is in one city at most).
+     *
+     * @param  list<CityLaunchStatus>  $launchStatuses
      * @return array{city: City|null, resolved_address: string|null}
      */
-    public function detectCity(float $lat, float $lng): array
+    public function detectCity(float $lat, float $lng, array $launchStatuses = [CityLaunchStatus::Live]): array
     {
         $resolvedAddress = null;
         $city = null;
@@ -25,7 +31,7 @@ class CityDetectionService
 
             $cityName = $location['city'] ?? $this->extractCityName($resolvedAddress);
 
-            $city = City::where('is_active', true)
+            $city = City::whereIn('launch_status', $launchStatuses)
                 ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityName)])
                 ->first();
         } catch (\Throwable) {
@@ -33,7 +39,7 @@ class CityDetectionService
         }
 
         if (! $city) {
-            $city = $this->findCityByBoundary($lat, $lng);
+            $city = $this->findCityByBoundary($lat, $lng, $launchStatuses);
         }
 
         return [
@@ -49,11 +55,14 @@ class CityDetectionService
         return count($parts) >= 2 ? $parts[count($parts) - 2] : ($parts[0] ?? '');
     }
 
-    private function findCityByBoundary(float $lat, float $lng): ?City
+    /**
+     * @param  list<CityLaunchStatus>  $launchStatuses
+     */
+    private function findCityByBoundary(float $lat, float $lng, array $launchStatuses): ?City
     {
         $candidates = [];
 
-        $cities = City::where('is_active', true)
+        $cities = City::whereIn('launch_status', $launchStatuses)
             ->whereNotNull('boundary')
             ->get();
 

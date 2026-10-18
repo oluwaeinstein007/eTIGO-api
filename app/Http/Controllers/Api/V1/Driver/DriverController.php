@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\CityLaunchStatus;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
@@ -48,8 +49,9 @@ class DriverController extends Controller
             }
         } else {
             $hasExcessiveNegativeBalance = $this->earningsService->hasExcessiveNegativeBalance($driver->id);
+            $cityNotLaunched = $driver->city !== null && ! $driver->city->launch_status->allowsDriversOnline();
 
-            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance) {
+            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance || $cityNotLaunched) {
                 $reasons = [];
 
                 if (! $driver->isApproved()) {
@@ -72,6 +74,10 @@ class DriverController extends Controller
 
                 if ($hasExcessiveNegativeBalance) {
                     $reasons[] = 'Outstanding negative balance exceeds the allowed threshold.';
+                }
+
+                if ($cityNotLaunched) {
+                    $reasons[] = "E-tiGo has not launched in {$driver->city->name} yet. You can go online from launch day.";
                 }
 
                 return response()->json([
@@ -102,9 +108,15 @@ class DriverController extends Controller
 
         $driver->load(['user', 'vehicle.vehicleClass', 'city']);
 
+        $cityPaused = $driver->is_online && $driver->city?->launch_status === CityLaunchStatus::Paused;
+
         return response()->json([
             'message' => $driver->is_online ? 'You are now online.' : 'You are now offline.',
             'driver' => new DriverResource($driver),
+            // Paused city: only trips already booked come through.
+            'city_notice' => $cityPaused
+                ? "Rides in {$driver->city->name} are paused. You will only get rides passengers booked before the pause."
+                : null,
         ]);
     }
 

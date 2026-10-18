@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CityLaunchStatus;
 use App\Models\City;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -35,6 +36,22 @@ class CityFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    public function onboarding(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'launch_status' => CityLaunchStatus::Onboarding,
+        ]);
+    }
+
+    public function paused(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'launch_status' => CityLaunchStatus::Paused,
+            'launched_at' => now()->subMonth(),
+            'paused_at' => now(),
         ]);
     }
 

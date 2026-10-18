@@ -162,7 +162,8 @@ class DemoSeeder extends Seeder
                 'region' => 'South-West',
                 'timezone' => 'Africa/Lagos',
                 'currency_code' => 'NGN',
-                'is_active' => false,
+                // Recruiting drivers before launch (Phase 2 multi-city).
+                'launch_status' => 'onboarding',
                 'boundary' => [
                     'type' => 'Point',
                     'coordinates' => [3.9470, 7.3775],

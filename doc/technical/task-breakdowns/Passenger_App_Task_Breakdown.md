@@ -40,10 +40,11 @@
 10. [Third-Party Booking](#10-phase-2--third-party-booking)
 11. [Lost & Found](#11-phase-2--lost--found)
 12. [Disputes: Evidence & Appeals](#12-phase-2--disputes-evidence--appeals)
+13. [New Cities & Waitlist](#13-phase-2--new-cities--waitlist)
 
 ### Tracking
 
-13. [Open Questions](#13-open-questions)
+14. [Open Questions](#14-open-questions)
 
 ---
 
@@ -242,7 +243,18 @@
 
 ---
 
-## 13. Open Questions
+## 13. Phase 2 — New Cities & Waitlist
+
+**PRD refs:** B-31 (multi-city), OQ-22
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE2-PCITY-01 | `[ ]` Build "Coming soon to {city}" screen with **Notify me** / **Leave waitlist** when the passenger is in a city that is not open (onboarding) or paused | B-31 | 📡 BE2-CITY-08 | API ready (18 Oct 2026): `GET /cities/detect` returns 404 with `unavailable_city` (`id`, `name`, `launch_status`, `waitlist_open`) and a passenger-ready `message`; `GET/POST/DELETE /cities/{id}/waitlist`. See FRONTEND_UPDATE_MULTI_CITY.md |
+| FE2-PCITY-02 | `[ ]` Handle the `city_launched` notification (open the home screen and refresh the city) and the `city_paused` ride cancellation (show `cancellation_details`) | B-31 | 📡 BE2-CITY-04, BE2-CITY-08 | Booking and estimate 422s outside a live city carry a ready-to-show message on `city_id` |
+
+---
+
+## 14. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -264,8 +276,8 @@
 | Section | Tasks |
 |---------|-------|
 | Phase 1 | 66 |
-| Phase 2 | 18 |
-| **Total** | **84** |
+| Phase 2 | 20 |
+| **Total** | **86** |
 
 ---
 

@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\Admin\AdminAdjustmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminBalanceDueController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityController;
+use App\Http\Controllers\Api\V1\Admin\AdminCityLaunchController;
+use App\Http\Controllers\Api\V1\Admin\AdminCitySettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
@@ -43,6 +45,7 @@ use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
+use App\Http\Controllers\Api\V1\CityWaitlistController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\DisputeController;
@@ -118,6 +121,12 @@ Route::get('/lookup/cancellation-reasons', [RideCancellationReasonController::cl
 Route::get('/cities', [CityController::class, 'index']);
 Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);
+
+Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('cities/{city}/waitlist')->group(function () {
+    Route::get('/', [CityWaitlistController::class, 'show']);
+    Route::post('/', [CityWaitlistController::class, 'store'])->middleware('throttle:10,1');
+    Route::delete('/', [CityWaitlistController::class, 'destroy']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -464,6 +473,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);
         Route::patch('/{driver}/vehicle/fleet', [DriverManagementController::class, 'toggleFleetVehicle']);
         Route::put('/{driver}/vehicle-class', [DriverManagementController::class, 'updateVehicleClass']);
+        Route::put('/{driver}/city', [DriverManagementController::class, 'updateCity']);
         // Testing/QA only: remove before production go-live
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });
@@ -474,6 +484,9 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/{city}', [AdminCityController::class, 'show']);
         Route::put('/{city}', [AdminCityController::class, 'update']);
         Route::patch('/{city}/status', [AdminCityController::class, 'toggleStatus']);
+        Route::post('/{city}/launch-status', [AdminCityLaunchController::class, 'update']);
+        Route::get('/{city}/readiness', [AdminCityLaunchController::class, 'readiness']);
+        Route::post('/{city}/readiness/{gate}', [AdminCityLaunchController::class, 'confirmGate']);
         Route::put('/{city}/vehicle-classes', [AdminCityVehicleClassController::class, 'update']);
     });
 
@@ -517,6 +530,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/settings/third-party', [AdminThirdPartySettingsController::class, 'update']);
         Route::get('/settings/lost-and-found', [AdminLostAndFoundSettingsController::class, 'show']);
         Route::put('/settings/lost-and-found', [AdminLostAndFoundSettingsController::class, 'update']);
+        Route::get('/settings/cities', [AdminCitySettingsController::class, 'show']);
+        Route::put('/settings/cities', [AdminCitySettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:operations')->prefix('rides')->group(function () {

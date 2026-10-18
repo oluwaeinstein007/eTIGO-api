@@ -482,9 +482,17 @@
                   ],
                   "path": [
                     "cities"
+                  ],
+                  "query": [
+                    {
+                      "key": "include_onboarding",
+                      "value": "1",
+                      "description": "Driver sign-up picker: also cities recruiting drivers before launch",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "No auth required. Lists active cities. **Sets `{{city_id}}` to Lagos** (the seeded city with pricing), so run this once before the ride and estimate requests."
+                "description": "Live cities (passengers). With `include_onboarding=1` (driver sign-up), also onboarding cities. Each city has `launch_status` and `launch_status_label`."
               },
               "response": [
                 {
@@ -630,7 +638,7 @@
                     }
                   ]
                 },
-                "description": "No auth required. Detects the active city for given coordinates.\n\n**Detection flow:**\n1. Reverse-geocode coordinates via Mapbox to get city name\n2. Match name against active cities in database\n3. If no name match, fall back to boundary matching:\n   - Point: haversine distance <= radius_km\n   - Polygon: ray-casting point-in-polygon algorithm\n4. If multiple boundaries match (overlap), returns the smallest (most specific) city\n\n**Overlap resolution:** when a coordinate falls inside multiple boundaries, the city with the smallest area wins. This lets you define a large metro-wide fallback zone with precise inner zones.\n\n**Both boundary types supported:** Point+radius and Polygon can coexist in the same deployment.\n\nReturns 404 if no active city matches."
+                "description": "No auth required. Detects the active city for given coordinates.\n\n**Detection flow:**\n1. Reverse-geocode coordinates via Mapbox to get city name\n2. Match name against active cities in database\n3. If no name match, fall back to boundary matching:\n   - Point: haversine distance <= radius_km\n   - Polygon: ray-casting point-in-polygon algorithm\n4. If multiple boundaries match (overlap), returns the smallest (most specific) city\n\n**Overlap resolution:** when a coordinate falls inside multiple boundaries, the city with the smallest area wins. This lets you define a large metro-wide fallback zone with precise inner zones.\n\n**Both boundary types supported:** Point+radius and Polygon can coexist in the same deployment.\n\nReturns 404 if no active city matches.\n\n**Multi-city:** inside a city that is onboarding or paused, the 404 adds `unavailable_city` so the app can offer the waitlist."
               },
               "response": [
                 {
@@ -656,6 +664,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"No active city found for this location.\"\n}"
+                },
+                {
+                  "name": "404 \u2014 City Not Open Yet",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"E-tiGo is not available in Abuja yet. Join the waitlist and we will tell you when we launch.\",\n  \"resolved_address\": \"Wuse II, Abuja, Nigeria\",\n  \"unavailable_city\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"name\": \"Abuja\",\n    \"launch_status\": \"onboarding\",\n    \"waitlist_open\": true\n  }\n}"
                 }
               ]
             },
@@ -2622,6 +2642,171 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Not found.\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "City Waitlist",
+          "description": "Phase 2 multi-city (OQ-22): a passenger asks to be told when an onboarding or paused city goes live. One `city_launched` notification on launch.",
+          "item": [
+            {
+              "name": "Get Waitlist Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/cities/:cityId/waitlist",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "cities",
+                    ":cityId",
+                    "waitlist"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    }
+                  ]
+                },
+                "description": "Whether the passenger is waiting for this city."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Status",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"city\": {\n    \"id\": \"{{city_id}}\",\n    \"name\": \"Abuja\",\n    \"launch_status\": \"onboarding\"\n  },\n  \"on_waitlist\": true,\n  \"joined_at\": \"2026-10-18T10:00:00.000000Z\",\n  \"notified_at\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Join City Waitlist",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/cities/:cityId/waitlist",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "cities",
+                    ":cityId",
+                    "waitlist"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    }
+                  ]
+                },
+                "description": "Join the waitlist of an onboarding or paused city: 201 (200 if already on it). 422 for a live city. Throttled 10/min."
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Joined",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"city\": {\n    \"id\": \"{{city_id}}\",\n    \"name\": \"Abuja\",\n    \"launch_status\": \"onboarding\"\n  },\n  \"on_waitlist\": true,\n  \"joined_at\": \"2026-10-18T10:00:00.000000Z\",\n  \"notified_at\": null,\n  \"message\": \"You are on the waitlist. We will tell you when E-tiGo opens in Abuja.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 City Is Live",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"E-tiGo is already live in Lagos. You can book now.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Leave City Waitlist",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/cities/:cityId/waitlist",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "cities",
+                    ":cityId",
+                    "waitlist"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    }
+                  ]
+                },
+                "description": "Leave the waitlist."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Left",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"city\": {\n    \"id\": \"{{city_id}}\",\n    \"name\": \"Abuja\",\n    \"launch_status\": \"onboarding\"\n  },\n  \"on_waitlist\": false,\n  \"joined_at\": null,\n  \"notified_at\": null,\n  \"message\": \"You have left the waitlist.\"\n}"
                 }
               ]
             }
@@ -6657,7 +6842,7 @@
                     "profile"
                   ]
                 },
-                "description": "Update the driver's profile information including licence number and operating city. Requires driver authentication. Only available during onboarding or when profile changes are allowed."
+                "description": "Update the driver's profile information including licence number and operating city. Requires driver authentication. Only available during onboarding or when profile changes are allowed.\n\n**Multi-city:** `city_id` must be an onboarding or live city. The city can only change while the driver is in `onboarding` or `rejected`; afterwards 422 (Operations moves drivers with `PUT /admin/drivers/{driver}/city`)."
               },
               "response": [
                 {
@@ -7874,7 +8059,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline."
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`."
               },
               "response": [
                 {
@@ -7927,7 +8112,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Fails with 422 if driver is not approved, suspended, or has no vehicle with assigned class."
+                "description": "Fails with 422 if driver is not approved, suspended, or has no vehicle with assigned class.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`."
               },
               "response": [
                 {
@@ -12835,6 +13020,76 @@
                   "body": "{\n  \"message\": \"The vehicle class cannot be changed while the driver is on an active ride.\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Move Driver to Another City",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/:driverId/city",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    ":driverId",
+                    "city"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driverId",
+                      "value": "{{driver_id}}",
+                      "description": "The UUID of the driver"
+                    }
+                  ]
+                },
+                "description": "Operations moves a driver to another city (OQ-22). `reason` required. Refused (409) while the driver is on an active ride or holds upcoming scheduled-ride reservations (`upcoming_reservations`). An online driver is taken offline. The driver gets a `driver_city_changed` notification. `warnings` when the new city does not offer the driver's vehicle class or has not launched. Audit: `driver_city_changed`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"city_id\": \"{{city_id}}\",\n  \"reason\": \"Relocated to Abuja\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Moved",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver moved to Abuja.\",\n  \"driver\": {\n    \"id\": \"{{driver_id}}\",\n    \"city_id\": \"{{city_id}}\",\n    \"is_online\": false\n  },\n  \"warnings\": [\n    \"Abuja has not launched yet, so the driver cannot go online until it is live.\"\n  ]\n}"
+                },
+                {
+                  "name": "409 \u2014 Reservations",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The driver has 2 upcoming reserved bookings. Release them before changing city.\",\n  \"upcoming_reservations\": 2\n}"
+                }
+              ]
             }
           ],
           "description": "**Required Role(s):** Operations, Safety (Super Admin always has access)"
@@ -14471,9 +14726,17 @@
                   "path": [
                     "admin",
                     "cities"
+                  ],
+                  "query": [
+                    {
+                      "key": "launch_status",
+                      "value": "onboarding,paused",
+                      "description": "Comma list: onboarding, live, paused",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "Returns paginated cities with aggregate counts.\n\n**Query params:**\n- `is_active` (bool) \u2014 filter by active/inactive status\n- `search` (string) \u2014 filter by city name (partial match)\n- `state` (string) \u2014 filter by Nigerian state (e.g. `Lagos`)\n- `region` (string) \u2014 filter by geopolitical zone (e.g. `South-West`)\n- `per_page` (int) \u2014 results per page (default: 20, max: 100)\n\nEach city includes `vehicle_classes_count` and `drivers_count` for the list view."
+                "description": "Returns paginated cities with aggregate counts.\n\n**Query params:**\n- `is_active` (bool) \u2014 filter by active/inactive status\n- `search` (string) \u2014 filter by city name (partial match)\n- `state` (string) \u2014 filter by Nigerian state (e.g. `Lagos`)\n- `region` (string) \u2014 filter by geopolitical zone (e.g. `South-West`)\n- `per_page` (int) \u2014 results per page (default: 20, max: 100)\n\nEach city includes `vehicle_classes_count` and `drivers_count` for the list view.\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting).\n\nFilter `launch_status` (comma list). Each city has `launch_status`, `launch_date`, `launched_at`, `paused_at`, `pause_reason` and `waitlist_count` (passengers still waiting)."
               },
               "response": [
                 {
@@ -14522,7 +14785,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Kano\",\n  \"state\": \"Kano\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      8.5167,\n      12.0022\n    ],\n    \"radius_km\": 25\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\"\n  ]\n}"
+                  "raw": "{\n  \"name\": \"Kano\",\n  \"state\": \"Kano\",\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      8.5167,\n      12.0022\n    ],\n    \"radius_km\": 25\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\"\n  ],\n  \"launch_date\": \"2026-12-01\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities",
@@ -14534,7 +14797,7 @@
                     "cities"
                   ]
                 },
-                "description": "Creates a new city/service area.\n\n**Required fields:** name, state\n**Optional fields:** boundary, vehicle_class_ids, timezone, currency_code\n\n**Auto-derived by backend:**\n- region \u2014 derived from state (e.g. Lagos \u2192 South-West)\n- slug \u2014 generated from name, auto-suffixed if duplicate\n- area_sq_km \u2014 calculated from Polygon boundary coordinates\n- is_active \u2014 defaults to true\n- timezone \u2014 defaults to Africa/Lagos if not sent\n- currency_code \u2014 defaults to NGN if not sent\n\n**Boundary types:**\n- Point + radius_km: circular service area (simpler setup)\n- Polygon: custom shape with coordinates array (admin draws on map)\n\n**State validation:** must be one of the 36 Nigerian states or FCT. Use GET /lookup/states to populate the dropdown.\n\n**Vehicle classes:** pass an array of UUIDs from GET /admin/vehicle-classes. They are synced (replaces any existing associations)."
+                "description": "Creates a new city/service area.\n\n**Required fields:** name, state\n**Optional fields:** boundary, vehicle_class_ids, timezone, currency_code\n\n**Auto-derived by backend:**\n- region \u2014 derived from state (e.g. Lagos \u2192 South-West)\n- slug \u2014 generated from name, auto-suffixed if duplicate\n- area_sq_km \u2014 calculated from Polygon boundary coordinates\n- is_active \u2014 defaults to true\n- timezone \u2014 defaults to Africa/Lagos if not sent\n- currency_code \u2014 defaults to NGN if not sent\n\n**Boundary types:**\n- Point + radius_km: circular service area (simpler setup)\n- Polygon: custom shape with coordinates array (admin draws on map)\n\n**State validation:** must be one of the 36 Nigerian states or FCT. Use GET /lookup/states to populate the dropdown.\n\n**Vehicle classes:** pass an array of UUIDs from GET /admin/vehicle-classes. They are synced (replaces any existing associations).\n\n**Multi-city:** `launch_date` (YYYY-MM-DD, nullable) is the client's target launch date, a readiness gate. A new city starts in `onboarding`. A `boundary` that overlaps another city returns 422 on `boundary` (shared borders are fine). `timezone` must be Africa/Lagos and `currency_code` NGN."
               },
               "response": [
                 {
@@ -14560,6 +14823,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The name has already been taken.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"name\": [\n      \"The name has already been taken.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Boundary Overlaps",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This boundary overlaps Lagos. Adjust it so each pickup maps to one city; shared borders are fine.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"boundary\": [\n      \"This boundary overlaps Lagos. Adjust it so each pickup maps to one city; shared borders are fine.\"\n    ]\n  }\n}"
                 }
               ],
               "event": [
@@ -14612,7 +14887,7 @@
                     }
                   ]
                 },
-                "description": "Returns city with loaded vehicle classes and aggregate counts.\n\n**Counts included:**\n- `vehicle_classes_count` \u2014 number of assigned vehicle classes\n- `drivers_count` \u2014 total registered drivers in this city\n- `trips_count` \u2014 total rides (all statuses)\n- `active_rides_count` \u2014 rides currently in progress (Matched, DriverEnRoute, DriverArrived, InProgress)\n- `active_drivers_count` \u2014 approved drivers currently online"
+                "description": "Returns city with loaded vehicle classes and aggregate counts.\n\n**Counts included:**\n- `vehicle_classes_count` \u2014 number of assigned vehicle classes\n- `drivers_count` \u2014 total registered drivers in this city\n- `trips_count` \u2014 total rides (all statuses)\n- `active_rides_count` \u2014 rides currently in progress (Matched, DriverEnRoute, DriverArrived, InProgress)\n- `active_drivers_count` \u2014 approved drivers currently online\n\n**Multi-city:** the response adds `readiness` ({ready, missing, counts}); the full checklist is `GET /admin/cities/{city}/readiness`."
               },
               "response": [
                 {
@@ -14661,7 +14936,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          7.4,\n          9.1\n        ],\n        [\n          7.55,\n          9.1\n        ],\n        [\n          7.55,\n          8.95\n        ],\n        [\n          7.4,\n          8.95\n        ],\n        [\n          7.4,\n          9.1\n        ]\n      ]\n    ]\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ]\n}"
+                  "raw": "{\n  \"name\": \"Abuja\",\n  \"state\": \"FCT\",\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          7.4,\n          9.1\n        ],\n        [\n          7.55,\n          9.1\n        ],\n        [\n          7.55,\n          8.95\n        ],\n        [\n          7.4,\n          8.95\n        ],\n        [\n          7.4,\n          9.1\n        ]\n      ]\n    ]\n  },\n  \"vehicle_class_ids\": [\n    \"{{economy_class_id}}\",\n    \"{{comfort_class_id}}\",\n    \"{{premium_class_id}}\"\n  ],\n  \"launch_date\": \"2026-12-01\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/cities/:cityId",
@@ -14681,7 +14956,7 @@
                     }
                   ]
                 },
-                "description": "Partial update \u2014 only send the fields you want to change.\n\n**Auto-derived on update:**\n- region \u2014 re-derived if state changes\n- slug \u2014 regenerated if name changes (auto-suffixed if duplicate)\n- area_sq_km \u2014 recalculated if boundary changes to Polygon\n\n**vehicle_class_ids:** if sent, replaces the entire set (sync). Omit the field to keep existing vehicle classes unchanged.\n\n**Boundary:** can be changed from Point to Polygon or vice versa at any time."
+                "description": "Partial update \u2014 only send the fields you want to change.\n\n**Auto-derived on update:**\n- region \u2014 re-derived if state changes\n- slug \u2014 regenerated if name changes (auto-suffixed if duplicate)\n- area_sq_km \u2014 recalculated if boundary changes to Polygon\n\n**vehicle_class_ids:** if sent, replaces the entire set (sync). Omit the field to keep existing vehicle classes unchanged.\n\n**Boundary:** can be changed from Point to Polygon or vice versa at any time.\n\n**Multi-city:** `launch_date` (YYYY-MM-DD, nullable) is the client's target launch date, a readiness gate. A `boundary` that overlaps another city returns 422 on `boundary` (shared borders are fine). `timezone` must be Africa/Lagos and `currency_code` NGN."
               },
               "response": [
                 {
@@ -14707,6 +14982,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"City not found.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Boundary Overlaps",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This boundary overlaps Lagos. Adjust it so each pickup maps to one city; shared borders are fine.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"boundary\": [\n      \"This boundary overlaps Lagos. Adjust it so each pickup maps to one city; shared borders are fine.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -14743,7 +15030,7 @@
                     }
                   ]
                 },
-                "description": "Toggles is_active between true and false. No request body required."
+                "description": "**Legacy switch, kept for existing dashboards.** A live city is paused (upcoming bookings follow the `pause_scheduled_rides` setting); an onboarding city launches (readiness checklist, 422 with `readiness` if not ready); a paused city resumes. Use `POST /admin/cities/{city}/launch-status` instead. Audit events: `city_launched`, `city_resumed`, `city_paused`."
               },
               "response": [
                 {
@@ -14769,6 +15056,214 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"City not found.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get City Readiness",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/cities/:cityId/readiness",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "cities",
+                    ":cityId",
+                    "readiness"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    }
+                  ]
+                },
+                "description": "The city readiness checklist (OQ-22). Computed gates: `boundary` (drawn, no overlap), `pricing` (every offered class priced), `drivers` (approved + KYC-verified \u2265 setting, default 30), `ev_charging` (an active station when the city has plug-in drivers; otherwise `not_applicable`), `launch_date` (the client's date is set), `launch_promos` (optional). Manual gates confirmed by an admin: `support_cover`, `permits`. Gate `status`: passed / failed / not_applicable. `counts` shows what a pause would affect."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Readiness",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"city\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"name\": \"Abuja\",\n    \"slug\": \"abuja\",\n    \"state\": \"FCT\",\n    \"region\": \"North-Central\",\n    \"boundary\": {\n      \"type\": \"Point\",\n      \"coordinates\": [\n        7.4951,\n        9.0579\n      ],\n      \"radius_km\": 30\n    },\n    \"area_sq_km\": \"2827.43\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": false,\n    \"launch_status\": \"onboarding\",\n    \"launch_status_label\": \"Onboarding\",\n    \"launch_date\": \"2026-12-01\",\n    \"launched_at\": null,\n    \"paused_at\": null,\n    \"pause_reason\": null,\n    \"pause_scheduled_rides\": null,\n    \"readiness_confirmations\": null\n  },\n  \"readiness\": {\n    \"ready\": false,\n    \"missing\": [\n      \"drivers\",\n      \"support_cover\"\n    ],\n    \"gates\": [\n      {\n        \"gate\": \"boundary\",\n        \"label\": \"Map boundary drawn, with no overlap\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Boundary drawn with no overlap.\"\n      },\n      {\n        \"gate\": \"pricing\",\n        \"label\": \"Prices set for every vehicle class offered\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"All 3 vehicle classes offered have prices in effect.\",\n        \"offered_classes\": 3,\n        \"unpriced_classes\": []\n      },\n      {\n        \"gate\": \"drivers\",\n        \"label\": \"Enough approved, KYC-verified drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"12 of 30 approved, KYC-verified drivers.\",\n        \"approved\": 12,\n        \"minimum\": 30\n      },\n      {\n        \"gate\": \"ev_charging\",\n        \"label\": \"Charging stations live for plug-in drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"not_applicable\",\n        \"detail\": \"No approved drivers with plug-in vehicles.\",\n        \"plug_in_drivers\": 0,\n        \"active_stations\": 0\n      },\n      {\n        \"gate\": \"support_cover\",\n        \"label\": \"Support and Safety cover for the city\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"Not confirmed yet.\",\n        \"confirmation\": null\n      },\n      {\n        \"gate\": \"permits\",\n        \"label\": \"State transport permits or registrations\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Confirmed: permits obtained.\",\n        \"confirmation\": {\n          \"confirmed_at\": \"2026-10-18T10:00:00+00:00\",\n          \"confirmed_by_admin_id\": \"{{admin_id}}\",\n          \"note\": \"FCT permit ref 123\",\n          \"value\": \"obtained\"\n        }\n      },\n      {\n        \"gate\": \"launch_date\",\n        \"label\": \"Launch date agreed with the client\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Target launch date: 2026-12-01.\",\n        \"launch_date\": \"2026-12-01\"\n      },\n      {\n        \"gate\": \"launch_promos\",\n        \"label\": \"Launch promo codes limited to the city\",\n        \"kind\": \"computed\",\n        \"required\": false,\n        \"status\": \"failed\",\n        \"detail\": \"No promo codes limited to the city (optional).\",\n        \"promo_codes\": 0\n      }\n    ],\n    \"counts\": {\n      \"approved_drivers\": 12,\n      \"min_approved_drivers\": 30,\n      \"waitlist\": 418,\n      \"active_rides\": 0,\n      \"upcoming_scheduled_rides\": 0\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Confirm Readiness Gate",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/cities/:cityId/readiness/:gate",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "cities",
+                    ":cityId",
+                    "readiness",
+                    ":gate"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    },
+                    {
+                      "key": "gate",
+                      "value": "permits",
+                      "description": "support_cover or permits"
+                    }
+                  ]
+                },
+                "description": "Confirm (default) or clear (`confirmed: false`) a manual gate: `support_cover` or `permits`. `permits` needs `value`: `obtained` or `not_required`. Stored on the city with who and when; audit-logged (`city_readiness_confirmed` / `city_readiness_cleared`). Any other gate returns 422.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"confirmed\": true,\n  \"value\": \"obtained\",\n  \"note\": \"FCT transport permit ref 123\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Gate Confirmed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Readiness gate confirmed.\",\n  \"readiness\": {\n    \"ready\": false,\n    \"missing\": [\n      \"drivers\",\n      \"support_cover\"\n    ],\n    \"gates\": [\n      {\n        \"gate\": \"boundary\",\n        \"label\": \"Map boundary drawn, with no overlap\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Boundary drawn with no overlap.\"\n      },\n      {\n        \"gate\": \"pricing\",\n        \"label\": \"Prices set for every vehicle class offered\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"All 3 vehicle classes offered have prices in effect.\",\n        \"offered_classes\": 3,\n        \"unpriced_classes\": []\n      },\n      {\n        \"gate\": \"drivers\",\n        \"label\": \"Enough approved, KYC-verified drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"12 of 30 approved, KYC-verified drivers.\",\n        \"approved\": 12,\n        \"minimum\": 30\n      },\n      {\n        \"gate\": \"ev_charging\",\n        \"label\": \"Charging stations live for plug-in drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"not_applicable\",\n        \"detail\": \"No approved drivers with plug-in vehicles.\",\n        \"plug_in_drivers\": 0,\n        \"active_stations\": 0\n      },\n      {\n        \"gate\": \"support_cover\",\n        \"label\": \"Support and Safety cover for the city\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"Not confirmed yet.\",\n        \"confirmation\": null\n      },\n      {\n        \"gate\": \"permits\",\n        \"label\": \"State transport permits or registrations\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Confirmed: permits obtained.\",\n        \"confirmation\": {\n          \"confirmed_at\": \"2026-10-18T10:00:00+00:00\",\n          \"confirmed_by_admin_id\": \"{{admin_id}}\",\n          \"note\": \"FCT permit ref 123\",\n          \"value\": \"obtained\"\n        }\n      },\n      {\n        \"gate\": \"launch_date\",\n        \"label\": \"Launch date agreed with the client\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Target launch date: 2026-12-01.\",\n        \"launch_date\": \"2026-12-01\"\n      },\n      {\n        \"gate\": \"launch_promos\",\n        \"label\": \"Launch promo codes limited to the city\",\n        \"kind\": \"computed\",\n        \"required\": false,\n        \"status\": \"failed\",\n        \"detail\": \"No promo codes limited to the city (optional).\",\n        \"promo_codes\": 0\n      }\n    ],\n    \"counts\": {\n      \"approved_drivers\": 12,\n      \"min_approved_drivers\": 30,\n      \"waitlist\": 418,\n      \"active_rides\": 0,\n      \"upcoming_scheduled_rides\": 0\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Not a Manual Gate",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Only these gates are confirmed by an admin: support_cover, permits.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Change City Launch Status",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/cities/:cityId/launch-status",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "cities",
+                    ":cityId",
+                    "launch-status"
+                  ],
+                  "variable": [
+                    {
+                      "key": "cityId",
+                      "value": "{{city_id}}",
+                      "description": "The UUID of the city"
+                    }
+                  ]
+                },
+                "description": "Move a city: onboarding \u2192 live (first launch; every required readiness gate must pass, else 422 with `readiness`), live \u2192 paused (`reason` required), paused \u2192 live (resume; no checklist), paused \u2192 onboarding.\n\nPausing never touches trips in progress. `scheduled_rides` (pause only): `honour` (bookings still go ahead) or `cancel` (each upcoming booking is cancelled with reason `city_paused` and the passenger is told); default from the `pause_scheduled_rides` setting. Back to onboarding always cancels upcoming bookings. Going live notifies the waitlist; drivers in the city hear about launches and pauses (`city_status_changed`). Response: `scheduled_rides`, `scheduled_rides_to_cancel`, `active_rides`, `readiness`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"paused\",\n  \"reason\": \"Flooding on the mainland\",\n  \"scheduled_rides\": \"honour\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Launched",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Abuja is live.\",\n  \"city\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"name\": \"Abuja\",\n    \"slug\": \"abuja\",\n    \"state\": \"FCT\",\n    \"region\": \"North-Central\",\n    \"boundary\": {\n      \"type\": \"Point\",\n      \"coordinates\": [\n        7.4951,\n        9.0579\n      ],\n      \"radius_km\": 30\n    },\n    \"area_sq_km\": \"2827.43\",\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"launch_status\": \"live\",\n    \"launch_status_label\": \"Live\",\n    \"launch_date\": \"2026-12-01\",\n    \"launched_at\": \"2026-12-01T07:00:00.000000Z\",\n    \"paused_at\": null,\n    \"pause_reason\": null,\n    \"pause_scheduled_rides\": null,\n    \"readiness_confirmations\": null\n  },\n  \"previous_status\": \"onboarding\",\n  \"scheduled_rides\": null,\n  \"scheduled_rides_to_cancel\": 0,\n  \"active_rides\": 0,\n  \"readiness\": {\n    \"ready\": true,\n    \"missing\": [],\n    \"gates\": [\n      {\n        \"gate\": \"boundary\",\n        \"label\": \"Map boundary drawn, with no overlap\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Boundary drawn with no overlap.\"\n      },\n      {\n        \"gate\": \"pricing\",\n        \"label\": \"Prices set for every vehicle class offered\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"All 3 vehicle classes offered have prices in effect.\",\n        \"offered_classes\": 3,\n        \"unpriced_classes\": []\n      },\n      {\n        \"gate\": \"drivers\",\n        \"label\": \"Enough approved, KYC-verified drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"12 of 30 approved, KYC-verified drivers.\",\n        \"approved\": 12,\n        \"minimum\": 30\n      },\n      {\n        \"gate\": \"ev_charging\",\n        \"label\": \"Charging stations live for plug-in drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"not_applicable\",\n        \"detail\": \"No approved drivers with plug-in vehicles.\",\n        \"plug_in_drivers\": 0,\n        \"active_stations\": 0\n      },\n      {\n        \"gate\": \"support_cover\",\n        \"label\": \"Support and Safety cover for the city\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"Not confirmed yet.\",\n        \"confirmation\": null\n      },\n      {\n        \"gate\": \"permits\",\n        \"label\": \"State transport permits or registrations\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Confirmed: permits obtained.\",\n        \"confirmation\": {\n          \"confirmed_at\": \"2026-10-18T10:00:00+00:00\",\n          \"confirmed_by_admin_id\": \"{{admin_id}}\",\n          \"note\": \"FCT permit ref 123\",\n          \"value\": \"obtained\"\n        }\n      },\n      {\n        \"gate\": \"launch_date\",\n        \"label\": \"Launch date agreed with the client\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Target launch date: 2026-12-01.\",\n        \"launch_date\": \"2026-12-01\"\n      },\n      {\n        \"gate\": \"launch_promos\",\n        \"label\": \"Launch promo codes limited to the city\",\n        \"kind\": \"computed\",\n        \"required\": false,\n        \"status\": \"failed\",\n        \"detail\": \"No promo codes limited to the city (optional).\",\n        \"promo_codes\": 0\n      }\n    ],\n    \"counts\": {\n      \"approved_drivers\": 12,\n      \"min_approved_drivers\": 30,\n      \"waitlist\": 418,\n      \"active_rides\": 0,\n      \"upcoming_scheduled_rides\": 0\n    }\n  },\n  \"warnings\": []\n}"
+                },
+                {
+                  "name": "422 \u2014 Not Ready",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Abuja is not ready to launch. Complete the readiness checklist first.\",\n  \"readiness\": {\n    \"ready\": false,\n    \"missing\": [\n      \"drivers\",\n      \"support_cover\"\n    ],\n    \"gates\": [\n      {\n        \"gate\": \"boundary\",\n        \"label\": \"Map boundary drawn, with no overlap\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Boundary drawn with no overlap.\"\n      },\n      {\n        \"gate\": \"pricing\",\n        \"label\": \"Prices set for every vehicle class offered\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"All 3 vehicle classes offered have prices in effect.\",\n        \"offered_classes\": 3,\n        \"unpriced_classes\": []\n      },\n      {\n        \"gate\": \"drivers\",\n        \"label\": \"Enough approved, KYC-verified drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"12 of 30 approved, KYC-verified drivers.\",\n        \"approved\": 12,\n        \"minimum\": 30\n      },\n      {\n        \"gate\": \"ev_charging\",\n        \"label\": \"Charging stations live for plug-in drivers\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"not_applicable\",\n        \"detail\": \"No approved drivers with plug-in vehicles.\",\n        \"plug_in_drivers\": 0,\n        \"active_stations\": 0\n      },\n      {\n        \"gate\": \"support_cover\",\n        \"label\": \"Support and Safety cover for the city\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"failed\",\n        \"detail\": \"Not confirmed yet.\",\n        \"confirmation\": null\n      },\n      {\n        \"gate\": \"permits\",\n        \"label\": \"State transport permits or registrations\",\n        \"kind\": \"manual\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Confirmed: permits obtained.\",\n        \"confirmation\": {\n          \"confirmed_at\": \"2026-10-18T10:00:00+00:00\",\n          \"confirmed_by_admin_id\": \"{{admin_id}}\",\n          \"note\": \"FCT permit ref 123\",\n          \"value\": \"obtained\"\n        }\n      },\n      {\n        \"gate\": \"launch_date\",\n        \"label\": \"Launch date agreed with the client\",\n        \"kind\": \"computed\",\n        \"required\": true,\n        \"status\": \"passed\",\n        \"detail\": \"Target launch date: 2026-12-01.\",\n        \"launch_date\": \"2026-12-01\"\n      },\n      {\n        \"gate\": \"launch_promos\",\n        \"label\": \"Launch promo codes limited to the city\",\n        \"kind\": \"computed\",\n        \"required\": false,\n        \"status\": \"failed\",\n        \"detail\": \"No promo codes limited to the city (optional).\",\n        \"promo_codes\": 0\n      }\n    ],\n    \"counts\": {\n      \"approved_drivers\": 12,\n      \"min_approved_drivers\": 30,\n      \"waitlist\": 418,\n      \"active_rides\": 0,\n      \"upcoming_scheduled_rides\": 0\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Invalid Transition",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Abuja cannot move from Onboarding to Paused.\"\n}"
                 }
               ]
             },
@@ -14841,9 +15336,101 @@
                   "body": "{\n  \"message\": \"The vehicle classes field is required.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"vehicle_classes\": [\n      \"The vehicle classes field is required.\"\n    ]\n  }\n}"
                 }
               ]
+            },
+            {
+              "name": "Get City Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/cities",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "cities"
+                  ]
+                },
+                "description": "Launch settings (Operations): `launch_min_approved_drivers` (30), `require_ev_charging` (true), `pause_scheduled_rides` (honour|cancel, default honour)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"launch_min_approved_drivers\": 30,\n    \"require_ev_charging\": true,\n    \"pause_scheduled_rides\": \"honour\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update City Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/cities",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "cities"
+                  ]
+                },
+                "description": "Any subset. Audit-logged (`city_settings.updated`).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"launch_min_approved_drivers\": 30,\n  \"require_ev_charging\": true,\n  \"pause_scheduled_rides\": \"honour\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"City settings updated.\",\n  \"settings\": {\n    \"launch_min_approved_drivers\": 30,\n    \"require_ev_charging\": true,\n    \"pause_scheduled_rides\": \"honour\"\n  }\n}"
+                }
+              ]
             }
           ],
-          "description": "**Required Role(s):** Operations (Super Admin always has access)"
+          "description": "**Required Role(s):** Operations (Super Admin always has access)\n\n**Phase 2 multi-city (OQ-22):** a city is `onboarding` (drivers sign up, passengers can only join the waitlist), `live`, or `paused` (no new bookings; trips in progress finish; upcoming bookings go ahead unless cancelled). New cities start in onboarding. The first launch needs every required readiness gate. `is_active` is kept equal to `live`. Boundaries cannot overlap another city's; Lagos time and naira only."
         },
         {
           "name": "Admin \u2014 Vehicle Class Management",

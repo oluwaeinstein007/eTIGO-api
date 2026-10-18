@@ -28,6 +28,20 @@ class AppCacheService
     }
 
     /**
+     * Cities a driver can sign up in: onboarding and live.
+     *
+     * @return Collection<int, City>
+     */
+    public function citiesOpenToDrivers(): Collection
+    {
+        return $this->safeRemember(['cities'], 'cities:open_to_drivers', self::TTL_MEDIUM, function () {
+            return City::openToDrivers()
+                ->orderBy('name')
+                ->get();
+        });
+    }
+
+    /**
      * @return Collection<int, VehicleClass>
      */
     public function cityVehicleClasses(string $cityId): Collection
