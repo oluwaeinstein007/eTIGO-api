@@ -177,6 +177,12 @@ describe('visibility and tier permissions', function () {
         ])->assertOk();
     });
 
+    it('validates the queue filters', function () {
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?assigned=nobody')->assertUnprocessable();
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?ride_id=123')->assertUnprocessable();
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?assigned=unassigned')->assertOk();
+    });
+
     it('rejects admins outside the dispute roles', function () {
         $this->actingAs($this->finance)->getJson('/api/v1/admin/disputes')->assertForbidden();
         $this->actingAs(disputeAdmin(AdminRole::Operations))->getJson('/api/v1/admin/disputes')->assertForbidden();
@@ -446,6 +452,20 @@ describe('refund limits and approvals', function () {
         expect($dispute->fresh()->isOpen())->toBeTrue();
     });
 
+    it('keeps refund approvals within the case\'s own team', function () {
+        $dispute = caseFor($this->ride, $this->passenger);
+        $requestId = $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/resolve", [
+            'status' => 'resolved',
+            'resolution_notes' => 'Refund above the agent limit.',
+            'refund_amount' => 7000,
+        ])->assertStatus(202)->json('refund_request.id');
+
+        $this->actingAs($this->safety)->postJson("/api/v1/admin/dispute-refund-requests/{$requestId}/approve")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Your role cannot approve refunds on this case.');
+        $this->actingAs($this->finance)->postJson("/api/v1/admin/dispute-refund-requests/{$requestId}/approve")->assertOk();
+    });
+
     it('counts earlier refunds on the case towards the limit', function () {
         $dispute = caseFor($this->ride, $this->passenger, ['refund_amount' => 4000]);
 
@@ -575,6 +595,17 @@ describe('appeals', function () {
         $this->actingAs($this->passenger)->postJson("/api/v1/disputes/{$this->dispute->id}/appeal", [
             'reason' => 'Second appeal should not work.',
         ])->assertUnprocessable();
+    });
+
+    it('does not send an appeal back down to the tier that decided it', function () {
+        $this->actingAs($this->passenger)->postJson("/api/v1/disputes/{$this->dispute->id}/appeal", [
+            'reason' => 'Please have someone senior look again.',
+        ])->assertOk();
+
+        $this->actingAs($this->lead)->postJson("/api/v1/admin/disputes/{$this->dispute->id}/deescalate", [
+            'note' => 'Sending back to the agent to redo it.',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'An appeal must stay above the tier that made the original decision.');
     });
 
     it('treats a tier 3 decision as final', function () {

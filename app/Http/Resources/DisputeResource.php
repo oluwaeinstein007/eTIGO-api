@@ -71,13 +71,30 @@ class DisputeResource extends JsonResource
             'updated_at' => $this->updated_at,
         ];
 
-        return $isAdmin ? $base + $this->adminFields($viewer) : $base + $this->reporterFields();
+        $settings = self::settings($request);
+
+        return $isAdmin ? $base + $this->adminFields($viewer, $settings) : $base + $this->reporterFields($settings);
     }
 
     /**
+     * Dispute settings, read once per request however many cases are listed.
+     *
      * @return array<string, mixed>
      */
-    private function adminFields(User $viewer): array
+    private static function settings(Request $request): array
+    {
+        if (! $request->attributes->has('dispute_settings')) {
+            $request->attributes->set('dispute_settings', AppSetting::disputes());
+        }
+
+        return $request->attributes->get('dispute_settings');
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    private function adminFields(User $viewer, array $settings): array
     {
         $access = app(DisputeAccess::class);
         $sla = $this->slaStatus();
@@ -138,7 +155,7 @@ class DisputeResource extends JsonResource
             'resolved_by' => new UserResource($this->whenLoaded('resolvedBy')),
             'notes' => DisputeNoteResource::collection($this->whenLoaded('notes')),
             'available_actions' => $this->adminActions($access, $viewer),
-            'refund_limit' => $access->refundLimit($viewer),
+            'refund_limit' => $access->refundLimit($viewer, $settings),
         ];
     }
 
@@ -188,12 +205,13 @@ class DisputeResource extends JsonResource
     }
 
     /**
+     * @param  array<string, mixed>  $settings
      * @return array<string, mixed>
      */
-    private function reporterFields(): array
+    private function reporterFields(array $settings): array
     {
-        $blocker = $this->appealBlocker();
-        $max = AppSetting::disputes()['max_evidence_files'];
+        $blocker = $this->appealBlocker($settings);
+        $max = $settings['max_evidence_files'];
         $count = $this->relationLoaded('evidence') ? $this->evidence->count() : null;
 
         return [
@@ -204,7 +222,7 @@ class DisputeResource extends JsonResource
             'appeal' => [
                 'can_appeal' => $blocker === null,
                 'reason_unavailable' => $blocker,
-                'deadline' => $this->appealDeadline(),
+                'deadline' => $this->appealDeadline($settings),
                 'appealed_at' => $this->appealed_at,
             ],
         ];

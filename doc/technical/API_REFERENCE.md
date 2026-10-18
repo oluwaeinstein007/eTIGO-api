@@ -9216,7 +9216,7 @@ Once per dispute, within `appeal_window_days` (7) of the decision. The case reop
 | `open`     | bool   | `true` = open or under review; `false` = closed |
 | `queue`    | string | `support` or `safety` |
 | `tier`     | int    | 1, 2 or 3 |
-| `assigned` | string | `me`, `unassigned`, or an admin's id |
+| `assigned` | string | `me`, `unassigned`, or an admin's id (anything else is `422`) |
 | `sla`      | string | `breached` (a target has passed) or `at_risk` (under a quarter of the time left) |
 | `appealed` | bool   | Only appeals (`true`) or none (`false`) |
 | `pending_refund` | bool | Only cases with a refund waiting for approval |
@@ -9341,9 +9341,9 @@ Moves the case one tier up (Safety → tier 3), clears the assignee so it lands 
 |--------|--------|----------|-------|
 | `note` | string | Yes      | 10–2000 characters; saved as a dispute note (instructions for the lower tier) |
 
-Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about safety). The reporter is not notified.
+Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about safety). An appeal cannot go back down to the tier that made the original decision. The reporter is not notified.
 
-**Errors:** `403` — cannot work the case. `422` — `This case is already at tier 1.` or closed.
+**Errors:** `403` — cannot work the case. `422` — `This case is already at tier 1.`, `An appeal must stay above the tier that made the original decision.`, or closed.
 
 ### Resolve Dispute
 
@@ -9396,7 +9396,7 @@ Tier 3 → 2, tier 2 → 1, Safety → support tier 1 (a case that is not about 
 
 **Middleware:** `admin.role:support,support_lead,safety_operator,finance`.
 
-Who can approve or reject: a **card** refund — Finance or a super admin; a **wallet** refund — Finance, a super admin, or a dispute admin who can see the case and whose limit covers the case's total refund. Nobody approves their own request, and the original decider of an appealed case cannot approve its refund. The requester can withdraw their own request.
+Who can approve or reject: a **card** refund — Finance or a super admin; a **wallet** refund — Finance, a super admin, or an admin on the case's own team (support roles for support cases, the Safety team for safety cases) whose limit covers the case's total refund. Nobody approves their own request, and the original decider of an appealed case cannot approve its refund. The requester can withdraw their own request.
 
 #### List Refund Requests
 
@@ -9426,7 +9426,7 @@ Who can approve or reject: a **card** refund — Finance or a super admin; a **w
 
 Pays the refund and resolves the case with the requester's notes; the requester is recorded as the decider. **Response: `200 OK`** — `{ "message": "Refund approved and paid. The dispute is resolved.", "refund_request": { ... }, "dispute": { ... }, "driver_clawback_kobo": 0 }`
 
-**Errors:** `403` — `You cannot approve your own refund request.`, `A refund to the card must be approved by Finance.`, `This refund is above your limit; it needs a higher tier.` `422` — already decided, case closed, or nothing left to refund.
+**Errors:** `403` — `You cannot approve your own refund request.`, `A refund to the card must be approved by Finance.`, `This refund is above your limit; it needs a higher tier.`, `Your role cannot approve refunds on this case.` (another team's case) `422` — already decided, case closed, or nothing left to refund.
 
 #### Reject or Withdraw a Refund Request
 

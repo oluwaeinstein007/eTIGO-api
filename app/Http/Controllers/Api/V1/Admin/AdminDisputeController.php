@@ -39,7 +39,9 @@ class AdminDisputeController extends Controller
         $request->validate([
             'queue' => ['sometimes', 'string', 'in:support,safety'],
             'tier' => ['sometimes', 'integer', 'between:1,3'],
-            'assigned' => ['sometimes', 'string'],
+            'assigned' => ['sometimes', 'string', 'regex:/^(me|unassigned|[0-9a-fA-F-]{36})$/'],
+            'ride_id' => ['sometimes', 'uuid'],
+            'city_id' => ['sometimes', 'uuid'],
             'sla' => ['sometimes', 'string', 'in:breached,at_risk'],
             'sort' => ['sometimes', 'string', 'in:newest,due'],
             'from' => ['sometimes', 'date'],

@@ -17841,7 +17841,7 @@
                     "deescalate"
                   ]
                 },
-                "description": "Move the case one tier down with instructions (saved as a note). Safety \u2192 support tier 1. The reporter is not notified.",
+                "description": "Move the case one tier down with instructions (saved as a note). Safety \u2192 support tier 1. The reporter is not notified. An appeal cannot go back down to the tier that made the original decision.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"note\": \"Check the trip route and refund the toll only.\"\n}"
@@ -17871,6 +17871,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This case is already at tier 1.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Appeal below deciding tier",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"An appeal must stay above the tier that made the original decision.\"\n}"
                 }
               ]
             },
@@ -17972,7 +17984,7 @@
                     }
                   ]
                 },
-                "description": "Refunds waiting for a second admin (`status`: pending (default), approved, rejected, cancelled). Finance sees all; dispute roles see cases they can see. `can_approve`: card refunds \u2014 Finance or super admin; wallet refunds \u2014 Finance, super admin, or a dispute admin whose limit covers the total. Nobody approves their own."
+                "description": "Refunds waiting for a second admin (`status`: pending (default), approved, rejected, cancelled). Finance sees all; dispute roles see cases they can see. `can_approve`: card refunds \u2014 Finance or super admin; wallet refunds \u2014 Finance, super admin, or an admin on the case's own team (support roles for support cases, Safety for safety cases) whose limit covers the total. Nobody approves their own."
               },
               "response": [
                 {
@@ -18073,6 +18085,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"This refund is above your limit; it needs a higher tier.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Another team's case",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Your role cannot approve refunds on this case.\"\n}"
                 }
               ]
             },

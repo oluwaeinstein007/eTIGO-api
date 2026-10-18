@@ -249,20 +249,25 @@ class Dispute extends Model
         return now()->diffInSeconds($due) < $window / 4 ? DisputeSlaStatus::AtRisk : DisputeSlaStatus::OnTrack;
     }
 
-    public function appealDeadline(): ?CarbonInterface
+    /**
+     * @param  array<string, mixed>|null  $settings  AppSetting::disputes(), when the caller already has it
+     */
+    public function appealDeadline(?array $settings = null): ?CarbonInterface
     {
         if (! $this->status->isTerminal() || $this->resolved_at === null) {
             return null;
         }
 
-        return $this->resolved_at->copy()->addDays(AppSetting::disputes()['appeal_window_days']);
+        return $this->resolved_at->copy()->addDays(($settings ?? AppSetting::disputes())['appeal_window_days']);
     }
 
     /**
      * Why the reporter cannot appeal, or null when they can: once, within
      * the window, and not against a tier 3 decision, which is final.
+     *
+     * @param  array<string, mixed>|null  $settings  AppSetting::disputes(), when the caller already has it
      */
-    public function appealBlocker(): ?string
+    public function appealBlocker(?array $settings = null): ?string
     {
         if (! $this->status->isTerminal()) {
             return 'You can appeal once a decision has been made.';
@@ -276,7 +281,7 @@ class Dispute extends Model
             return 'This decision was made by our management team and is final.';
         }
 
-        $deadline = $this->appealDeadline();
+        $deadline = $this->appealDeadline($settings);
 
         if ($deadline === null || now()->gt($deadline)) {
             return 'The time to appeal this decision has passed.';

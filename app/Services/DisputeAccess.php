@@ -140,10 +140,12 @@ class DisputeAccess
     /**
      * Most the admin can refund on one dispute without a second approver,
      * in NGN; null means no limit.
+     *
+     * @param  array<string, mixed>|null  $settings  AppSetting::disputes(), when the caller already has it
      */
-    public function refundLimit(User $admin): ?float
+    public function refundLimit(User $admin, ?array $settings = null): ?float
     {
-        $settings = AppSetting::disputes();
+        $settings ??= AppSetting::disputes();
 
         return match ($admin->admin_role) {
             AdminRole::SuperAdmin => null,
@@ -192,7 +194,13 @@ class DisputeAccess
             return null;
         }
 
-        if (! $this->canView($admin, $dispute) || $this->roleTier($admin) === null) {
+        // The case's own team: the Safety team for safety cases, the support
+        // roles for support cases.
+        $ownTeam = $dispute->queue === DisputeQueue::Safety
+            ? $admin->admin_role === AdminRole::SafetyOperator
+            : in_array($admin->admin_role, [AdminRole::Support, AdminRole::SupportLead], true);
+
+        if (! $ownTeam) {
             return 'Your role cannot approve refunds on this case.';
         }
 

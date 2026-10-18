@@ -63,6 +63,10 @@ class DisputeService
     public function file(Ride $ride, User $reporter, DisputeCategory $category, string $description, array $evidence = []): Dispute
     {
         return DB::transaction(function () use ($ride, $reporter, $category, $description, $evidence) {
+            // Serialise filings on the trip so the passenger's and the
+            // driver's disputes always find each other to link.
+            Ride::whereKey($ride->id)->lockForUpdate()->first();
+
             $isSafety = $category === DisputeCategory::SafetyConcern;
             $queue = $isSafety ? DisputeQueue::Safety : DisputeQueue::Support;
             $tier = $isSafety ? 2 : 1;
@@ -309,6 +313,13 @@ class DisputeService
                 $locked->escalation_tier === 2 => [DisputeQueue::Support, 1],
                 default => throw new \DomainException('This case is already at tier 1.'),
             };
+
+            // An appeal stays above the tier that made the decision.
+            $decidedAt = $locked->original_decision['decision_tier'] ?? null;
+
+            if ($locked->isAppeal() && $decidedAt !== null && $tier <= $decidedAt) {
+                throw new \DomainException('An appeal must stay above the tier that made the original decision.');
+            }
 
             $old = $this->routingSnapshot($locked);
 
