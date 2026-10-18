@@ -596,23 +596,35 @@ it('charges no fee when the return fee is off', function () {
 
 // ── Hourly sweep ──
 
-it('charges one return fee per trip, even for a second item', function () {
+it('charges one return fee per trip, however the first was collected', function (string $firstVia, string $secondVia) {
     ($this->setting)('return_fee', 2000);
+    $wallet = ($this->wallet)(0);
+    $fund = fn (string $via) => $wallet->update(['balance' => $via === 'wallet' ? 500_000 : 0]);
+
     $first = ($this->reportedItem)();
     ($this->respond)($first, true);
+    $fund($firstVia);
     ($this->as)($this->passengerToken)->postJson("/api/v1/lost-items/{$first->id}/received")
-        ->assertJsonPath('lost_item.return_fee.status', 'balance_due');
+        ->assertJsonPath('lost_item.return_fee.status', $firstVia === 'wallet' ? 'charged' : 'balance_due');
 
     ($this->report)(['category' => 'keys'])->assertCreated();
     $second = LostItem::where('category', 'keys')->sole();
     ($this->respond)($second, true);
+    $fund($secondVia);
+    $balanceBefore = $wallet->fresh()->balance;
 
     ($this->as)($this->passengerToken)->postJson("/api/v1/lost-items/{$second->id}/received")
         ->assertOk()
         ->assertJsonPath('lost_item.return_fee.status', 'waived');
 
-    expect(PassengerBalanceDue::count())->toBe(1);
-});
+    expect($wallet->fresh()->balance)->toBe($balanceBefore)
+        ->and(PassengerBalanceDue::count())->toBe($firstVia === 'wallet' ? 0 : 1);
+})->with([
+    'balance due, then balance due' => ['balance_due', 'balance_due'],
+    'wallet, then wallet' => ['wallet', 'wallet'],
+    'wallet, then balance due' => ['wallet', 'balance_due'],
+    'balance due, then wallet' => ['balance_due', 'wallet'],
+]);
 
 it('hands silent drivers to support and reminds them', function () {
     $item = ($this->reportedItem)();

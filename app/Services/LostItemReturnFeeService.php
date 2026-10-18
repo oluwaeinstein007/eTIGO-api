@@ -10,6 +10,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\LostItem;
+use App\Models\Ride;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -47,6 +48,20 @@ class LostItemReturnFeeService
 
                 if ($driver === null || $feeKobo <= 0) {
                     $this->finish($item, 'waived', ['reason' => 'no_driver_to_pay']);
+
+                    return;
+                }
+
+                // One return fee per trip, however the first one was collected.
+                // The ride lock stops two items from the trip both passing.
+                Ride::whereKey($item->ride_id)->lockForUpdate()->first();
+                $alreadyCharged = LostItem::where('ride_id', $item->ride_id)
+                    ->whereKeyNot($item->id)
+                    ->whereIn('return_fee_status', ['charged', 'balance_due'])
+                    ->exists();
+
+                if ($alreadyCharged) {
+                    $this->finish($item, 'waived', ['reason' => 'fee_already_charged_for_ride']);
 
                     return;
                 }

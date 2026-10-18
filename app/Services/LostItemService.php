@@ -594,7 +594,22 @@ class LostItemService
         }
     }
 
+    /**
+     * Hand one report to support. A failure is logged and skipped, so it
+     * never stops the rest of the sweep.
+     */
     private function autoEscalate(string $id, LostItemStatus $expected, string $reason): bool
+    {
+        try {
+            return $this->escalateLocked($id, $expected, $reason);
+        } catch (\Throwable $e) {
+            Log::error('Lost & Found sweep failed for a report', ['lost_item_id' => $id, 'event' => 'lost_item.auto_escalated', 'error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    private function escalateLocked(string $id, LostItemStatus $expected, string $reason): bool
     {
         return DB::transaction(function () use ($id, $expected, $reason) {
             $item = LostItem::whereKey($id)->lockForUpdate()->first();
