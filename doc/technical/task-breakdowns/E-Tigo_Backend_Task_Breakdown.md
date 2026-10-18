@@ -29,6 +29,7 @@
 > - **Phase 2 — Advanced disputes (18 Oct 2026):** built (section 26) to the OQ-21 recommendation. Support tiers 1–3 (`support` → new `support_lead` → `super_admin`) plus a Safety queue for safety concerns (1 h first response, linked SOS incident); take/assign, escalate and send back down; response targets with a 15-minute sweep (tier 1 misses move up, Safety and tier 2 misses alert super admins); refund limits per tier (₦5,000 / ₦50,000) with second-admin approval, card refunds via Finance, wallet refunds by default; one appeal within 7 days to a different reviewer one tier above the decision; evidence uploads visible only to the assignee, higher tiers and Safety, every view audit-logged; the passenger's and driver's disputes on a trip linked. Super admin settings at `/admin/settings/disputes`.
 > - **Phase 2 — Multi-city support (18 Oct 2026):** built (section 27) to the OQ-22 recommendation. Cities are `onboarding` (drivers sign up and get approved; passengers join a waitlist), `live` or `paused` (no new bookings; trips in progress finish; upcoming bookings honoured by default or cancelled with a notice); `is_active` is kept equal to live. A first launch needs the readiness checklist (boundary with no overlap, pricing for every class, ≥ 30 approved drivers, EV charging for plug-in drivers, support cover and permits confirmed by an admin, the client's launch date); resuming does not. Overlapping boundaries are refused, cities use Lagos time and naira only, drivers are moved by operations (not during a trip or with reservations). Settings `GET/PUT /admin/settings/cities`. Runbook: `doc/technical/CITY_ONBOARDING.md`. **Launch dates are still the client's to give.**
 > - **Phase 2 — Driver scheduling & vehicle maintenance (18 Oct 2026):** built (section 28) to the OQ-19 / OQ-20 recommendations. Voluntary availability plans for every driver with an hourly coverage view for operations; shifts only for fleet cars in shift mode (the car passes to the shift driver when they go online in their window; online from 15 min before, no offers in the last 15 min, missed after 30 min with an operations alert, no fine). Maintenance items per vehicle by fuel type (service 5,000 km / 3 months, tyres & brakes, legal papers, battery health for plug-ins), records with proof approved by operations, papers linked to the vehicle; a daily run reminds drivers and, 7 days after insurance, roadworthiness or the vehicle licence expires, keeps the car off the road (never mid-trip) until a renewal is approved. Settings at `/admin/settings/driver-scheduling` and `/admin/settings/vehicle-maintenance`.
+> - **Phase 2 — Review (18 Oct 2026):** every Phase 2 row checked against code and tests; all built. Seven cross-feature gaps fixed (section 29): suspended drivers release reservations and shifts at once; a blocked shared car releases every shift driver's pickups on it; no city move with upcoming shifts; coverage counts only active in-city drivers; no hire-purchase car for a driver on shifts; no pickup booked under another city's name; passengers can dispute a scheduled-ride late-cancellation fee.
 - **Audit fixes** (branch `fix/phase1-audit-hardening`): bugs and edge cases fixed across rides, matching, pricing, payments, wallet/ledger, payouts, refunds, webhooks, reconciliation, auth, KYC, SOS, sanctions, EV and fleet — see the commit history and the edge-case test suites listed in TECHNICAL.md §17.
 
 ---
@@ -70,10 +71,11 @@
 26. [Phase 2 — Advanced Disputes](#26-phase-2--advanced-disputes)
 27. [Phase 2 — Multi-City Support](#27-phase-2--multi-city-support)
 28. [Phase 2 — Driver Scheduling & Vehicle Maintenance](#28-phase-2--driver-scheduling--vehicle-maintenance)
+29. [Phase 2 — Review and Cross-Feature Fixes](#29-phase-2--review-and-cross-feature-fixes)
 
 ### Tracking
 
-29. [Open Questions Tracker](#29-open-questions-tracker)
+30. [Open Questions Tracker](#30-open-questions-tracker)
 
 ---
 
@@ -1077,7 +1079,34 @@
 
 ---
 
-## 29. Open Questions Tracker
+## 29. Phase 2 — Review and Cross-Feature Fixes
+
+**PRD refs:** B-27, B-30, B-31, B-32, D-15, D-16, A-37, A-38, A-39
+
+> **Reviewed 18 Oct 2026** (branch `fix/phase2-review-and-decision-docs`). Every row in sections 23–28 was checked against the code and its tests: **all are built**. The six features were built one after another, so the review concentrated on where they meet (a driver suspended while holding reservations and shifts, a shared car whose papers expire, a driver moved between cities, a booking across a city boundary, a fee with no way to contest it). Seven gaps were found and fixed below. Tests: `ScheduledRideFeesAndBalanceDueTest`, `DriverSchedulingTest`, `MultiCityTest` (10 new; full suite 1,511 tests, all passing). The choices in these rows are engineering defaults, not client-confirmed; they are listed with alternatives in [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md#phase-2-review--choices-made-while-fixing-edge-cases).
+
+| ID | Task | PRD Ref | Deps | Notes |
+|----|------|---------|------|-------|
+| BE2-REV-01 | `[x]` A driver who stops being approved (suspended by operations or by an automatic sanction, deactivated, rejected) gives up their upcoming scheduled-ride reservations and fleet shifts at once | B-27, A-39 | BE2-SCH-10, BE2-SHIFT-04 | **Was:** reservations were only dropped at dispatch, so the passenger learned 15 minutes before pickup, and each shift was marked missed in turn while still blocking the car's time slot. **Now:** a `Driver` model hook (status leaving `approved`) releases the reservations (reason `driver_suspended`, passenger and driver told) and `DriverShiftService::withdrawDriver` ends a shift in progress and cancels upcoming ones (audit `driver_shift_withdrawn`), with one operations email ("Shifts freed") listing the slots to reassign. Reactivation restores nothing automatically |
+| BE2-REV-02 | `[x]` A blocked shared (shift-mode) car releases the reserved pickups of every shift driver whose shift on that car covers the pickup | B-32, D-16 | BE2-VEH-06, BE2-SHIFT-05 | **Was:** only the driver holding the car lost reservations; a car held by nobody released none, so the passenger found out at dispatch. Pickups covered by a shift on another car are kept. `ScheduledRideReservationService::releaseAllFor` is now shared by the block, the suspension hook and future callers |
+| BE2-REV-03 | `[x]` Moving a driver to another city is refused while they have upcoming fleet shifts; their upcoming availability plans for the old city are removed | A-38, A-39 | BE2-CITY-06, BE2-SHIFT-07 | 409 with `upcoming_shifts` (shared cars stay in their city), like `upcoming_reservations`. `warnings` says how many plans were removed |
+| BE2-REV-04 | `[x]` Availability coverage counts only plans of drivers who are approved and in the city now | A-39 | BE2-SHIFT-07 | **Was:** a suspended driver's plans, and plans left by a driver moved away, counted as cover |
+| BE2-REV-05 | `[x]` A hire-purchase car cannot be given to a driver who still has upcoming shifts on a shared car | A-39 | BE2-SHIFT-04, BE-FLEET-31 | One car per driver on E-tiGo; shift creation already refused the other direction. 422 from `POST /admin/fleet-vehicles/{vehicle}/assign` |
+| BE2-REV-06 | `[x]` Estimates, bookings and scheduled-ride edits refuse a pickup inside another city's boundary | B-31 | BE2-CITY-03, BE2-SCH-07 | **Was:** the app-sent `city_id` was trusted, so a pickup in an onboarding or paused city could be booked under a live city's name and prices. 422 on `pickup_lat` (pointing to the other city when it is live, else its not-open message). Boundaries only (`CityDetectionService::conflictingCity`, no geocoding call); a point on a shared border is in both cities; a pickup outside every drawn city keeps the named city, as before |
+| BE2-REV-07 | `[x]` Passengers can dispute a scheduled-ride late-cancellation fee; an upheld dispute refunds a charged fee to the wallet (taken back from the driver who received it) or waives a fee still owed | B-27, B-30 | BE2-SCH-15, BE2-SCH-16, BE2-DISP-07 | **Was:** disputes were for completed rides only, so the client-decided fee (SR-4) could not be contested in the app, and a charged fee had no refund path except a finance adjustment. Passenger only; fee statuses `pending`/`charging`/`charged`/`balance_due`/`failed`. Wallet only; an owed fee is waived in full; tier limits and approvals apply as for any refund (`ScheduledRideCancellationFeeService::refund`) |
+
+**Phase 2 mentions outside sections 23–28 (not built; each needs a client decision first):**
+
+| Item | Where it is mentioned | Status |
+|------|-----------------------|--------|
+| Promo codes applied automatically | OQ-12 ("auto-apply deferred to Phase 2"), BE-PROMO | Not built. Promos are code-entry only. Needs the client to say which promos apply themselves and how they combine |
+| External charging-station owners applying to join | OQ-15 | Not built. Needs the form and the approval terms (Action Items: Product) |
+| Shared Journey points multiplier | BE-GAME-03 | Seeded but never awarded: it needs pooled (shared) rides, which are not in the PRD's Phase 2 list |
+| On-demand cancellation fee | OQ-05 ("Phase 2 recommendation") | Not built. Only scheduled rides have a fee (SR-4). The ₦300–₦500 proposal awaits the client |
+
+---
+
+## 30. Open Questions Tracker
 
 ### Provider & Integration Decisions
 
@@ -1136,7 +1165,7 @@
 
 ### Phase 2 Decisions
 
-Phase 1 and Phase 2 decisions, with industry benchmarks, are also published for the client in [OPEN_QUESTIONS_DECISIONS.md](../../client/OPEN_QUESTIONS_DECISIONS.md) / `.pdf`; scheduled-ride reasoning in [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md) / `.pdf`; OQ-18 to OQ-22 options and edge cases in [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) / `.pdf`.
+Phase 1 and Phase 2 decisions, with industry benchmarks and a label for who decided each one (client, product owner, engineering, or settled in report v3.0), are published for the client in [OPEN_QUESTIONS_DECISIONS.md](../../client/OPEN_QUESTIONS_DECISIONS.md) / `.pdf` (v5.0, 18 Oct 2026); scheduled-ride reasoning in [SCHEDULED_RIDES_DECISIONS.md](../../client/SCHEDULED_RIDES_DECISIONS.md) / `.pdf`; every Phase 2 decision with its alternatives and trade-offs in [PHASE2_DECISIONS.md](../../client/PHASE2_DECISIONS.md) / `.pdf` (v2.0).
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -1152,6 +1181,23 @@ Phase 1 and Phase 2 decisions, with industry benchmarks, are also published for 
 | SR-5 | Late cancellations of cash/bank-transfer bookings: waive or balance due? | BE2-SCH-16 | `[x]` **Client decided (16 Oct 2026):** record a balance due; the same for wallet passengers whose final fare exceeds their balance |
 | SR-6 | Penalise drivers who often release reservations? | BE2-SCH-10 | `[ ]` No penalty; tracked in the audit log. Client to decide |
 | SR-7 | Driver reservation limits? | BE2-SCH-10, BE2-SCH-12 | `[~]` Built with default 5 per driver, 60 min apart, no on-demand offers 60 min before. Awaiting client confirmation |
+
+### Decisions Made While Building (not open questions)
+
+Recorded in OPEN_QUESTIONS_DECISIONS.md sections H and I. `[x]` = decided by the client or product owner; `[~]` = engineering default awaiting client confirmation.
+
+| # | Decision | Affects | Status |
+|---|----------|---------|--------|
+| BD-01 | Free waiting time 5 min, then the waiting rate | BE-PRICE | `[x]` **Client** (Augustus Opara, 29 Sep 2026) |
+| BD-02 | Upfront fare; time recalculated only when > 25% and ≥ 10 min over; billed time ≤ 3× the quote | BE-PRICE | `[~]` Engineering (15 Oct 2026), `config/pricing.php` |
+| BD-03 | Priority matching: distance first, one held driver, one extra retry wave | BE-MATCH | `[~]` Engineering (15 Oct 2026) |
+| BD-04 | EV reservations for plug-in vehicles only (`fuel_type`) | BE-EV-09/10 | `[~]` Engineering (15 Oct 2026) |
+| BD-05 | EV reservation fee from driver earnings when a stall is held; 2-min refund; kept on no-show | BE-EV | `[~]` Engineering (15 Oct 2026) |
+| BD-06 | Payout accounts: OTP every save; 24 h hold on a replacement; KYC name check in review mode | BE-EARN | `[~]` Engineering (16 Oct 2026), finance settings |
+| BD-07 | Silent drivers: push at 5 min, offline at 30, never on a trip | BE-LOC | `[~]` Engineering (16 Oct 2026) |
+| BD-08 | ₦100 add-card charge credited to the wallet as a top-up | BE-WAL | `[x]` **Product owner** (17 Oct 2026); frozen-wallet, no-fallback and no-backfill details engineering |
+| BD-09 | Operations can view passenger wallets read-only; Finance freezes | BE-WADM | `[x]` **Product owner** (17 Oct 2026) |
+| RV-01 – RV-07 | Phase 2 review fixes (section 29) | BE2-REV-01–07 | `[~]` Engineering (18 Oct 2026); alternatives in PHASE2_DECISIONS.md |
 
 ---
 

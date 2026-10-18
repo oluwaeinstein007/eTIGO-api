@@ -215,16 +215,16 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-02 | Which maps/geocoding provider is approved? (determines map SDK) | FE-DR-01 | `[ ]` Unresolved |
-| OQ-06 | How and how often are driver earnings paid out? | FE-DE-01 | `[ ]` Unresolved |
-| OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-DEV-07 | `[ ]` Unresolved |
-| OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
+| OQ-02 | Which maps/geocoding provider is approved? (determines map SDK) | FE-DR-01 | `[x]` **Resolved:** the backend uses Mapbox for directions, distance and duration, with a place-search failover (Mapbox → Geoapify → LocationIQ → Photon). See OPEN_QUESTIONS_DECISIONS OQ-02 |
+| OQ-06 | How and how often are driver earnings paid out? | FE-DE-01 | `[x]` **Resolved:** on-demand payouts with finance approval, plus an opt-in weekly auto-payout (Monday 06:00 Lagos) |
+| OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-DEV-07 | `[x]` **Resolved:** drivers only; Platinum and Diamond drivers pay no EV reservation fee |
+| OQ-17 | Minimum supported iOS and Android versions? | All screens | `[x]` **Resolved:** 1.0.0 on both platforms; `GET /config` returns the minimum versions and `force_update` |
 | OQ-19 | Vehicle charging & maintenance: EV-specific, general, or both? | FE2-DVH-01 | `[~]` **Recommended (16 Oct 2026):** both — general items for all vehicles, EV items by fuel type. Backend built to this (18 Oct 2026). Awaiting client confirmation |
 | OQ-20 | Driver scheduling: shift scheduling or availability planning? | FE2-DSH-01, FE2-DSH-03 | `[~]` **Recommended (16 Oct 2026):** voluntary availability planning for all; shifts only for shared fleet cars. Backend built to this (18 Oct 2026). Awaiting client confirmation |
-| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | FE-DEL-01 | `[ ]` Unresolved |
-| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | FE-DEL-11 | `[ ]` Unresolved |
-| OQ-30 | Minimum payout amount for driver withdrawals? | FE-DEL-08 | `[ ]` Unresolved |
-| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | FE-DEL-08 | `[ ]` Unresolved |
+| OQ-28 | Driver earnings settlement delay: instant, 24 hours, or weekly? | FE-DEL-01 | `[x]` **Resolved:** instant by default; finance can switch to 24 hours or weekly |
+| OQ-29 | Cash-ride commission: debit from driver ledger? Allow negative balance? Threshold? | FE-DEL-11 | `[x]` **Resolved:** commission debited from the driver ledger; negative balance allowed to −₦5,000, beyond which the driver cannot accept rides or reserve scheduled rides |
+| OQ-30 | Minimum payout amount for driver withdrawals? | FE-DEL-08 | `[x]` **Resolved:** ₦1,000; admin-adjustable |
+| OQ-31 | Driver payouts: on-demand request or fixed schedule (weekly/bi-weekly)? | FE-DEL-08 | `[x]` **Resolved:** on-demand with finance approval; drivers can opt in to the weekly auto-payout (OQ-06) |
 
 ---
 

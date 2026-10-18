@@ -15,12 +15,15 @@ Usage, from the repository root:
 
 Markdown features: tables, `code`, > blockquotes (rendered as decision
 boxes), and inline HTML such as <span class="badge new">NEW</span>,
-<span class="badge updated">UPDATED</span>, <h2 class="section">,
+<span class="badge updated">UPDATED</span>, the decision labels
+<span class="badge client">CLIENT</span>, <span class="badge owner">PRODUCT OWNER</span>,
+<span class="badge eng">ENGINEERING</span> and <span class="badge settled">SETTLED</span>,
+<h2 class="section">,
 <p class="impl"> and <div class="summary" markdown="1">. Links to other
 .md files become links to their .pdf versions.
 
 Only the reports already built with this script use its style
-(OPEN_QUESTIONS_DECISIONS, SCHEDULED_RIDES_DECISIONS); the older client PDFs
+(OPEN_QUESTIONS_DECISIONS, SCHEDULED_RIDES_DECISIONS, PHASE2_DECISIONS); the older client PDFs
 were made with another tool and will look different if rebuilt here.
 """
 
@@ -54,9 +57,13 @@ tr:nth-child(even) td { background: #fafafa; }
 hr { border: 0; border-top: 0.75pt solid #ddd; margin: 10pt 0; }
 a { color: #1a5fb4; text-decoration: none; }
 .summary { background: #f6f8fa; border: 0.75pt solid #e1e4e8; padding: 6pt 12pt; margin: 8pt 0; }
-.badge { display: inline-block; font-size: 6.5pt; font-weight: bold; color: #fff; padding: 0.5pt 4pt; border-radius: 2pt; vertical-align: middle; }
+.badge { display: inline-block; white-space: nowrap; font-size: 6.5pt; font-weight: bold; color: #fff; padding: 0.5pt 4pt; border-radius: 2pt; vertical-align: middle; }
 .badge.new { background: #6f42c1; }
 .badge.updated { background: #d97706; }
+.badge.client { background: #1a7f37; }
+.badge.owner { background: #1a5fb4; }
+.badge.eng { background: #0e7490; }
+.badge.settled { background: #57606a; }
 .impl { background: #f6f8fa; border: 0.5pt solid #e1e4e8; padding: 4pt 8pt; font-size: 8.3pt; }
 .footer { text-align: center; color: #777; font-size: 8pt; margin-top: 16pt; }
 """

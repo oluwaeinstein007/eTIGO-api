@@ -258,14 +258,14 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-02 | Which maps/geocoding provider is approved? (determines map SDK) | FE-PB-01, FE-PB-03 | `[ ]` Unresolved |
-| OQ-05 | Does Phase 1 include a cancellation fee? (must show fee warning in cancel dialog) | FE-PB-12 | `[ ]` Unresolved |
-| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | FE-PG-02 | `[ ]` Unresolved |
-| OQ-12 | Auto-apply promos in Phase 1, or code-entry only? | FE-PP-02 | `[ ]` Unresolved |
-| OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-PG-06 | `[ ]` Unresolved |
-| OQ-17 | Minimum supported iOS and Android versions? | All screens | `[ ]` Unresolved |
+| OQ-02 | Which maps/geocoding provider is approved? (determines map SDK) | FE-PB-01, FE-PB-03 | `[x]` **Resolved:** the backend uses Mapbox for directions, distance and duration, with a place-search failover (Mapbox → Geoapify → LocationIQ → Photon). See OPEN_QUESTIONS_DECISIONS OQ-02 |
+| OQ-05 | Does Phase 1 include a cancellation fee? (must show fee warning in cancel dialog) | FE-PB-12 | `[x]` **Resolved:** no fee on rides booked for now. A scheduled booking a driver has reserved costs the economy base fare when cancelled within 30 min of the ride (client, 16 Oct 2026): show `scheduled.cancellation_fee_if_cancelled_now` in the cancel dialog. The passenger can dispute that fee (18 Oct 2026) |
+| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | FE-PG-02 | `[x]` **Resolved:** Option A — Bronze (0) → Silver (500) → Gold (2,000) → Platinum (5,000) → Diamond (15,000) |
+| OQ-12 | Auto-apply promos in Phase 1, or code-entry only? | FE-PP-02 | `[x]` **Resolved:** code-entry only. Auto-apply is not built (needs a client decision) |
+| OQ-16 | Fee waiver applies to driver, passenger, or both? | FE-PG-06 | `[x]` **Resolved:** drivers only (the EV reservation fee waiver is a driver-tier benefit) |
+| OQ-17 | Minimum supported iOS and Android versions? | All screens | `[x]` **Resolved:** 1.0.0 on both platforms; `GET /config` returns `min_app_version_ios`, `min_app_version_android` and `force_update` |
 | OQ-18 | Who receives PIN/tracking for third-party bookings? | FE2-P3P-02, FE2-P3P-03 | `[~]` **Recommended (16 Oct 2026):** both rider (WhatsApp/SMS + tracking link) and booker (in app); admin-switchable. Awaiting client confirmation |
-| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[ ]` Unresolved |
+| OQ-25 | Wallet limits: minimum top-up, maximum balance, and daily top-up cap values? | FE-PW-03 | `[x]` **Resolved:** minimum top-up ₦500, maximum balance ₦500,000, daily top-up cap ₦100,000; admin-adjustable |
 | OQ-26 | Fallback payment method when wallet balance is insufficient for final fare? | FE-PW-12 | `[x]` Resolved — the wallet pays what it can; the rest is a balance due the passenger pays before booking again (FE2-PSR-09) |
 | OQ-27 | Refund policy: wallet credit only, or back to original payment method? | FE-PW-13 | `[x]` Resolved — refunds go to the wallet; a card refund is an exception support requests and Finance approves (dispute refunds, 18 Oct 2026) |
 

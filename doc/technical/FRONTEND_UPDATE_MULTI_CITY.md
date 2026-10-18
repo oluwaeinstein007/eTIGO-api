@@ -36,6 +36,7 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 
 ### Booking errors
 - Estimates and bookings in a city that is not live return 422 on `city_id` with the same passenger-ready message as above. Show it as is.
+- **New (Phase 2 review, 18 Oct 2026):** a pickup inside another city's boundary returns 422 on `pickup_lat` — "This pickup is in Abuja. Choose Abuja as your city to book it." (offer to switch city), or that city's not-open message. This applies to estimates, bookings and changing a scheduled booking's pickup. Re-detect the city (`GET /cities/detect`) whenever the pickup moves rather than keeping the city from app start.
 - A booking cancelled because operations paused the city arrives as the usual `ride_cancelled` notification. The ride has `cancellation_reason: city_paused` and `cancellation_details` with the text to show. `city_paused` is a system reason: never offer it in the cancel-reason picker (it is not in `GET /lookup/cancellation-reasons`).
 
 ---
@@ -77,7 +78,7 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 - The old toggle (`PATCH /admin/cities/{id}/status`) still works: it pauses a live city with the default booking choice, and launches or resumes the others. Its 422 now carries `readiness`.
 
 ### Drivers
-- On the driver page, **Move to another city** → `PUT /admin/drivers/{id}/city` `{ "city_id", "reason" }`. 409 when the driver is on a trip, or has reserved bookings (`upcoming_reservations`; release them first). Show `warnings` (class not offered in the new city, city not launched yet).
+- On the driver page, **Move to another city** → `PUT /admin/drivers/{id}/city` `{ "city_id", "reason" }`. 409 when the driver is on a trip, has reserved bookings (`upcoming_reservations`; release them first) or has upcoming fleet shifts (`upcoming_shifts`; cancel or reassign them first). Show `warnings` (class not offered in the new city, city not launched yet, availability plans for the old city removed).
 
 ### Settings
 - City settings page → `GET/PUT /admin/settings/cities`: `launch_min_approved_drivers` (30), `require_ev_charging` (true), `pause_scheduled_rides` (`honour` or `cancel`).

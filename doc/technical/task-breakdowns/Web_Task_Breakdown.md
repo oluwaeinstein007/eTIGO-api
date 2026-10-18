@@ -383,10 +383,10 @@
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
-| OQ-07 | Admin role-based tiers | FE-AA-01, FE-AA-03 | `[x]` **Resolved:** super_admin, operations, safety_operator, support |
+| OQ-07 | Admin role-based tiers | FE-AA-01, FE-AA-03 | `[x]` **Resolved:** six roles — super_admin, operations, safety_operator, support, support_lead (Phase 2 dispute tier 2) and finance. Operations can view passenger wallets read-only (product owner, 17 Oct 2026) |
 | OQ-08 | Can Admin issue refunds/fare adjustments when resolving disputes? | FE-ADIS-03 | `[x]` Resolved — yes, to the wallet by default, within the admin's tier limit (FE2-ADIS-02) |
-| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | FE-AGF-01 | `[ ]` Unresolved |
-| OQ-14 | False-positive rate target and L3 overturn authority? | FE-AAO-04 | `[ ]` Unresolved |
+| OQ-09 | Tier naming: Option A (Bronze → Diamond) or Option B (Seed → Forest)? | FE-AGF-01 | `[x]` **Resolved:** Option A — Bronze → Silver → Gold → Platinum → Diamond |
+| OQ-14 | False-positive rate target and L3 overturn authority? | FE-AAO-04 | `[x]` **Resolved:** L3 always needs an admin review; a super admin can overturn it. False-positive targets approved by the client: under 1% for automatic penalties, 5% for manual review, 10% for warnings |
 | OQ-21 | Dispute escalation tiers and ownership? | FE2-ADIS-01 | `[~]` **Recommended (16 Oct 2026), backend built 18 Oct 2026:** Tier 1 support (≤ ₦5,000) → Tier 2 support lead (≤ ₦50,000) → Tier 3 super admin; safety straight to the Safety team. Awaiting client confirmation |
 
 ### Landing Page
@@ -396,6 +396,8 @@
 | OQ-22 | Static site or SSR framework? (Next.js SSG vs plain HTML/CSS vs Webflow) | FE-LP-01 through FE-LP-12 | `[ ]` Unresolved |
 | OQ-23 | Brand design system: colours, typography, illustration style? | FE-LP-01 through FE-LP-12 | `[ ]` Unresolved |
 | OQ-24 | Which cities to list as "Coming Soon"? | FE-LP-06 | `[ ]` Unresolved |
+
+> **Numbering:** OQ-22 to OQ-24 here are landing-page questions for the web team. They are not the backend questions with the same numbers: backend OQ-22 is "cities and launch dates" (see `OPEN_QUESTIONS_DECISIONS.md`).
 
 ---
 
