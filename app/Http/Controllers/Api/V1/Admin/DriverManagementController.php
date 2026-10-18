@@ -25,14 +25,17 @@ use App\Models\Driver;
 use App\Models\DriverDocument;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
+use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
 use App\Services\NotificationService;
+use App\Services\VehicleMaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class DriverManagementController extends Controller
@@ -194,7 +197,7 @@ class DriverManagementController extends Controller
         ]);
     }
 
-    public function reviewDocument(ReviewDocumentRequest $request, Driver $driver, DriverDocument $document): JsonResponse
+    public function reviewDocument(ReviewDocumentRequest $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance): JsonResponse
     {
         if ($document->driver_id !== $driver->id) {
             return response()->json(['message' => 'Document does not belong to this driver.'], 404);
@@ -213,16 +216,31 @@ class DriverManagementController extends Controller
             ? DocumentStatus::Approved
             : DocumentStatus::Rejected;
 
-        DB::transaction(function () use ($document, $driver, $admin, $validated, $newStatus) {
+        $replacedPaths = [];
+
+        DB::transaction(function () use ($document, $driver, $admin, $validated, $newStatus, &$replacedPaths) {
             $document->update([
                 'status' => $newStatus,
                 'rejection_reason' => $validated['rejection_reason'] ?? null,
                 'reviewed_by' => $admin->id,
                 'reviewed_at' => now(),
+                ...(array_key_exists('expires_at', $validated) && $newStatus === DocumentStatus::Approved ? ['expires_at' => $validated['expires_at']] : []),
             ]);
 
             $action = $validated['action'] === 'approve' ? 'document_approved' : 'document_rejected';
             AuditLog::record($document, $action, $admin);
+
+            // An approved renewal replaces the car's earlier paper of that type.
+            if ($newStatus === DocumentStatus::Approved && $document->vehicle_id !== null) {
+                $replaced = DriverDocument::where('vehicle_id', $document->vehicle_id)
+                    ->where('type', $document->type)
+                    ->where('id', '!=', $document->id)
+                    ->where('status', DocumentStatus::Approved)
+                    ->get();
+
+                $replacedPaths = $replaced->pluck('file_path')->all();
+                $replaced->each->delete();
+            }
 
             $lockedDriver = Driver::lockForUpdate()->find($driver->id);
 
@@ -245,6 +263,15 @@ class DriverManagementController extends Controller
                 }
             }
         });
+
+        if ($replacedPaths !== []) {
+            Storage::disk(config('filesystems.uploads'))->delete($replacedPaths);
+        }
+
+        // Vehicle papers decide whether the car may be driven (OQ-19).
+        if ($document->vehicle_id !== null && ($vehicle = Vehicle::find($document->vehicle_id)) !== null) {
+            $maintenance->refresh($vehicle);
+        }
 
         return response()->json([
             'message' => "Document {$validated['action']}d successfully.",

@@ -9,8 +9,10 @@ use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
 use App\Jobs\ProcessDisputeTargetsJob;
+use App\Jobs\ProcessDriverShiftsJob;
 use App\Jobs\ProcessLostItemsJob;
 use App\Jobs\ProcessScheduledRidesJob;
+use App\Jobs\ProcessVehicleMaintenanceJob;
 use App\Jobs\ProcessWeeklyAutoPayoutJob;
 use App\Jobs\ReconcilePayoutsJob;
 use App\Jobs\RemittanceShortfallAlertJob;
@@ -43,6 +45,10 @@ Schedule::job(new LiftExpiredComplianceSuspensionsJob)->hourly()->withoutOverlap
 Schedule::job(new ProcessLostItemsJob)->hourly()->withoutOverlapping();
 // Disputes: move tier 1 cases that miss a target up, alert on Safety and tier 2 misses.
 Schedule::job(new ProcessDisputeTargetsJob)->everyFifteenMinutes()->withoutOverlapping();
+// Fleet shifts: missed shifts, offer cut-off notices, late handovers, shift ends.
+Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlapping();
+// Vehicle maintenance: due dates, reminders, the expired-papers block.
+Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
 Schedule::command('model:prune', ['--model' => [Notification::class]])->daily();
 Schedule::command('demo:simulate-drivers')
     ->everyMinute()

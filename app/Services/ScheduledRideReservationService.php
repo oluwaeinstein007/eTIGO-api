@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DriverShiftStatus;
 use App\Enums\DriverStatus;
 use App\Enums\NotificationType;
 use App\Enums\RideStatus;
@@ -37,11 +38,27 @@ class ScheduledRideReservationService
     public function availableFor(Driver $driver): Builder
     {
         $leadMinutes = AppSetting::scheduledRides()['dispatch_lead_minutes'];
+        $shifts = app(DriverShiftService::class);
+        $isShiftDriver = $shifts->isShiftDriver($driver);
+        $cutoff = $shifts->settings()['shift_offer_cutoff_minutes'];
 
         return Ride::query()
             ->where('rides.status', RideStatus::Scheduled)
             ->where('rides.city_id', $driver->city_id)
-            ->where('rides.vehicle_class_id', $driver->vehicle?->vehicle_class_id)
+            // A shared car's driver sees bookings inside their own shifts,
+            // in the class of that shift's car.
+            ->when(
+                $isShiftDriver,
+                fn (Builder $q) => $q->whereExists(fn ($s) => $s->selectRaw('1')
+                    ->from('driver_shifts')
+                    ->join('vehicles', 'vehicles.id', '=', 'driver_shifts.vehicle_id')
+                    ->where('driver_shifts.driver_id', $driver->id)
+                    ->whereIn('driver_shifts.status', array_map(fn ($status) => $status->value, DriverShiftStatus::workable()))
+                    ->whereColumn('driver_shifts.starts_at', '<=', 'scheduled_rides.scheduled_pickup_at')
+                    ->whereRaw('driver_shifts.ends_at > scheduled_rides.scheduled_pickup_at + make_interval(mins => ?)', [$cutoff])
+                    ->whereColumn('vehicles.vehicle_class_id', 'rides.vehicle_class_id')),
+                fn (Builder $q) => $q->where('rides.vehicle_class_id', $driver->vehicle?->vehicle_class_id),
+            )
             ->join('scheduled_rides', 'scheduled_rides.ride_id', '=', 'rides.id')
             ->whereNull('scheduled_rides.reserved_driver_id')
             ->whereNull('scheduled_rides.dispatched_at')
@@ -102,8 +119,25 @@ class ScheduledRideReservationService
             $errors[] = 'This ride is about to start looking for a driver and can no longer be reserved.';
         }
 
-        if ($driver->vehicle?->vehicle_class_id !== $ride->vehicle_class_id) {
+        // A shared car's driver can only reserve inside their own shifts,
+        // with that shift's car (OQ-20).
+        $shifts = app(DriverShiftService::class);
+        $vehicle = $driver->vehicle;
+        $outsideShifts = false;
+
+        if ($shifts->isShiftDriver($driver)) {
+            $vehicle = $shifts->shiftCovering($driver, $scheduled->scheduled_pickup_at)?->vehicle;
+            $outsideShifts = $vehicle === null;
+        }
+
+        if ($outsideShifts) {
+            $errors[] = 'This pickup is outside your shifts.';
+        } elseif ($vehicle?->vehicle_class_id !== $ride->vehicle_class_id) {
             $errors[] = 'This ride needs a different vehicle class.';
+        }
+
+        if ($vehicle?->isBlocked()) {
+            $errors[] = "Your car can't be driven until its papers are renewed: {$vehicle->block_reason}";
         }
 
         if ($driver->city_id !== $ride->city_id) {
@@ -188,7 +222,8 @@ class ScheduledRideReservationService
 
     /**
      * Drop a booking's reservation (the booking itself stays). Reasons:
-     * driver_released, admin_released, pickup_changed, driver_unavailable.
+     * driver_released, admin_released, pickup_changed, driver_unavailable,
+     * vehicle_blocked (papers expired), shift_changed (outside the driver's shifts).
      * Must run inside a transaction with the ride and booking locked.
      */
     public function clearReservation(Ride $ride, ScheduledRide $scheduled, string $reason, ?User $actor = null): void
@@ -251,6 +286,9 @@ class ScheduledRideReservationService
             || $driver->status !== DriverStatus::Approved
             || ! $driver->is_online
             || $driver->vehicle?->vehicle_class_id !== $ride->vehicle_class_id
+            // Papers expired past the grace period, or a shared car's shift
+            // reaching its offer cut-off.
+            || ! Driver::whereKey($driver->id)->dispatchable()->exists()
             || $this->earningsService->hasExcessiveNegativeBalance($driver->id)) {
             return false;
         }
@@ -322,6 +360,8 @@ class ScheduledRideReservationService
             $body = match ($reason) {
                 'driver_unavailable' => 'You were offline or on another trip when your reserved pickup started, so it went to another driver.',
                 'pickup_changed' => 'The passenger changed the pickup time or place, so your reservation was released.',
+                'vehicle_blocked' => "Your car's papers have expired, so your reserved pickup was released. Upload the renewed paper to drive again.",
+                'shift_changed' => 'Your shifts changed and this reserved pickup is no longer inside one, so it was released.',
                 default => 'Operations released your reserved pickup.',
             };
 

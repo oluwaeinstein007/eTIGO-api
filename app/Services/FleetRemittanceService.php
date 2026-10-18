@@ -43,6 +43,11 @@ class FleetRemittanceService
             throw new \DomainException('Vehicle must be marked as fleet before creating an agreement.');
         }
 
+        // A car shared on shifts (OQ-20) cannot be bought by one driver.
+        if ($vehicle->shift_mode) {
+            throw new \DomainException('This car is shared on shifts. Turn shift mode off before putting it on a hire-purchase agreement.');
+        }
+
         return DB::transaction(function () use ($driver, $vehicle, $dailyTarget, $totalVehicleCost, $startDate, $admin) {
             $agreement = FleetAgreement::create([
                 'driver_id' => $driver->id,

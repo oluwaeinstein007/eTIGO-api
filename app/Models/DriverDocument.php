@@ -14,6 +14,8 @@ class DriverDocument extends Model
 
     protected $fillable = [
         'driver_id',
+        'vehicle_id',
+        'uploaded_by',
         'type',
         'file_path',
         'original_filename',
@@ -40,6 +42,16 @@ class DriverDocument extends Model
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Driver::class);
+    }
+
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class);
+    }
+
+    public function uploader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 
     public function reviewer(): BelongsTo

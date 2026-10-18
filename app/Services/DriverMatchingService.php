@@ -69,6 +69,9 @@ class DriverMatchingService
             ->where('status', DriverStatus::Approved)
             ->where('is_online', true)
             ->whereHas('vehicle', fn ($q) => $q->where('vehicle_class_id', $ride->vehicle_class_id))
+            // Expired papers past the grace period, or a shared car's shift
+            // about to end: no new offers.
+            ->dispatchable()
             ->whereNotIn('user_id', $rejectedIds)
             ->whereNotIn('user_id', $this->driversKeptForReservedPickups($ride))
             ->when($dispatchedTo, fn ($q) => $q->where('user_id', '!=', $dispatchedTo))

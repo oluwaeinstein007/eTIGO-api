@@ -31,6 +31,14 @@ class VehicleResource extends JsonResource
             // A just-created vehicle has no is_fleet attribute until reloaded.
             'is_fleet' => (bool) $this->is_fleet,
             'is_assigned' => $this->when($this->is_fleet, $this->driver_id !== null),
+            // Shared between drivers on a shift timetable (fleet cars).
+            'shift_mode' => (bool) $this->shift_mode,
+            'odometer_km' => $this->odometer_km,
+            'estimated_odometer_km' => $this->resource->estimatedOdometerKm(),
+            'battery_level_percent' => $this->when((bool) $this->fuel_type?->canCharge(), $this->battery_level_percent),
+            // Expired papers keep the car off the road after the grace period.
+            'is_blocked' => $this->blocked_at !== null,
+            'block_reason' => $this->block_reason,
             'vehicle_class_id' => $this->vehicle_class_id,
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_at' => $this->created_at,

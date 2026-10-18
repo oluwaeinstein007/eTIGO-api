@@ -16,6 +16,8 @@ class ReviewDocumentRequest extends FormRequest
         return [
             'action' => ['required', 'string', 'in:approve,reject'],
             'rejection_reason' => ['required_if:action,reject', 'nullable', 'string', 'max:500'],
+            // The reviewer confirms or corrects the expiry date on the paper.
+            'expires_at' => ['sometimes', 'nullable', 'date'],
         ];
     }
 }

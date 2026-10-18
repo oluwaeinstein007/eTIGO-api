@@ -6,10 +6,13 @@ use App\Enums\CityLaunchStatus;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
+use App\Http\Resources\DriverShiftResource;
 use App\Models\AuditLog;
 use App\Models\Ride;
 use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
+use App\Services\DriverShiftService;
+use App\Services\VehicleMaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,12 +22,21 @@ class DriverController extends Controller
     public function __construct(
         private DriverLocationService $locationService,
         private DriverEarningsService $earningsService,
+        private DriverShiftService $shiftService,
+        private VehicleMaintenanceService $maintenanceService,
     ) {}
 
     public function toggleOnline(Request $request): JsonResponse
     {
+        $request->validate([
+            // Plug-in cars: charge level when going online (OQ-19).
+            'battery_level_percent' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100'],
+        ]);
+
         $user = $request->user();
         $driver = $user->driver;
+        $shift = null;
+        $vehicleNotice = null;
 
         if (! $driver) {
             return response()->json([
@@ -48,11 +60,24 @@ class DriverController extends Controller
                 ], 409);
             }
         } else {
+            // Shared fleet cars (OQ-20): only in the driver's shift, and the
+            // car passes to them if the previous driver has handed it over.
+            $shiftCheck = $this->shiftService->onlineCheck($driver);
+            $shift = $shiftCheck['shift'];
+
+            if ($shiftCheck['handover'] !== null) {
+                $driver->setRelation('vehicle', $shiftCheck['handover']);
+            }
+
             $hasExcessiveNegativeBalance = $this->earningsService->hasExcessiveNegativeBalance($driver->id);
             $cityNotLaunched = $driver->city !== null && ! $driver->city->launch_status->allowsDriversOnline();
 
-            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance || $cityNotLaunched) {
-                $reasons = [];
+            // Expired papers past the grace period keep the car off the road (OQ-19).
+            $vehicleCheck = $driver->vehicle !== null ? $this->maintenanceService->goOnlineCheck($driver->vehicle) : ['blocked' => null, 'notice' => null];
+            $vehicleNotice = $vehicleCheck['notice'];
+
+            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance || $cityNotLaunched || $shiftCheck['errors'] !== [] || $vehicleCheck['blocked'] !== null) {
+                $reasons = $shiftCheck['errors'];
 
                 if (! $driver->isApproved()) {
                     $reasons[] = 'Driver account is not approved.';
@@ -67,9 +92,15 @@ class DriverController extends Controller
                 }
 
                 if (! $driver->vehicle) {
-                    $reasons[] = 'No vehicle registered.';
+                    if ($shiftCheck['errors'] === []) {
+                        $reasons[] = 'No vehicle registered.';
+                    }
                 } elseif (! $driver->vehicle->vehicle_class_id) {
                     $reasons[] = 'Vehicle class not assigned.';
+                }
+
+                if ($vehicleCheck['blocked'] !== null) {
+                    $reasons[] = $vehicleCheck['blocked'];
                 }
 
                 if ($hasExcessiveNegativeBalance) {
@@ -84,6 +115,22 @@ class DriverController extends Controller
                     'message' => 'Cannot go online.',
                     'reasons' => $reasons,
                 ], 422);
+            }
+
+            if ($shiftCheck['handover'] !== null) {
+                $this->shiftService->handOver($driver, $shiftCheck['handover']);
+                $driver->unsetRelation('vehicle');
+            }
+
+            if ($shift !== null) {
+                $this->shiftService->markStarted($shift);
+            }
+
+            if ($request->filled('battery_level_percent') && $driver->vehicle?->fuel_type?->canCharge()) {
+                $driver->vehicle->update([
+                    'battery_level_percent' => (int) $request->input('battery_level_percent'),
+                    'battery_level_at' => now(),
+                ]);
             }
         }
 
@@ -114,6 +161,10 @@ class DriverController extends Controller
         return response()->json([
             'message' => $driver->is_online ? 'You are now online.' : 'You are now offline.',
             'driver' => new DriverResource($driver),
+            // Shared fleet car: the shift the driver is working.
+            'shift' => $shift !== null ? new DriverShiftResource($shift->fresh('vehicle')) : null,
+            // Papers expiring or in their grace period.
+            'vehicle_notice' => $vehicleNotice,
             // Paused city: only trips already booked come through.
             'city_notice' => match (true) {
                 ! $cityPaused => null,

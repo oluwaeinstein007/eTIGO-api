@@ -176,6 +176,78 @@ class AppSetting extends Model
     }
 
     /**
+     * Driver scheduling settings (Phase 2, OQ-20): the admin's runtime
+     * overrides (PUT /admin/settings/driver-scheduling) over
+     * config/driver_scheduling.php.
+     *
+     * @return array{shifts_enabled: bool, shift_online_lead_minutes: int, shift_offer_cutoff_minutes: int, shift_missed_after_minutes: int, shift_min_minutes: int, shift_max_hours: int, shift_max_advance_days: int, availability_max_advance_days: int, availability_min_minutes: int, availability_max_hours: int, availability_max_upcoming: int}
+     */
+    public static function driverScheduling(): array
+    {
+        $settings = static::where('group', 'driver_scheduling')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["driver_scheduling.{$key}"] ?? config("driver_scheduling.{$key}");
+
+        return [
+            'shifts_enabled' => filter_var($value('shifts_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'shift_online_lead_minutes' => max(0, (int) $value('shift_online_lead_minutes')),
+            'shift_offer_cutoff_minutes' => max(0, (int) $value('shift_offer_cutoff_minutes')),
+            'shift_missed_after_minutes' => max(1, (int) $value('shift_missed_after_minutes')),
+            'shift_min_minutes' => max(15, (int) $value('shift_min_minutes')),
+            'shift_max_hours' => max(1, (int) $value('shift_max_hours')),
+            'shift_max_advance_days' => max(1, (int) $value('shift_max_advance_days')),
+            'availability_max_advance_days' => max(1, (int) $value('availability_max_advance_days')),
+            'availability_min_minutes' => max(15, (int) $value('availability_min_minutes')),
+            'availability_max_hours' => max(1, (int) $value('availability_max_hours')),
+            'availability_max_upcoming' => max(1, (int) $value('availability_max_upcoming')),
+        ];
+    }
+
+    /**
+     * Vehicle maintenance settings (Phase 2, OQ-19): the admin's runtime
+     * overrides (PUT /admin/settings/vehicle-maintenance) over
+     * config/vehicle_maintenance.php. The two interval maps are stored as JSON.
+     *
+     * @return array{enabled: bool, intervals: array<string, array{km: ?int, months: ?int}>, fuel_type_intervals: array<string, array<string, array{km: ?int, months: ?int}>>, due_soon_days: int, due_soon_km: int, legal_grace_days: int, block_on_expired_papers: bool}
+     */
+    public static function vehicleMaintenance(): array
+    {
+        $settings = static::where('group', 'vehicle_maintenance')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["vehicle_maintenance.{$key}"] ?? config("vehicle_maintenance.{$key}");
+        $json = function (string $key) use ($settings): array {
+            $stored = $settings["vehicle_maintenance.{$key}"] ?? null;
+            $decoded = $stored !== null ? json_decode($stored, true) : null;
+
+            return is_array($decoded) ? $decoded : (array) config("vehicle_maintenance.{$key}", []);
+        };
+        $interval = fn (mixed $entry): array => [
+            'km' => isset($entry['km']) && (int) $entry['km'] > 0 ? (int) $entry['km'] : null,
+            'months' => isset($entry['months']) && (int) $entry['months'] > 0 ? (int) $entry['months'] : null,
+        ];
+
+        $intervals = [];
+        foreach ($json('intervals') as $type => $entry) {
+            $intervals[$type] = $interval($entry);
+        }
+
+        $fuelTypeIntervals = [];
+        foreach ($json('fuel_type_intervals') as $fuelType => $types) {
+            foreach ((array) $types as $type => $entry) {
+                $fuelTypeIntervals[$fuelType][$type] = $interval($entry);
+            }
+        }
+
+        return [
+            'enabled' => filter_var($value('enabled'), FILTER_VALIDATE_BOOLEAN),
+            'intervals' => $intervals,
+            'fuel_type_intervals' => $fuelTypeIntervals,
+            'due_soon_days' => max(0, (int) $value('due_soon_days')),
+            'due_soon_km' => max(0, (int) $value('due_soon_km')),
+            'legal_grace_days' => max(0, (int) $value('legal_grace_days')),
+            'block_on_expired_papers' => filter_var($value('block_on_expired_papers'), FILTER_VALIDATE_BOOLEAN),
+        ];
+    }
+
+    /**
      * Advanced dispute settings (Phase 2, OQ-21): the admin's runtime
      * overrides (PUT /admin/settings/disputes) over config/disputes.php.
      *
