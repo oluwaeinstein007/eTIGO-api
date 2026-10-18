@@ -2,104 +2,70 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\DisputeStatus;
+use App\Enums\DisputeCategory;
+use App\Enums\DisputeQueue;
+use App\Http\Controllers\Concerns\StoresDisputeEvidence;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Dispute\StoreDisputeFormRequest;
 use App\Http\Resources\DisputeResource;
-use App\Models\AuditLog;
 use App\Models\Ride;
+use App\Services\DisputeService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class RideDisputeController extends Controller
 {
+    use StoresDisputeEvidence;
+
+    public function __construct(private DisputeService $disputes) {}
+
     public function store(StoreDisputeFormRequest $request, Ride $ride): JsonResponse
     {
         $user = $request->user();
 
-        $photoPaths = [];
-        $audioPath = null;
-        $uploadsDisk = config('filesystems.uploads');
-
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $photo) {
-                $path = $photo->store("disputes/{$ride->id}", $uploadsDisk);
-
-                if ($path === false) {
-                    foreach ($photoPaths as $stored) {
-                        Storage::disk($uploadsDisk)->delete($stored);
-                    }
-
-                    return response()->json([
-                        'message' => 'Failed to upload evidence photos. Please try again.',
-                    ], 500);
-                }
-
-                $photoPaths[] = $path;
-            }
-        }
+        $files = array_map(fn ($photo) => ['file' => $photo], $request->file('photos', []));
 
         if ($request->hasFile('audio')) {
-            $audioPath = $request->file('audio')->store("disputes/{$ride->id}/audio", $uploadsDisk);
+            $files[] = ['file' => $request->file('audio')];
+        }
 
-            if ($audioPath === false) {
-                foreach ($photoPaths as $stored) {
-                    Storage::disk($uploadsDisk)->delete($stored);
-                }
+        $evidence = $this->storeEvidenceFiles($ride->id, $files);
 
-                return response()->json([
-                    'message' => 'Failed to upload audio recording. Please try again.',
-                ], 500);
-            }
+        if ($evidence === null) {
+            return response()->json([
+                'message' => 'Failed to upload the evidence. Please try again.',
+            ], 500);
         }
 
         try {
-            $dispute = DB::transaction(function () use ($ride, $user, $request, $photoPaths, $audioPath) {
-                $dispute = $ride->disputes()->create([
-                    'reported_by_user_id' => $user->id,
-                    'category' => $request->validated('category'),
-                    'description' => $request->validated('description'),
-                    'evidence_photos' => $photoPaths ?: null,
-                    'evidence_audio' => $audioPath,
-                    'status' => DisputeStatus::Open,
-                ]);
-
-                AuditLog::record($ride, 'dispute_filed', $user, null, [
-                    'dispute_id' => $dispute->id,
-                    'category' => $request->validated('category'),
-                ]);
-
-                return $dispute;
-            });
+            $dispute = $this->disputes->file(
+                $ride,
+                $user,
+                DisputeCategory::from($request->validated('category')),
+                $request->validated('description'),
+                $evidence,
+            );
         } catch (UniqueConstraintViolationException) {
-            foreach ($photoPaths as $path) {
-                Storage::disk($uploadsDisk)->delete($path);
-            }
-            if ($audioPath) {
-                Storage::disk($uploadsDisk)->delete($audioPath);
-            }
+            $this->deleteEvidenceFiles($evidence);
 
             return response()->json([
                 'message' => 'Validation failed.',
                 'errors' => ['ride' => ['You have already filed a dispute for this ride.']],
             ], 422);
         } catch (\Throwable $e) {
-            foreach ($photoPaths as $path) {
-                Storage::disk($uploadsDisk)->delete($path);
-            }
-            if ($audioPath) {
-                Storage::disk($uploadsDisk)->delete($audioPath);
-            }
+            $this->deleteEvidenceFiles($evidence);
 
             throw $e;
         }
 
-        $dispute->load('reportedBy');
+        $dispute->load(['reportedBy', 'evidence']);
+
+        $message = $dispute->queue === DisputeQueue::Safety
+            ? 'Report received. Our safety team has been alerted and will contact you shortly.'
+            : 'Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.';
 
         return response()->json([
-            'message' => 'Dispute filed successfully. Our operations team will review it and get back to you within 24 hours.',
+            'message' => $message,
             'dispute' => new DisputeResource($dispute),
         ], 201);
     }

@@ -295,6 +295,12 @@
         "value": "",
         "type": "default",
         "enabled": true
+      },
+      {
+        "key": "dispute_refund_request_id",
+        "value": "",
+        "type": "default",
+        "enabled": true
       }
     ]
   }

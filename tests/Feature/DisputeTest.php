@@ -328,7 +328,7 @@ describe('Admin Disputes API', function () {
             ->assertJsonValidationErrors('resolution_notes');
     });
 
-    it('resolves a dispute with a partial card refund', function () {
+    it('sends a card refund to Finance for approval, then refunds the card', function () {
         app()->bind(PaymentGateway::class, fn () => new FakePaymentGateway);
 
         $ride = Ride::factory()->completed()->withCard()->create([
@@ -358,21 +358,31 @@ describe('Admin Disputes API', function () {
                 'status' => DisputeStatus::Resolved->value,
                 'resolution_notes' => 'Fare overcharge confirmed. Partial refund issued.',
                 'refund_amount' => 1500.00,
+                'refund_method' => 'card',
             ],
             ['Authorization' => "Bearer {$this->adminToken}"],
         );
 
-        $response->assertOk()
+        $response->assertStatus(202)
+            ->assertJsonPath('dispute.status', 'under_review')
+            ->assertJsonPath('refund_request.method', 'card')
+            ->assertJsonPath('refund_request.status', 'pending');
+
+        $finance = User::factory()->create(['type' => UserType::Admin, 'admin_role' => AdminRole::Finance]);
+
+        $this->actingAs($finance)
+            ->postJson('/api/v1/admin/dispute-refund-requests/'.$response->json('refund_request.id').'/approve')
+            ->assertOk()
             ->assertJsonPath('dispute.status', 'resolved')
             ->assertJsonPath('dispute.refund_amount', '1500.00')
-            ->assertJsonPath('dispute.refund_currency', 'NGN');
-
-        expect($response->json('message'))->toContain('Refund');
+            ->assertJsonPath('dispute.refund_currency', 'NGN')
+            ->assertJsonPath('dispute.refund_method', 'card');
 
         $this->assertDatabaseHas('disputes', [
             'id' => $dispute->id,
             'refund_amount' => 1500.00,
             'refund_currency' => 'NGN',
+            'resolved_by_admin_id' => $this->admin->id,
         ]);
 
         $this->assertDatabaseHas('payments', [
@@ -455,7 +465,7 @@ describe('Admin Disputes API', function () {
             ->assertJsonValidationErrors('refund_amount');
     });
 
-    it('rejects refund for cash payments', function () {
+    it('refunds a cash ride to the wallet, but not to a card', function () {
         $ride = Ride::factory()->completed()->create([
             'passenger_id' => $this->passenger->id,
             'driver_id' => $this->driverUser->id,
@@ -476,18 +486,29 @@ describe('Admin Disputes API', function () {
             'reported_by_user_id' => $this->passenger->id,
         ]);
 
-        $response = $this->postJson(
+        $this->postJson(
             "/api/v1/admin/disputes/{$dispute->id}/resolve",
             [
                 'status' => DisputeStatus::Resolved->value,
                 'resolution_notes' => 'Cash ride cannot be refunded via gateway.',
                 'refund_amount' => 500.00,
+                'refund_method' => 'card',
             ],
             ['Authorization' => "Bearer {$this->adminToken}"],
-        );
-
-        $response->assertStatus(422)
+        )->assertStatus(422)
             ->assertJsonValidationErrors('refund_amount');
+
+        $this->postJson(
+            "/api/v1/admin/disputes/{$dispute->id}/resolve",
+            [
+                'status' => DisputeStatus::Resolved->value,
+                'resolution_notes' => 'Driver overcharged in cash; refunded to the wallet.',
+                'refund_amount' => 500.00,
+            ],
+            ['Authorization' => "Bearer {$this->adminToken}"],
+        )->assertOk()
+            ->assertJsonPath('dispute.refund_method', 'wallet')
+            ->assertJsonPath('dispute.refund_amount', '500.00');
     });
 
     it('rejects refund on dismissed disputes', function () {

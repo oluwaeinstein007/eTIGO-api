@@ -154,4 +154,31 @@ class AppSetting extends Model
             'return_fee' => round(max(0.0, (float) $value('return_fee')), 2),
         ];
     }
+
+    /**
+     * Advanced dispute settings (Phase 2, OQ-21): the admin's runtime
+     * overrides (PUT /admin/settings/disputes) over config/disputes.php.
+     *
+     * @return array{tier_1_refund_limit: float, tier_2_refund_limit: float, safety_refund_limit: float, safety_first_response_minutes: int, safety_resolution_hours: int, tier_1_first_response_hours: int, tier_1_resolution_hours: int, tier_2_first_response_hours: int, tier_2_resolution_hours: int, auto_escalate_tier_1: bool, appeal_window_days: int, max_evidence_files: int}
+     */
+    public static function disputes(): array
+    {
+        $settings = static::where('group', 'disputes')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["disputes.{$key}"] ?? config("disputes.{$key}");
+
+        return [
+            'tier_1_refund_limit' => round(max(0.0, (float) $value('tier_1_refund_limit')), 2),
+            'tier_2_refund_limit' => round(max(0.0, (float) $value('tier_2_refund_limit')), 2),
+            'safety_refund_limit' => round(max(0.0, (float) $value('safety_refund_limit')), 2),
+            'safety_first_response_minutes' => (int) $value('safety_first_response_minutes'),
+            'safety_resolution_hours' => (int) $value('safety_resolution_hours'),
+            'tier_1_first_response_hours' => (int) $value('tier_1_first_response_hours'),
+            'tier_1_resolution_hours' => (int) $value('tier_1_resolution_hours'),
+            'tier_2_first_response_hours' => (int) $value('tier_2_first_response_hours'),
+            'tier_2_resolution_hours' => (int) $value('tier_2_resolution_hours'),
+            'auto_escalate_tier_1' => filter_var($value('auto_escalate_tier_1'), FILTER_VALIDATE_BOOLEAN),
+            'appeal_window_days' => (int) $value('appeal_window_days'),
+            'max_evidence_files' => (int) $value('max_evidence_files'),
+        ];
+    }
 }

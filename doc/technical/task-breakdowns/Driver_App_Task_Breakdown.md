@@ -36,10 +36,11 @@
 ### Phase 2
 
 7. [Scheduling & Vehicle](#7-phase-2--scheduling--vehicle)
+8. [Disputes](#8-phase-2--disputes)
 
 ### Tracking
 
-8. [Open Questions](#8-open-questions)
+9. [Open Questions](#9-open-questions)
 
 ---
 
@@ -186,7 +187,19 @@
 
 ---
 
-## 8. Open Questions
+## 8. Phase 2 — Disputes
+
+**PRD refs:** P-27 (both sides of the trip can report an issue)
+
+| ID | Task | PRD Ref | API Dep | Notes |
+|----|------|---------|---------|-------|
+| FE2-DDIS-01 | `[ ]` Build "Report an issue" on a completed trip (category, description, photos, audio) and a "My reports" list and detail with `stage_label` | P-27 | 📡 BE-RATE-04, BE2-DISP-03 | API ready (18 Oct 2026): `POST /rides/{ride}/dispute`, `GET /disputes`, `GET /disputes/{id}`. A `safety_concern` goes to the Safety team. If the passenger also reported the trip, both cases are handled by the same reviewer. See FRONTEND_UPDATE_ADVANCED_DISPUTES.md |
+| FE2-DDIS-02 | `[ ]` Build "Add evidence" on an open report | P-27 | 📡 BE2-DISP-03 | `POST /disputes/{id}/evidence` (multipart `files[]`, `captions[]`); show while `can_add_evidence` |
+| FE2-DDIS-03 | `[ ]` Build "Appeal this decision" and the `dispute_update` push handler | P-27 | 📡 BE2-DISP-10, BE2-DISP-12 | `POST /disputes/{id}/appeal` while `appeal.can_appeal`; data has `dispute_id` |
+
+---
+
+## 9. Open Questions
 
 | # | Question | Affects | Status |
 |---|----------|---------|--------|
@@ -208,8 +221,8 @@
 | Section | Tasks |
 |---------|-------|
 | Phase 1 | 48 |
-| Phase 2 | 9 |
-| **Total** | **57** |
+| Phase 2 | 12 |
+| **Total** | **60** |
 
 ---
 

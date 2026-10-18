@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminCityVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminCommissionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
+use App\Http\Controllers\Api\V1\Admin\AdminDisputeRefundRequestController;
+use App\Http\Controllers\Api\V1\Admin\AdminDisputeSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
@@ -43,6 +45,7 @@ use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\DisputeController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
 use App\Http\Controllers\Api\V1\Driver\DriverActiveRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverComplianceController;
@@ -70,7 +73,6 @@ use App\Http\Controllers\Api\V1\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\Passenger\BalanceDueController;
 use App\Http\Controllers\Api\V1\Passenger\NearbyDriversController;
 use App\Http\Controllers\Api\V1\Passenger\PassengerActiveRideController;
-use App\Http\Controllers\Api\V1\Passenger\PassengerDisputeController;
 use App\Http\Controllers\Api\V1\Passenger\ProfileController;
 use App\Http\Controllers\Api\V1\Passenger\SavedPlaceController;
 use App\Http\Controllers\Api\V1\Passenger\WalletController;
@@ -297,6 +299,18 @@ Route::middleware(['auth:sanctum', 'user.type:passenger,driver'])->prefix('lost-
 
 /*
 |--------------------------------------------------------------------------
+| Disputes (Authenticated — the reporter, passenger or driver)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum', 'user.type:passenger,driver'])->prefix('disputes')->group(function () {
+    Route::get('/', [DisputeController::class, 'index']);
+    Route::get('/{dispute}', [DisputeController::class, 'show']);
+    Route::post('/{dispute}/evidence', [DisputeController::class, 'storeEvidence'])->middleware('throttle:10,1');
+    Route::post('/{dispute}/appeal', [DisputeController::class, 'appeal'])->middleware('throttle:5,1');
+});
+
+/*
+|--------------------------------------------------------------------------
 | SOS Routes (Authenticated — ride participant)
 |--------------------------------------------------------------------------
 */
@@ -334,9 +348,10 @@ Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('passenger')-
         Route::get('/topup/{reference}/verify', [WalletTopupController::class, 'verify']);
     });
 
+    // Same as /disputes; kept for older passenger apps.
     Route::prefix('disputes')->group(function () {
-        Route::get('/', [PassengerDisputeController::class, 'index']);
-        Route::get('/{dispute}', [PassengerDisputeController::class, 'show']);
+        Route::get('/', [DisputeController::class, 'index']);
+        Route::get('/{dispute}', [DisputeController::class, 'show']);
     });
 });
 
@@ -584,10 +599,15 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{flag}/confirm-deactivation', [AdminOfflineFlagController::class, 'confirmDeactivation']);
     });
 
-    Route::middleware('admin.role:support')->prefix('disputes')->group(function () {
+    // Tier 1 support, tier 2 support_lead, Safety; tier 3 is super admin (OQ-21).
+    Route::middleware('admin.role:support,support_lead,safety_operator')->prefix('disputes')->group(function () {
         Route::get('/', [AdminDisputeController::class, 'index']);
         Route::get('/{dispute}', [AdminDisputeController::class, 'show']);
         Route::patch('/{dispute}/status', [AdminDisputeController::class, 'updateStatus']);
+        Route::post('/{dispute}/assign', [AdminDisputeController::class, 'assign']);
+        Route::delete('/{dispute}/assign', [AdminDisputeController::class, 'unassign']);
+        Route::post('/{dispute}/escalate', [AdminDisputeController::class, 'escalate']);
+        Route::post('/{dispute}/deescalate', [AdminDisputeController::class, 'deescalate']);
         Route::post('/{dispute}/resolve', [AdminDisputeController::class, 'resolve']);
         Route::get('/{dispute}/notes', [AdminDisputeNoteController::class, 'index']);
         Route::post('/{dispute}/notes', [AdminDisputeNoteController::class, 'store']);
@@ -595,13 +615,25 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::delete('/{dispute}/notes/{note}', [AdminDisputeNoteController::class, 'destroy']);
     });
 
-    Route::middleware('admin.role:support,operations')->prefix('lost-items')->group(function () {
+    // Refunds above the deciding admin's limit, or back to the card (Finance).
+    Route::middleware('admin.role:support,support_lead,safety_operator,finance')->prefix('dispute-refund-requests')->group(function () {
+        Route::get('/', [AdminDisputeRefundRequestController::class, 'index']);
+        Route::post('/{refundRequest}/approve', [AdminDisputeRefundRequestController::class, 'approve']);
+        Route::post('/{refundRequest}/reject', [AdminDisputeRefundRequestController::class, 'reject']);
+    });
+
+    Route::middleware('admin.role:super_admin')->group(function () {
+        Route::get('/settings/disputes', [AdminDisputeSettingsController::class, 'show']);
+        Route::put('/settings/disputes', [AdminDisputeSettingsController::class, 'update']);
+    });
+
+    Route::middleware('admin.role:support,support_lead,operations')->prefix('lost-items')->group(function () {
         Route::get('/', [AdminLostItemController::class, 'index']);
         Route::get('/{lostItem}', [AdminLostItemController::class, 'show']);
         Route::post('/{lostItem}/intervene', [AdminLostItemController::class, 'intervene']);
     });
 
-    Route::middleware('admin.role:support,safety_operator')->prefix('passengers')->group(function () {
+    Route::middleware('admin.role:support,support_lead,safety_operator')->prefix('passengers')->group(function () {
         Route::get('/', [AdminPassengerController::class, 'index']);
         Route::get('/{passenger}', [AdminPassengerController::class, 'show']);
         Route::get('/{passenger}/trips', [AdminPassengerController::class, 'tripHistory']);
@@ -625,7 +657,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     // ── Wallet & Ledger Administration ──
 
     // Operations and Support can look; only Finance can freeze or unfreeze.
-    Route::middleware('admin.role:finance,support,operations')->prefix('wallets')->group(function () {
+    Route::middleware('admin.role:finance,support,support_lead,operations')->prefix('wallets')->group(function () {
         Route::get('/', [AdminWalletController::class, 'index']);
         Route::get('/{account}', [AdminWalletController::class, 'show']);
         Route::get('/{account}/transactions', [AdminWalletController::class, 'transactions']);
@@ -634,7 +666,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{account}/unfreeze', [AdminWalletController::class, 'unfreeze'])->middleware('admin.role:finance');
     });
 
-    Route::middleware('admin.role:finance,support')->prefix('driver-ledgers')->group(function () {
+    Route::middleware('admin.role:finance,support,support_lead')->prefix('driver-ledgers')->group(function () {
         Route::get('/', [AdminDriverLedgerController::class, 'index']);
         Route::get('/{account}', [AdminDriverLedgerController::class, 'show']);
     });
@@ -661,7 +693,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     });
 
     // Driver payout bank accounts: name-check review queue and payout holds.
-    Route::middleware('admin.role:finance,support')->prefix('payout-accounts')->group(function () {
+    Route::middleware('admin.role:finance,support,support_lead')->prefix('payout-accounts')->group(function () {
         Route::get('/', [AdminPayoutAccountController::class, 'index']);
         Route::get('/{bankAccount}', [AdminPayoutAccountController::class, 'show']);
         Route::post('/{bankAccount}/approve', [AdminPayoutAccountController::class, 'approve'])->middleware('admin.role:finance');
@@ -673,7 +705,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{ride}/refund', [AdminRefundController::class, 'refundToWallet']);
     });
 
-    Route::middleware('admin.role:finance,support')->prefix('balances-due')->group(function () {
+    Route::middleware('admin.role:finance,support,support_lead')->prefix('balances-due')->group(function () {
         Route::get('/', [AdminBalanceDueController::class, 'index']);
         Route::post('/{balanceDue}/waive', [AdminBalanceDueController::class, 'waive'])->middleware('admin.role:finance');
     });

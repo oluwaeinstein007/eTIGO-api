@@ -7,13 +7,20 @@ use App\Http\Resources\DisputeNoteResource;
 use App\Models\AuditLog;
 use App\Models\Dispute;
 use App\Models\DisputeNote;
+use App\Services\DisputeAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminDisputeNoteController extends Controller
 {
-    public function index(Dispute $dispute): JsonResponse
+    public function __construct(private DisputeAccess $access) {}
+
+    public function index(Request $request, Dispute $dispute): JsonResponse
     {
+        if ($denied = $this->denyUnlessVisible($request, $dispute)) {
+            return $denied;
+        }
+
         $notes = $dispute->notes()
             ->with('admin')
             ->latest()
@@ -32,6 +39,10 @@ class AdminDisputeNoteController extends Controller
 
     public function store(Request $request, Dispute $dispute): JsonResponse
     {
+        if ($denied = $this->denyUnlessVisible($request, $dispute)) {
+            return $denied;
+        }
+
         $request->validate([
             'content' => ['required', 'string', 'max:2000'],
         ]);
@@ -55,6 +66,10 @@ class AdminDisputeNoteController extends Controller
 
     public function update(Request $request, Dispute $dispute, DisputeNote $note): JsonResponse
     {
+        if ($denied = $this->denyUnlessVisible($request, $dispute)) {
+            return $denied;
+        }
+
         if ($note->dispute_id !== $dispute->id) {
             return response()->json(['message' => 'Note does not belong to this dispute.'], 404);
         }
@@ -72,8 +87,12 @@ class AdminDisputeNoteController extends Controller
         ]);
     }
 
-    public function destroy(Dispute $dispute, DisputeNote $note): JsonResponse
+    public function destroy(Request $request, Dispute $dispute, DisputeNote $note): JsonResponse
     {
+        if ($denied = $this->denyUnlessVisible($request, $dispute)) {
+            return $denied;
+        }
+
         if ($note->dispute_id !== $dispute->id) {
             return response()->json(['message' => 'Note does not belong to this dispute.'], 404);
         }
@@ -83,5 +102,15 @@ class AdminDisputeNoteController extends Controller
         return response()->json([
             'message' => 'Note deleted successfully.',
         ]);
+    }
+
+    /**
+     * Safety cases' notes are for the Safety team (and super admins) only.
+     */
+    private function denyUnlessVisible(Request $request, Dispute $dispute): ?JsonResponse
+    {
+        return $this->access->canView($request->user(), $dispute)
+            ? null
+            : response()->json(['message' => 'Safety cases are only visible to the Safety team.'], 403);
     }
 }
