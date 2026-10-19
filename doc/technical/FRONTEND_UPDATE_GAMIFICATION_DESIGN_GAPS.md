@@ -1,7 +1,7 @@
 # Gamification Design Gaps: Backend Changes
 
 **Date:** October 19, 2026  
-**Backend:** branch `feature/gamification-design-alignment`; live on staging once merged  
+**Backend:** PR #112 (`feature/gamification-design-alignment`); live on staging once merged  
 **Prepared for:** Admin dashboard team and designer (also read §4 if you work on the passenger app)
 
 This answers the three questions in "Gamification — Design vs Backend". One is a design change, one is a new API field, and for the multipliers both sides change so they match.
