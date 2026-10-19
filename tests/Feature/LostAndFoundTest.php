@@ -74,6 +74,11 @@ beforeEach(function () {
 
             return 'sms';
         }
+
+        public function sendOtp(string $phone, string $code, string $message): bool
+        {
+            return $this->send($phone, $message);
+        }
     };
     $this->app->instance(SmsGateway::class, $this->sms);
 

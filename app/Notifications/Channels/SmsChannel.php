@@ -8,7 +8,7 @@ use RuntimeException;
 
 /**
  * Sends a notification's toSms() text to the notifiable's phone (WhatsApp with
- * SMS fallback through Termii). It ignores notification preferences, so keep it
+ * SMS fallback through Sendchamp). It ignores notification preferences, so keep it
  * for security alerts the account holder must receive.
  */
 class SmsChannel

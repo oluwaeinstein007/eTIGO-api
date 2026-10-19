@@ -5,6 +5,7 @@ use App\Enums\UserType;
 use App\Models\City;
 use App\Models\OtpCode;
 use App\Models\User;
+use App\Services\OtpService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -14,7 +15,7 @@ beforeEach(function () {
 });
 
 it('sends an OTP to a valid phone number', function () {
-    $this->smsGateway->shouldReceive('send')->never();
+    $this->smsGateway->shouldReceive('sendOtp')->never();
 
     $response = $this->postJson('/api/v1/auth/otp/send', [
         'phone' => '+2341234567890',
@@ -40,7 +41,7 @@ it('rejects OTP request with invalid phone format', function () {
 });
 
 it('rate limits OTP requests within cooldown period', function () {
-    $this->smsGateway->shouldReceive('send')->never();
+    $this->smsGateway->shouldReceive('sendOtp')->never();
 
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890']);
 
@@ -246,4 +247,39 @@ it('allows authenticated user to logout', function () {
         ->assertJson(['message' => 'Logged out successfully.']);
 
     $this->assertDatabaseCount('personal_access_tokens', 0);
+});
+
+it('sends a random code with readable SMS text in production', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+
+    $this->smsGateway->shouldReceive('sendOtp')->once()
+        ->withArgs(fn (string $phone, string $code, string $message) => $phone === '+2341234567890'
+            && preg_match('/^\d{6}$/', $code) === 1
+            && $message === "Your E-tiGo verification code is {$code}. It expires in 5 minutes. Do not share it with anyone.")
+        ->andReturnTrue();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890'])
+        ->assertOk()
+        ->assertJson(['message' => 'Verification code sent.']);
+});
+
+it('names the bank account change in that code\'s text', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+
+    $this->smsGateway->shouldReceive('sendOtp')->once()
+        ->withArgs(fn (string $phone, string $code, string $message) => str_starts_with($message, "Your E-tiGo code to change your payout bank account is {$code}."))
+        ->andReturnTrue();
+
+    expect(app(OtpService::class)->sendAuthOtp('+2341234567890', 'bank_account_change')['sent'])->toBeTrue();
+});
+
+it('expires the code when no channel accepts it', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+    $this->smsGateway->shouldReceive('sendOtp')->once()->andReturnFalse();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890'])
+        ->assertStatus(429)
+        ->assertJson(['message' => 'Failed to send verification code. Please try again.']);
+
+    expect(OtpCode::forPhone('+2341234567890')->active()->exists())->toBeFalse();
 });

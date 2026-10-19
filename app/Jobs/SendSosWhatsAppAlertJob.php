@@ -28,7 +28,7 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
             return;
         }
 
-        if (! config('services.termii.api_key')) {
+        if (! config('services.sendchamp.access_key')) {
             Log::warning('SOS alert skipped — no messaging gateway configured', [
                 'incident_id' => $this->incidentId,
             ]);
@@ -36,7 +36,7 @@ class SendSosWhatsAppAlertJob implements ShouldQueue
             return;
         }
 
-        $safetyNumber = config('services.termii.safety_number');
+        $safetyNumber = config('sos.safety_number');
         if (! $safetyNumber) {
             Log::warning('SOS alert skipped — no safety number configured', [
                 'incident_id' => $this->incidentId,

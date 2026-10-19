@@ -33,5 +33,6 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="KYC_SKIP_VERIFICATION" value="false"/>
+        <env name="SENDCHAMP_ACCESS_KEY" value=""/>
     </php>
 </phpunit>

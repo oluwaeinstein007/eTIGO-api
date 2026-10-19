@@ -67,7 +67,7 @@ class OtpService
         ]);
 
         if (! $useStaticOtp) {
-            $sent = $this->smsGateway->send($phone, $plainCode);
+            $sent = $this->smsGateway->sendOtp($phone, $plainCode, $this->authOtpMessage($plainCode, $purpose));
 
             if (! $sent) {
                 $otp->update(['expires_at' => now()]);
@@ -179,6 +179,21 @@ class OtpService
         $otpCode->markAsVerified();
 
         return ['valid' => true, 'otp' => $otpCode->fresh(), 'error' => null];
+    }
+
+    /**
+     * The SMS text. It names what the code is for, so a code someone tricks
+     * a user into reading out is recognisable. Plain ASCII keeps it to one
+     * SMS part.
+     */
+    private function authOtpMessage(string $code, string $purpose): string
+    {
+        $what = match ($purpose) {
+            'bank_account_change' => 'code to change your payout bank account',
+            default => 'verification code',
+        };
+
+        return "Your E-tiGo {$what} is {$code}. It expires in ".self::AUTH_OTP_EXPIRY_MINUTES.' minutes. Do not share it with anyone.';
     }
 
     private function generateCode(int $length): string

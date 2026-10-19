@@ -8,4 +8,6 @@ return [
     // Shown on the public trip-tracking page and in third-party rider messages.
     'emergency_number' => env('SOS_EMERGENCY_NUMBER', '112'),
     'safety_line' => env('ETIGO_SAFETY_LINE', env('ETIGO_SAFETY_NUMBER')),
+    // The safety desk's phone; SOS alerts go here by WhatsApp, then SMS.
+    'safety_number' => env('ETIGO_SAFETY_NUMBER'),
 ];

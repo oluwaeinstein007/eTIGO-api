@@ -4,30 +4,43 @@ This document lists what the development team needs from you (the client / busin
 
 ---
 
-## 1. Termii (for OTP & SOS alert delivery)
+## 1. Sendchamp (OTP codes, alerts and rider messages)
 
-We use Termii to send one-time verification codes and SOS emergency alerts via WhatsApp, with automatic SMS fallback if WhatsApp delivery fails.
+We use [Sendchamp](https://my.sendchamp.com) to send verification codes, SOS alerts, payout-account alerts, Lost & Found texts and messages to riders booked by someone else. Each message goes by **WhatsApp first** and falls back to **SMS** automatically if WhatsApp cannot deliver it.
+
+The account **EtiGo Rides** is already connected (the dev team has the access key). What is still needed:
 
 ### What you need to do
 
-1. **Create a Termii account** at [termii.com](https://termii.com).
-2. **Register a Sender ID** — this is the name that appears as the sender for SMS messages (e.g. `Etigo`). Go to your Termii dashboard → Sender ID → Request a Sender ID.
-3. **Enable WhatsApp channel** — in the Termii dashboard, set up your WhatsApp Business number for WhatsApp messaging.
-4. **Get your API key** — go to your Termii dashboard → Settings → API Key.
+1. **Fund the Sendchamp wallet.** Every SMS and WhatsApp message is paid from it. While the balance is ₦0, Sendchamp refuses every message, so customers cannot receive login codes. Keep it topped up (the dev team can check the balance with `php artisan sendchamp:status`).
+2. **Get the SMS sender name `Etigo` approved.** This is the name customers see on SMS. In the dashboard go to **SMS → Sender ID** and request `Etigo` (use case: *Transactional*), or ask the dev team to submit it for you. Approval can take a few days; until then SMS goes out under Sendchamp's default name, `Sendchamp`.
+3. **Connect a WhatsApp number.** In the dashboard go to **WhatsApp → Overview** and connect E-tiGo's WhatsApp Business number. (For testing, Sendchamp's shared number `2348120678278` can be used.)
+4. **Create two WhatsApp templates** under the WhatsApp channel and wait for Meta to approve them. WhatsApp only allows businesses to start a conversation with an approved template, so without these everything goes by SMS.
+
+   | Template | Category | Suggested text |
+   |---|---|---|
+   | Verification code | **Authentication** | `{{1}} is your E-tiGo verification code. For your security, do not share this code.` |
+   | Notifications | **Utility** | `E-tiGo update: {{1}} This is an automated message from E-tiGo.` |
+
+   Each template must have exactly **one** variable, `{{1}}`. The code goes into the first one; the whole message (driver details, alerts and so on) goes into the second. Keep some fixed text before and after `{{1}}`, because Meta rejects templates that start or end with a variable.
+5. **Leave the Webhook URL empty** for now. The platform does not read delivery reports yet.
 
 ### What to send the dev team
 
 | Variable | Where to find it |
 |---|---|
-| `TERMII_API_KEY` | Termii Dashboard → Settings → API Key |
-| `TERMII_SENDER_ID` | The Sender ID you registered (default: `Etigo`) |
-| `ETIGO_SAFETY_NUMBER` | The phone number for SOS emergency alerts (E.164 format, e.g. `+234...`) |
+| `SENDCHAMP_SENDER_NAME` | `Etigo`, once approved (until then `Sendchamp`) |
+| `SENDCHAMP_WHATSAPP_SENDER` | The WhatsApp number connected in step 3 (international format, e.g. `2348012345678`) |
+| `SENDCHAMP_WHATSAPP_OTP_TEMPLATE` | The **template code** of the verification-code template (WhatsApp → Templates) |
+| `SENDCHAMP_WHATSAPP_TEMPLATE` | The **template code** of the notifications template |
+| `ETIGO_SAFETY_NUMBER` | The phone number that receives SOS emergency alerts (E.164 format, e.g. `+234...`) |
 
 ### How delivery works
 
-- **OTP codes** are sent via WhatsApp first. If WhatsApp delivery fails, the system automatically retries via SMS.
-- **SOS emergency alerts** follow the same WhatsApp-first, SMS-fallback pattern and are sent to the configured safety number.
-- In **non-production** environments (local, staging, testing), OTP is always `123456` and no messages are sent.
+- **Login and bank-account codes** go by WhatsApp (verification-code template) first, then by SMS. The SMS reads: *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."*
+- **SOS alerts, payout-account alerts, Lost & Found texts and rider messages** go by WhatsApp (notifications template) first, then by SMS.
+- SMS uses the DND route, so it also reaches numbers registered on the NCC Do-Not-Disturb list.
+- In **non-production** environments (local, staging, testing), the login code is always `123456` and no code is sent. Other messages are sent when a Sendchamp key is set.
 
 ---
 
@@ -92,9 +105,12 @@ We use Termii to send one-time verification codes and SOS emergency alerts via W
 ## Summary — All env values needed
 
 ```env
-# Termii (WhatsApp + SMS fallback)
-TERMII_API_KEY=your_termii_api_key
-TERMII_SENDER_ID=Etigo
+# Sendchamp (WhatsApp templates + SMS fallback)
+SENDCHAMP_ACCESS_KEY=already_set_by_dev_team
+SENDCHAMP_SENDER_NAME=Etigo
+SENDCHAMP_WHATSAPP_SENDER=2348xxxxxxxxx
+SENDCHAMP_WHATSAPP_OTP_TEMPLATE=your_otp_template_code
+SENDCHAMP_WHATSAPP_TEMPLATE=your_notification_template_code
 ETIGO_SAFETY_NUMBER=+234xxxxxxxxxx
 
 # Google
