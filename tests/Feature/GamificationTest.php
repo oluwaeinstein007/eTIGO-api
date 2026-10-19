@@ -5,6 +5,7 @@ use App\Enums\MultiplierConditionType;
 use App\Enums\TierLevel;
 use App\Enums\UserType;
 use App\Events\TierUpgraded;
+use App\Http\Resources\GamificationResource;
 use App\Jobs\CalculateCarbonScoreJob;
 use App\Models\City;
 use App\Models\GamificationProfile;
@@ -184,6 +185,20 @@ describe('TierGateService', function () {
             ->and($benefits['priority_matching'])->toBeFalse()
             ->and($benefits['booking_fee_discount_pct'])->toBe(0.0);
     });
+
+    it('keeps exclusive promotions for a silver user whose tier config is missing', function () {
+        GamificationProfile::create([
+            'user_id' => $this->passenger->id,
+            'total_ranking_points' => 600,
+            'current_tier' => TierLevel::Silver->value,
+        ]);
+        TierConfig::query()->delete();
+
+        $gate = app(TierGateService::class);
+
+        expect($gate->getUserBenefits($this->passenger->id)['exclusive_promotions'])->toBeTrue()
+            ->and($gate->qualifiesForTierPromo($this->passenger->id, TierLevel::Silver->value))->toBeTrue();
+    });
 });
 
 describe('CalculateCarbonScoreJob', function () {
@@ -252,6 +267,27 @@ describe('GET /gamification', function () {
                     'progress_to_next_tier', 'points_to_next_tier', 'next_tier',
                 ],
             ]);
+    });
+
+    it('still returns benefits when the tier config is missing', function () {
+        GamificationProfile::create([
+            'user_id' => $this->passenger->id,
+            'total_ranking_points' => 600,
+            'current_tier' => TierLevel::Silver->value,
+        ]);
+        TierConfig::query()->delete();
+        $forgetCachedTiers = Closure::bind(static fn () => self::$tierConfigCache = null, null, GamificationResource::class);
+
+        $forgetCachedTiers();
+        $response = $this->getJson('/api/v1/gamification', [
+            'Authorization' => "Bearer {$this->passengerToken}",
+        ]);
+        $forgetCachedTiers();
+
+        $response->assertOk()
+            ->assertJsonPath('gamification.benefits.booking_fee_discount_pct', 0)
+            ->assertJsonPath('gamification.benefits.priority_matching', false)
+            ->assertJsonPath('gamification.benefits.exclusive_promotions', true);
     });
 });
 

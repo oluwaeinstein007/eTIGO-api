@@ -32,7 +32,9 @@ class TierGateService
     /**
      * Whether the user can use a promo limited to $minTierLevel and up (G-07).
      * A Bronze minimum is open to everyone; above that the user's tier must
-     * reach the minimum and have exclusive promotions switched on.
+     * reach the minimum and have exclusive promotions switched on. Tier
+     * configs are seeded on every deploy; if the user's tier has no row, the
+     * tier's default applies, so the minimum alone decides.
      */
     public function qualifiesForTierPromo(string $userId, ?int $minTierLevel): bool
     {
@@ -46,8 +48,8 @@ class TierGateService
             return false;
         }
 
-        // Tier configs are seeded on every deploy; without one, the minimum alone decides.
-        return TierConfig::forLevel($userTier)?->exclusive_promotions_enabled ?? true;
+        return TierConfig::forLevel($userTier)?->exclusive_promotions_enabled
+            ?? TierLevel::from($userTier)->hasExclusivePromotionsByDefault();
     }
 
     public function getUserTierLevel(string $userId): int
@@ -58,6 +60,9 @@ class TierGateService
     }
 
     /**
+     * Without a tier config row the user gets Bronze benefits, except that
+     * exclusive promotions follow their tier's default, as in qualifiesForTierPromo().
+     *
      * @return array{tier_level: int, tier_name: string, priority_matching: bool, booking_fee_discount_pct: float, ev_fee_waived: bool, exclusive_promotions: bool}
      */
     public function getUserBenefits(string $userId): array
@@ -71,7 +76,7 @@ class TierGateService
                 'priority_matching' => false,
                 'booking_fee_discount_pct' => 0.0,
                 'ev_fee_waived' => false,
-                'exclusive_promotions' => false,
+                'exclusive_promotions' => TierLevel::from($this->getUserTierLevel($userId))->hasExclusivePromotionsByDefault(),
             ];
         }
 
