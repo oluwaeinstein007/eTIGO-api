@@ -267,6 +267,37 @@ describe('Driver Repair Listing and Detail Retrieval', function () {
             ->assertJsonPath('repair.attachments.0.file_type', 'PDF');
     });
 
+    it('shortens long attachment filename when no custom title is provided', function () {
+        Storage::fake(config('filesystems.uploads'));
+
+        $repair = DriverRepair::create([
+            'driver_id' => $this->driverUser->id,
+            'vehicle_id' => $this->vehicle->id,
+            'reference_number' => 'REP-1054',
+            'type' => RepairServiceType::Repair,
+            'status' => RepairRequestStatus::InProgress,
+            'title' => 'Front brake noise',
+            'details' => 'Squeaking brake',
+            'preferred_date' => now()->toDateString(),
+            'preferred_time' => '12:00 pm',
+            'attachments' => [],
+        ]);
+
+        $longName = 'scaled_27cf5402-d04b-404e-8392-f5b051cf25f03064928594629941471.jpg';
+        $file = UploadedFile::fake()->image($longName);
+
+        $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->post("/api/v1/driver/repairs/{$repair->id}/attachments", [
+                'attachment' => $file,
+            ]);
+
+        $response->assertCreated();
+        $title = $response->json('attachment.title');
+        expect(strlen($title))->toBeLessThanOrEqual(24);
+        expect($title)->toContain('scaled_');
+        expect($title)->toEndWith('.jpg');
+    });
+
     it('adds an attachment to an existing repair request', function () {
         Storage::fake(config('filesystems.uploads'));
 

@@ -200,7 +200,8 @@ class DriverRepairController extends Controller
         $isPdf = $extension === 'pdf';
         $fileType = strtoupper($extension ?: ($isPdf ? 'PDF' : 'JPG'));
         $originalName = $file->getClientOriginalName();
-        $title = $customTitle ?: ($isPdf ? (pathinfo($originalName, PATHINFO_FILENAME) ?: 'Document') : ($originalName ?: 'Photo attachment'));
+        $rawTitle = $isPdf ? (pathinfo($originalName, PATHINFO_FILENAME) ?: 'Document') : ($originalName ?: 'Photo attachment');
+        $title = $customTitle ?: $this->shortenFileName($rawTitle);
         $subtitle = $isPdf ? 'PDF · Document attached' : "{$fileType} · Image attached";
 
         return [
@@ -212,5 +213,29 @@ class DriverRepairController extends Controller
             'file_url' => $this->resolveUploadUrl($path),
             'created_at' => now()->toIso8601String(),
         ];
+    }
+
+    private function shortenFileName(string $name, int $maxLength = 24): string
+    {
+        if (mb_strlen($name) <= $maxLength) {
+            return $name;
+        }
+
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $dotExt = $extension ? '.' . $extension : '';
+        $baseName = pathinfo($name, PATHINFO_FILENAME);
+
+        if ($dotExt && mb_strlen($dotExt) < $maxLength - 3) {
+            $available = $maxLength - mb_strlen($dotExt) - 3;
+            $prefixLen = (int) ceil($available * 0.6);
+            $suffixLen = $available - $prefixLen;
+
+            $prefix = mb_substr($baseName, 0, $prefixLen);
+            $suffix = $suffixLen > 0 ? mb_substr($baseName, -$suffixLen) : '';
+
+            return "{$prefix}...{$suffix}{$dotExt}";
+        }
+
+        return mb_substr($name, 0, $maxLength - 3) . '...';
     }
 }
