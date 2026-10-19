@@ -78,7 +78,7 @@ In **local**, **staging**, and **testing** environments, all OTP codes are set t
 1. `POST /auth/otp/send` with any valid phone number → returns success immediately
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
-This static OTP is **disabled in production** — production always generates random codes and sends via WhatsApp (with SMS fallback).
+This static OTP is **disabled in production** — production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
 
 ### Dual Account Support
 
@@ -112,12 +112,9 @@ POST /auth/otp/send
 }
 ```
 
-**Response 429:**
-```json
-{
-  "message": "Please wait before requesting another code."
-}
-```
+**Response 429:** `"Please wait before requesting another code."` (60-second cooldown), or `"Failed to send verification code. Please try again."` when neither WhatsApp nor SMS accepted the code (production only; the code is cancelled, so request a new one).
+
+The code goes by WhatsApp (approved OTP template) first, then by SMS, through Sendchamp. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."*
 
 ---
 
@@ -6945,7 +6942,7 @@ The driver's ride offer (`ride.request.dispatched`) and the driver's scheduled-r
 
 Retrying a third-party ride that found no driver (`POST /rides/{ride}/rebroadcast`) is refused with `422` on `ride` when the booker already has `max_active_per_booker` third-party rides on the road.
 
-**Environments without a messaging provider** (no `TERMII_API_KEY`) count rider messages as not delivered, so after the retries the booker is shown the PIN (`failed`). A message that cannot even be queued goes straight to `failed`. A PIN past its 6-hour life is issued again before the driver-details message is sent.
+**Environments without a messaging provider** (no `SENDCHAMP_ACCESS_KEY`) count rider messages as not delivered, so after the retries the booker is shown the PIN (`failed`). A message that cannot even be queued goes straight to `failed`. A PIN past its 6-hour life is issued again before the driver-details message is sent.
 
 **Safety.** The booker's in-app SOS works for the rider's trip. The incident's telemetry carries `third_party_rider` (`name`, `phone`), `triggered_by_booker`, the booker's own position (`reporter_gps`) and `gps_source`. When the booker raises the SOS, the incident's `gps_lat` and `gps_lng` are the **car's** live position (if it is under 2 minutes old), not the booker's. The WhatsApp alert to the safety desk names the rider and the booker. The tracking page shows a "Call 112" button and the safety line.
 
@@ -12717,7 +12714,7 @@ POST /driver/bank-account/otp
 Authorization: Bearer {driver_token}
 ```
 
-Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `123456` in local/staging). The code is required to **add or replace** the payout account, including the first one, so a stolen session cannot direct payouts to another account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
+Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback through Sendchamp; always `123456` in local/staging). The SMS names its purpose: *"Your E-tiGo code to change your payout bank account is 482910. It expires in 5 minutes. Do not share it with anyone."* The code is required to **add or replace** the payout account, including the first one, so a stolen session cannot direct payouts to another account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
 
 **Response 200:**
 ```json
@@ -12728,7 +12725,7 @@ Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback; always `
 ```
 
 **Response 422:** `"Add a phone number to your account before adding bank details."`
-**Response 429:** `"Please wait before requesting another code."`
+**Response 429:** `"Please wait before requesting another code."`, or `"Failed to send verification code. Please try again."` when neither WhatsApp nor SMS accepted the code.
 
 ### Add Bank Account
 

@@ -35,12 +35,21 @@ return [
         ],
     ],
 
-    'termii' => [
-        'api_key' => env('TERMII_API_KEY'),
-        'sender_id' => env('TERMII_SENDER_ID', 'Etigo'),
-        'whatsapp_from' => env('TERMII_WHATSAPP_FROM', env('TERMII_SENDER_ID', 'Etigo')),
-        'base_url' => env('TERMII_BASE_URL', 'https://api.ng.termii.com'),
-        'safety_number' => env('ETIGO_SAFETY_NUMBER'),
+    // Sendchamp sends WhatsApp (approved templates only) with SMS fallback.
+    // WhatsApp is skipped until both the sender number and the template code
+    // for the message are set; SMS needs a Sendchamp-approved sender name.
+    'sendchamp' => [
+        'access_key' => env('SENDCHAMP_ACCESS_KEY'),
+        'base_url' => env('SENDCHAMP_BASE_URL', 'https://api.sendchamp.com/api/v1'),
+        'sender_name' => env('SENDCHAMP_SENDER_NAME', 'Sendchamp'),
+        // dnd also reaches numbers on the NCC Do-Not-Disturb list, which OTPs need.
+        // Numbers outside Nigeria always use the international route.
+        'sms_route' => env('SENDCHAMP_SMS_ROUTE', 'dnd'),
+        'whatsapp_sender' => env('SENDCHAMP_WHATSAPP_SENDER'),
+        // Authentication template; body variable {{1}} is the code.
+        'whatsapp_otp_template' => env('SENDCHAMP_WHATSAPP_OTP_TEMPLATE'),
+        // Utility template; body variable {{1}} is the whole message.
+        'whatsapp_template' => env('SENDCHAMP_WHATSAPP_TEMPLATE'),
     ],
 
     'google' => [

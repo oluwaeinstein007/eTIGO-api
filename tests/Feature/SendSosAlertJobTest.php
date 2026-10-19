@@ -32,8 +32,8 @@ beforeEach(function () {
 describe('SendSosWhatsAppAlertJob', function () {
     it('sends alert to safety number via gateway', function () {
         config([
-            'services.termii.api_key' => 'test-key',
-            'services.termii.safety_number' => '+2348012345678',
+            'services.sendchamp.access_key' => 'test-key',
+            'sos.safety_number' => '+2348012345678',
         ]);
 
         $gateway = Mockery::mock(SmsGateway::class);
@@ -51,8 +51,8 @@ describe('SendSosWhatsAppAlertJob', function () {
 
     it('includes incident details in alert body', function () {
         config([
-            'services.termii.api_key' => 'test-key',
-            'services.termii.safety_number' => '+2348012345678',
+            'services.sendchamp.access_key' => 'test-key',
+            'sos.safety_number' => '+2348012345678',
         ]);
 
         $capturedMessage = null;
@@ -80,8 +80,8 @@ describe('SendSosWhatsAppAlertJob', function () {
 
     it('throws exception on delivery failure for retry', function () {
         config([
-            'services.termii.api_key' => 'test-key',
-            'services.termii.safety_number' => '+2348012345678',
+            'services.sendchamp.access_key' => 'test-key',
+            'sos.safety_number' => '+2348012345678',
         ]);
 
         $gateway = Mockery::mock(SmsGateway::class);
@@ -94,8 +94,8 @@ describe('SendSosWhatsAppAlertJob', function () {
 
     it('skips when no api key is configured', function () {
         config([
-            'services.termii.api_key' => null,
-            'services.termii.safety_number' => '+2348012345678',
+            'services.sendchamp.access_key' => null,
+            'sos.safety_number' => '+2348012345678',
         ]);
 
         Log::shouldReceive('warning')
@@ -111,8 +111,8 @@ describe('SendSosWhatsAppAlertJob', function () {
 
     it('skips when no safety number is configured', function () {
         config([
-            'services.termii.api_key' => 'test-key',
-            'services.termii.safety_number' => null,
+            'services.sendchamp.access_key' => 'test-key',
+            'sos.safety_number' => null,
         ]);
 
         Log::shouldReceive('warning')
@@ -128,8 +128,8 @@ describe('SendSosWhatsAppAlertJob', function () {
 
     it('returns silently when incident does not exist', function () {
         config([
-            'services.termii.api_key' => 'test-key',
-            'services.termii.safety_number' => '+2348012345678',
+            'services.sendchamp.access_key' => 'test-key',
+            'sos.safety_number' => '+2348012345678',
         ]);
 
         $gateway = Mockery::mock(SmsGateway::class);

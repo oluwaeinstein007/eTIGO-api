@@ -98,7 +98,7 @@ These work as normal scheduled rides. The rider also gets a reminder before pick
 
 ## Testing on staging
 
-Without a messaging provider (no Termii key), the backend counts every rider message as **not delivered**. After about a minute, `rider_notification_status` becomes `failed` and the booker is shown the PIN and tracking. This is the same fallback as a real delivery failure, so on such an environment you can test the "rider not reached" flow, but you will not see `sent_whatsapp`.
+Without a messaging provider (no Sendchamp key), the backend counts every rider message as **not delivered**. After about a minute, `rider_notification_status` becomes `failed` and the booker is shown the PIN and tracking. This is the same fallback as a real delivery failure, so on such an environment you can test the "rider not reached" flow, but you will not see `sent_whatsapp`.
 
 ## Rider Tracking Page (web)
 

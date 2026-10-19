@@ -28,4 +28,9 @@ class LogSmsGateway implements SmsGateway
 
         return null;
     }
+
+    public function sendOtp(string $phone, string $code, string $message): bool
+    {
+        return $this->send($phone, $message);
+    }
 }
