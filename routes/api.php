@@ -473,6 +473,8 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::get('/', [DriverRepairController::class, 'index']);
         Route::post('/', [DriverRepairController::class, 'store']);
         Route::get('/{repair}', [DriverRepairController::class, 'show']);
+        Route::post('/{repair}/attachments', [DriverRepairController::class, 'storeAttachment']);
+        Route::delete('/{repair}/attachments/{attachmentId}', [DriverRepairController::class, 'destroyAttachment']);
     });
 });
 

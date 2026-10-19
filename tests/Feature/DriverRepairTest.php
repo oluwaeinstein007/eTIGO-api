@@ -9,6 +9,8 @@ use App\Models\Driver;
 use App\Models\DriverRepair;
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     $this->city = City::factory()->create();
@@ -214,6 +216,162 @@ describe('Driver Repair Listing and Detail Retrieval', function () {
 
         $this->withHeader('Authorization', "Bearer {$this->driverToken}")
             ->getJson("/api/v1/driver/repairs/{$repair->id}")
+            ->assertForbidden();
+    });
+
+    it('submits a repair request with an uploaded photo attachment', function () {
+        Storage::fake(config('filesystems.uploads'));
+
+        $file = UploadedFile::fake()->image('brake_pads.jpg');
+
+        $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->post('/api/v1/driver/repairs', [
+                'type' => 'repair',
+                'title' => 'Front brake noise',
+                'details' => 'Squeaking sound coming from front left brake when coming to a halt.',
+                'preferred_date' => now()->addDays(2)->toDateString(),
+                'preferred_time' => '12:00 pm',
+                'photo' => $file,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('message', 'Vehicle service request submitted successfully.')
+            ->assertJsonCount(1, 'repair.attachments')
+            ->assertJsonPath('repair.attachments.0.title', 'brake_pads.jpg')
+            ->assertJsonPath('repair.attachments.0.file_type', 'JPG');
+
+        $repairId = $response->json('repair.id');
+        $repair = DriverRepair::findOrFail($repairId);
+        expect($repair->attachments)->toHaveCount(1);
+        Storage::disk(config('filesystems.uploads'))->assertExists($repair->attachments[0]['path']);
+    });
+
+    it('submits a repair request with an uploaded PDF document attachment', function () {
+        Storage::fake(config('filesystems.uploads'));
+
+        $file = UploadedFile::fake()->create('service_invoice.pdf', 120, 'application/pdf');
+
+        $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->post('/api/v1/driver/repairs', [
+                'type' => 'maintenance',
+                'title' => 'Scheduled inspection',
+                'details' => 'Please inspect invoice',
+                'preferred_date' => now()->addDays(3)->toDateString(),
+                'preferred_time' => '10:00 am',
+                'attachment' => $file,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonCount(1, 'repair.attachments')
+            ->assertJsonPath('repair.attachments.0.title', 'service_invoice')
+            ->assertJsonPath('repair.attachments.0.file_type', 'PDF');
+    });
+
+    it('adds an attachment to an existing repair request', function () {
+        Storage::fake(config('filesystems.uploads'));
+
+        $repair = DriverRepair::create([
+            'driver_id' => $this->driverUser->id,
+            'vehicle_id' => $this->vehicle->id,
+            'reference_number' => 'REP-1055',
+            'type' => RepairServiceType::Repair,
+            'status' => RepairRequestStatus::InProgress,
+            'title' => 'Front brake noise',
+            'details' => 'Squeaking brake',
+            'preferred_date' => now()->toDateString(),
+            'preferred_time' => '12:00 pm',
+            'attachments' => [],
+        ]);
+
+        $file = UploadedFile::fake()->image('wheel_damage.png');
+
+        $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->post("/api/v1/driver/repairs/{$repair->id}/attachments", [
+                'attachment' => $file,
+                'title' => 'Wheel damage photo',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('message', 'Attachment added successfully.')
+            ->assertJsonCount(1, 'repair.attachments')
+            ->assertJsonPath('attachment.title', 'Wheel damage photo')
+            ->assertJsonPath('attachment.file_type', 'PNG');
+
+        $repair->refresh();
+        expect($repair->attachments)->toHaveCount(1);
+        expect($repair->attachments[0]['title'])->toBe('Wheel damage photo');
+    });
+
+    it('removes an attachment from an existing repair request', function () {
+        Storage::fake(config('filesystems.uploads'));
+
+        $attachmentId = 'att-uuid-123';
+        $path = "repairs/{$this->driverUser->id}/test_photo.jpg";
+        Storage::disk(config('filesystems.uploads'))->put($path, 'sample-data');
+
+        $repair = DriverRepair::create([
+            'driver_id' => $this->driverUser->id,
+            'vehicle_id' => $this->vehicle->id,
+            'reference_number' => 'REP-1056',
+            'type' => RepairServiceType::Repair,
+            'status' => RepairRequestStatus::InProgress,
+            'title' => 'Front brake noise',
+            'details' => 'Squeaking brake',
+            'preferred_date' => now()->toDateString(),
+            'preferred_time' => '12:00 pm',
+            'attachments' => [
+                [
+                    'id' => $attachmentId,
+                    'title' => 'Photo attachment',
+                    'file_type' => 'JPG',
+                    'subtitle' => 'Photo attached',
+                    'path' => $path,
+                ],
+            ],
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$this->driverToken}")
+            ->deleteJson("/api/v1/driver/repairs/{$repair->id}/attachments/{$attachmentId}");
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Attachment removed successfully.')
+            ->assertJsonCount(0, 'repair.attachments');
+
+        $repair->refresh();
+        expect($repair->attachments)->toBeEmpty();
+        Storage::disk(config('filesystems.uploads'))->assertMissing($path);
+    });
+
+    it('prevents another driver from adding or removing attachments', function () {
+        $repair = DriverRepair::create([
+            'driver_id' => $this->driverUser->id,
+            'vehicle_id' => $this->vehicle->id,
+            'reference_number' => 'REP-1057',
+            'type' => RepairServiceType::Repair,
+            'status' => RepairRequestStatus::InProgress,
+            'title' => 'Front brake noise',
+            'details' => 'Squeaking brake',
+            'preferred_date' => now()->toDateString(),
+            'preferred_time' => '12:00 pm',
+            'attachments' => [
+                [
+                    'id' => 'att-999',
+                    'title' => 'Private doc',
+                    'file_type' => 'PDF',
+                ],
+            ],
+        ]);
+
+        $file = UploadedFile::fake()->image('hack.jpg');
+
+        $this->withHeader('Authorization', "Bearer {$this->otherDriverToken}")
+            ->post("/api/v1/driver/repairs/{$repair->id}/attachments", [
+                'attachment' => $file,
+            ])
+            ->assertForbidden();
+
+        $this->withHeader('Authorization', "Bearer {$this->otherDriverToken}")
+            ->deleteJson("/api/v1/driver/repairs/{$repair->id}/attachments/att-999")
             ->assertForbidden();
     });
 });

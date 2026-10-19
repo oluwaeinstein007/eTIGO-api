@@ -22,6 +22,8 @@ class StoreDriverRepairFormRequest extends FormRequest
             'details' => ['required', 'string', 'max:2000'],
             'preferred_date' => ['required', 'date'],
             'preferred_time' => ['required', 'string', 'max:50'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+            'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ];
     }
 

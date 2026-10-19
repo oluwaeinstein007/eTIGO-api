@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\ResolvesUploadUrls;
 use App\Models\DriverRepair;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -9,9 +10,21 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin DriverRepair */
 class DriverRepairResource extends JsonResource
 {
+    use ResolvesUploadUrls;
+
     public function toArray(Request $request): array
     {
         $vehicle = $this->vehicle ?? $this->driver?->driver?->vehicle;
+
+        $attachments = array_map(function ($attachment) {
+            if (is_array($attachment)) {
+                if (! empty($attachment['path'])) {
+                    $attachment['file_url'] = $this->resolveUploadUrl($attachment['path']) ?? ($attachment['file_url'] ?? null);
+                }
+            }
+
+            return $attachment;
+        }, $this->attachments ?? []);
 
         return [
             'id' => $this->id,
@@ -39,7 +52,7 @@ class DriverRepairResource extends JsonResource
             'cancellation_reason' => $this->cancellation_reason,
             'cancelled_by' => $this->cancelled_by,
             'progress_steps' => $this->progress_steps ?? [],
-            'attachments' => $this->attachments ?? [],
+            'attachments' => $attachments,
             'submitted_at' => $this->created_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
