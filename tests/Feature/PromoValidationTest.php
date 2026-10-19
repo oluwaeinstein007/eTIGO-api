@@ -6,8 +6,10 @@ use App\Models\GamificationProfile;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
 use App\Models\Ride;
+use App\Models\TierConfig;
 use App\Models\User;
 use App\Models\VehicleClass;
+use Database\Seeders\TierConfigSeeder;
 
 beforeEach(function () {
     $this->passenger = User::factory()->create(['type' => 'passenger']);
@@ -223,6 +225,52 @@ it('accepts promo when user tier meets minimum', function () {
         ]);
 
     $response->assertOk()
+        ->assertJsonPath('valid', true);
+});
+
+it('rejects a tier-only promo when the user tier has exclusive promotions switched off', function () {
+    $this->seed(TierConfigSeeder::class);
+    TierConfig::where('tier_level', 4)->update(['exclusive_promotions_enabled' => false]);
+    PromoCode::factory()->tierRestricted(2)->create(['code' => 'SILVERUP']);
+
+    GamificationProfile::factory()->create([
+        'user_id' => $this->passenger->id,
+        'current_tier' => 4,
+    ]);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', ['code' => 'SILVERUP'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'Your tier level does not qualify for this promo code.');
+
+    $this->withToken($this->token)
+        ->getJson('/api/v1/promos/available')
+        ->assertOk()
+        ->assertJsonMissing(['code' => 'SILVERUP']);
+});
+
+it('accepts a tier-only promo when the user tier has exclusive promotions switched on', function () {
+    $this->seed(TierConfigSeeder::class);
+    PromoCode::factory()->tierRestricted(3)->create(['code' => 'GOLDUP']);
+
+    GamificationProfile::factory()->create([
+        'user_id' => $this->passenger->id,
+        'current_tier' => 3,
+    ]);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', ['code' => 'GOLDUP'])
+        ->assertOk()
+        ->assertJsonPath('valid', true);
+});
+
+it('keeps a Bronze-minimum promo open to a tier with exclusive promotions off', function () {
+    $this->seed(TierConfigSeeder::class);
+    PromoCode::factory()->tierRestricted(1)->create(['code' => 'EVERYONE']);
+
+    $this->withToken($this->token)
+        ->postJson('/api/v1/promos/validate', ['code' => 'EVERYONE'])
+        ->assertOk()
         ->assertJsonPath('valid', true);
 });
 

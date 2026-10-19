@@ -36,4 +36,13 @@ enum TierLevel: int
     {
         return $this === self::Diamond;
     }
+
+    /**
+     * Whether the tier has exclusive promotions when its tier config row is
+     * missing. Matches the seeded default: every tier above Bronze.
+     */
+    public function hasExclusivePromotionsByDefault(): bool
+    {
+        return $this !== self::Bronze;
+    }
 }

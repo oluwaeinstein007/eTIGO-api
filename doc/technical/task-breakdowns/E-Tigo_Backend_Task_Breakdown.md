@@ -399,6 +399,7 @@
 | BE-GAME-11 | `[x]` Create `AdminGamificationController@updateTiers` — `PUT /api/v1/admin/gamification/tiers`: update all 5 tier configs (names, thresholds, benefits); audit log | A-17 | BE-GAME-01, SETUP-52 | Tier names: Bronze → Silver → Gold → Platinum → Diamond (OQ-09 resolved) |
 | BE-GAME-12 | `[x]` Create `AdminGamificationController@updateMultipliers` — `PUT /api/v1/admin/gamification/multipliers`: update multiplier values; audit log; creates new if not exists | A-18 | BE-GAME-01, SETUP-52 | — |
 | BE-GAME-13 | `[x]` Create `GamificationResource`, `TierConfigResource`, `CarbonScoreResource`, `PointMultiplierConfigResource` API resources | — | BE-GAME-01 | GamificationResource includes progress calculation and benefits |
+| BE-GAME-14 | `[x]` Match the admin rewards design (19 Oct 2026): add `exclusive_promotions_enabled` to `tier_configs` (optional on `PUT /admin/gamification/tiers`; Bronze off, Silver+ on); `TierGateService::qualifiesForTierPromo()` gates tier-only promos (`min_tier_level` > 1) on tier level **and** the perk; tier discount limited to 2 decimals; multipliers limited to 1.00–3.00 in 0.05 steps (was 1.00–10.00) | G-06, G-07, A-17, A-18 | BE-GAME-08, BE-GAME-11, BE-GAME-12 | Decisions BD-10–BD-12 (engineering, awaiting confirmation). Frontend brief: `FRONTEND_UPDATE_GAMIFICATION_DESIGN_GAPS.md` |
 
 ---
 

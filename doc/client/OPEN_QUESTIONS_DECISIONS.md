@@ -2,7 +2,7 @@
 
 **Phase 1 & Phase 2 Backend — Decision Record for All Outstanding Questions**
 
-**Prepared by:** Engineering Team | **Date:** 18 October 2026 | **Document version:** 5.0 | **Status:** All Phase 1 questions resolved and implemented. All Phase 2 features built and reviewed (18 October 2026). The scheduled-ride booking window and fees were decided by the client; every other Phase 2 answer is an engineering default awaiting client confirmation. City launch dates and the Lost & Found return fee still need the client.
+**Prepared by:** Engineering Team | **Date:** 19 October 2026 | **Document version:** 5.1 | **Status:** All Phase 1 questions resolved and implemented. All Phase 2 features built and reviewed (18 October 2026). The scheduled-ride booking window and fees were decided by the client; every other Phase 2 answer is an engineering default awaiting client confirmation. City launch dates and the Lost & Found return fee still need the client.
 
 ---
 
@@ -14,7 +14,7 @@ This report is the single record of every product decision taken for the E-tiGo 
 
 - the **28 Phase 1 questions** (OQ-01 to OQ-17 and OQ-25 to OQ-35), in five categories: Provider & Integration (5), Business Rules (8), Detection & Enforcement (2), EV Charging (2) and Wallet & Ledger (11);
 - the **14 Phase 2 questions**: Scheduled Rides (SR-1 to SR-7), the five PRD questions (OQ-18 to OQ-22) and Lost & Found (OQ-36, OQ-37);
-- **9 decisions made while building Phase 1** that were never listed as open questions (BD-01 to BD-09, Section H);
+- **12 decisions made while building Phase 1** that were never listed as open questions (BD-01 to BD-12, Section H);
 - **7 decisions made in the Phase 2 review** of 18 October 2026, which fixed gaps where Phase 2 features meet (RV-01 to RV-07, Section I).
 
 **Labels.** Every decision says who made it:
@@ -28,9 +28,11 @@ This report is the single record of every product decision taken for the E-tiGo 
 
 Status words in the matrix: **Implemented** (live in the code), **Built, off** (built but switched off until the client decides), **Not built** (waits for a client decision).
 
-**Totals (58 decisions):** 24 settled Phase 1 decisions, 6 client decisions, 3 product-owner decisions and 25 engineering decisions awaiting confirmation. SR-1, SR-4, OQ-07, OQ-08 and OQ-27 also contain engineering details the client has not confirmed, and OQ-22's launch dates are still the client's to give.
+**Totals (61 decisions):** 24 settled Phase 1 decisions, 6 client decisions, 3 product-owner decisions and 28 engineering decisions awaiting confirmation. SR-1, SR-4, OQ-07, OQ-08 and OQ-27 also contain engineering details the client has not confirmed, and OQ-22's launch dates are still the client's to give.
 
 **What changed in version 5.0** (tagged <span class="badge new">NEW</span> or <span class="badge updated">UPDATED</span>; earlier tags are removed): every decision now carries a label; OQ-07, OQ-08 and OQ-27 reflect the Phase 2 dispute tiers; OQ-05 and SR-4 note that a late-cancellation fee can now be disputed; OQ-18 to OQ-22 are built; OQ-36 and OQ-37 (Lost & Found) are added; Sections H and I are new.
+
+**What changed in version 5.1** (19 October 2026): BD-10 to BD-12 are added, three rewards settings settled while matching the admin dashboard design to the API. The version 5.0 tags are kept, as 5.0 went out a day earlier.
 
 </div>
 
@@ -45,7 +47,7 @@ Status words in the matrix: **Implemented** (live in the code), **Built, off** (
 5. **E. Wallet & Ledger Decisions** — OQ-25 to OQ-35
 6. **F. Phase 2 — Scheduled Rides** — SR-1 to SR-7
 7. **G. Phase 2 — Other Questions** — OQ-18 to OQ-22, OQ-36, OQ-37 <span class="badge updated">UPDATED</span>
-8. **H. Decisions Made While Building Phase 1** — BD-01 to BD-09 <span class="badge new">NEW</span>
+8. **H. Decisions Made While Building Phase 1** — BD-01 to BD-12 <span class="badge new">NEW</span>
 9. **I. Phase 2 Review — Decisions Made While Fixing Edge Cases** — RV-01 to RV-07 <span class="badge new">NEW</span>
 10. **Decision Summary Matrix**
 11. **Action Items & Next Steps**
@@ -702,6 +704,30 @@ How do Gold, Platinum and Diamond passengers get "priority matching"?
 #### Decision (17 October 2026)
 > Operations can **view** passenger wallets read-only (list, details, transactions, audit trail), as the admin dashboard design shows. Freezing and unfreezing stay with Finance; the Safety team has no wallet access. Approved by the product owner; not confirmed with the client in writing.
 
+### BD-10 — Each Tier Sets Its Own Fare Discount <span class="badge eng">ENGINEERING</span> <span class="badge new">NEW</span>
+
+#### Question
+The admin design shows "Discounted booking fees" as an on/off tick box per tier. Should it be a switch or an amount?
+
+#### Decision (19 October 2026)
+> **An amount: a percentage off the base fare for each tier**, as built and as the Pricing Guide describes: Bronze 0%, Silver 2%, Gold 5%, Platinum 10%, Diamond 15%. 0% means the tier has no discount. An on/off switch could not give Gold and Diamond different amounts, so the design will show a percentage field (0–100, up to two decimals) labelled as a fare discount; there is no separate booking fee.
+
+### BD-11 — Exclusive Promotions Are a Tier Perk <span class="badge eng">ENGINEERING</span> <span class="badge new">NEW</span>
+
+#### Question
+The admin design lists "Exclusive promotions" as a perk each tier can have. The API only had a minimum tier on each promo code. Keep the perk or drop it?
+
+#### Decision (19 October 2026)
+> **Kept, as an on/off perk per tier.** A promo code with a minimum tier above Bronze is tier-only. A passenger can use it when their tier reaches that minimum **and** their tier has exclusive promotions switched on. This lets operations take the perk away from a tier without editing every promo. Default: off for Bronze, on for Silver to Diamond, which is how tier-only promos already worked, so nothing changes until someone switches it.
+
+### BD-12 — Bonus Points Multipliers Range From 1× to 3× <span class="badge eng">ENGINEERING</span> <span class="badge new">NEW</span>
+
+#### Question
+The admin design allows bonus multipliers of 1.0× to 2.0× in steps of 0.1×; the API allowed up to 10×, and the off-peak bonus is 1.25×. Which is right?
+
+#### Decision (19 October 2026)
+> **1.00× to 3.00× in steps of 0.05×, in both the design and the API.** Steps of 0.05× keep the agreed off-peak bonus of 1.25×. A ceiling of 3× leaves room to raise the EV bonus (already 2×) for a campaign. The old 10× ceiling was too high: points move passengers up tiers and tiers give fare discounts, so a typing mistake would have given away real money. Current values are unchanged: EV 2×, off-peak 1.25×, shared journey 1.5× (not awarded until pooled rides exist).
+
 ---
 
 <h2 class="section">I. Phase 2 Review — Decisions Made While Fixing Edge Cases</h2>
@@ -793,6 +819,9 @@ On 18 October 2026 engineering reviewed every Phase 2 task against the code. All
 | BD-07 | Silent drivers | Warn at 5 min, offline at 30, never on a trip | Engineering | Implemented |
 | BD-08 | Add-card charge | Credited to the wallet as a top-up | **Product owner** (details: engineering) | Implemented |
 | BD-09 | Wallet access | Operations can view wallets; Finance freezes | **Product owner** | Implemented |
+| BD-10 | Tier fare discount | A percentage per tier (0–15% today) | Engineering | Implemented |
+| BD-11 | Exclusive promotions | On/off perk per tier; Silver and up on | Engineering | Implemented |
+| BD-12 | Bonus multipliers | 1.00×–3.00× in 0.05× steps | Engineering | Implemented |
 | RV-01 | Suspended drivers | Reservations and shifts released at once | Engineering | Implemented |
 | RV-02 | Blocked shared car | Every shift driver's pickups on it released | Engineering | Implemented |
 | RV-03 | Driver city move | Refused with upcoming shifts; old plans removed | Engineering | Implemented |
@@ -810,7 +839,7 @@ On 18 October 2026 engineering reviewed every Phase 2 task against the code. All
 | 1 | HIGH | Execute the formal sub-wallet partnership agreement with Paystack confirming regulatory coverage (OQ-33) | Legal / BD | Before public launch |
 | 2 | HIGH | Set up `WHATSAPP_SAFETY_NUMBER` and create the `sos_emergency_alert` WhatsApp template in Meta Business Manager | Ops / Eng | Before public launch |
 | 3 | HIGH | Give the launch date for each new city (OQ-22) and confirm the state permits needed in Abuja (FCT) and Rivers State. No city goes live without its date | Client / Legal | Before each city launch |
-| 4 | HIGH | Confirm or change every **ENGINEERING** decision: SR-2, SR-6, SR-7 and the 30-minute gap; the base-fare reading of SR-4; OQ-34, OQ-35; OQ-18 to OQ-21; OQ-37; BD-02 to BD-07; RV-01 to RV-07. Each is a setting, so a different answer is a configuration change | Client / Product | Before Phase 2 is announced to users |
+| 4 | HIGH | Confirm or change every **ENGINEERING** decision: SR-2, SR-6, SR-7 and the 30-minute gap; the base-fare reading of SR-4; OQ-34, OQ-35; OQ-18 to OQ-21; OQ-37; BD-02 to BD-07; BD-10 to BD-12; RV-01 to RV-07. Each is a setting, so a different answer is a configuration change | Client / Product | Before Phase 2 is announced to users |
 | 5 | HIGH | Decide the Lost & Found return fee (OQ-36): ₦2,000, another amount, or none | Client / Product | Before Lost & Found is announced |
 | 6 | MED | Confirm the **PRODUCT OWNER** decisions: wallet tips (OQ-32), the add-card wallet credit (BD-08) and Operations' wallet view (BD-09) | Client | Next review |
 | 7 | MED | Name the Support Lead(s) for dispute tier 2, and say which fleet cars are shared between drivers (shift mode) | Operations | Before Phase 2 goes live |
@@ -820,4 +849,4 @@ On 18 October 2026 engineering reviewed every Phase 2 task against the code. All
 
 ---
 
-<p class="footer">E-tiGo — Open Questions Decision Report v5.0 | Confidential | 18 October 2026<br>All Phase 1 and Phase 2 features built | 24 settled, 6 client, 3 product-owner and 25 engineering decisions (awaiting confirmation) | City launch dates and the Lost & Found return fee outstanding</p>
+<p class="footer">E-tiGo — Open Questions Decision Report v5.1 | Confidential | 19 October 2026<br>All Phase 1 and Phase 2 features built | 24 settled, 6 client, 3 product-owner and 28 engineering decisions (awaiting confirmation) | City launch dates and the Lost & Found return fee outstanding</p>

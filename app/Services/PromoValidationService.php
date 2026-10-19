@@ -82,11 +82,8 @@ class PromoValidationService
             return $this->reject('This promo code is only valid during off-peak hours.');
         }
 
-        if ($promo->min_tier_level) {
-            $userTier = $this->tierGateService->getUserTierLevel($userId);
-            if ($userTier < $promo->min_tier_level) {
-                return $this->reject('Your tier level does not qualify for this promo code.');
-            }
+        if (! $this->tierGateService->qualifiesForTierPromo($userId, $promo->min_tier_level)) {
+            return $this->reject('Your tier level does not qualify for this promo code.');
         }
 
         $userCompletedRides = $this->getUserCompletedRideCount($userId, $excludeRideId);
@@ -137,11 +134,8 @@ class PromoValidationService
             return $this->reject('This promo code has expired.');
         }
 
-        if ($promo->min_tier_level) {
-            $userTier = $this->tierGateService->getUserTierLevel($userId);
-            if ($userTier < $promo->min_tier_level) {
-                return $this->reject('Your tier level does not qualify for this promo code.');
-            }
+        if (! $this->tierGateService->qualifiesForTierPromo($userId, $promo->min_tier_level)) {
+            return $this->reject('Your tier level does not qualify for this promo code.');
         }
 
         $userCompletedRides = $this->getUserCompletedRideCount($userId);
@@ -178,11 +172,8 @@ class PromoValidationService
             return false;
         }
 
-        if ($promo->min_tier_level) {
-            $userTier = $this->tierGateService->getUserTierLevel($userId);
-            if ($userTier < $promo->min_tier_level) {
-                return false;
-            }
+        if (! $this->tierGateService->qualifiesForTierPromo($userId, $promo->min_tier_level)) {
+            return false;
         }
 
         $userCompletedRides = $this->getUserCompletedRideCount($userId);

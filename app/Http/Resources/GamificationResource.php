@@ -119,11 +119,13 @@ class GamificationResource extends JsonResource
                 ? max(0, $nextTierConfig->min_points_required - $this->total_ranking_points)
                 : null,
             'next_tier' => $nextTier?->label(),
-            'benefits' => $this->when($currentTierConfig, fn () => [
-                'booking_fee_discount_pct' => (float) $currentTierConfig->booking_fee_discount_pct,
-                'priority_matching' => $currentTierConfig->priority_matching_enabled,
-                'ev_reservation_fee_waived' => $currentTierConfig->ev_reservation_fee_waived,
-            ]),
+            'benefits' => [
+                'booking_fee_discount_pct' => (float) ($currentTierConfig?->booking_fee_discount_pct ?? 0),
+                'priority_matching' => $currentTierConfig?->priority_matching_enabled ?? false,
+                'ev_reservation_fee_waived' => $currentTierConfig?->ev_reservation_fee_waived ?? false,
+                'exclusive_promotions' => $currentTierConfig?->exclusive_promotions_enabled
+                    ?? $currentTier->hasExclusivePromotionsByDefault(),
+            ],
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

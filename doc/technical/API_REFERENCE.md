@@ -10200,7 +10200,8 @@ Returns the authenticated user's gamification profile with current tier, points,
     "benefits": {
       "booking_fee_discount_pct": 0,
       "priority_matching": false,
-      "ev_reservation_fee_waived": false
+      "ev_reservation_fee_waived": false,
+      "exclusive_promotions": false
     },
     "created_at": "2026-10-09T00:00:00Z",
     "updated_at": "2026-10-09T00:00:00Z"
@@ -10264,12 +10265,15 @@ Returns all 5 tier configurations (Bronze → Silver → Gold → Platinum → D
       "booking_fee_discount_pct": 0,
       "ev_reservation_fee_waived": false,
       "priority_matching_enabled": false,
+      "exclusive_promotions_enabled": false,
       "unlocked": true
     }
   ],
   "current_tier": 3
 }
 ```
+
+Show each tier's perks from these fields: `booking_fee_discount_pct` as "N% off the base fare" (hide it at 0), and the three switches as ticks. `exclusive_promotions_enabled` means the tier can use tier-only promo codes.
 
 ### Leaderboard
 
@@ -10353,7 +10357,7 @@ Lists **passengers only** — only passengers earn points and tiers.
       "progress_to_next_tier": null,
       "points_to_next_tier": null,
       "next_tier": null,
-      "benefits": { "booking_fee_discount_pct": 15, "priority_matching": true, "ev_reservation_fee_waived": true },
+      "benefits": { "booking_fee_discount_pct": 15, "priority_matching": true, "ev_reservation_fee_waived": true, "exclusive_promotions": true },
       "created_at": "...",
       "updated_at": "..."
     }
@@ -10447,7 +10451,8 @@ Content-Type: application/json
       "min_points_required": 0,
       "booking_fee_discount_pct": 0,
       "ev_reservation_fee_waived": false,
-      "priority_matching_enabled": false
+      "priority_matching_enabled": false,
+      "exclusive_promotions_enabled": false
     },
     {
       "tier_level": 2,
@@ -10455,7 +10460,8 @@ Content-Type: application/json
       "min_points_required": 500,
       "booking_fee_discount_pct": 2,
       "ev_reservation_fee_waived": false,
-      "priority_matching_enabled": false
+      "priority_matching_enabled": false,
+      "exclusive_promotions_enabled": true
     },
     {
       "tier_level": 3,
@@ -10463,7 +10469,8 @@ Content-Type: application/json
       "min_points_required": 2000,
       "booking_fee_discount_pct": 5,
       "ev_reservation_fee_waived": false,
-      "priority_matching_enabled": true
+      "priority_matching_enabled": true,
+      "exclusive_promotions_enabled": true
     },
     {
       "tier_level": 4,
@@ -10471,7 +10478,8 @@ Content-Type: application/json
       "min_points_required": 5000,
       "booking_fee_discount_pct": 10,
       "ev_reservation_fee_waived": true,
-      "priority_matching_enabled": true
+      "priority_matching_enabled": true,
+      "exclusive_promotions_enabled": true
     },
     {
       "tier_level": 5,
@@ -10479,11 +10487,18 @@ Content-Type: application/json
       "min_points_required": 15000,
       "booking_fee_discount_pct": 15,
       "ev_reservation_fee_waived": true,
-      "priority_matching_enabled": true
+      "priority_matching_enabled": true,
+      "exclusive_promotions_enabled": true
     }
   ]
 }
 ```
+
+| Field | Notes |
+|-------|-------|
+| `booking_fee_discount_pct` | Percent off the **base fare** (not a separate booking fee), 0–100 with up to 2 decimals. 0 means the tier has no discount. Each tier has its own value, so the dashboard needs a number input per tier, not an on/off switch. |
+| `ev_reservation_fee_waived`, `priority_matching_enabled` | On/off perks. |
+| `exclusive_promotions_enabled` | Optional on/off perk. When on, the tier can use tier-only promo codes (`min_tier_level` above 1) that its level reaches. When off, those codes are refused for the tier even if its level reaches them. Leave it out and the stored value is kept. Default: off for Bronze, on for Silver to Diamond. |
 
 **Response `200`:**
 
@@ -10541,6 +10556,8 @@ Content-Type: application/json
   ]
 }
 ```
+
+`multiplier_value` runs from **1.00 to 3.00 in steps of 0.05** (1.25 is valid; 1.33 and 3.50 are not). The dashboard input should use the same range and step. Stackable bonuses add their extra on top of 1×, so EV (2.00) plus off-peak (1.25) gives 2.25×.
 
 **Response `200`:**
 
@@ -10652,7 +10669,7 @@ City/vehicle restrictions are returned as informational data. The frontend shoul
 - `"This promo code is no longer active."` — admin deactivated
 - `"This promo code is not yet active."` — starts_at is in the future
 - `"This promo code has expired."` — past expires_at
-- `"Your tier level does not qualify for this promo code."` — user tier too low
+- `"Your tier level does not qualify for this promo code."` — user tier below the promo's `min_tier_level`, or the user's tier has exclusive promotions switched off
 - `"You need at least {n} completed rides to use this code."` — min ride count not met
 - `"This promo code is for new users only."` — max ride count exceeded
 - `"You have already used this promo code the maximum number of times."` — per-user limit
@@ -10873,7 +10890,7 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 | `city_ids` | Optional array of city UUIDs (max 100). Leave out or send `[]` for every city. The old `city_id` (one city or `null`) is still accepted and becomes `city_ids`. |
 | `rider_eligibility` | Optional: `all`, `first_ride` or `returning`. Sets `min_order_count` / `max_order_count` and **overrides** them if both are sent. `custom` is output-only; send the counts directly for other rules. |
 | `timing` | Optional: `any_time`, `peak_only` or `off_peak_only`. Sets `peak_only` / `off_peak_only` and overrides them if both are sent. |
-| `min_tier_level` | Optional, 1–5. |
+| `min_tier_level` | Optional, 1–5. Above 1 makes the promo tier-only: passengers whose tier reaches it **and** has exclusive promotions switched on (tier settings) can use it. 1 is open to everyone. |
 
 `geo_fence` is either a circle (`center_lat`, `center_lng`, `radius_km` 0.1–500) or a polygon: `"polygon": [{"lat": 6.45, "lng": 3.38}, ...]` with at least 3 points. `per_user_limit` defaults to 1 (max 100). Create the promo with `is_active: false` to save it paused.
 
