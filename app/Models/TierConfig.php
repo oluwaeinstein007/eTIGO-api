@@ -18,6 +18,7 @@ class TierConfig extends Model
         'booking_fee_discount_pct',
         'ev_reservation_fee_waived',
         'priority_matching_enabled',
+        'exclusive_promotions_enabled',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class TierConfig extends Model
             'booking_fee_discount_pct' => 'decimal:2',
             'ev_reservation_fee_waived' => 'boolean',
             'priority_matching_enabled' => 'boolean',
+            'exclusive_promotions_enabled' => 'boolean',
         ];
     }
 

@@ -123,6 +123,7 @@ class GamificationResource extends JsonResource
                 'booking_fee_discount_pct' => (float) $currentTierConfig->booking_fee_discount_pct,
                 'priority_matching' => $currentTierConfig->priority_matching_enabled,
                 'ev_reservation_fee_waived' => $currentTierConfig->ev_reservation_fee_waived,
+                'exclusive_promotions' => $currentTierConfig->exclusive_promotions_enabled,
             ]),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

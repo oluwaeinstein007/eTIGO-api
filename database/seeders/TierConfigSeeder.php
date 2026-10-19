@@ -17,6 +17,7 @@ class TierConfigSeeder extends Seeder
                 'booking_fee_discount_pct' => 0,
                 'ev_reservation_fee_waived' => false,
                 'priority_matching_enabled' => false,
+                'exclusive_promotions_enabled' => false,
             ],
             [
                 'tier_level' => 2,
@@ -25,6 +26,7 @@ class TierConfigSeeder extends Seeder
                 'booking_fee_discount_pct' => 2.00,
                 'ev_reservation_fee_waived' => false,
                 'priority_matching_enabled' => false,
+                'exclusive_promotions_enabled' => true,
             ],
             [
                 'tier_level' => 3,
@@ -33,6 +35,7 @@ class TierConfigSeeder extends Seeder
                 'booking_fee_discount_pct' => 5.00,
                 'ev_reservation_fee_waived' => false,
                 'priority_matching_enabled' => true,
+                'exclusive_promotions_enabled' => true,
             ],
             [
                 'tier_level' => 4,
@@ -41,6 +44,7 @@ class TierConfigSeeder extends Seeder
                 'booking_fee_discount_pct' => 10.00,
                 'ev_reservation_fee_waived' => true,
                 'priority_matching_enabled' => true,
+                'exclusive_promotions_enabled' => true,
             ],
             [
                 'tier_level' => 5,
@@ -49,6 +53,7 @@ class TierConfigSeeder extends Seeder
                 'booking_fee_discount_pct' => 15.00,
                 'ev_reservation_fee_waived' => true,
                 'priority_matching_enabled' => true,
+                'exclusive_promotions_enabled' => true,
             ],
         ];
 

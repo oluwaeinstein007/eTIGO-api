@@ -18,6 +18,7 @@ use App\Models\TierConfig;
 use App\Models\TripCarbonScore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class AdminGamificationController extends Controller
@@ -181,13 +182,7 @@ class AdminGamificationController extends Controller
                 if ($tier) {
                     $oldValues = $tier->toArray();
 
-                    $tier->update([
-                        'tier_name' => $tierData['tier_name'],
-                        'min_points_required' => $tierData['min_points_required'],
-                        'booking_fee_discount_pct' => $tierData['booking_fee_discount_pct'],
-                        'ev_reservation_fee_waived' => $tierData['ev_reservation_fee_waived'],
-                        'priority_matching_enabled' => $tierData['priority_matching_enabled'],
-                    ]);
+                    $tier->update(Arr::except($tierData, 'tier_level'));
 
                     AuditLog::record($tier, 'tier_config_updated', $admin, $oldValues, $tierData);
                 }

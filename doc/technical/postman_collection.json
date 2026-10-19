@@ -21478,7 +21478,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"tiers\": [\n    \"...TierConfigResource...\"\n  ]\n}"
+                  "body": "{\n  \"tiers\": [\n    {\n      \"id\": \"uuid\",\n      \"tier_level\": 3,\n      \"tier_name\": \"Gold\",\n      \"tier_label\": \"Gold\",\n      \"min_points_required\": 2000,\n      \"booking_fee_discount_pct\": 5.0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": true,\n      \"exclusive_promotions_enabled\": true,\n      \"created_at\": \"2026-09-29T10:00:00.000000Z\",\n      \"updated_at\": \"2026-10-19T10:00:00.000000Z\"\n    }\n  ]\n}"
                 }
               ]
             },
@@ -21502,7 +21502,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"tiers\": [\n    {\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    },\n    {\n      \"tier_level\": 2,\n      \"tier_name\": \"Silver\",\n      \"min_points_required\": 500,\n      \"booking_fee_discount_pct\": 2,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    },\n    {\n      \"tier_level\": 3,\n      \"tier_name\": \"Gold\",\n      \"min_points_required\": 2000,\n      \"booking_fee_discount_pct\": 5,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": true\n    },\n    {\n      \"tier_level\": 4,\n      \"tier_name\": \"Platinum\",\n      \"min_points_required\": 5000,\n      \"booking_fee_discount_pct\": 10,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true\n    },\n    {\n      \"tier_level\": 5,\n      \"tier_name\": \"Diamond\",\n      \"min_points_required\": 15000,\n      \"booking_fee_discount_pct\": 15,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true\n    }\n  ]\n}"
+                  "raw": "{\n  \"tiers\": [\n    {\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false,\n      \"exclusive_promotions_enabled\": false\n    },\n    {\n      \"tier_level\": 2,\n      \"tier_name\": \"Silver\",\n      \"min_points_required\": 500,\n      \"booking_fee_discount_pct\": 2,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false,\n      \"exclusive_promotions_enabled\": true\n    },\n    {\n      \"tier_level\": 3,\n      \"tier_name\": \"Gold\",\n      \"min_points_required\": 2000,\n      \"booking_fee_discount_pct\": 5,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": true,\n      \"exclusive_promotions_enabled\": true\n    },\n    {\n      \"tier_level\": 4,\n      \"tier_name\": \"Platinum\",\n      \"min_points_required\": 5000,\n      \"booking_fee_discount_pct\": 10,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true,\n      \"exclusive_promotions_enabled\": true\n    },\n    {\n      \"tier_level\": 5,\n      \"tier_name\": \"Diamond\",\n      \"min_points_required\": 15000,\n      \"booking_fee_discount_pct\": 15,\n      \"ev_reservation_fee_waived\": true,\n      \"priority_matching_enabled\": true,\n      \"exclusive_promotions_enabled\": true\n    }\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/gamification/tiers",
@@ -21515,7 +21515,7 @@
                     "tiers"
                   ]
                 },
-                "description": "Update all 5 tier configurations (names, thresholds, benefits). All 5 tiers must be provided with distinct tier_level values (1-5).\n\n**Required Role:** Operations or Super Admin"
+                "description": "Update all 5 tier configurations (names, thresholds, benefits). All 5 tiers must be provided with distinct tier_level values (1-5).\n\n- `booking_fee_discount_pct`: percent off the **base fare**, 0\u2013100 with up to 2 decimals; 0 means the tier has no discount. Show it as a number input, not an on/off switch.\n- `exclusive_promotions_enabled`: whether the tier can use tier-only promos (promos with `min_tier_level` above 1). Optional: leave it out and the stored value is kept.\n\n**Required Role:** Operations or Super Admin"
               },
               "response": [
                 {
@@ -21611,7 +21611,7 @@
                     "multipliers"
                   ]
                 },
-                "description": "Update point multiplier configurations. Creates new multipliers if condition_type doesn't exist yet.\n\n`is_awarded` is `false` for a condition rides aren't checked for yet: `shared_journey` needs pooled rides (Phase 2), so it can be configured but is never awarded today.\n\n**Required Role:** Operations or Super Admin"
+                "description": "Update point multiplier configurations. Creates new multipliers if condition_type doesn't exist yet.\n\n`multiplier_value`: 1.00 to 3.00 in steps of 0.05 (e.g. 1.25 is valid, 1.33 and 3.5 are not).\n\n`is_awarded` is `false` for a condition rides aren't checked for yet: `shared_journey` needs pooled rides (Phase 2), so it can be configured but is never awarded today.\n\n**Required Role:** Operations or Super Admin"
               },
               "response": [
                 {
@@ -26753,7 +26753,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"gamification\": {\n    \"id\": \"uuid\",\n    \"user_id\": \"uuid\",\n    \"current_tier\": 3,\n    \"tier_name\": \"Gold\",\n    \"total_ranking_points\": 2480,\n    \"total_carbon_score\": 180.5,\n    \"total_co2_saved_kg\": 86.24,\n    \"co2_saved_this_month_kg\": 12.8,\n    \"points_this_month\": 162,\n    \"tier_upgraded_at\": \"2026-09-15T14:30:00Z\",\n    \"progress_to_next_tier\": 16.0,\n    \"points_to_next_tier\": 2520,\n    \"next_tier\": \"Platinum\",\n    \"benefits\": {\n      \"booking_fee_discount_pct\": 5.0,\n      \"priority_matching\": true,\n      \"ev_reservation_fee_waived\": false\n    },\n    \"created_at\": \"2026-09-01T00:00:00Z\",\n    \"updated_at\": \"2026-10-14T00:00:00Z\"\n  }\n}"
+                  "body": "{\n  \"gamification\": {\n    \"id\": \"uuid\",\n    \"user_id\": \"uuid\",\n    \"current_tier\": 3,\n    \"tier_name\": \"Gold\",\n    \"total_ranking_points\": 2480,\n    \"total_carbon_score\": 180.5,\n    \"total_co2_saved_kg\": 86.24,\n    \"co2_saved_this_month_kg\": 12.8,\n    \"points_this_month\": 162,\n    \"tier_upgraded_at\": \"2026-09-15T14:30:00Z\",\n    \"progress_to_next_tier\": 16.0,\n    \"points_to_next_tier\": 2520,\n    \"next_tier\": \"Platinum\",\n    \"benefits\": {\n      \"booking_fee_discount_pct\": 5.0,\n      \"priority_matching\": true,\n      \"ev_reservation_fee_waived\": false,\n      \"exclusive_promotions\": true\n    },\n    \"created_at\": \"2026-09-01T00:00:00Z\",\n    \"updated_at\": \"2026-10-14T00:00:00Z\"\n  }\n}"
                 }
               ]
             },
@@ -26855,7 +26855,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"tiers\": [\n    {\n      \"id\": \"uuid\",\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"tier_label\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false\n    }\n  ]\n}"
+                  "body": "{\n  \"tiers\": [\n    {\n      \"id\": \"uuid\",\n      \"tier_level\": 1,\n      \"tier_name\": \"Bronze\",\n      \"tier_label\": \"Bronze\",\n      \"min_points_required\": 0,\n      \"booking_fee_discount_pct\": 0,\n      \"ev_reservation_fee_waived\": false,\n      \"priority_matching_enabled\": false,\n      \"exclusive_promotions_enabled\": false,\n      \"unlocked\": true\n    }\n  ],\n  \"current_tier\": 3\n}"
                 }
               ]
             },

@@ -21,6 +21,7 @@ class TierConfigResource extends JsonResource
             'booking_fee_discount_pct' => (float) $this->booking_fee_discount_pct,
             'ev_reservation_fee_waived' => $this->ev_reservation_fee_waived,
             'priority_matching_enabled' => $this->priority_matching_enabled,
+            'exclusive_promotions_enabled' => $this->exclusive_promotions_enabled,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

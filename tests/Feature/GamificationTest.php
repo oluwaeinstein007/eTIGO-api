@@ -376,6 +376,64 @@ describe('Admin Gamification', function () {
         ]);
     });
 
+    it('accepts multipliers from 1.00x to 3.00x in 0.05x steps', function () {
+        $this->putJson('/api/v1/admin/gamification/multipliers', [
+            'multipliers' => [
+                ['condition_type' => 'ev_ride', 'multiplier_value' => 3.00, 'is_stackable' => true],
+                ['condition_type' => 'off_peak', 'multiplier_value' => 1.25, 'is_stackable' => true],
+                ['condition_type' => 'shared_journey', 'multiplier_value' => 1.00, 'is_stackable' => true],
+            ],
+        ], ['Authorization' => "Bearer {$this->adminToken}"])->assertOk();
+
+        expect((float) PointMultiplierConfig::forCondition(MultiplierConditionType::OffPeak)->multiplier_value)->toBe(1.25);
+    });
+
+    it('rejects multipliers above 3.00x or off the 0.05x step', function (float $value) {
+        $this->putJson('/api/v1/admin/gamification/multipliers', [
+            'multipliers' => [
+                ['condition_type' => 'ev_ride', 'multiplier_value' => $value, 'is_stackable' => true],
+            ],
+        ], ['Authorization' => "Bearer {$this->adminToken}"])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('multipliers.0.multiplier_value');
+    })->with([3.05, 10.0, 1.33, 0.95]);
+
+    it('sets exclusive promotions per tier and keeps it when not sent', function () {
+        $tiers = fn (bool $withExclusive) => collect([
+            [1, 'Bronze', 0, 0, false, false, false],
+            [2, 'Silver', 500, 2, false, false, true],
+            [3, 'Gold', 2000, 5, false, true, false],
+            [4, 'Platinum', 5000, 10, true, true, true],
+            [5, 'Diamond', 15000, 15, true, true, true],
+        ])->map(fn (array $t) => [
+            'tier_level' => $t[0], 'tier_name' => $t[1], 'min_points_required' => $t[2],
+            'booking_fee_discount_pct' => $t[3], 'ev_reservation_fee_waived' => $t[4], 'priority_matching_enabled' => $t[5],
+            ...($withExclusive ? ['exclusive_promotions_enabled' => $t[6]] : []),
+        ])->all();
+
+        $this->putJson('/api/v1/admin/gamification/tiers', ['tiers' => $tiers(true)], ['Authorization' => "Bearer {$this->adminToken}"])
+            ->assertOk()
+            ->assertJsonPath('tiers.1.exclusive_promotions_enabled', true)
+            ->assertJsonPath('tiers.2.exclusive_promotions_enabled', false);
+
+        $this->putJson('/api/v1/admin/gamification/tiers', ['tiers' => $tiers(false)], ['Authorization' => "Bearer {$this->adminToken}"])
+            ->assertOk()
+            ->assertJsonPath('tiers.1.exclusive_promotions_enabled', true)
+            ->assertJsonPath('tiers.2.exclusive_promotions_enabled', false);
+    });
+
+    it('rejects a tier discount with more than two decimals', function () {
+        $tiers = TierConfig::allOrderedByLevel()->map(fn (TierConfig $t) => [
+            'tier_level' => $t->tier_level, 'tier_name' => $t->tier_name, 'min_points_required' => $t->min_points_required,
+            'booking_fee_discount_pct' => $t->tier_level === 2 ? 2.555 : (float) $t->booking_fee_discount_pct,
+            'ev_reservation_fee_waived' => $t->ev_reservation_fee_waived, 'priority_matching_enabled' => $t->priority_matching_enabled,
+        ])->all();
+
+        $this->putJson('/api/v1/admin/gamification/tiers', ['tiers' => $tiers], ['Authorization' => "Bearer {$this->adminToken}"])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tiers.1.booking_fee_discount_pct');
+    });
+
     it('shows that the shared journey multiplier is not awarded yet', function () {
         $multipliers = collect($this->getJson('/api/v1/admin/gamification/multipliers', [
             'Authorization' => "Bearer {$this->adminToken}",
