@@ -11665,6 +11665,21 @@ No request body required.
 | 2 | 48-Hour Suspension | Force offline + suspend account. Lifted automatically after `OFFLINE_SUSPENSION_HOURS` (default 48) by the hourly `LiftExpiredComplianceSuspensionsJob`; the driver is notified. Suspensions set by an admin for other reasons are never lifted automatically. |
 | 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review (confirm-deactivation above) |
 
+### Test Data (staging)
+
+`php artisan db:seed --class=OfflineFlagsDemoSeeder` (non-production only; needs Lagos and the economy and comfort classes from `DemoSeeder`) creates 12 flags for 6 Lagos drivers over the last 30 days. Each is on a cancelled ride, with detection evidence and a review history:
+
+| Driver | Flags | Driver now |
+|--------|-------|------------|
+| Kola Adebayo | L1 this morning, flagged | Approved |
+| Bisi Okonkwo | L1 18 days ago; L2 yesterday, **disputed** (pending) | Suspended 48 h |
+| Musa Garba | L1, L2, then L3 two hours ago, not disputed: ready for confirm-deactivation or de-escalate | Suspended pending review |
+| Tayo Bankole | L1, disputed and **overturned** by Operations | Approved |
+| Ngozi Eze | L1 disputed and **upheld**; L2 four days ago | Approved (suspension lifted) |
+| Chidi Nwosu | L1; L2 disputed and upheld by Safety; L3 yesterday, **disputed** (pending) | Suspended pending review |
+
+That makes 7 flagged, 2 disputed, 2 upheld and 1 overturned. The drivers use `driver.compliance.*@ops-demo.etigo.com` emails (password `Qwer!234`), stay offline and are separate from the Live Monitoring demo drivers, so acting on their flags affects nothing else. Re-run the seeder to put all 12 flags back as they were, dated relative to now.
+
 ---
 
 ## EV Charging Stations — Public
