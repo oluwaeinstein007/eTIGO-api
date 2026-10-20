@@ -586,16 +586,18 @@ Every step is locked and logged in the append-only `sos_event_log`. Incident tel
 Detects drivers who cancel a ride and then complete it off the app.
 
 1. When a ride with an assigned driver is cancelled (by either party) while the driver is within **300 m** of the pickup, `MonitorCancellationJob` samples the driver's position every **30 s** for **15 min**.
-2. **20 min** later `AnalyzeOfflineTripJob` compares the trajectory with the passenger's intended route. At least **3** samples within **200 m** of the route, making up at least **60%** of all samples, flags the ride (`OFFLINE_*` settings).
+2. **20 min** later `AnalyzeOfflineTripJob` compares the trajectory with the passenger's planned driving route (`RideRouteService`; the straight line from pickup to destination when the maps provider has none). At least **3** samples within **200 m** of the route, making up at least **60%** of all samples, flags the ride (`OFFLINE_*` settings). The route, the driver's position at the cancellation and every sample are kept in `detection_data` for the compliance map.
 3. `SanctionService` escalates based on the driver's flags in the last **30 days**:
 
 | Tier | Sanction | Lifted |
 |------|----------|--------|
 | L1 | Warning (push) | — |
 | L2 | Forced offline + suspended | Automatically after 48 h (`LiftExpiredComplianceSuspensionsJob`, hourly). Suspensions set by admins for other reasons are never lifted automatically. |
-| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation — not while the driver's dispute is pending or after it was overturned |
+| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation, with a reason — not while the driver's dispute is pending or after it was overturned. Confirming upholds an unreviewed flag in the same step |
 
-Drivers can dispute a flag; operations upholds or overturns it (overturning reverses the sanction).
+An admin can also move a flag straight to L3 by verifying that the driver took cash for the trip (`verify-cash-taking`).
+
+Drivers can dispute a flag; operations upholds or overturns it. An upheld flag can still be overturned, escalated or de-escalated on appeal; an overturn is final. Overturning the driver's latest flag sets their status again from their remaining flags (`SanctionService::applyStandingSanction`). Undoing a confirmed deactivation takes a super admin overturning the flag (OQ-14), which reactivates the driver.
 
 ---
 
