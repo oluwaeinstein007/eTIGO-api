@@ -11419,6 +11419,8 @@ A flag the driver sees as `upheld` can later become `overturned` (appeal). Don't
 
 Driver disputes an offline trip flag. Only the flagged driver can dispute, once, and not after an admin has reviewed the flag. The time and channel (`driver_app`) are recorded for the admin console.
 
+On a Level 3 flag the driver has until `deactivation_response_due_at` (48 hours after the flag reached Level 3) before an admin can uphold it or confirm the deactivation. Disputing in that time means the admin must review the dispute first. A dispute filed after the deadline is still accepted until the flag is reviewed.
+
 **Request Body:**
 ```json
 {
@@ -11640,7 +11642,7 @@ The message reads `Dispute …` for a disputed flag and `Flag …` otherwise.
 
 `POST /api/v1/admin/offline-flags/{flag}/escalate`
 
-Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction. Works on flagged, disputed and upheld flags; not beyond Level 3 or on an overturned flag.
+Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction. Works on flagged, disputed and upheld flags; not beyond Level 3 or on an overturned flag. Escalating to Level 3 starts the driver's 48-hour response window (`deactivation_response_due_at`), so the deactivation cannot be confirmed straight away.
 
 **Request Body:**
 ```json
@@ -11671,7 +11673,7 @@ Move the flag down one level (L3→L2 or L2→L1). Works on flagged, disputed an
 - **L3 → L2:** the driver stays suspended but is no longer under deactivation review; the 48-hour suspension runs from when it began and then lifts automatically.
 - **L2 → L1:** the suspension is lifted and the driver is reinstated (approved).
 
-A suspension an admin made by hand for another reason is never changed. The driver gets a push notification.
+A suspension an admin made by hand for another reason is never changed. The driver gets a push notification. Moving down from Level 3 clears `deactivation_response_due_at`; escalating back to Level 3 starts a new 48-hour window.
 
 **Request Body:**
 ```json
@@ -15466,6 +15468,21 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Payout request rejected (with reason) | Driver | `payout_rejected` |
 | Payout bank account added or changed (data: `bank_account_id`, `replaced_another`); also sent by WhatsApp/SMS regardless of preferences. Says when payouts start or that they are paused for review | Driver | `payout_account_changed` |
 | Finance approved or rejected a payout account after the name check (data: `bank_account_id`, `review_status`) | Driver | `payout_account_reviewed` |
+
+**Compliance (off-app trip) notifications** (pushed; `data.type` is `compliance_warning`; the compliance category cannot be turned off):
+
+| Event | Recipient | Title | `data` |
+|-------|-----------|-------|--------|
+| Level 1 flag | Driver | Compliance Warning | — |
+| Level 2 flag (or escalation to it): suspended | Driver | Account Suspended | `suspension_hours` |
+| Level 3 flag (raised, escalated or verified cash-taking): suspended pending review; the body says how long the driver has to dispute | Driver | Account Suspended — Under Review | `pending_deactivation: true`, `response_hours` |
+| Automatic suspension ended | Driver | Suspension Lifted | `reinstated: true` |
+| De-escalated L3 → L2 / L2 → L1 | Driver | Sanction Reduced / Suspension Lifted | `suspension_hours` / `reinstated: true` |
+| Flag overturned, nothing else keeps the driver suspended (including a deactivation overturned on appeal) | Driver | Account Reinstated | `reinstated: true` |
+| Flag overturned, another flag keeps the driver suspended | Driver | Flag Overturned | `reinstated: false` |
+| Deactivation confirmed | Driver | Account Deactivated | `deactivated: true` |
+
+On any of these, the driver app refreshes `GET /driver/compliance`.
 
 **Payload format:**
 ```json
