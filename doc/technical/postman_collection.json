@@ -22911,7 +22911,7 @@
                     "escalate"
                   ]
                 },
-                "description": "Move the flag up one level (L1\u2192L2, L2\u2192L3) and apply that level's sanction. Works on flagged, disputed and upheld flags. `notes` (10\u20132000) required, shown in history. Escalating to Level 3 starts the driver's 48-hour response window (`deactivation_response_due_at`). 422 `This flag is already at the maximum sanction tier.` / `This flag was overturned and no longer counts against the driver.`"
+                "description": "Move the flag up one level (L1\u2192L2, L2\u2192L3) and apply that level's sanction. Works on flagged, disputed and upheld flags. `notes` (10\u20132000) required, shown in history. Escalating to Level 3 starts the driver's 48-hour response window (`deactivation_response_due_at`). 422 `This flag is already at the maximum sanction tier.` / `This flag was overturned and no longer counts against the driver.` / `The driver has been deactivated, so their flags cannot be escalated.`"
               },
               "response": [
                 {

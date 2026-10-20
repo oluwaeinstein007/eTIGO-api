@@ -264,6 +264,9 @@ class OfflineTripFlag extends Model
         return match (true) {
             $this->isOverturned() => self::OVERTURNED_REFUSAL,
             $this->sanction_tier === SanctionTier::Deactivation => 'This flag is already at the maximum sanction tier.',
+            // Escalating would suspend the driver again, and the suspension
+            // would later lift: only a super admin's overturn undoes this.
+            (bool) $this->driverProfile()?->isDeactivated() => 'The driver has been deactivated, so their flags cannot be escalated.',
             default => null,
         };
     }

@@ -82,7 +82,10 @@ class SanctionService
     public function enforceSanction(string $driverUserId, SanctionTier $tier): void
     {
         $driver = Driver::where('user_id', $driverUserId)->first();
-        if (! $driver) {
+
+        // A deactivation is only undone by a super admin overturning its flag
+        // (OQ-14); no sanction may turn it back into a suspension.
+        if (! $driver || $driver->isDeactivated()) {
             return;
         }
 

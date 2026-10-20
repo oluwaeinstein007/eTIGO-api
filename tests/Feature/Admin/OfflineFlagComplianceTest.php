@@ -758,3 +758,39 @@ it('starts the wait when a flag is escalated or verified to level 3, and clears 
         ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false);
     expect($verified->fresh()->deactivation_response_due_at)->not->toBeNull();
 });
+
+// === A deactivated driver stays deactivated ===
+
+it('will not escalate another flag of a deactivated driver', function (SanctionTier $tier) {
+    $older = complianceFlag(['sanction_tier' => $tier, 'flagged_at' => now()->subDays(5), 'dispute_outcome' => DisputeOutcome::Upheld, 'resolved_at' => now()->subDays(4)]);
+    $flag = complianceFlag(['sanction_tier' => SanctionTier::Deactivation, 'flagged_at' => now()->subDay()]);
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'Third off-app trip this month.'])
+        ->assertOk();
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/offline-flags/{$older->id}")
+        ->assertJsonPath('flag.allowed_actions.escalate', false);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$older->id}/escalate", ['notes' => 'Escalating an older flag.'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['flag' => 'The driver has been deactivated, so their flags cannot be escalated.']);
+
+    expect($this->driver->fresh()->status)->toBe(DriverStatus::Deactivated);
+})->with([
+    'level 1' => [SanctionTier::Warning],
+    'level 2' => [SanctionTier::Suspension],
+]);
+
+it('never moves a deactivated driver back to suspended through a sanction', function () {
+    $this->driver->update(['status' => DriverStatus::Deactivated, 'suspension_reason' => SanctionService::DEACTIVATED_REASON]);
+
+    $ride = Ride::factory()->cancelled()->create(['driver_id' => $this->driverUser->id]);
+    app(SanctionService::class)->applyForRide($ride, ['route_match_percentage' => 90]);
+    app(SanctionService::class)->enforceSanction($this->driverUser->id, SanctionTier::Deactivation);
+
+    $driver = $this->driver->fresh();
+    expect($driver->status)->toBe(DriverStatus::Deactivated)
+        ->and($driver->suspension_reason)->toBe(SanctionService::DEACTIVATED_REASON);
+});

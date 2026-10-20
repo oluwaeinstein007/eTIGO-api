@@ -11467,7 +11467,7 @@ On a Level 3 flag the driver has until `deactivation_response_due_at` (48 hours 
 |---|---|
 | `uphold` | Not yet upheld or overturned, and not an undisputed Level 3 flag inside the driver's response window |
 | `overturn` | Not yet overturned. An upheld flag can be overturned (an appeal). A flag whose deactivation was confirmed can be overturned only by a super admin (OQ-14) |
-| `escalate` | Below Level 3 and not overturned |
+| `escalate` | Below Level 3, not overturned, and the driver is not deactivated |
 | `de_escalate` | Above Level 1, not overturned, and the deactivation has not been confirmed |
 | `confirm_deactivation` | Level 3, not overturned, no dispute awaiting review, the driver's response window over (or they disputed; a super admin need not wait), not confirmed already, driver not already deactivated |
 | `verify_cash_taking` | Not overturned, not verified already, deactivation not confirmed |
@@ -11663,7 +11663,9 @@ Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction.
 }
 ```
 
-**Response 422** (`errors.flag`): `"This flag is already at the maximum sanction tier."`, `"This flag was overturned and no longer counts against the driver."`, or reason missing.
+**Response 422** (`errors.flag`): `"This flag is already at the maximum sanction tier."`, `"This flag was overturned and no longer counts against the driver."`, `"The driver has been deactivated, so their flags cannot be escalated."` (escalating an older flag would suspend them again, and the suspension would later lift), or reason missing.
+
+No sanction ever changes a deactivated driver's status: only a super admin overturning the flag behind the deactivation undoes it.
 
 ### De-escalate Flag Sanction
 
