@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Ride;
 use App\Services\OfflineTripDetectionService;
+use App\Services\RideRouteService;
 use App\Services\SanctionService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -26,6 +27,7 @@ class AnalyzeOfflineTripJob implements ShouldQueue
     public function handle(
         OfflineTripDetectionService $detectionService,
         SanctionService $sanctionService,
+        RideRouteService $routeService,
     ): void {
         $ride = Ride::find($this->rideId);
         if (! $ride) {
@@ -52,7 +54,11 @@ class AnalyzeOfflineTripJob implements ShouldQueue
             'destination_lng' => (float) $ride->destination_lng,
         ];
 
-        $result = $detectionService->analyzeCollocation($trajectory, $intendedRoute);
+        // The driving route the passenger booked; the straight line from
+        // pickup to destination when the maps provider has none.
+        $plannedRoute = $routeService->getPlannedRoute($ride);
+
+        $result = $detectionService->analyzeCollocation($trajectory, $intendedRoute, $plannedRoute['encoded_polyline'] ?? null);
 
         if ($result['flagged']) {
             Log::warning('Offline trip detected', [

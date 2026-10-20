@@ -27,14 +27,12 @@ class ReviewFlagFormRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 $flag = $this->route('flag');
+                $outcome = DisputeOutcome::tryFrom((string) $this->input('outcome'));
 
-                if (! $flag) {
-                    return;
-                }
-
-                // A flag can be reviewed whether or not the driver disputed it.
-                if ($flag->hasReviewOutcome()) {
-                    $validator->errors()->add('flag', 'This flag has already been reviewed.');
+                // A flag can be reviewed whether or not the driver disputed
+                // it, and an upheld flag can be overturned on appeal.
+                if ($flag && $outcome && $refusal = $flag->reviewRefusal($outcome, $this->user())) {
+                    $validator->errors()->add('flag', $refusal);
                 }
             },
         ];

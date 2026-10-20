@@ -11387,10 +11387,14 @@ Returns the authenticated driver's compliance status including active flag count
     "active_flags_count": 1,
     "total_flags_count": 2,
     "active_sanction": {
-      "tier": { "value": 1, "label": "Warning" },
-      "action": "warning_issued",
+      "flag_id": "uuid",
+      "tier": { "value": 2, "label": "48-Hour Suspension" },
+      "action": "suspended_48h",
+      "status": { "value": "upheld", "label": "Upheld" },
       "flagged_at": "2026-10-10T14:30:00.000000Z",
-      "is_disputed": false
+      "is_disputed": true,
+      "deactivation_confirmed": false,
+      "deactivation_response_due_at": null
     },
     "lookback_days": 30
   },
@@ -11398,11 +11402,24 @@ Returns the authenticated driver's compliance status including active flag count
 }
 ```
 
+`active_sanction` comes from the driver's latest flag that has not been overturned, flagged in the last 30 days (or any age if its deactivation was confirmed), whether or not an admin has upheld it. It is `null` otherwise. Before October 20, 2026 an upheld flag showed `null` here even while the driver was suspended.
+
+`deactivation_response_due_at` is set when the sanction is Level 3: the driver has until then (48 hours from when the flag reached Level 3, `OFFLINE_DEACTIVATION_RESPONSE_HOURS`) to dispute before an admin can uphold the flag or confirm the deactivation. Show it as a deadline on the dispute button.
+
+Each flag in `recent_flags` also has, when they apply:
+- `deactivation_response_due_at`: as above, on Level 3 flags.
+- `deactivation`: `{ "confirmed_at": "...", "reversed_at": null }`. `reversed_at` is set if the deactivation was overturned on appeal.
+- `cash_taking`: `{ "verified_at": "..." }`. An admin verified that the driver took cash for the trip, which moved the flag to Level 3.
+
+A flag the driver sees as `upheld` can later become `overturned` (appeal). Don't treat `upheld` as final.
+
 ### Dispute Offline Flag
 
 `POST /api/v1/driver/flags/{flag}/dispute`
 
 Driver disputes an offline trip flag. Only the flagged driver can dispute, once, and not after an admin has reviewed the flag. The time and channel (`driver_app`) are recorded for the admin console.
+
+On a Level 3 flag the driver has until `deactivation_response_due_at` (48 hours after the flag reached Level 3) before an admin can uphold it or confirm the deactivation. Disputing in that time means the admin must review the dispute first. A dispute filed after the deadline is still accepted until the flag is reviewed.
 
 **Request Body:**
 ```json
@@ -11437,8 +11454,23 @@ Driver disputes an offline trip flag. Only the flagged driver can dispute, once,
 |---|---|
 | `flagged` | Raised by detection; no dispute and no review yet |
 | `disputed` | The driver disputed it and it awaits a decision |
-| `upheld` | An admin upheld it |
-| `overturned` | An admin overturned it (its sanction is lifted and it no longer counts towards later sanctions) |
+| `upheld` | An admin upheld it. It can still be overturned, escalated or de-escalated on appeal |
+| `overturned` | An admin overturned it (its sanction is lifted and it no longer counts towards later sanctions). Final |
+
+**When sanctions apply.** A flag's sanction starts when detection raises it, not when an admin upholds it: L1 sends a warning, L2 suspends the driver for 48 hours, L3 suspends them pending review. Upholding keeps the sanction; overturning lifts it. Level 3 never deactivates on its own: an admin confirms it with [Confirm Permanent Deactivation](#confirm-permanent-deactivation).
+
+**The driver's time to respond.** When a flag reaches Level 3 (raised at Level 3, escalated, or by verified cash-taking) the driver gets **48 hours** (`OFFLINE_DEACTIVATION_RESPONSE_HOURS`) to dispute it, shown as `deactivation_response_due_at`. Until then, unless the driver disputes sooner, nobody can uphold the flag or confirm the deactivation (422: `"The driver has until 22 Oct 2026, 15:10 WAT to respond to this Level 3 flag. You can uphold it or confirm the deactivation after that, or as soon as they dispute it."`). A dispute ends the wait: review it as usual. A **super admin** can still confirm before the deadline in an urgent case; the history says so. Overturning and de-escalating are always allowed. De-escalating below Level 3 clears the deadline; escalating back starts a new one. Level 3 flags raised before October 20, 2026 got a deadline of `flagged_at` + 48 hours.
+
+**What the admin can do now.** Show and every action's response include `flag.allowed_actions`, the rules below applied to the flag as it stands, for the admin making the request. Use it to show or hide buttons instead of repeating the rules in the dashboard:
+
+| Action | Allowed when |
+|---|---|
+| `uphold` | Not yet upheld or overturned, and not an undisputed Level 3 flag inside the driver's response window |
+| `overturn` | Not yet overturned. An upheld flag can be overturned (an appeal). A flag whose deactivation was confirmed can be overturned only by a super admin (OQ-14) |
+| `escalate` | Below Level 3, not overturned, and the driver is not deactivated |
+| `de_escalate` | Above Level 1, not overturned, and the deactivation has not been confirmed |
+| `confirm_deactivation` | Level 3, not overturned, no dispute awaiting review, the driver's response window over (or they disputed; a super admin need not wait), not confirmed already, driver not already deactivated |
+| `verify_cash_taking` | Not overturned, not verified already, deactivation not confirmed |
 
 ### List Offline Trip Flags
 
@@ -11458,69 +11490,83 @@ List flagged trips with optional filters and pagination, newest first.
 | `date_to` | datetime | Filter to date |
 | `per_page` | int | Items per page (default 20) |
 
+List items have the same fields as Show's `flag` except `driver_city`, `driver_status`, `driver_suspension_ends_at` and `allowed_actions`.
+
 ### Show Offline Trip Flag
 
 `GET /api/v1/admin/offline-flags/{flag}`
 
-The flag with its evidence, the driver (with their city), the passenger and ride, the driver's earlier flags and the flag's history.
+The flag with its evidence, the driver (with their city), the passenger and ride, the driver's earlier flags, the route map and the flag's history.
 
-**Response 200:**
+**Response 200** (a first offence moved to Level 3 after the passenger confirmed paying cash; from the seeded test data):
 ```json
 {
   "message": "Offline trip flag details retrieved.",
   "flag": {
     "id": "uuid",
-    "reference_number": "FLG-000045",
+    "reference_number": "FLG-000021",
     "ride_id": "uuid",
     "driver_id": "uuid",
     "passenger_id": "uuid",
-    "status": { "value": "disputed", "label": "Disputed" },
-    "sanction_tier": { "value": 2, "label": "48-Hour Suspension" },
-    "sanction_action": "suspended_48h",
-    "is_disputed": true,
-    "dispute_outcome": { "value": "pending", "label": "Pending" },
-    "dispute_notes": "The passenger is my brother; we were travelling together after the trip ended.",
-    "dispute": {
-      "notes": "The passenger is my brother; we were travelling together after the trip ended.",
-      "filed_at": "2026-10-16T08:12:00.000000Z",
-      "channel": "driver_app"
-    },
+    "status": { "value": "flagged", "label": "Flagged" },
+    "sanction_tier": { "value": 3, "label": "Permanent Deactivation" },
+    "sanction_action": "pending_admin_review",
+    "deactivation_response_due_at": "2026-10-22T14:10:24.000000Z",
+    "is_disputed": false,
     "review_notes": null,
-    "detection_summary": "The ride was cancelled with the driver 0.3 km from the pickup. Afterwards, the driver's phone followed the passenger's route: 87.5% of its location samples (14 of 16) were within 200 m of it, over 10 min 50 s.",
+    "cash_taking": {
+      "verified_at": "2026-10-20T13:44:24.000000Z",
+      "verified_by": { "id": "uuid", "name": "Operations Manager" },
+      "notes": "Passenger called support: the driver cancelled at the pickup and asked for ₦4,000 cash to do the trip off the app. Passenger paid."
+    },
+    "detection_summary": "The ride was cancelled with the driver 0.07 km from the pickup. Afterwards, the driver's phone followed the passenger's route: 90.9% of its location samples (20 of 22) were within 200 m of it, over 10 min 30 s.",
     "evidence": {
-      "route_match_percentage": 87.5,
-      "location_samples": 16,
-      "on_route_samples": 14,
+      "route_match_percentage": 90.9,
+      "location_samples": 22,
+      "on_route_samples": 20,
       "threshold_meters": 200,
-      "cancel_distance_from_pickup_km": 0.3,
-      "on_route_duration_seconds": 650,
-      "average_gps_accuracy_meters": 15.0
+      "cancel_distance_from_pickup_km": 0.07,
+      "on_route_duration_seconds": 630,
+      "average_gps_accuracy_meters": 6
     },
     "detection_data": { "...": "raw detection output" },
-    "flagged_at": "2026-10-16T00:31:52.000000Z",
+    "flagged_at": "2026-10-20T12:54:24.000000Z",
     "resolved_at": null,
-    "driver": { "id": "uuid", "reference_number": "...", "first_name": "Emeka", "phone": "+234...", "...": "..." },
-    "driver_city": { "id": "uuid", "name": "Abuja", "...": "..." },
-    "passenger": { "id": "uuid", "first_name": "Bisi", "...": "..." },
-    "ride": { "id": "uuid", "reference_number": "TRP-NG-000001", "pickup": { "...": "..." }, "destination": { "...": "..." }, "...": "..." },
+    "driver": { "id": "uuid", "first_name": "Funke", "last_name": "Ajayi", "phone": "+2348300000031", "is_active": true, "...": "..." },
+    "driver_city": { "id": "uuid", "name": "Lagos", "...": "..." },
+    "driver_status": "suspended",
+    "driver_suspension_ends_at": null,
+    "allowed_actions": {
+      "uphold": false,
+      "overturn": true,
+      "escalate": false,
+      "de_escalate": true,
+      "confirm_deactivation": false,
+      "verify_cash_taking": false
+    },
+    "passenger": { "id": "uuid", "first_name": "Femi", "...": "..." },
+    "ride": { "id": "uuid", "reference_number": "TRP-NG-000021", "pickup": { "...": "..." }, "destination": { "...": "..." }, "...": "..." },
     "resolved_by": null,
-    "created_at": "2026-10-16T00:31:52.000000Z"
+    "created_at": "2026-10-20T12:54:24.000000Z"
   },
-  "previous_flags": [
-    {
-      "id": "uuid",
-      "reference_number": "FLG-000031",
-      "ride_reference_number": "TRP-NG-000390",
-      "flagged_at": "2026-10-06T19:02:11.000000Z",
-      "sanction_tier": { "value": 1, "label": "Warning" },
-      "status": { "value": "upheld", "label": "Upheld" }
-    }
-  ],
+  "previous_flags": [],
   "previous_flags_window_days": 30,
+  "route_map": {
+    "pickup": { "lat": 6.5523659, "lng": 3.386774, "address": "Gbagada General Hospital, Gbagada" },
+    "destination": { "lat": 6.6143785, "lng": 3.357768, "address": "Ikeja City Mall, Alausa, Ikeja" },
+    "route": { "encoded_polyline": "gw~f@mntSvAbAl@q@T]BOIaAMuAC[GWGUMCUAO?A...", "source": "planned_route" },
+    "corridor_meters": 200,
+    "cancelled_at": "2026-10-20T12:19:24.000000Z",
+    "cancel_point": { "lat": 6.55201, "lng": 3.386296, "accuracy_meters": 5.4 },
+    "driver_path": [
+      { "lat": 6.553099, "lng": 3.385821, "recorded_at": "2026-10-20T12:19:54.000000Z", "seconds_after_cancellation": 30, "distance_from_route_meters": 134.9, "on_route": true, "accuracy_meters": 6 },
+      { "lat": 6.554613, "lng": 3.3892, "recorded_at": "2026-10-20T12:20:24.000000Z", "seconds_after_cancellation": 60, "distance_from_route_meters": 144, "on_route": true, "accuracy_meters": 6 },
+      { "...": "one point every 30 seconds" }
+    ]
+  },
   "history": [
-    { "event": "offline_trip_flagged", "description": "Flagged by automatic detection", "notes": null, "actor": null, "created_at": "..." },
-    { "event": "offline_flag_disputed", "description": "Disputed by the driver", "notes": "The passenger is my brother...", "actor": { "id": "uuid", "name": "Emeka Obi", "role": "driver" }, "created_at": "..." },
-    { "event": "offline_flag_escalated", "description": "Escalated from Level 1 to Level 2", "notes": "Second event in 30 days.", "actor": { "id": "uuid", "name": "Kemi Ade", "role": "operations" }, "created_at": "..." }
+    { "event": "offline_trip_flagged", "description": "Flagged by automatic detection", "notes": null, "actor": null, "created_at": "2026-10-20T12:54:24.000000Z" },
+    { "event": "offline_flag_cash_taking_verified", "description": "Cash-taking verified from Level 1 to Level 3", "notes": "Passenger called support: ...", "actor": { "id": "uuid", "name": "Operations Manager", "role": "operations" }, "created_at": "2026-10-20T13:44:24.000000Z" }
   ]
 }
 ```
@@ -11530,9 +11576,30 @@ The flag with its evidence, the driver (with their city), the passenger and ride
 | `detection_summary` | Why the trip was flagged, as one sentence built from the evidence. `null` if the flag has no detection figures. |
 | `evidence` | The figures behind the flag. `cancel_distance_from_pickup_km` (driver's distance from the pickup when the ride was cancelled), `on_route_duration_seconds` (from the first to the last location sample on the passenger's route) and `average_gps_accuracy_meters` were added in October 2026: older flags have `null` for them, and GPS accuracy stays `null` until the driver app sends `accuracy` with its location updates. |
 | `dispute` | When and through which app the driver disputed; `channel` is `driver_app`. Only present on disputed flags. |
-| `review_notes` | The reason the admin gave when upholding or overturning. |
+| `review_notes` | The reason for the latest uphold or overturn. After an appeal it is the appeal's reason; the first reason stays in `history`. |
+| `deactivation` | Only once a Level 3 deactivation is confirmed: `confirmed_at`, `confirmed_by` (`id`, `name`), `notes` (the reason given) and `reversed_at` (set when a super admin overturns the flag on appeal, which reactivates the driver). |
+| `cash_taking` | Only when an admin verified cash-taking: `verified_at`, `verified_by`, `notes`. |
+| `sanction_action` | `warning_issued`, `suspended_48h`, `pending_admin_review`, or `deactivated` once the deactivation is confirmed. |
+| `deactivation_response_due_at` | Level 3 flags only: the end of the driver's 48-hour window to respond (see above). |
+| `driver_status` | The driver profile's status: `approved`, `suspended`, `deactivated`, etc. Use this to show that the driver is deactivated. `driver.is_active` is the login account and does not change when a driver is deactivated. |
+| `driver_suspension_ends_at` | When the driver's automatic 48-hour suspension lifts (`suspended_at` + `OFFLINE_SUSPENSION_HOURS`). `null` for any other status, including suspended pending review. |
+| `allowed_actions` | See the table above. |
 | `previous_flags` | The driver's other flags in the 30 days (`OFFLINE_SANCTION_LOOKBACK_DAYS`) up to this one, newest first. |
-| `history` | Each step on the flag, oldest first: flagged, disputed, reviewed (`description` is "Upheld" or "Overturned"), escalated, de-escalated, deactivation confirmed, with the reason and who did it (`role` is the admin role, or `driver`). |
+| `route_map` | See below. |
+| `history` | Each step on the flag, oldest first, with the reason and who did it (`role` is the admin role, or `driver`). `description` is one of: "Flagged by automatic detection", "Disputed by the driver", "Upheld", "Overturned", "Overturned on appeal" (an upheld flag overturned later), "Escalated from Level 1 to Level 2", "De-escalated from Level 3 to Level 2", "Cash-taking verified from Level 1 to Level 3" (no "from…to" when the flag was already Level 3), "Deactivation confirmed", or "Upheld and deactivation confirmed" (confirmed on a flag nobody had reviewed). A super admin's confirmation before the driver's deadline adds " before the driver's response deadline". |
+
+**`route_map`** has what the compliance map draws:
+
+| Field | Notes |
+|---|---|
+| `pickup`, `destination` | The ride's points, with addresses. |
+| `route` | The line the driver's positions were measured against, as an encoded polyline (Google format, precision 5; the same format as `route` in Live Monitoring and SOS). `source` is `planned_route` (the driving route from the maps provider) or `straight_line` (no route was available, so pickup to destination). Draw it with a `corridor_meters` buffer: positions inside count as on the route. |
+| `corridor_meters` | `OFFLINE_COLLOCATION_THRESHOLD`, 200 m. |
+| `cancelled_at` | When the ride was cancelled; the start of the monitoring. |
+| `cancel_point` | Where the driver was when the ride was cancelled, with GPS accuracy. |
+| `driver_path` | The driver's positions after the cancellation, oldest first, one every 30 s for up to 15 min. `seconds_after_cancellation` is for markers like "+4 min"; `on_route` and `distance_from_route_meters` show which positions counted. |
+
+Flags raised before October 20, 2026 have `route`, `cancelled_at` and `cancel_point` as `null` and an empty `driver_path`: draw the pickup and destination only. From October 20, 2026 the detection measures against the planned driving route rather than the straight line from pickup to destination.
 
 The detection measures the **driver's** phone against the passenger's planned route after the cancellation; the passenger's phone is not tracked after a cancellation, so there is no "phones stayed together" figure. Audio is not recorded.
 
@@ -11540,7 +11607,11 @@ The detection measures the **driver's** phone against the passenger's planned ro
 
 `POST /api/v1/admin/offline-flags/{flag}/review`
 
-Uphold or overturn any flag that has not been reviewed yet, whether or not the driver disputed it. Overturning lifts the flag's suspension (unless another flag still applies) and the flag stops counting towards later sanctions.
+Uphold or overturn a flag, whether or not the driver disputed it. Overturning lifts the flag's sanction and the flag stops counting towards later sanctions.
+
+**Appeals.** An upheld flag can be overturned later (`description` "Overturned on appeal" in `history`). An overturn is final. Overturning a flag whose deactivation was confirmed needs a **super admin** (OQ-14) and reactivates the driver.
+
+**What overturning does to the driver.** When the overturned flag is the driver's latest flag that still counted, their status is set again from their remaining flags: suspended pending review after an unconfirmed Level 3, suspended until 48 hours after a recent Level 2 (counted from that flag), otherwise approved. Overturning an older flag leaves the driver as they are. A suspension an admin made by hand for another reason is never lifted. The driver gets a push (`Account Reinstated`, or `Flag Overturned` if another flag keeps them suspended).
 
 **Request Body:**
 ```json
@@ -11559,19 +11630,19 @@ Uphold or overturn any flag that has not been reviewed yet, whether or not the d
 ```json
 {
   "message": "Dispute Upheld.",
-  "flag": { ... }
+  "flag": { "...": "as in Show, with allowed_actions" }
 }
 ```
 
 The message reads `Dispute …` for a disputed flag and `Flag …` otherwise.
 
-**Response 422:** `"This flag has already been reviewed."`, or validation error.
+**Response 422** (`errors.flag`): `"This flag has already been reviewed."` (upholding an upheld or overturned flag, or overturning an overturned one), `"Only a super admin can overturn a flag whose deactivation was confirmed."`, `"The driver has until … WAT to respond to this Level 3 flag. …"` (upholding an undisputed Level 3 flag inside the driver's window), or a validation error.
 
 ### Escalate Flag Sanction
 
 `POST /api/v1/admin/offline-flags/{flag}/escalate`
 
-Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction. Not allowed beyond level 3 or on a resolved flag.
+Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction. Works on flagged, disputed and upheld flags; not beyond Level 3 or on an overturned flag. Escalating to Level 3 starts the driver's 48-hour response window (`deactivation_response_due_at`), so the deactivation cannot be confirmed straight away.
 
 **Request Body:**
 ```json
@@ -11588,21 +11659,23 @@ Move the flag up one level (L1→L2 or L2→L3) and apply that level's sanction.
 ```json
 {
   "message": "Sanction escalated to 48-Hour Suspension.",
-  "flag": { ... }
+  "flag": { "...": "as in Show, with allowed_actions" }
 }
 ```
 
-**Response 422:** Already at max tier, resolved, or reason missing.
+**Response 422** (`errors.flag`): `"This flag is already at the maximum sanction tier."`, `"This flag was overturned and no longer counts against the driver."`, `"The driver has been deactivated, so their flags cannot be escalated."` (escalating an older flag would suspend them again, and the suspension would later lift), or reason missing.
+
+No sanction ever changes a deactivated driver's status: only a super admin overturning the flag behind the deactivation undoes it.
 
 ### De-escalate Flag Sanction
 
 `POST /api/v1/admin/offline-flags/{flag}/de-escalate`
 
-Move the flag down one level (L3→L2 or L2→L1). When the flag is the driver's latest and their current suspension came from the compliance system:
+Move the flag down one level (L3→L2 or L2→L1). Works on flagged, disputed and upheld flags. When the flag is the driver's latest and their current suspension came from the compliance system:
 - **L3 → L2:** the driver stays suspended but is no longer under deactivation review; the 48-hour suspension runs from when it began and then lifts automatically.
 - **L2 → L1:** the suspension is lifted and the driver is reinstated (approved).
 
-A suspension an admin made by hand for another reason is never changed. The driver gets a push notification.
+A suspension an admin made by hand for another reason is never changed. The driver gets a push notification. Moving down from Level 3 clears `deactivation_response_due_at`; escalating back to Level 3 starts a new 48-hour window.
 
 **Request Body:**
 ```json
@@ -11617,19 +11690,59 @@ A suspension an admin made by hand for another reason is never changed. The driv
 
 **Response 200:** `{ "message": "Sanction reduced to 48-Hour Suspension.", "flag": { ... } }`
 
-**Response 422:** `"This flag is already at the lowest sanction tier."`, `"This flag has already been resolved."`, or `"The driver has been deactivated. Reactivate them from driver management instead."` (L3 flag whose deactivation was confirmed).
+**Response 422** (`errors.flag`): `"This flag is already at the lowest sanction tier."`, `"This flag was overturned and no longer counts against the driver."`, or `"The driver's deactivation was confirmed. To undo it, a super admin can overturn the flag on appeal."`
 
 To remove every sanction from a flag, overturn it (Review, `outcome: overturned`).
+
+### Verify Cash-Taking
+
+`POST /api/v1/admin/offline-flags/{flag}/verify-cash-taking`
+
+Record that an admin verified the driver took cash for the trip, for example because the passenger confirmed paying the driver. This moves the flag **straight to Level 3**, whatever the driver's earlier flags, and suspends the driver pending review. It does not deactivate them: [confirm the deactivation](#confirm-permanent-deactivation) as for any Level 3, once the driver's 48-hour response window has passed. Who verified it, when and how are kept on the flag (`cash_taking`) and in `history` ("Cash-taking verified from Level 1 to Level 3").
+
+**Request Body:**
+```json
+{
+  "notes": "Passenger confirmed by phone they paid ₦6,000 cash for the trip."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `notes` | string | Required, min 10, max 2000 chars. How it was verified. |
+
+**Response 200:**
+```json
+{
+  "message": "Cash-taking verified. The flag is now Level 3; confirm the deactivation to make it permanent.",
+  "flag": { "...": "as in Show: sanction_tier 3, sanction_action pending_admin_review, cash_taking set" }
+}
+```
+
+On a flag already at Level 3 the message is `"Cash-taking verified."` and the tier does not change.
+
+**Response 422** (`errors.flag`): `"This flag was overturned and no longer counts against the driver."`, `"Cash-taking has already been verified on this flag."`, or `"The driver's deactivation was confirmed. To undo it, a super admin can overturn the flag on appeal."`
 
 ### Confirm Permanent Deactivation
 
 `POST /api/v1/admin/offline-flags/{flag}/confirm-deactivation`
 
-Admin confirms permanent deactivation for L3 (deactivation-tier) flags. Only works on flags where `sanction_tier` is 3, and never while the driver's dispute of the flag is pending or after it was overturned. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification. Level 3 never deactivates a driver on its own: this human confirmation is required.
+Permanently deactivate the driver on a Level 3 flag. Not while the driver's dispute of the flag awaits review, not after the flag was overturned, and not before the driver's response deadline (`deactivation_response_due_at`) unless they disputed or the admin is a super admin. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification. Level 3 never deactivates a driver on its own: this human confirmation is required.
+
+**A flag nobody has reviewed is upheld in the same step**, with the same reason, so "Uphold and deactivate" is one call. On a flag already upheld, the earlier `review_notes` stay as they were.
 
 **Auth required (admin).** Roles: `operations`, `safety_operator`
 
-No request body required.
+**Request Body:**
+```json
+{
+  "notes": "Third off-app trip in 30 days. The passenger confirmed paying cash."
+}
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `notes` | string | **Required** (since October 20, 2026), min 10, max 2000 chars. Returned in `deactivation.notes` and the flag's `history`. |
 
 **Response 200:**
 ```json
@@ -11637,18 +11750,42 @@ No request body required.
   "message": "Driver permanently deactivated after admin review.",
   "flag": {
     "id": "uuid",
-    "reference_number": "FLG-000045",
+    "reference_number": "FLG-000015",
+    "status": { "value": "upheld", "label": "Upheld" },
     "sanction_tier": { "value": 3, "label": "Permanent Deactivation" },
-    "sanction_action": "pending_admin_review",
-    "...": "..."
+    "sanction_action": "deactivated",
+    "dispute_outcome": { "value": "upheld", "label": "Upheld" },
+    "review_notes": "Third off-app trip in 30 days. The passenger confirmed paying cash.",
+    "deactivation": {
+      "confirmed_at": "2026-10-18T16:30:00.000000Z",
+      "reversed_at": null,
+      "confirmed_by": { "id": "uuid", "name": "Safety Operator" },
+      "notes": "Third off-app trip in 30 days. The passenger confirmed paying cash."
+    },
+    "resolved_at": "2026-10-18T16:30:00.000000Z",
+    "driver_status": "deactivated",
+    "allowed_actions": {
+      "uphold": false,
+      "overturn": false,
+      "escalate": false,
+      "de_escalate": false,
+      "confirm_deactivation": false,
+      "verify_cash_taking": false
+    },
+    "...": "other fields as in Show"
   }
 }
 ```
 
+For a super admin, `allowed_actions.overturn` is `true` on this flag.
+
 **Response 422:** one of:
+- `"The notes field is required."` (or too short/long) in `errors.notes`
 - `"Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation."`
 - `"Review the driver's dispute before confirming deactivation."` (dispute pending)
+- `"The driver has until 22 Oct 2026, 15:10 WAT to respond to this Level 3 flag. You can uphold it or confirm the deactivation after that, or as soon as they dispute it."` (response window still open; not for a super admin)
 - `"This flag was overturned and cannot lead to deactivation."`
+- `"Deactivation has already been confirmed for this flag."`
 - `"Driver is already deactivated."`
 
 **Response 404:**
@@ -11658,27 +11795,52 @@ No request body required.
 }
 ```
 
+#### Undoing a confirmed deactivation
+
+| Action | After confirmation |
+|---|---|
+| Overturn (Review, `outcome: overturned`) | **Super admin only** (OQ-14). Reactivates the driver: their status is set from their remaining flags (usually `approved`), `deactivation.reversed_at` is set, the driver gets an `Account Reinstated` push, and the driver record is audited as `compliance_deactivation_reversed`. |
+| De-escalate | Refused. A permanent deactivation is not reduced to a suspension; overturn it if it was wrong. |
+| Escalate, verify cash-taking | Refused (already Level 3 and confirmed). |
+| Driver management `POST /admin/drivers/{driver}/reactivate` | Refused: it reactivates suspended drivers only. |
+
+Deactivations confirmed before October 20, 2026 got `deactivation.confirmed_at` and `confirmed_by` from the audit log when the migration ran; their `notes` are `null`.
+
 **Sanction Tiers:**
 | Tier | Label | Action |
 |------|-------|--------|
 | 1 | Warning | Push notification warning |
 | 2 | 48-Hour Suspension | Force offline + suspend account. Lifted automatically after `OFFLINE_SUSPENSION_HOURS` (default 48) by the hourly `LiftExpiredComplianceSuspensionsJob`; the driver is notified. Suspensions set by an admin for other reasons are never lifted automatically. |
-| 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review (confirm-deactivation above) |
+| 3 | Permanent Deactivation | Force offline + suspend pending mandatory admin review (confirm-deactivation above). Reached by a third flag in 30 days, by escalation, or by verified cash-taking. |
 
 ### Test Data (staging)
 
-`php artisan db:seed --class=OfflineFlagsDemoSeeder` (non-production only; needs Lagos and the economy and comfort classes from `DemoSeeder`) creates 12 flags for 6 Lagos drivers over the last 30 days. Each is on a cancelled ride, with detection evidence and a review history:
+`php artisan db:seed --class=OfflineFlagsDemoSeeder` (non-production only; needs Lagos and the economy and comfort classes from `DemoSeeder`) creates 22 flags for 11 Lagos drivers over the last 30 days, covering every status at every level. Each is on a cancelled ride, with detection evidence, a route map (the real detection run on a driver path along the passenger's planned route) and a review history:
 
 | Driver | Flags | Driver now |
 |--------|-------|------------|
 | Kola Adebayo | L1 this morning, flagged | Approved |
+| Ada Obi | L1 this morning, **disputed** (pending) | Approved |
 | Bisi Okonkwo | L1 18 days ago; L2 yesterday, **disputed** (pending) | Suspended 48 h |
-| Musa Garba | L1, L2, then L3 two hours ago, not disputed: ready for confirm-deactivation or de-escalate | Suspended pending review |
+| Musa Garba | L1, L2, then L3 three days ago, not disputed and his 48 hours are over: ready for confirm-deactivation or de-escalate | Suspended pending review |
+| Funke Ajayi | L1 three hours ago, moved to **L3 by verified cash-taking**; still inside her 48 hours to respond, so uphold and confirm are refused (except for a super admin) | Suspended pending review |
 | Tayo Bankole | L1, disputed and **overturned** by Operations | Approved |
 | Ngozi Eze | L1 disputed and **upheld**; L2 four days ago | Approved (suspension lifted) |
+| Yemi Ogunleye | L1 **upheld**; L2 disputed, upheld, then **overturned on appeal** by Safety | Approved |
 | Chidi Nwosu | L1; L2 disputed and upheld by Safety; L3 yesterday, **disputed** (pending) | Suspended pending review |
+| Emeka Udeh | L1, L2; L3 two days ago, disputed and **overturned** by Safety | Approved |
+| Segun Alabi | L1, L2; L3 three days ago, no dispute in 48 hours, then **upheld and deactivation confirmed** by Safety (super admin can overturn on appeal) | **Deactivated** |
 
-That makes 7 flagged, 2 disputed, 2 upheld and 1 overturned. The drivers use `driver.compliance.*@ops-demo.etigo.com` emails (password `Qwer!234`), stay offline and are separate from the Live Monitoring demo drivers, so acting on their flags affects nothing else. Re-run the seeder to put all 12 flags back as they were, dated relative to now.
+That makes 12 flagged, 3 disputed, 4 upheld and 3 overturned:
+
+| | L1 | L2 | L3 |
+|---|---|---|---|
+| Flagged | Kola, Musa, Bisi, Chidi, Segun, Emeka | Musa, Ngozi, Segun, Emeka | Musa, Funke |
+| Disputed | Ada | Bisi | Chidi |
+| Upheld | Ngozi, Yemi | Chidi | Segun |
+| Overturned | Tayo | Yemi | Emeka |
+
+The drivers use `driver.compliance.*@ops-demo.etigo.com` emails (password `Qwer!234`), stay offline and are separate from the Live Monitoring demo drivers, so acting on their flags affects nothing else. Re-run the seeder to put all 22 flags back as they were, dated relative to now. With a maps provider configured, the route is the real driving route and a few figures can differ slightly from the ones above when an off-route position lands near another part of the road.
 
 ---
 
@@ -15308,6 +15470,21 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Payout request rejected (with reason) | Driver | `payout_rejected` |
 | Payout bank account added or changed (data: `bank_account_id`, `replaced_another`); also sent by WhatsApp/SMS regardless of preferences. Says when payouts start or that they are paused for review | Driver | `payout_account_changed` |
 | Finance approved or rejected a payout account after the name check (data: `bank_account_id`, `review_status`) | Driver | `payout_account_reviewed` |
+
+**Compliance (off-app trip) notifications** (pushed; `data.type` is `compliance_warning`; the compliance category cannot be turned off):
+
+| Event | Recipient | Title | `data` |
+|-------|-----------|-------|--------|
+| Level 1 flag | Driver | Compliance Warning | — |
+| Level 2 flag (or escalation to it): suspended | Driver | Account Suspended | `suspension_hours` |
+| Level 3 flag (raised, escalated or verified cash-taking): suspended pending review; the body says how long the driver has to dispute | Driver | Account Suspended — Under Review | `pending_deactivation: true`, `response_hours` |
+| Automatic suspension ended | Driver | Suspension Lifted | `reinstated: true` |
+| De-escalated L3 → L2 / L2 → L1 | Driver | Sanction Reduced / Suspension Lifted | `suspension_hours` / `reinstated: true` |
+| Flag overturned, nothing else keeps the driver suspended (including a deactivation overturned on appeal) | Driver | Account Reinstated | `reinstated: true` |
+| Flag overturned, another flag keeps the driver suspended | Driver | Flag Overturned | `reinstated: false` |
+| Deactivation confirmed | Driver | Account Deactivated | `deactivated: true` |
+
+On any of these, the driver app refreshes `GET /driver/compliance`.
 
 **Payload format:**
 ```json

@@ -22,6 +22,8 @@ class SanctionService
 
     public const DEACTIVATION_REVIEW_REASON = 'Compliance: suspended pending deactivation review (L3).';
 
+    public const DEACTIVATED_REASON = 'Permanently deactivated after compliance review.';
+
     public function __construct(
         private readonly PushNotificationGateway $pushGateway,
     ) {}
@@ -39,6 +41,7 @@ class SanctionService
                 'detection_data' => $detectionData,
                 'sanction_tier' => $tier,
                 'sanction_action' => $tier->action(),
+                'deactivation_response_due_at' => $tier === SanctionTier::Deactivation ? OfflineTripFlag::newResponseDeadline() : null,
                 'flagged_at' => now(),
             ]);
 
@@ -79,7 +82,10 @@ class SanctionService
     public function enforceSanction(string $driverUserId, SanctionTier $tier): void
     {
         $driver = Driver::where('user_id', $driverUserId)->first();
-        if (! $driver) {
+
+        // A deactivation is only undone by a super admin overturning its flag
+        // (OQ-14); no sanction may turn it back into a suspension.
+        if (! $driver || $driver->isDeactivated()) {
             return;
         }
 
@@ -134,10 +140,12 @@ class SanctionService
             'suspension_reason' => self::DEACTIVATION_REVIEW_REASON,
         ]);
 
+        $hours = (int) config('offline_detection.deactivation_response_hours', 48);
+
         $this->pushGateway->sendToUser($driver->user_id, [
             'title' => 'Account Suspended — Under Review',
-            'body' => 'Your account has been suspended pending admin review due to repeated compliance violations. You may dispute this decision.',
-            'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true],
+            'body' => "Your account has been suspended pending admin review due to repeated compliance violations. You have {$hours} hours to dispute this in the app before a decision is made.",
+            'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true, 'response_hours' => $hours],
         ]);
     }
 
@@ -193,8 +201,7 @@ class SanctionService
     {
         $driver = Driver::where('user_id', $flag->driver_id)->first();
 
-        if (! $driver || ! $driver->isSuspended()
-            || ! in_array($driver->suspension_reason, [self::AUTOMATIC_SUSPENSION_REASON, self::DEACTIVATION_REVIEW_REASON], true)) {
+        if (! $driver || ! $this->hasComplianceSuspension($driver)) {
             return;
         }
 
@@ -234,6 +241,13 @@ class SanctionService
         ]));
     }
 
+    /**
+     * Undo what an overturned flag did to the driver. Called once the flag is
+     * marked overturned. When the flag was the driver's latest, their
+     * compliance status is set again from their remaining flags; overturning
+     * a confirmed deactivation on appeal reactivates the driver the same way.
+     * A suspension an admin made by hand for another reason is left alone.
+     */
     public function reverseSanction(OfflineTripFlag $flag): void
     {
         $driver = Driver::where('user_id', $flag->driver_id)->first();
@@ -241,26 +255,81 @@ class SanctionService
             return;
         }
 
-        if ($driver->isSuspended() && $flag->sanction_tier !== SanctionTier::Warning) {
-            $remainingActiveFlags = OfflineTripFlag::forDriver($flag->driver_id)
-                ->withinLookback()
-                ->where('id', '!=', $flag->id)
-                ->notOverturned()
-                ->count();
+        $reversingDeactivation = $flag->hasStandingDeactivation() && $driver->isDeactivated();
 
-            if ($remainingActiveFlags === 0) {
-                $driver->update([
-                    'status' => DriverStatus::Approved,
-                    'suspended_at' => null,
-                    'suspension_reason' => null,
-                ]);
-
-                $this->pushGateway->sendToUser($driver->user_id, [
-                    'title' => 'Account Reinstated',
-                    'body' => 'Your offline trip flag has been overturned and your account has been reinstated.',
-                    'data' => ['type' => 'compliance_warning', 'reinstated' => true],
-                ]);
-            }
+        if ($reversingDeactivation) {
+            $flag->update(['deactivation_reversed_at' => now()]);
+        } elseif (! $this->hasComplianceSuspension($driver)
+            || OfflineTripFlag::forDriver($flag->driver_id)->notOverturned()->where('flagged_at', '>', $flag->flagged_at)->exists()) {
+            return;
         }
+
+        $this->applyStandingSanction($driver);
+        $driver->refresh();
+
+        if ($reversingDeactivation) {
+            AuditLog::record($driver, 'compliance_deactivation_reversed', null, [
+                'status' => DriverStatus::Deactivated->value,
+            ], [
+                'status' => $driver->status->value,
+                'flag_id' => $flag->id,
+            ]);
+        }
+
+        $message = match (true) {
+            $driver->isApproved() && $reversingDeactivation => [
+                'title' => 'Account Reinstated',
+                'body' => 'Your appeal was successful. Your deactivation has been overturned and you can go online again.',
+            ],
+            $driver->isApproved() => [
+                'title' => 'Account Reinstated',
+                'body' => 'Your offline trip flag has been overturned and your account has been reinstated.',
+            ],
+            default => [
+                'title' => 'Flag Overturned',
+                'body' => 'One of your offline trip flags has been overturned. Your account stays suspended because of another flag.',
+            ],
+        };
+
+        rescue(fn () => $this->pushGateway->sendToUser($driver->user_id, [
+            ...$message,
+            'data' => ['type' => 'compliance_warning', 'reinstated' => $driver->isApproved()],
+        ]));
+    }
+
+    /**
+     * Set the driver's compliance status from their latest flag that still
+     * counts: deactivated after a confirmed Level 3, suspended pending review
+     * after an unconfirmed one, suspended until 48 hours after a recent
+     * Level 2, otherwise approved.
+     */
+    public function applyStandingSanction(Driver $driver): void
+    {
+        $hours = (int) config('offline_detection.suspension_hours', 48);
+
+        $latest = OfflineTripFlag::forDriver($driver->user_id)
+            ->notOverturned()
+            ->latest('flagged_at')
+            ->first();
+
+        [$status, $reason, $since] = match (true) {
+            (bool) $latest?->hasStandingDeactivation() => [DriverStatus::Deactivated, self::DEACTIVATED_REASON, $latest->flagged_at],
+            $latest?->sanction_tier === SanctionTier::Deactivation => [DriverStatus::Suspended, self::DEACTIVATION_REVIEW_REASON, $latest->flagged_at],
+            $latest?->sanction_tier === SanctionTier::Suspension && $latest->flagged_at->gt(now()->subHours($hours)) => [DriverStatus::Suspended, self::AUTOMATIC_SUSPENSION_REASON, $latest->flagged_at],
+            default => [DriverStatus::Approved, null, null],
+        };
+
+        $driver->update([
+            'status' => $status,
+            'is_online' => $reason ? false : $driver->is_online,
+            'suspended_at' => $since,
+            'suspension_reason' => $reason,
+        ]);
+    }
+
+    private function hasComplianceSuspension(Driver $driver): bool
+    {
+        return $driver->isSuspended()
+            && in_array($driver->suspension_reason, [self::AUTOMATIC_SUSPENSION_REASON, self::DEACTIVATION_REVIEW_REASON], true);
     }
 }

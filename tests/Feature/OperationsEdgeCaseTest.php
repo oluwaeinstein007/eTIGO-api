@@ -120,7 +120,7 @@ it('refuses to confirm a permanent deactivation while the driver\'s dispute is p
     $flag = OfflineTripFlag::factory()->tier3()->disputed()->create(['driver_id' => $driver->user_id]);
 
     $this->actingAs($operator)
-        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation")
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'Three confirmed off-app trips this month.'])
         ->assertUnprocessable()
         ->assertJsonPath('message', "Review the driver's dispute before confirming deactivation.");
 

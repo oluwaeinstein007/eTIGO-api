@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\MonitorCancellationJob;
 use App\Models\Ride;
+use App\Support\Polyline;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -45,6 +46,8 @@ class OfflineTripDetectionService
             'cancelled_at' => now()->toISOString(),
             'cancel_distance_from_pickup_meters' => round($distance, 1),
             'cancel_gps_accuracy_meters' => $location['accuracy'] ?? null,
+            'cancel_lat' => (float) $location['lat'],
+            'cancel_lng' => (float) $location['lng'],
         ], now()->addMinutes($ttlMinutes));
 
         MonitorCancellationJob::dispatch($ride->id, $driverUserId);
@@ -81,10 +84,15 @@ class OfflineTripDetectionService
     }
 
     /**
+     * Compare the driver's positions after the cancellation with the
+     * passenger's route: the planned driving route when there is one, else
+     * the straight line from pickup to destination.
+     *
      * @param  array<int, array{lat: float, lng: float, timestamp: int}>  $driverTrajectory
      * @param  array{pickup_lat: float, pickup_lng: float, destination_lat: float, destination_lng: float}  $intendedRoute
+     * @param  string|null  $plannedPolyline  The planned route as an encoded polyline
      */
-    public function analyzeCollocation(array $driverTrajectory, array $intendedRoute): array
+    public function analyzeCollocation(array $driverTrajectory, array $intendedRoute, ?string $plannedPolyline = null): array
     {
         $thresholdMeters = config('offline_detection.collocation_threshold_meters', 200);
         $minPoints = config('offline_detection.min_collocation_points', 3);
@@ -94,32 +102,38 @@ class OfflineTripDetectionService
             return ['flagged' => false, 'reason' => 'no_trajectory_data'];
         }
 
-        $routePoints = $this->interpolateRoute(
-            $intendedRoute['pickup_lat'],
-            $intendedRoute['pickup_lng'],
-            $intendedRoute['destination_lat'],
-            $intendedRoute['destination_lng'],
-        );
+        $routePoints = $plannedPolyline ? Polyline::decode($plannedPolyline) : [];
+        // A road route has bends; two points is the maps fallback's straight line.
+        $routeSource = count($routePoints) > 2 ? 'planned_route' : 'straight_line';
+
+        if (count($routePoints) < 2) {
+            $routePoints = [
+                ['lat' => (float) $intendedRoute['pickup_lat'], 'lng' => (float) $intendedRoute['pickup_lng']],
+                ['lat' => (float) $intendedRoute['destination_lat'], 'lng' => (float) $intendedRoute['destination_lng']],
+            ];
+        }
 
         $collocatedPoints = 0;
         $totalDistance = 0;
         $pointDistances = [];
         $onRouteTimestamps = [];
+        $driverPath = [];
 
         foreach ($driverTrajectory as $point) {
-            $minDistance = PHP_FLOAT_MAX;
-
-            foreach ($routePoints as $routePoint) {
-                $distance = $this->haversineDistance(
-                    $point['lat'],
-                    $point['lng'],
-                    $routePoint['lat'],
-                    $routePoint['lng'],
-                );
-                $minDistance = min($minDistance, $distance);
-            }
+            $minDistance = $this->distanceFromRoute((float) $point['lat'], (float) $point['lng'], $routePoints);
 
             $pointDistances[] = $minDistance;
+
+            // Kept as evidence, so the compliance screen can draw where the
+            // driver went after the cancellation.
+            $driverPath[] = [
+                'lat' => (float) $point['lat'],
+                'lng' => (float) $point['lng'],
+                'timestamp' => isset($point['timestamp']) ? (int) $point['timestamp'] : null,
+                'accuracy' => isset($point['accuracy']) ? (float) $point['accuracy'] : null,
+                'distance_from_route_meters' => round($minDistance, 1),
+                'on_route' => $minDistance <= $thresholdMeters,
+            ];
 
             if ($minDistance <= $thresholdMeters) {
                 $collocatedPoints++;
@@ -176,30 +190,48 @@ class OfflineTripDetectionService
             'average_gps_accuracy_meters' => $accuracies === []
                 ? null
                 : round(array_sum($accuracies) / count($accuracies), 1),
+            // The line the samples were measured against.
+            'route_source' => $routeSource,
+            'route_polyline' => Polyline::encode(array_map(fn (array $p) => [$p['lat'], $p['lng']], $routePoints)),
+            'driver_path' => $driverPath,
         ];
     }
 
     /**
-     * @return array<int, array{lat: float, lng: float}>
+     * Metres from a point to the nearest part of a route (a line through the
+     * route's points). Each segment is measured on a flat projection around
+     * the point, which is accurate to well under a metre at these distances.
+     *
+     * @param  list<array{lat: float, lng: float}>  $routePoints
      */
-    private function interpolateRoute(
-        float $startLat,
-        float $startLng,
-        float $endLat,
-        float $endLng,
-        int $segments = 20,
-    ): array {
-        $points = [];
+    private function distanceFromRoute(float $lat, float $lng, array $routePoints): float
+    {
+        $metresPerDegree = 6371000 * M_PI / 180;
+        $lngScale = cos(deg2rad($lat));
 
-        for ($i = 0; $i <= $segments; $i++) {
-            $fraction = $i / $segments;
-            $points[] = [
-                'lat' => $startLat + ($endLat - $startLat) * $fraction,
-                'lng' => $startLng + ($endLng - $startLng) * $fraction,
-            ];
+        $project = fn (array $p) => [
+            ($p['lng'] - $lng) * $lngScale * $metresPerDegree,
+            ($p['lat'] - $lat) * $metresPerDegree,
+        ];
+
+        $nearest = PHP_FLOAT_MAX;
+        $previous = $project($routePoints[0]);
+
+        for ($i = 1, $count = count($routePoints); $i < $count; $i++) {
+            $current = $project($routePoints[$i]);
+
+            [$ax, $ay] = $previous;
+            [$dx, $dy] = [$current[0] - $ax, $current[1] - $ay];
+            $lengthSquared = $dx * $dx + $dy * $dy;
+
+            // Where along the segment the point falls, clamped to its ends.
+            $t = $lengthSquared > 0 ? max(0, min(1, -($ax * $dx + $ay * $dy) / $lengthSquared)) : 0;
+
+            $nearest = min($nearest, hypot($ax + $t * $dx, $ay + $t * $dy));
+            $previous = $current;
         }
 
-        return $points;
+        return $nearest;
     }
 
     public function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float

@@ -586,16 +586,18 @@ Every step is locked and logged in the append-only `sos_event_log`. Incident tel
 Detects drivers who cancel a ride and then complete it off the app.
 
 1. When a ride with an assigned driver is cancelled (by either party) while the driver is within **300 m** of the pickup, `MonitorCancellationJob` samples the driver's position every **30 s** for **15 min**.
-2. **20 min** later `AnalyzeOfflineTripJob` compares the trajectory with the passenger's intended route. At least **3** samples within **200 m** of the route, making up at least **60%** of all samples, flags the ride (`OFFLINE_*` settings).
+2. **20 min** later `AnalyzeOfflineTripJob` compares the trajectory with the passenger's planned driving route (`RideRouteService`; the straight line from pickup to destination when the maps provider has none). At least **3** samples within **200 m** of the route, making up at least **60%** of all samples, flags the ride (`OFFLINE_*` settings). The route, the driver's position at the cancellation and every sample are kept in `detection_data` for the compliance map.
 3. `SanctionService` escalates based on the driver's flags in the last **30 days**:
 
 | Tier | Sanction | Lifted |
 |------|----------|--------|
 | L1 | Warning (push) | — |
 | L2 | Forced offline + suspended | Automatically after 48 h (`LiftExpiredComplianceSuspensionsJob`, hourly). Suspensions set by admins for other reasons are never lifted automatically. |
-| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation — not while the driver's dispute is pending or after it was overturned |
+| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation, with a reason — not while the driver's dispute is pending or after it was overturned. Confirming upholds an unreviewed flag in the same step. The driver first gets 48 h to dispute (`OFFLINE_DEACTIVATION_RESPONSE_HOURS`); no uphold or confirmation before then unless they dispute (a super admin may confirm early) |
 
-Drivers can dispute a flag; operations upholds or overturns it (overturning reverses the sanction).
+An admin can also move a flag straight to L3 by verifying that the driver took cash for the trip (`verify-cash-taking`).
+
+Drivers can dispute a flag; operations upholds or overturns it. An upheld flag can still be overturned, escalated or de-escalated on appeal; an overturn is final. Overturning the driver's latest flag sets their status again from their remaining flags (`SanctionService::applyStandingSanction`). Undoing a confirmed deactivation takes a super admin overturning the flag (OQ-14), which reactivates the driver.
 
 ---
 
@@ -679,7 +681,7 @@ The complete list is in `.env.example`. The ones that change behaviour:
 | KYC | `QOREID_CLIENT_ID`, `QOREID_SECRET_KEY`, `KYC_SKIP_VERIFICATION` |
 | Push | `FIREBASE_CREDENTIALS_PATH` (path or raw JSON), `FIREBASE_PROJECT_ID` |
 | Real-time | `BROADCAST_CONNECTION=reverb`, `REVERB_*`, `TELEMETRY_SERVER_PORT`, `TELEMETRY_RATE_LIMIT_MS`, `REDIS_GEO_DB` |
-| Safety | `SOS_CHECK_IN_DELAY`, `SOS_ESCALATION_TIMEOUT`, `OFFLINE_*` (detection thresholds), `OFFLINE_SUSPENSION_HOURS` |
+| Safety | `SOS_CHECK_IN_DELAY`, `SOS_ESCALATION_TIMEOUT`, `OFFLINE_*` (detection thresholds), `OFFLINE_SUSPENSION_HOURS`, `OFFLINE_DEACTIVATION_RESPONSE_HOURS` (48: a driver's time to dispute a Level 3 flag before it can be upheld or the deactivation confirmed) |
 | Fleet / EV / promos / loyalty | `FLEET_*`, `EV_RESERVATION_FEE`, `EV_RESERVATION_EXPIRY`, `EV_RESERVATION_FREE_CANCEL_MINUTES`, `EV_MAX_QUEUE_SIZE`, `PROMO_PEAK_*`, `CARBON_BASELINE_EMISSION`, `GAMIFICATION_*` |
 | Notifications | `NOTIFICATION_RETENTION_DAYS`, `NOTIFICATION_PUSH_ENABLED`, `NOTIFICATION_IN_APP_ENABLED` |
 | Storage / mail | `UPLOADS_DISK` (documents and photos; `public`, `s3` or `cloudinary`), `CLOUDINARY_*`, `AWS_*`, `MAIL_*` (Resend) |

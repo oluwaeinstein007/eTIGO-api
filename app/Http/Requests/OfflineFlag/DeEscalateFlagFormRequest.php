@@ -2,8 +2,6 @@
 
 namespace App\Http\Requests\OfflineFlag;
 
-use App\Enums\SanctionTier;
-use App\Models\Driver;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -27,21 +25,8 @@ class DeEscalateFlagFormRequest extends FormRequest
             function (Validator $validator): void {
                 $flag = $this->route('flag');
 
-                if (! $flag) {
-                    return;
-                }
-
-                if ($flag->sanction_tier === SanctionTier::Warning) {
-                    $validator->errors()->add('flag', 'This flag is already at the lowest sanction tier.');
-                }
-
-                if ($flag->isResolved()) {
-                    $validator->errors()->add('flag', 'This flag has already been resolved.');
-                }
-
-                if ($flag->sanction_tier === SanctionTier::Deactivation
-                    && Driver::where('user_id', $flag->driver_id)->first()?->isDeactivated()) {
-                    $validator->errors()->add('flag', 'The driver has been deactivated. Reactivate them from driver management instead.');
+                if ($flag && $refusal = $flag->deEscalateRefusal()) {
+                    $validator->errors()->add('flag', $refusal);
                 }
             },
         ];
