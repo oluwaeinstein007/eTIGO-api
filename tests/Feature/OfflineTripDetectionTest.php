@@ -11,6 +11,7 @@ use App\Models\OfflineTripFlag;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\OfflineTripDetectionService;
+use App\Services\RideRouteService;
 use App\Services\SanctionService;
 use Illuminate\Support\Facades\Cache;
 
@@ -190,7 +191,7 @@ describe('AnalyzeOfflineTripJob', function () {
         Cache::put("offline_monitoring:{$this->ride->id}", $trajectory, 3600);
 
         $job = new AnalyzeOfflineTripJob($this->ride->id, $this->driverUser->id);
-        $job->handle(app(OfflineTripDetectionService::class), app(SanctionService::class));
+        $job->handle(app(OfflineTripDetectionService::class), app(SanctionService::class), app(RideRouteService::class));
 
         $this->assertDatabaseHas('offline_trip_flags', [
             'ride_id' => $this->ride->id,
@@ -357,7 +358,11 @@ describe('Admin review — POST /admin/offline-flags/{flag}/review', function ()
             'ride_id' => $this->ride->id,
         ]);
 
-        $this->driver->update(['status' => DriverStatus::Suspended, 'suspended_at' => now()]);
+        $this->driver->update([
+            'status' => DriverStatus::Suspended,
+            'suspended_at' => now(),
+            'suspension_reason' => SanctionService::AUTOMATIC_SUSPENSION_REASON,
+        ]);
 
         $response = $this->postJson(
             "/api/v1/admin/offline-flags/{$flag->id}/review",
@@ -396,21 +401,25 @@ describe('Admin review — POST /admin/offline-flags/{flag}/review', function ()
             ->assertJsonPath('flag.review_notes', 'Route evidence is conclusive.');
     });
 
-    it('rejects a second review', function () {
+    it('rejects upholding a reviewed flag and overturning an overturned one', function (DisputeOutcome $stored, string $outcome) {
         $flag = OfflineTripFlag::factory()->create([
             'driver_id' => $this->driverUser->id,
             'ride_id' => $this->ride->id,
-            'dispute_outcome' => DisputeOutcome::Upheld,
+            'dispute_outcome' => $stored,
             'resolved_at' => now(),
         ]);
 
         $this->postJson(
             "/api/v1/admin/offline-flags/{$flag->id}/review",
-            ['outcome' => 'overturned', 'notes' => 'Changing my mind here.'],
+            ['outcome' => $outcome, 'notes' => 'Changing my mind here.'],
             ['Authorization' => "Bearer {$this->adminToken}"],
         )->assertStatus(422)
             ->assertJsonValidationErrors(['flag' => 'This flag has already been reviewed.']);
-    });
+    })->with([
+        'upheld, upheld again' => [DisputeOutcome::Upheld, 'upheld'],
+        'overturned, upheld' => [DisputeOutcome::Overturned, 'upheld'],
+        'overturned, overturned again' => [DisputeOutcome::Overturned, 'overturned'],
+    ]);
 });
 
 describe('Admin escalation — POST /admin/offline-flags/{flag}/escalate', function () {

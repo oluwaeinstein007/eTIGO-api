@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AdminRole;
 use App\Enums\DisputeOutcome;
 use App\Enums\OfflineFlagStatus;
 use App\Enums\SanctionTier;
@@ -11,10 +12,15 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 class OfflineTripFlag extends Model
 {
     use HasFactory, HasReferenceNumber, HasUuids;
+
+    private const OVERTURNED_REFUSAL = 'This flag was overturned and no longer counts against the driver.';
+
+    private const DEACTIVATED_REFUSAL = "The driver's deactivation was confirmed. To undo it, a super admin can overturn the flag on appeal.";
 
     protected $fillable = [
         'reference_number',
@@ -31,6 +37,13 @@ class OfflineTripFlag extends Model
         'dispute_resolved_by_admin_id',
         'dispute_outcome',
         'review_notes',
+        'deactivation_confirmed_at',
+        'deactivation_confirmed_by_admin_id',
+        'deactivation_notes',
+        'deactivation_reversed_at',
+        'cash_taking_verified_at',
+        'cash_taking_verified_by_admin_id',
+        'cash_taking_notes',
         'flagged_at',
         'resolved_at',
     ];
@@ -45,6 +58,9 @@ class OfflineTripFlag extends Model
             'disputed_at' => 'datetime',
             'flagged_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'deactivation_confirmed_at' => 'datetime',
+            'deactivation_reversed_at' => 'datetime',
+            'cash_taking_verified_at' => 'datetime',
         ];
     }
 
@@ -71,6 +87,16 @@ class OfflineTripFlag extends Model
     public function resolvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'dispute_resolved_by_admin_id');
+    }
+
+    public function deactivationConfirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deactivation_confirmed_by_admin_id');
+    }
+
+    public function cashTakingVerifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cash_taking_verified_by_admin_id');
     }
 
     public function scopeActive(Builder $query): Builder
@@ -156,11 +182,119 @@ class OfflineTripFlag extends Model
     }
 
     /**
-     * Whether an admin has made the final call (upheld or overturned).
+     * Whether an admin has made the call (upheld or overturned).
      */
     public function hasReviewOutcome(): bool
     {
         return in_array($this->dispute_outcome, [DisputeOutcome::Upheld, DisputeOutcome::Overturned], true);
+    }
+
+    /**
+     * A confirmed Level 3 deactivation that no appeal has reversed.
+     */
+    public function hasStandingDeactivation(): bool
+    {
+        return $this->deactivation_confirmed_at !== null && $this->deactivation_reversed_at === null;
+    }
+
+    public function isCashTakingVerified(): bool
+    {
+        return $this->cash_taking_verified_at !== null;
+    }
+
+    /**
+     * Why an admin may not uphold or overturn this flag, or null if they may.
+     * An upheld flag can still be overturned on appeal; an overturn is final.
+     */
+    public function reviewRefusal(DisputeOutcome $outcome, User $admin): ?string
+    {
+        if ($outcome === DisputeOutcome::Upheld && $this->hasReviewOutcome()) {
+            return 'This flag has already been reviewed.';
+        }
+
+        if ($outcome === DisputeOutcome::Overturned && $this->isOverturned()) {
+            return 'This flag has already been reviewed.';
+        }
+
+        // OQ-14: only a super admin can overturn a Level 3 deactivation.
+        if ($outcome === DisputeOutcome::Overturned && $this->hasStandingDeactivation()
+            && $admin->admin_role !== AdminRole::SuperAdmin) {
+            return 'Only a super admin can overturn a flag whose deactivation was confirmed.';
+        }
+
+        return null;
+    }
+
+    public function escalateRefusal(): ?string
+    {
+        return match (true) {
+            $this->isOverturned() => self::OVERTURNED_REFUSAL,
+            $this->sanction_tier === SanctionTier::Deactivation => 'This flag is already at the maximum sanction tier.',
+            default => null,
+        };
+    }
+
+    public function deEscalateRefusal(): ?string
+    {
+        return match (true) {
+            $this->isOverturned() => self::OVERTURNED_REFUSAL,
+            $this->sanction_tier === SanctionTier::Warning => 'This flag is already at the lowest sanction tier.',
+            $this->hasStandingDeactivation(),
+            $this->sanction_tier === SanctionTier::Deactivation && $this->driverProfile()?->isDeactivated() => self::DEACTIVATED_REFUSAL,
+            default => null,
+        };
+    }
+
+    /**
+     * Why the driver's deactivation cannot be confirmed on this flag, or
+     * null if it can. A missing driver profile is the controller's 404.
+     */
+    public function confirmDeactivationRefusal(): ?string
+    {
+        return match (true) {
+            $this->sanction_tier !== SanctionTier::Deactivation => 'Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation.',
+            $this->isOverturned() => 'This flag was overturned and cannot lead to deactivation.',
+            $this->is_disputed && $this->dispute_outcome === DisputeOutcome::Pending => "Review the driver's dispute before confirming deactivation.",
+            $this->hasStandingDeactivation() => 'Deactivation has already been confirmed for this flag.',
+            (bool) $this->driverProfile()?->isDeactivated() => 'Driver is already deactivated.',
+            default => null,
+        };
+    }
+
+    public function cashTakingRefusal(): ?string
+    {
+        return match (true) {
+            $this->isOverturned() => self::OVERTURNED_REFUSAL,
+            $this->isCashTakingVerified() => 'Cash-taking has already been verified on this flag.',
+            $this->hasStandingDeactivation(), (bool) $this->driverProfile()?->isDeactivated() => self::DEACTIVATED_REFUSAL,
+            default => null,
+        };
+    }
+
+    /**
+     * Which actions the admin can take on the flag now, so the compliance
+     * screen shows only the buttons that will work.
+     *
+     * @return array<string, bool>
+     */
+    public function allowedActions(User $admin): array
+    {
+        return [
+            'uphold' => $this->reviewRefusal(DisputeOutcome::Upheld, $admin) === null,
+            'overturn' => $this->reviewRefusal(DisputeOutcome::Overturned, $admin) === null,
+            'escalate' => $this->escalateRefusal() === null,
+            'de_escalate' => $this->deEscalateRefusal() === null,
+            'confirm_deactivation' => $this->confirmDeactivationRefusal() === null,
+            'verify_cash_taking' => $this->cashTakingRefusal() === null,
+        ];
+    }
+
+    /**
+     * The flagged driver's profile (the user's Driver record).
+     */
+    public function driverProfile(): ?Driver
+    {
+        return $this->driver?->driver;
     }
 
     /**
@@ -182,6 +316,55 @@ class OfflineTripFlag extends Model
             'cancel_distance_from_pickup_km' => $distance !== null ? round($distance / 1000, 2) : null,
             'on_route_duration_seconds' => isset($data['on_route_duration_seconds']) ? (int) $data['on_route_duration_seconds'] : null,
             'average_gps_accuracy_meters' => isset($data['average_gps_accuracy_meters']) ? (float) $data['average_gps_accuracy_meters'] : null,
+        ];
+    }
+
+    /**
+     * What the compliance map draws: the passenger's pickup, destination and
+     * route (the line the driver's positions were measured against, with the
+     * corridor counted as on the route), where the driver was when the ride
+     * was cancelled, and the driver's positions afterwards. Flags raised
+     * before October 20, 2026 have no route, cancel point or path.
+     *
+     * @return array<string, mixed>
+     */
+    public function routeMap(): array
+    {
+        $data = $this->detection_data ?? [];
+        $ride = $this->ride;
+        $cancelledAt = isset($data['cancelled_at']) ? Carbon::parse($data['cancelled_at']) : null;
+
+        $place = fn (string $prefix) => $ride ? [
+            'lat' => (float) $ride->{"{$prefix}_lat"},
+            'lng' => (float) $ride->{"{$prefix}_lng"},
+            'address' => $ride->{"{$prefix}_address"},
+        ] : null;
+
+        return [
+            'pickup' => $place('pickup'),
+            'destination' => $place('destination'),
+            'route' => isset($data['route_polyline']) ? [
+                'encoded_polyline' => $data['route_polyline'],
+                'source' => $data['route_source'] ?? 'straight_line',
+            ] : null,
+            'corridor_meters' => isset($data['threshold_meters']) ? (int) $data['threshold_meters'] : null,
+            'cancelled_at' => $cancelledAt?->toISOString(),
+            'cancel_point' => isset($data['cancel_lat'], $data['cancel_lng']) ? [
+                'lat' => (float) $data['cancel_lat'],
+                'lng' => (float) $data['cancel_lng'],
+                'accuracy_meters' => isset($data['cancel_gps_accuracy_meters']) ? (float) $data['cancel_gps_accuracy_meters'] : null,
+            ] : null,
+            'driver_path' => array_map(fn (array $point) => [
+                'lat' => (float) $point['lat'],
+                'lng' => (float) $point['lng'],
+                'recorded_at' => isset($point['timestamp']) ? Carbon::createFromTimestamp($point['timestamp'])->toISOString() : null,
+                'seconds_after_cancellation' => isset($point['timestamp']) && $cancelledAt
+                    ? (int) $point['timestamp'] - $cancelledAt->getTimestamp()
+                    : null,
+                'distance_from_route_meters' => $point['distance_from_route_meters'] ?? null,
+                'on_route' => (bool) ($point['on_route'] ?? false),
+                'accuracy_meters' => isset($point['accuracy']) ? (float) $point['accuracy'] : null,
+            ], $data['driver_path'] ?? []),
         ];
     }
 

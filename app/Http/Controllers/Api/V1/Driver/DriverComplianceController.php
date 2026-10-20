@@ -21,7 +21,12 @@ class DriverComplianceController extends Controller
 
         $totalFlags = OfflineTripFlag::forDriver($user->id)->count();
 
+        $lookbackDays = (int) config('offline_detection.sanction_lookback_days', 30);
+
+        // The flag behind the driver's current sanction: the latest one that
+        // still counts, whether or not an admin has upheld it.
         $latestFlag = OfflineTripFlag::forDriver($user->id)
+            ->notOverturned()
             ->latest('flagged_at')
             ->first();
 
@@ -32,15 +37,21 @@ class DriverComplianceController extends Controller
             ->get();
 
         $activeSanction = null;
-        if ($latestFlag && ! $latestFlag->isResolved() && ! $latestFlag->isOverturned()) {
+        if ($latestFlag && ($latestFlag->hasStandingDeactivation() || $latestFlag->flagged_at->gte(now()->subDays($lookbackDays)))) {
             $activeSanction = [
+                'flag_id' => $latestFlag->id,
                 'tier' => [
                     'value' => $latestFlag->sanction_tier->value,
                     'label' => $latestFlag->sanction_tier->label(),
                 ],
                 'action' => $latestFlag->sanction_action,
+                'status' => [
+                    'value' => $latestFlag->status()->value,
+                    'label' => $latestFlag->status()->label(),
+                ],
                 'flagged_at' => $latestFlag->flagged_at?->toISOString(),
                 'is_disputed' => $latestFlag->is_disputed,
+                'deactivation_confirmed' => $latestFlag->hasStandingDeactivation(),
             ];
         }
 
@@ -50,7 +61,7 @@ class DriverComplianceController extends Controller
                 'active_flags_count' => $activeFlags,
                 'total_flags_count' => $totalFlags,
                 'active_sanction' => $activeSanction,
-                'lookback_days' => config('offline_detection.sanction_lookback_days', 30),
+                'lookback_days' => $lookbackDays,
             ],
             'recent_flags' => OfflineFlagResource::collection($recentFlags),
         ]);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\MapsGateway;
+use App\Support\Polyline;
 
 class HaversineMapsGateway implements MapsGateway
 {
@@ -63,30 +64,7 @@ class HaversineMapsGateway implements MapsGateway
      */
     public static function encodePolyline(array $points): string
     {
-        $encoded = '';
-        $previousLat = 0;
-        $previousLng = 0;
-
-        foreach ($points as [$lat, $lng]) {
-            $latE5 = (int) round($lat * 1e5);
-            $lngE5 = (int) round($lng * 1e5);
-
-            foreach ([$latE5 - $previousLat, $lngE5 - $previousLng] as $delta) {
-                $value = $delta < 0 ? ~($delta << 1) : $delta << 1;
-
-                while ($value >= 0x20) {
-                    $encoded .= chr((0x20 | ($value & 0x1F)) + 63);
-                    $value >>= 5;
-                }
-
-                $encoded .= chr($value + 63);
-            }
-
-            $previousLat = $latE5;
-            $previousLng = $lngE5;
-        }
-
-        return $encoded;
+        return Polyline::encode($points);
     }
 
     /**

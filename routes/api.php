@@ -659,6 +659,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{flag}/escalate', [AdminOfflineFlagController::class, 'escalate']);
         Route::post('/{flag}/de-escalate', [AdminOfflineFlagController::class, 'deEscalate']);
         Route::post('/{flag}/confirm-deactivation', [AdminOfflineFlagController::class, 'confirmDeactivation']);
+        Route::post('/{flag}/verify-cash-taking', [AdminOfflineFlagController::class, 'verifyCashTaking']);
     });
 
     // Tier 1 support, tier 2 support_lead, Safety; tier 3 is super admin (OQ-21).

@@ -34,5 +34,9 @@
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="KYC_SKIP_VERIFICATION" value="false"/>
         <env name="SENDCHAMP_ACCESS_KEY" value=""/>
+        <!-- No live maps calls from tests: routes fall back to the straight line. -->
+        <env name="MAPBOX_ACCESS_TOKEN" value=""/>
+        <env name="GOOGLE_MAPS_API_KEY" value=""/>
+        <env name="GOOGLE_PLACES_API_KEY" value=""/>
     </php>
 </phpunit>

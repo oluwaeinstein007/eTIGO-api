@@ -25,16 +25,8 @@ class EscalateFlagFormRequest extends FormRequest
             function (Validator $validator): void {
                 $flag = $this->route('flag');
 
-                if (! $flag) {
-                    return;
-                }
-
-                if ($flag->sanction_tier->value >= 3) {
-                    $validator->errors()->add('flag', 'This flag is already at the maximum sanction tier.');
-                }
-
-                if ($flag->isResolved()) {
-                    $validator->errors()->add('flag', 'This flag has already been resolved.');
+                if ($flag && $refusal = $flag->escalateRefusal()) {
+                    $validator->errors()->add('flag', $refusal);
                 }
             },
         ];

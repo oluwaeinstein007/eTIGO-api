@@ -8,15 +8,17 @@ use App\Enums\DriverStatus;
 use App\Enums\OfflineFlagStatus;
 use App\Enums\SanctionTier;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\OfflineFlag\ConfirmDeactivationFormRequest;
 use App\Http\Requests\OfflineFlag\DeEscalateFlagFormRequest;
 use App\Http\Requests\OfflineFlag\EscalateFlagFormRequest;
 use App\Http\Requests\OfflineFlag\ReviewFlagFormRequest;
+use App\Http\Requests\OfflineFlag\VerifyCashTakingFormRequest;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\AuditLog;
-use App\Models\Driver;
 use App\Models\OfflineTripFlag;
 use App\Services\DriverLocationService;
 use App\Services\SanctionService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,20 @@ class AdminOfflineFlagController extends Controller
         'offline_flag_escalated' => 'Escalated',
         'offline_flag_de_escalated' => 'De-escalated',
         'offline_flag_deactivation_confirmed' => 'Deactivation confirmed',
+        'offline_flag_cash_taking_verified' => 'Cash-taking verified',
+    ];
+
+    /**
+     * What the flag page and every action's response include.
+     */
+    private const DETAIL_RELATIONS = [
+        'driver.driver.city',
+        'passenger',
+        'ride.city',
+        'ride.vehicleClass',
+        'resolvedBy',
+        'deactivationConfirmedBy',
+        'cashTakingVerifiedBy',
     ];
 
     public function __construct(
@@ -50,7 +66,7 @@ class AdminOfflineFlagController extends Controller
         ]);
 
         $flags = OfflineTripFlag::query()
-            ->with(['driver', 'passenger', 'ride', 'resolvedBy'])
+            ->with(['driver', 'passenger', 'ride', 'resolvedBy', 'deactivationConfirmedBy', 'cashTakingVerifiedBy'])
             ->when($request->query('sanction_tier'), function ($query, $tier) {
                 $query->where('sanction_tier', $tier);
             })
@@ -92,7 +108,7 @@ class AdminOfflineFlagController extends Controller
 
     public function show(OfflineTripFlag $flag): JsonResponse
     {
-        $flag->load(['driver.driver.city', 'passenger', 'ride.city', 'ride.vehicleClass', 'resolvedBy']);
+        $flag->load(self::DETAIL_RELATIONS);
 
         $lookbackDays = (int) config('offline_detection.sanction_lookback_days', 30);
 
@@ -124,6 +140,7 @@ class AdminOfflineFlagController extends Controller
             // The driver's other flags in the 30 days up to this one.
             'previous_flags' => $previousFlags,
             'previous_flags_window_days' => $lookbackDays,
+            'route_map' => $flag->routeMap(),
             'history' => $this->history($flag),
         ]);
     }
@@ -156,7 +173,7 @@ class AdminOfflineFlagController extends Controller
             ]);
         });
 
-        $flag->load(['driver', 'passenger', 'ride', 'resolvedBy']);
+        $flag->load(self::DETAIL_RELATIONS);
 
         return response()->json([
             'message' => ($flag->is_disputed ? 'Dispute' : 'Flag')." {$outcome->label()}.",
@@ -187,7 +204,7 @@ class AdminOfflineFlagController extends Controller
             ]);
         });
 
-        $flag->load(['driver', 'passenger', 'ride']);
+        $flag->load(self::DETAIL_RELATIONS);
 
         return response()->json([
             'message' => "Sanction escalated to {$newTier->label()}.",
@@ -218,7 +235,7 @@ class AdminOfflineFlagController extends Controller
             ]);
         });
 
-        $flag->load(['driver', 'passenger', 'ride']);
+        $flag->load(self::DETAIL_RELATIONS);
 
         return response()->json([
             'message' => "Sanction reduced to {$newTier->label()}.",
@@ -226,43 +243,58 @@ class AdminOfflineFlagController extends Controller
         ]);
     }
 
-    public function confirmDeactivation(Request $request, OfflineTripFlag $flag): JsonResponse
+    /**
+     * Permanently deactivate the driver on a Level 3 flag. A flag nobody has
+     * reviewed yet is upheld in the same step, with the same reason.
+     */
+    public function confirmDeactivation(ConfirmDeactivationFormRequest $request, OfflineTripFlag $flag): JsonResponse
     {
-        if ($flag->sanction_tier !== SanctionTier::Deactivation) {
-            return response()->json([
-                'message' => 'Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation.',
-            ], 422);
+        if ($refusal = $flag->confirmDeactivationRefusal()) {
+            return response()->json(['message' => $refusal], 422);
         }
 
-        if ($flag->dispute_outcome === DisputeOutcome::Overturned) {
-            return response()->json([
-                'message' => 'This flag was overturned and cannot lead to deactivation.',
-            ], 422);
-        }
-
-        if ($flag->is_disputed && $flag->dispute_outcome === DisputeOutcome::Pending) {
-            return response()->json([
-                'message' => "Review the driver's dispute before confirming deactivation.",
-            ], 422);
-        }
-
-        $driver = Driver::where('user_id', $flag->driver_id)->first();
+        $driver = $flag->driverProfile();
 
         if (! $driver) {
             return response()->json(['message' => 'Driver not found.'], 404);
         }
 
         $admin = $request->user();
+        $notes = $request->validated('notes');
+        $upholds = ! $flag->hasReviewOutcome();
 
-        if ($driver->isDeactivated()) {
-            return response()->json(['message' => 'Driver is already deactivated.'], 422);
-        }
+        DB::transaction(function () use ($flag, $driver, $admin, $notes, $upholds) {
+            // A second click must not deactivate twice.
+            $this->lockAndRecheck($flag, fn (OfflineTripFlag $locked) => $locked->confirmDeactivationRefusal());
 
-        $driver->update([
-            'status' => DriverStatus::Deactivated,
-            'is_online' => false,
-            'suspension_reason' => 'Permanently deactivated after compliance review.',
-        ]);
+            $driver->update([
+                'status' => DriverStatus::Deactivated,
+                'is_online' => false,
+                'suspension_reason' => SanctionService::DEACTIVATED_REASON,
+            ]);
+
+            $flag->update([
+                'sanction_action' => 'deactivated',
+                'deactivation_confirmed_at' => now(),
+                'deactivation_confirmed_by_admin_id' => $admin->id,
+                'deactivation_notes' => $notes,
+                ...($upholds ? [
+                    'dispute_outcome' => DisputeOutcome::Upheld,
+                    'review_notes' => $notes,
+                    'dispute_resolved_by_admin_id' => $admin->id,
+                    'resolved_at' => now(),
+                ] : []),
+            ]);
+
+            AuditLog::record($flag, 'offline_flag_deactivation_confirmed', $admin, [
+                'status' => 'suspended',
+            ], [
+                'status' => 'deactivated',
+                'confirmed_by' => $admin->id,
+                'notes' => $notes,
+                ...($upholds ? ['dispute_outcome' => DisputeOutcome::Upheld->value] : []),
+            ]);
+        });
 
         try {
             app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id);
@@ -279,19 +311,73 @@ class AdminOfflineFlagController extends Controller
             'data' => ['type' => 'compliance_warning', 'deactivated' => true],
         ]));
 
-        AuditLog::record($flag, 'offline_flag_deactivation_confirmed', $admin, [
-            'status' => 'suspended',
-        ], [
-            'status' => 'deactivated',
-            'confirmed_by' => $admin->id,
-        ]);
-
-        $flag->load(['driver', 'passenger', 'ride']);
+        $flag->load(self::DETAIL_RELATIONS);
 
         return response()->json([
             'message' => 'Driver permanently deactivated after admin review.',
             'flag' => new OfflineFlagResource($flag),
         ]);
+    }
+
+    /**
+     * Record that an admin verified the driver took cash for the trip (say,
+     * the passenger confirmed it). That moves the flag straight to Level 3,
+     * whatever the driver's earlier flags; deactivation still needs
+     * confirming.
+     */
+    public function verifyCashTaking(VerifyCashTakingFormRequest $request, OfflineTripFlag $flag): JsonResponse
+    {
+        $admin = $request->user();
+        $oldTier = $flag->sanction_tier;
+        $newTier = SanctionTier::Deactivation;
+
+        DB::transaction(function () use ($request, $flag, $admin, $oldTier, $newTier) {
+            $this->lockAndRecheck($flag, fn (OfflineTripFlag $locked) => $locked->cashTakingRefusal());
+
+            $flag->update([
+                'cash_taking_verified_at' => now(),
+                'cash_taking_verified_by_admin_id' => $admin->id,
+                'cash_taking_notes' => $request->validated('notes'),
+                'sanction_tier' => $newTier,
+                'sanction_action' => $newTier->action(),
+            ]);
+
+            if ($oldTier !== $newTier) {
+                $this->sanctionService->enforceSanction($flag->driver_id, $newTier);
+            }
+
+            AuditLog::record($flag, 'offline_flag_cash_taking_verified', $admin, [
+                'sanction_tier' => $oldTier->value,
+            ], [
+                'sanction_tier' => $newTier->value,
+                'notes' => $request->validated('notes'),
+            ]);
+        });
+
+        $flag->load(self::DETAIL_RELATIONS);
+
+        return response()->json([
+            'message' => $oldTier === $newTier
+                ? 'Cash-taking verified.'
+                : 'Cash-taking verified. The flag is now Level 3; confirm the deactivation to make it permanent.',
+            'flag' => new OfflineFlagResource($flag),
+        ]);
+    }
+
+    /**
+     * Lock the flag's row and check the action is still allowed, in case
+     * another request changed the flag since the first check.
+     *
+     * @param  callable(OfflineTripFlag): ?string  $refusal
+     */
+    private function lockAndRecheck(OfflineTripFlag $flag, callable $refusal): void
+    {
+        $locked = OfflineTripFlag::whereKey($flag->id)->lockForUpdate()->firstOrFail();
+        $locked->setRelation('driver', $flag->driver);
+
+        if ($message = $refusal($locked)) {
+            throw new HttpResponseException(response()->json(['message' => $message], 422));
+        }
     }
 
     /**
@@ -311,11 +397,13 @@ class AdminOfflineFlagController extends Controller
                 $new = $log->new_values ?? [];
                 $old = $log->old_values ?? [];
 
-                $description = self::HISTORY_EVENTS[$log->event];
-                if ($log->event === 'offline_flag_reviewed' && isset($new['dispute_outcome'])) {
-                    $description = ucfirst($new['dispute_outcome']);
-                }
-                if (isset($old['sanction_tier'], $new['sanction_tier'])) {
+                $description = match (true) {
+                    $log->event === 'offline_flag_reviewed' && isset($new['dispute_outcome']) => ucfirst($new['dispute_outcome'])
+                        .(($old['dispute_outcome'] ?? null) === DisputeOutcome::Upheld->value ? ' on appeal' : ''),
+                    $log->event === 'offline_flag_deactivation_confirmed' && isset($new['dispute_outcome']) => 'Upheld and deactivation confirmed',
+                    default => self::HISTORY_EVENTS[$log->event],
+                };
+                if (isset($old['sanction_tier'], $new['sanction_tier']) && $old['sanction_tier'] !== $new['sanction_tier']) {
                     $description .= " from Level {$old['sanction_tier']} to Level {$new['sanction_tier']}";
                 }
 

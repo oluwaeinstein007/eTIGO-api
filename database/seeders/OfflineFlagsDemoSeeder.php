@@ -20,7 +20,10 @@ use App\Models\RideStateTransition;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Services\OfflineTripDetectionService;
+use App\Services\RideRouteService;
 use App\Services\SanctionService;
+use App\Support\Polyline;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -28,10 +31,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * Test data for the admin Offline Trip Flags (compliance) screens: six
- * drivers whose flags cover every sanction level and every status (flagged,
- * disputed, upheld, overturned), each on a cancelled ride with detection
- * evidence and a review history.
+ * Test data for the admin Offline Trip Flags (compliance) screens: eleven
+ * drivers whose flags cover every status (flagged, disputed, upheld,
+ * overturned) at every sanction level, plus a confirmed deactivation, an
+ * appeal and a verified cash-taking case. Each flag is on a cancelled ride,
+ * with detection evidence and a route map made by running the real detection
+ * on a driver path along the passenger's route, and a review history.
  *
  * The drivers are separate from the Live Monitoring demo drivers, stay
  * offline and are never auto-matched, so reviewing, escalating or confirming
@@ -110,7 +115,7 @@ class OfflineFlagsDemoSeeder extends Seeder
             $this->seedFlags($lagos, $economy, $comfort, $drivers, $passengers);
         });
 
-        $this->command?->info('Offline trip flag demo data ready: 12 flags for 6 drivers (GET /admin/offline-flags).');
+        $this->command?->info('Offline trip flag demo data ready: 22 flags for 11 drivers (GET /admin/offline-flags).');
     }
 
     private function email(string $name): string
@@ -157,6 +162,11 @@ class OfflineFlagsDemoSeeder extends Seeder
             'tayo' => ['Tayo', 'Bankole', '+2348300000024', $economy, ['Kia', 'Cerato', 'Blue', 'LND-224AN']],
             'ngozi' => ['Ngozi', 'Eze', '+2348300000025', $economy, ['Hyundai', 'Accent', 'Grey', 'LND-225AO']],
             'chidi' => ['Chidi', 'Nwosu', '+2348300000026', $comfort, ['Honda', 'Accord', 'Black', 'LND-226AP']],
+            'ada' => ['Ada', 'Obi', '+2348300000027', $economy, ['Toyota', 'Yaris', 'Red', 'LND-227AQ']],
+            'segun' => ['Segun', 'Alabi', '+2348300000028', $comfort, ['Lexus', 'ES 350', 'Black', 'LND-228AR']],
+            'yemi' => ['Yemi', 'Ogunleye', '+2348300000029', $economy, ['Nissan', 'Sentra', 'White', 'LND-229AS']],
+            'emeka' => ['Emeka', 'Udeh', '+2348300000030', $comfort, ['Toyota', 'Avalon', 'Grey', 'LND-230AT']],
+            'funke' => ['Funke', 'Ajayi', '+2348300000031', $economy, ['Hyundai', 'Elantra', 'Blue', 'LND-231AU']],
         ];
 
         $drivers = [];
@@ -252,15 +262,15 @@ class OfflineFlagsDemoSeeder extends Seeder
 
         // Kola: a first offence from this morning, not disputed yet.
         $this->flag($lagos, $economy, $drivers['kola'], $passengers['amaka'], 'ikeja_mall', 'landmark', SanctionTier::Warning, $now->copy()->subHours(5), [
-            'match' => 88.2, 'samples' => 17, 'on_route' => 15, 'cancel_m' => 120.4, 'duration' => 840, 'accuracy' => 7.6,
+            'match' => 88.2, 'samples' => 17, 'on_route' => 15, 'cancel_m' => 120.4, 'accuracy' => 7.6,
         ]);
 
         // Bisi: second offence yesterday, suspended 48 h, disputed in the app.
         $this->flag($lagos, $economy, $drivers['bisi'], $passengers['femi'], 'maryland', 'marina', SanctionTier::Warning, $now->copy()->subDays(18)->setTime(14, 10), [
-            'match' => 71.4, 'samples' => 14, 'on_route' => 10, 'cancel_m' => 210.0, 'duration' => 560, 'accuracy' => 11.2,
+            'match' => 71.4, 'samples' => 14, 'on_route' => 10, 'cancel_m' => 210.0, 'accuracy' => 11.2,
         ]);
         $this->flag($lagos, $economy, $drivers['bisi'], $passengers['halima'], 'unilag', 'bourdillon', SanctionTier::Suspension, $now->copy()->subHours(20), [
-            'match' => 93.8, 'samples' => 16, 'on_route' => 15, 'cancel_m' => 64.8, 'duration' => 870, 'accuracy' => 5.9,
+            'match' => 93.8, 'samples' => 16, 'on_route' => 15, 'cancel_m' => 64.8, 'accuracy' => 5.9,
         ], dispute: [
             'notes' => 'The passenger cancelled and asked me to drop them at the same place for cash. I said no and drove home to Lekki, which is the same road. I did not carry anybody.',
             'after_minutes' => 95,
@@ -268,18 +278,18 @@ class OfflineFlagsDemoSeeder extends Seeder
 
         // Musa: third offence two hours ago, suspended pending deactivation review.
         $this->flag($lagos, $comfort, $drivers['musa'], $passengers['uche'], 'airport', 'ikeja_gra', SanctionTier::Warning, $now->copy()->subDays(26)->setTime(9, 40), [
-            'match' => 66.7, 'samples' => 12, 'on_route' => 8, 'cancel_m' => 245.3, 'duration' => 480, 'accuracy' => 14.0,
+            'match' => 66.7, 'samples' => 12, 'on_route' => 8, 'cancel_m' => 245.3, 'accuracy' => 14.0,
         ]);
         $this->flag($lagos, $comfort, $drivers['musa'], $passengers['kunle'], 'admiralty', 'airport', SanctionTier::Suspension, $now->copy()->subDays(13)->setTime(19, 5), [
-            'match' => 84.6, 'samples' => 26, 'on_route' => 22, 'cancel_m' => 98.1, 'duration' => 1380, 'accuracy' => 8.3,
+            'match' => 84.6, 'samples' => 26, 'on_route' => 22, 'cancel_m' => 98.1, 'accuracy' => 8.3,
         ]);
         $this->flag($lagos, $comfort, $drivers['musa'], $passengers['precious'], 'landmark', 'ajah', SanctionTier::Deactivation, $now->copy()->subHours(2), [
-            'match' => 96.3, 'samples' => 27, 'on_route' => 26, 'cancel_m' => 41.7, 'duration' => 1500, 'accuracy' => 4.8,
+            'match' => 96.3, 'samples' => 27, 'on_route' => 26, 'cancel_m' => 41.7, 'accuracy' => 4.8,
         ]);
 
         // Tayo: disputed and overturned (GPS drift on a shared road).
         $this->flag($lagos, $economy, $drivers['tayo'], $passengers['amaka'], 'stadium', 'marina', SanctionTier::Warning, $now->copy()->subDays(7)->setTime(8, 25), [
-            'match' => 62.5, 'samples' => 8, 'on_route' => 5, 'cancel_m' => 280.9, 'duration' => 330, 'accuracy' => 38.5,
+            'match' => 62.5, 'samples' => 8, 'on_route' => 5, 'cancel_m' => 280.9, 'accuracy' => 38.5,
         ], dispute: [
             'notes' => 'I was going to my next pickup at Marina which you can see in my trip history. The passenger cancelled on me.',
             'after_minutes' => 240,
@@ -293,7 +303,7 @@ class OfflineFlagsDemoSeeder extends Seeder
         // Ngozi: first flag upheld after a dispute; second flag four days ago,
         // so the 48-hour suspension has already been lifted.
         $this->flag($lagos, $economy, $drivers['ngozi'], $passengers['femi'], 'gbagada', 'landmark', SanctionTier::Warning, $now->copy()->subDays(10)->setTime(17, 50), [
-            'match' => 90.0, 'samples' => 20, 'on_route' => 18, 'cancel_m' => 75.2, 'duration' => 1020, 'accuracy' => 6.4,
+            'match' => 90.0, 'samples' => 20, 'on_route' => 18, 'cancel_m' => 75.2, 'accuracy' => 6.4,
         ], dispute: [
             'notes' => 'I did not pick anyone. My phone was in the car while my brother used it.',
             'after_minutes' => 300,
@@ -304,15 +314,15 @@ class OfflineFlagsDemoSeeder extends Seeder
             'admin' => 'operations',
         ]);
         $this->flag($lagos, $economy, $drivers['ngozi'], $passengers['halima'], 'ikeja_mall', 'unilag', SanctionTier::Suspension, $now->copy()->subDays(4)->setTime(12, 15), [
-            'match' => 81.3, 'samples' => 16, 'on_route' => 13, 'cancel_m' => 150.6, 'duration' => 690, 'accuracy' => 9.1,
+            'match' => 81.3, 'samples' => 16, 'on_route' => 13, 'cancel_m' => 150.6, 'accuracy' => 9.1,
         ]);
 
         // Chidi: third offence yesterday, disputed, waiting for review.
         $this->flag($lagos, $comfort, $drivers['chidi'], $passengers['uche'], 'bourdillon', 'admiralty', SanctionTier::Warning, $now->copy()->subDays(22)->setTime(7, 30), [
-            'match' => 75.0, 'samples' => 12, 'on_route' => 9, 'cancel_m' => 188.0, 'duration' => 510, 'accuracy' => 10.5,
+            'match' => 75.0, 'samples' => 12, 'on_route' => 9, 'cancel_m' => 188.0, 'accuracy' => 10.5,
         ]);
         $this->flag($lagos, $comfort, $drivers['chidi'], $passengers['kunle'], 'marina', 'airport', SanctionTier::Suspension, $now->copy()->subDays(15)->setTime(21, 0), [
-            'match' => 87.5, 'samples' => 24, 'on_route' => 21, 'cancel_m' => 92.4, 'duration' => 1260, 'accuracy' => 7.0,
+            'match' => 87.5, 'samples' => 24, 'on_route' => 21, 'cancel_m' => 92.4, 'accuracy' => 7.0,
         ], dispute: [
             'notes' => 'The passenger said the app price was too high and cancelled. I left.',
             'after_minutes' => 600,
@@ -323,10 +333,91 @@ class OfflineFlagsDemoSeeder extends Seeder
             'admin' => 'safety',
         ]);
         $this->flag($lagos, $comfort, $drivers['chidi'], $passengers['precious'], 'maryland', 'admiralty', SanctionTier::Deactivation, $now->copy()->subDays(1)->setTime(10, 45), [
-            'match' => 91.7, 'samples' => 24, 'on_route' => 22, 'cancel_m' => 58.3, 'duration' => 1290, 'accuracy' => 6.1,
+            'match' => 91.7, 'samples' => 24, 'on_route' => 22, 'cancel_m' => 58.3, 'accuracy' => 6.1,
         ], dispute: [
             'notes' => 'This is not fair. I have done more than 400 trips. The customer is my regular and we were going the same way, I did not collect money.',
             'after_minutes' => 180,
+        ]);
+
+        // Ada: a first offence this morning, disputed straight away.
+        $this->flag($lagos, $economy, $drivers['ada'], $passengers['halima'], 'stadium', 'landmark', SanctionTier::Warning, $now->copy()->subHours(7), [
+            'match' => 76.9, 'samples' => 13, 'on_route' => 10, 'cancel_m' => 135.0, 'accuracy' => 9.4,
+        ], dispute: [
+            'notes' => 'The lady cancelled because she said I was late. I went to fuel my car at Costain, that is why my phone was on that road.',
+            'after_minutes' => 40,
+        ]);
+
+        // Segun: third offence three days ago, upheld and deactivation
+        // confirmed by Safety in one step.
+        $this->flag($lagos, $comfort, $drivers['segun'], $passengers['kunle'], 'ikeja_gra', 'maryland', SanctionTier::Warning, $now->copy()->subDays(25)->setTime(11, 20), [
+            'match' => 70.0, 'samples' => 10, 'on_route' => 7, 'cancel_m' => 230.0, 'accuracy' => 12.5,
+        ]);
+        $this->flag($lagos, $comfort, $drivers['segun'], $passengers['amaka'], 'airport', 'admiralty', SanctionTier::Suspension, $now->copy()->subDays(12)->setTime(6, 50), [
+            'match' => 89.5, 'samples' => 19, 'on_route' => 17, 'cancel_m' => 77.0, 'accuracy' => 6.8,
+        ]);
+        $this->flag($lagos, $comfort, $drivers['segun'], $passengers['uche'], 'marina', 'ajah', SanctionTier::Deactivation, $now->copy()->subDays(3)->setTime(18, 30), [
+            'match' => 95.8, 'samples' => 24, 'on_route' => 23, 'cancel_m' => 52.0, 'accuracy' => 5.2,
+        ], deactivation: [
+            'notes' => 'Third off-app trip in 30 days. The passenger confirmed by phone that she paid the driver ₦9,000 cash for the trip to Ajah.',
+            'after_hours' => 22,
+            'admin' => 'safety',
+        ]);
+
+        // Yemi: first flag upheld; second upheld, then overturned on appeal
+        // by a different reviewer.
+        $this->flag($lagos, $economy, $drivers['yemi'], $passengers['precious'], 'unilag', 'marina', SanctionTier::Warning, $now->copy()->subDays(20)->setTime(13, 5), [
+            'match' => 83.3, 'samples' => 18, 'on_route' => 15, 'cancel_m' => 160.0, 'accuracy' => 8.0,
+        ], review: [
+            'outcome' => DisputeOutcome::Upheld,
+            'notes' => 'Upheld: 15 of 18 samples on the passenger\'s route, no other trip accepted in that window.',
+            'after_hours' => 9,
+            'admin' => 'operations',
+        ]);
+        $this->flag($lagos, $economy, $drivers['yemi'], $passengers['femi'], 'maryland', 'unilag', SanctionTier::Suspension, $now->copy()->subDays(6)->setTime(16, 40), [
+            'match' => 78.6, 'samples' => 14, 'on_route' => 11, 'cancel_m' => 110.0, 'accuracy' => 10.2,
+        ], dispute: [
+            'notes' => 'I live in Akoka. After the passenger cancelled I drove home, which is the same road to Unilag.',
+            'after_minutes' => 120,
+        ], review: [
+            'outcome' => DisputeOutcome::Upheld,
+            'notes' => 'Upheld: the path follows the booked route to the gate, not the driver\'s street.',
+            'after_hours' => 18,
+            'admin' => 'operations',
+        ], appeal: [
+            'notes' => 'Overturned on appeal: the driver sent a utility bill for an address inside the Unilag staff quarters, on the booked route.',
+            'after_hours' => 30,
+            'admin' => 'safety',
+        ]);
+
+        // Emeka: third offence disputed and overturned; the earlier
+        // suspension has run, so he is approved again.
+        $this->flag($lagos, $comfort, $drivers['emeka'], $passengers['halima'], 'bourdillon', 'landmark', SanctionTier::Warning, $now->copy()->subDays(28)->setTime(10, 0), [
+            'match' => 72.7, 'samples' => 11, 'on_route' => 8, 'cancel_m' => 190.0, 'accuracy' => 11.0,
+        ]);
+        $this->flag($lagos, $comfort, $drivers['emeka'], $passengers['precious'], 'admiralty', 'marina', SanctionTier::Suspension, $now->copy()->subDays(14)->setTime(20, 15), [
+            'match' => 85.0, 'samples' => 20, 'on_route' => 17, 'cancel_m' => 95.0, 'accuracy' => 7.4,
+        ]);
+        $this->flag($lagos, $comfort, $drivers['emeka'], $passengers['kunle'], 'landmark', 'airport', SanctionTier::Deactivation, $now->copy()->subDays(2)->setTime(9, 10), [
+            'match' => 63.6, 'samples' => 11, 'on_route' => 7, 'cancel_m' => 270.0, 'accuracy' => 41.0,
+        ], dispute: [
+            'notes' => 'I had an airport pickup booked on the app right after. Please check my trips.',
+            'after_minutes' => 60,
+        ], review: [
+            'outcome' => DisputeOutcome::Overturned,
+            'notes' => 'Overturned: the driver accepted an airport request 4 minutes after the cancellation and GPS accuracy was poor (41 m).',
+            'after_hours' => 6,
+            'admin' => 'safety',
+        ]);
+
+        // Funke: a first offence three hours ago; the passenger called support
+        // to say they paid cash, so Operations moved it straight to Level 3.
+        $this->flag($lagos, $economy, $drivers['funke'], $passengers['femi'], 'gbagada', 'ikeja_mall', SanctionTier::Deactivation, $now->copy()->subHours(3), [
+            'match' => 90.9, 'samples' => 22, 'on_route' => 20, 'cancel_m' => 66.0, 'accuracy' => 6.0,
+        ], cashTaking: [
+            'notes' => 'Passenger called support: the driver cancelled at the pickup and asked for ₦4,000 cash to do the trip off the app. Passenger paid.',
+            'after_minutes' => 50,
+            'admin' => 'operations',
+            'from_tier' => SanctionTier::Warning,
         ]);
 
         usort($this->queued, fn (array $a, array $b) => $a['flaggedAt'] <=> $b['flaggedAt']);
@@ -336,13 +427,16 @@ class OfflineFlagsDemoSeeder extends Seeder
         }
         $this->queued = [];
 
-        $this->applyCurrentSanctions($drivers, $now);
+        $this->applyCurrentSanctions($drivers);
     }
 
     /**
-     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, duration: int, accuracy: float}  $evidence
+     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, accuracy: float}  $evidence
      * @param  array{notes: string, after_minutes: int}|null  $dispute
      * @param  array{outcome: DisputeOutcome, notes: string, after_hours: int, admin: string}|null  $review
+     * @param  array{notes: string, after_hours: int, admin: string}|null  $appeal  Overturns an upheld review
+     * @param  array{notes: string, after_hours: int, admin: string}|null  $deactivation  Upholds and confirms a Level 3
+     * @param  array{notes: string, after_minutes: int, admin: string, from_tier: SanctionTier}|null  $cashTaking
      */
     private function flag(
         City $city,
@@ -356,14 +450,20 @@ class OfflineFlagsDemoSeeder extends Seeder
         array $evidence,
         ?array $dispute = null,
         ?array $review = null,
+        ?array $appeal = null,
+        ?array $deactivation = null,
+        ?array $cashTaking = null,
     ): void {
-        $this->queued[] = compact('city', 'class', 'driver', 'passenger', 'from', 'to', 'tier', 'flaggedAt', 'evidence', 'dispute', 'review');
+        $this->queued[] = compact('city', 'class', 'driver', 'passenger', 'from', 'to', 'tier', 'flaggedAt', 'evidence', 'dispute', 'review', 'appeal', 'deactivation', 'cashTaking');
     }
 
     /**
-     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, duration: int, accuracy: float}  $evidence
+     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, accuracy: float}  $evidence
      * @param  array{notes: string, after_minutes: int}|null  $dispute
      * @param  array{outcome: DisputeOutcome, notes: string, after_hours: int, admin: string}|null  $review
+     * @param  array{notes: string, after_hours: int, admin: string}|null  $appeal
+     * @param  array{notes: string, after_hours: int, admin: string}|null  $deactivation
+     * @param  array{notes: string, after_minutes: int, admin: string, from_tier: SanctionTier}|null  $cashTaking
      */
     private function createFlag(
         City $city,
@@ -377,6 +477,9 @@ class OfflineFlagsDemoSeeder extends Seeder
         array $evidence,
         ?array $dispute = null,
         ?array $review = null,
+        ?array $appeal = null,
+        ?array $deactivation = null,
+        ?array $cashTaking = null,
     ): OfflineTripFlag {
         $analysisDelay = (int) config('offline_detection.analysis_delay_minutes', 20);
         $window = (int) config('offline_detection.monitoring_window_minutes', 15);
@@ -385,39 +488,69 @@ class OfflineFlagsDemoSeeder extends Seeder
         $ride = $this->cancelledRide($city, $class, $driver, $passenger, $from, $to, $cancelledAt);
 
         $disputedAt = $dispute ? $flaggedAt->copy()->addMinutes($dispute['after_minutes']) : null;
-        $resolvedAt = $review ? $disputedAt->copy()->addHours($review['after_hours']) : null;
-        $reviewer = match ($review['admin'] ?? null) {
-            'operations' => $this->operationsAdmin,
-            'safety' => $this->safetyAdmin,
-            default => null,
+        $reviewedAt = $review ? ($disputedAt ?? $flaggedAt)->copy()->addHours($review['after_hours']) : null;
+        $appealedAt = $appeal ? $reviewedAt->copy()->addHours($appeal['after_hours']) : null;
+        $confirmedAt = $deactivation ? ($reviewedAt ?? $disputedAt ?? $flaggedAt)->copy()->addHours($deactivation['after_hours']) : null;
+        $cashVerifiedAt = $cashTaking ? $flaggedAt->copy()->addMinutes($cashTaking['after_minutes']) : null;
+
+        $reviewer = $this->adminFor($review['admin'] ?? null);
+        $appealReviewer = $this->adminFor($appeal['admin'] ?? null);
+        $confirmer = $this->adminFor($deactivation['admin'] ?? null);
+        $cashVerifier = $this->adminFor($cashTaking['admin'] ?? null);
+
+        // Where the review ended up: an appeal replaces the first decision,
+        // and confirming a deactivation on an unreviewed flag upholds it.
+        [$outcome, $reviewNotes, $resolvedBy, $resolvedAt] = match (true) {
+            $appeal !== null => [DisputeOutcome::Overturned, $appeal['notes'], $appealReviewer, $appealedAt],
+            $review !== null => [$review['outcome'], $review['notes'], $reviewer, $reviewedAt],
+            $deactivation !== null => [DisputeOutcome::Upheld, $deactivation['notes'], $confirmer, $confirmedAt],
+            default => [$dispute ? DisputeOutcome::Pending : null, null, null, null],
         };
 
         $flag = OfflineTripFlag::create([
             'ride_id' => $ride->id,
             'driver_id' => $driver->user_id,
             'passenger_id' => $passenger->id,
-            'detection_data' => $this->detectionData($evidence, $cancelledAt),
+            'detection_data' => $this->detectionData($evidence, $cancelledAt, $ride),
             'sanction_tier' => $tier,
-            'sanction_action' => $tier->action(),
+            'sanction_action' => $deactivation ? 'deactivated' : $tier->action(),
             'is_disputed' => $dispute !== null,
             'dispute_notes' => $dispute['notes'] ?? null,
             'disputed_at' => $disputedAt,
             'dispute_channel' => $dispute ? 'driver_app' : null,
-            'dispute_outcome' => $review['outcome'] ?? ($dispute ? DisputeOutcome::Pending : null),
-            'dispute_resolved_by_admin_id' => $review ? $reviewer?->id : null,
-            'review_notes' => $review['notes'] ?? null,
+            'dispute_outcome' => $outcome,
+            'dispute_resolved_by_admin_id' => $resolvedBy?->id,
+            'review_notes' => $reviewNotes,
+            'deactivation_confirmed_at' => $confirmedAt,
+            'deactivation_confirmed_by_admin_id' => $confirmer?->id,
+            'deactivation_notes' => $deactivation['notes'] ?? null,
+            'cash_taking_verified_at' => $cashVerifiedAt,
+            'cash_taking_verified_by_admin_id' => $cashVerifier?->id,
+            'cash_taking_notes' => $cashTaking['notes'] ?? null,
             'flagged_at' => $flaggedAt,
             'resolved_at' => $resolvedAt,
         ]);
 
-        $flag->forceFill(['created_at' => $flaggedAt, 'updated_at' => $resolvedAt ?? $disputedAt ?? $flaggedAt])->saveQuietly();
+        $lastStep = max(array_filter([$flaggedAt, $disputedAt, $reviewedAt, $appealedAt, $confirmedAt, $cashVerifiedAt]));
+        $flag->forceFill(['created_at' => $flaggedAt, 'updated_at' => $lastStep])->saveQuietly();
+
+        $flaggedTier = $cashTaking['from_tier'] ?? $tier;
 
         $this->audit($flag, 'offline_trip_flagged', null, null, [
-            'sanction_tier' => $tier->value,
-            'sanction_action' => $tier->action(),
+            'sanction_tier' => $flaggedTier->value,
+            'sanction_action' => $flaggedTier->action(),
             'ride_id' => $ride->id,
             'driver_id' => $driver->user_id,
         ], $flaggedAt);
+
+        if ($cashTaking) {
+            $this->audit($flag, 'offline_flag_cash_taking_verified', $cashVerifier, [
+                'sanction_tier' => $flaggedTier->value,
+            ], [
+                'sanction_tier' => $tier->value,
+                'notes' => $cashTaking['notes'],
+            ], $cashVerifiedAt);
+        }
 
         if ($dispute) {
             $this->audit($flag, 'offline_flag_disputed', $driver->user, null, [
@@ -427,58 +560,161 @@ class OfflineFlagsDemoSeeder extends Seeder
 
         if ($review) {
             $this->audit($flag, 'offline_flag_reviewed', $reviewer, [
-                'dispute_outcome' => DisputeOutcome::Pending->value,
+                'dispute_outcome' => $dispute ? DisputeOutcome::Pending->value : null,
             ], [
                 'dispute_outcome' => $review['outcome']->value,
                 'resolution_notes' => $review['notes'],
-            ], $resolvedAt);
+            ], $reviewedAt);
+        }
+
+        if ($appeal) {
+            $this->audit($flag, 'offline_flag_reviewed', $appealReviewer, [
+                'dispute_outcome' => DisputeOutcome::Upheld->value,
+            ], [
+                'dispute_outcome' => DisputeOutcome::Overturned->value,
+                'resolution_notes' => $appeal['notes'],
+            ], $appealedAt);
+        }
+
+        if ($deactivation) {
+            $this->audit($flag, 'offline_flag_deactivation_confirmed', $confirmer, [
+                'status' => 'suspended',
+            ], [
+                'status' => 'deactivated',
+                'confirmed_by' => $confirmer?->id,
+                'notes' => $deactivation['notes'],
+                ...($review ? [] : ['dispute_outcome' => DisputeOutcome::Upheld->value]),
+            ], $confirmedAt);
         }
 
         return $flag;
     }
 
+    private function adminFor(?string $role): ?User
+    {
+        return match ($role) {
+            'operations' => $this->operationsAdmin,
+            'safety' => $this->safetyAdmin,
+            default => null,
+        };
+    }
+
     /**
-     * The fields OfflineTripDetectionService and the cancellation context
-     * record for a real flag.
+     * Run the real detection on a driver path made to match the evidence:
+     * one sample every 30 seconds after the cancellation, moving along the
+     * passenger's route, with the on-route samples inside the corridor and
+     * the rest well outside it. The route is the planned driving route when
+     * the maps provider gives one, else the straight line.
      *
-     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, duration: int, accuracy: float}  $evidence
+     * @param  array{match: float, samples: int, on_route: int, cancel_m: float, accuracy: float}  $evidence
      * @return array<string, mixed>
      */
-    private function detectionData(array $evidence, Carbon $cancelledAt): array
+    private function detectionData(array $evidence, Carbon $cancelledAt, Ride $ride): array
     {
         $threshold = (int) config('offline_detection.collocation_threshold_meters', 200);
         $interval = (int) config('offline_detection.location_sample_interval_seconds', 30);
 
-        $distances = [];
-        for ($i = 0; $i < $evidence['samples']; $i++) {
-            $distances[] = $i < $evidence['on_route']
-                ? round(15 + (($i * 37) % ($threshold - 40)), 1)
-                : round($threshold + 40 + (($i * 53) % 400), 1);
+        $polyline = app(RideRouteService::class)->getPlannedRoute($ride)['encoded_polyline'] ?? null;
+        $route = $polyline ? Polyline::decode($polyline) : [];
+        if (count($route) < 2) {
+            $route = [
+                ['lat' => (float) $ride->pickup_lat, 'lng' => (float) $ride->pickup_lng],
+                ['lat' => (float) $ride->destination_lat, 'lng' => (float) $ride->destination_lng],
+            ];
         }
-        // Spread the off-route samples through the trip rather than at the end.
+
+        // Which samples are on the route, spread through the trip, and how
+        // far each is from it: the same on every run for the same dates.
         mt_srand(crc32($cancelledAt->toIso8601String()));
-        shuffle($distances);
+        $onRoute = array_merge(
+            array_fill(0, $evidence['on_route'], true),
+            array_fill(0, $evidence['samples'] - $evidence['on_route'], false),
+        );
+        shuffle($onRoute);
+
+        $trajectory = [];
+        foreach ($onRoute as $i => $isOnRoute) {
+            $offset = $isOnRoute
+                ? 15 + mt_rand(0, $threshold - 55)
+                : $threshold + 150 + mt_rand(0, 450);
+            $progress = $evidence['samples'] > 1 ? $i / ($evidence['samples'] - 1) : 0.0;
+
+            [$lat, $lng] = $this->pointBeside($route, $progress, $i % 2 ? $offset : -$offset);
+
+            $trajectory[] = [
+                'lat' => round($lat, 6),
+                'lng' => round($lng, 6),
+                'timestamp' => $cancelledAt->copy()->addSeconds(($i + 1) * $interval)->timestamp,
+                'speed' => 0,
+                'heading' => 0,
+                'accuracy' => $evidence['accuracy'],
+            ];
+        }
         mt_srand();
 
-        $onRoute = array_filter($distances, fn (float $d) => $d <= $threshold);
+        $result = app(OfflineTripDetectionService::class)->analyzeCollocation($trajectory, [
+            'pickup_lat' => (float) $ride->pickup_lat,
+            'pickup_lng' => (float) $ride->pickup_lng,
+            'destination_lat' => (float) $ride->destination_lat,
+            'destination_lng' => (float) $ride->destination_lng,
+        ], $polyline);
+
+        // The driver was cancel_m from the pickup, coming from the south-west.
+        $metresPerDegree = 6371000 * M_PI / 180;
+        $cancelLat = (float) $ride->pickup_lat - ($evidence['cancel_m'] * 0.6) / $metresPerDegree;
+        $cancelLng = (float) $ride->pickup_lng - ($evidence['cancel_m'] * 0.8) / ($metresPerDegree * cos(deg2rad((float) $ride->pickup_lat)));
 
         return [
-            'flagged' => true,
-            'collocation_points' => $evidence['on_route'],
-            'total_trajectory_points' => $evidence['samples'],
-            'route_match_percentage' => $evidence['match'],
-            'average_distance_meters' => round(array_sum($onRoute) / max(count($onRoute), 1), 1),
-            'point_distances' => $distances,
-            'threshold_meters' => $threshold,
-            'min_points_required' => (int) config('offline_detection.min_collocation_points', 3),
-            'match_percentage_required' => (int) config('offline_detection.route_match_percentage', 60),
-            'on_route_duration_seconds' => $evidence['duration'],
-            'monitoring_duration_seconds' => max($evidence['duration'], ($evidence['samples'] - 1) * $interval),
-            'average_gps_accuracy_meters' => $evidence['accuracy'],
+            ...$result,
             'cancelled_at' => $cancelledAt->toISOString(),
             'cancel_distance_from_pickup_meters' => $evidence['cancel_m'],
             'cancel_gps_accuracy_meters' => round($evidence['accuracy'] * 0.9, 1),
+            'cancel_lat' => round($cancelLat, 6),
+            'cancel_lng' => round($cancelLng, 6),
         ];
+    }
+
+    /**
+     * A point part of the way along a route (by distance), moved sideways
+     * from it by the given metres (negative is the other side).
+     *
+     * @param  list<array{lat: float, lng: float}>  $route
+     * @return array{0: float, 1: float}
+     */
+    private function pointBeside(array $route, float $progress, float $sideways): array
+    {
+        $metresPerDegree = 6371000 * M_PI / 180;
+        $lngScale = cos(deg2rad($route[0]['lat']));
+
+        $segments = [];
+        $total = 0.0;
+        for ($i = 1, $count = count($route); $i < $count; $i++) {
+            $dx = ($route[$i]['lng'] - $route[$i - 1]['lng']) * $lngScale * $metresPerDegree;
+            $dy = ($route[$i]['lat'] - $route[$i - 1]['lat']) * $metresPerDegree;
+            $segments[] = ['start' => $route[$i - 1], 'dx' => $dx, 'dy' => $dy, 'length' => hypot($dx, $dy)];
+            $total += hypot($dx, $dy);
+        }
+
+        $remaining = $progress * $total;
+        foreach ($segments as $index => $segment) {
+            if ($remaining > $segment['length'] && $index < count($segments) - 1) {
+                $remaining -= $segment['length'];
+
+                continue;
+            }
+
+            $length = $segment['length'] ?: 1.0;
+            $t = min(1.0, $remaining / $length);
+            // Unit vector at right angles to the segment.
+            [$nx, $ny] = [-$segment['dy'] / $length, $segment['dx'] / $length];
+
+            return [
+                $segment['start']['lat'] + ($t * $segment['dy'] + $ny * $sideways) / $metresPerDegree,
+                $segment['start']['lng'] + ($t * $segment['dx'] + $nx * $sideways) / ($lngScale * $metresPerDegree),
+            ];
+        }
+
+        return [$route[0]['lat'], $route[0]['lng']];
     }
 
     private function cancelledRide(
@@ -562,36 +798,17 @@ class OfflineFlagsDemoSeeder extends Seeder
     }
 
     /**
-     * Leave each driver where their latest flag put them: suspended for 48 h
-     * after an L2 (lifted once it has run), suspended pending review after an
-     * L3, otherwise approved.
+     * Leave each driver where their latest flag that still counts put them:
+     * deactivated after a confirmed Level 3, suspended pending review after
+     * an unconfirmed one, suspended for 48 h after an L2 (lifted once it has
+     * run), otherwise approved.
      *
      * @param  array<string, Driver>  $drivers
      */
-    private function applyCurrentSanctions(array $drivers, Carbon $now): void
+    private function applyCurrentSanctions(array $drivers): void
     {
-        $hours = (int) config('offline_detection.suspension_hours', 48);
-
         foreach ($drivers as $driver) {
-            $latest = OfflineTripFlag::forDriver($driver->user_id)->notOverturned()->latest('flagged_at')->first();
-
-            if (! $latest) {
-                continue;
-            }
-
-            $reason = match (true) {
-                $latest->sanction_tier === SanctionTier::Deactivation => SanctionService::DEACTIVATION_REVIEW_REASON,
-                $latest->sanction_tier === SanctionTier::Suspension && $latest->flagged_at->gt($now->copy()->subHours($hours)) => SanctionService::AUTOMATIC_SUSPENSION_REASON,
-                default => null,
-            };
-
-            if ($reason) {
-                $driver->update([
-                    'status' => DriverStatus::Suspended,
-                    'suspended_at' => $latest->flagged_at,
-                    'suspension_reason' => $reason,
-                ]);
-            }
+            app(SanctionService::class)->applyStandingSanction($driver);
         }
     }
 
