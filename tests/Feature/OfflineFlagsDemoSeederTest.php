@@ -46,6 +46,24 @@ it('seeds flags at every tier and status and replaces them on a re-run', functio
     expect($byDate)->toBe($flags->sortBy('reference_number')->pluck('reference_number')->values()->all());
 });
 
+it('leaves rides it did not create alone when it re-runs', function () {
+    app(OfflineFlagsDemoSeeder::class)->run();
+
+    $demoDriver = User::where('email', 'like', 'driver.compliance.kola@%')->first();
+    $otherRide = Ride::factory()->create([
+        'driver_id' => $demoDriver->id,
+        'city_id' => City::first()->id,
+        'vehicle_class_id' => VehicleClass::where('name', 'economy')->first()->id,
+    ]);
+    $otherFlag = OfflineTripFlag::factory()->create(['ride_id' => $otherRide->id, 'driver_id' => $demoDriver->id]);
+
+    app(OfflineFlagsDemoSeeder::class)->run();
+
+    expect(Ride::whereKey($otherRide->id)->exists())->toBeTrue()
+        ->and(OfflineTripFlag::whereKey($otherFlag->id)->exists())->toBeTrue()
+        ->and(OfflineTripFlag::count())->toBe(13);
+});
+
 it('shows the seeded flags on the admin compliance screens', function () {
     app(OfflineFlagsDemoSeeder::class)->run();
 

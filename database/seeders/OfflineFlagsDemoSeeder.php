@@ -45,6 +45,12 @@ class OfflineFlagsDemoSeeder extends Seeder
     private const PASSWORD = 'Qwer!234';
 
     /**
+     * Marks the seeder's rides (in their state transitions' metadata) so a
+     * re-run deletes only those.
+     */
+    private const SEEDER_TAG = 'OfflineFlagsDemoSeeder';
+
+    /**
      * @var array<string, array{0: float, 1: float, 2: string}>
      */
     private const PLACES = [
@@ -123,15 +129,20 @@ class OfflineFlagsDemoSeeder extends Seeder
      */
     private function resetPreviousFlags(array $drivers): void
     {
-        $driverUserIds = collect($drivers)->pluck('user_id');
-        $flagIds = OfflineTripFlag::whereIn('driver_id', $driverUserIds)->pluck('id');
+        // Only the rides this seeder made; anything else the demo drivers
+        // were given (say, by manual assignment) is left alone.
+        $rideIds = RideStateTransition::where('metadata->seeder', self::SEEDER_TAG)
+            ->whereHas('ride', fn ($query) => $query->whereIn('driver_id', collect($drivers)->pluck('user_id')))
+            ->distinct()
+            ->pluck('ride_id');
+        $flagIds = OfflineTripFlag::whereIn('ride_id', $rideIds)->pluck('id');
 
         AuditLog::where('auditable_type', (new OfflineTripFlag)->getMorphClass())
             ->whereIn('auditable_id', $flagIds->map(fn ($id) => (string) $id))
             ->delete();
 
         // Deleting the rides takes their flags and state transitions with them.
-        Ride::whereIn('driver_id', $driverUserIds)->delete();
+        Ride::whereIn('id', $rideIds)->delete();
     }
 
     /**
@@ -542,7 +553,7 @@ class OfflineFlagsDemoSeeder extends Seeder
                 'to_state' => $toState,
                 'triggered_by_type' => $actorType,
                 'triggered_by_id' => $actorId,
-                'metadata' => ['demo' => true],
+                'metadata' => ['demo' => true, 'seeder' => self::SEEDER_TAG],
                 'created_at' => $at,
             ]);
         }
@@ -602,7 +613,7 @@ class OfflineFlagsDemoSeeder extends Seeder
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'ip_address' => null,
-            'user_agent' => 'OfflineFlagsDemoSeeder',
+            'user_agent' => self::SEEDER_TAG,
             'created_at' => $at,
         ]);
     }
