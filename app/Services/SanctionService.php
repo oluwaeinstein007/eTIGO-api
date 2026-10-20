@@ -41,6 +41,7 @@ class SanctionService
                 'detection_data' => $detectionData,
                 'sanction_tier' => $tier,
                 'sanction_action' => $tier->action(),
+                'deactivation_response_due_at' => $tier === SanctionTier::Deactivation ? OfflineTripFlag::newResponseDeadline() : null,
                 'flagged_at' => now(),
             ]);
 
@@ -136,10 +137,12 @@ class SanctionService
             'suspension_reason' => self::DEACTIVATION_REVIEW_REASON,
         ]);
 
+        $hours = (int) config('offline_detection.deactivation_response_hours', 48);
+
         $this->pushGateway->sendToUser($driver->user_id, [
             'title' => 'Account Suspended — Under Review',
-            'body' => 'Your account has been suspended pending admin review due to repeated compliance violations. You may dispute this decision.',
-            'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true],
+            'body' => "Your account has been suspended pending admin review due to repeated compliance violations. You have {$hours} hours to dispute this in the app before a decision is made.",
+            'data' => ['type' => 'compliance_warning', 'pending_deactivation' => true, 'response_hours' => $hours],
         ]);
     }
 

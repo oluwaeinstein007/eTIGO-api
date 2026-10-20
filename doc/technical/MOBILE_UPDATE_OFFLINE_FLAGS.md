@@ -14,7 +14,7 @@ Request and response details are in `API_REFERENCE.md` → **Anti-Offline Trip D
 
 | Must do (breaking) | Should do | Nice to have |
 |---|---|---|
-| None | Read the new `active_sanction` fields; don't treat `upheld` as final; handle the new push texts | Show `deactivation` and `cash_taking` on a flag |
+| None | Show the Level 3 response deadline; read the new `active_sanction` fields; don't treat `upheld` as final; handle the new push texts | Show `deactivation` and `cash_taking` on a flag |
 
 ---
 
@@ -32,13 +32,15 @@ New fields on `active_sanction`:
   "status": { "value": "upheld", "label": "Upheld" },
   "flagged_at": "2026-10-19T19:58:49.000000Z",
   "is_disputed": true,
-  "deactivation_confirmed": false
+  "deactivation_confirmed": false,
+  "deactivation_response_due_at": null
 }
 ```
 
 - `flag_id`: open that flag from the banner.
 - `status`: `flagged`, `disputed`, `upheld` (or `overturned`, which never appears here).
 - `deactivation_confirmed`: `true` once operations confirmed a Level 3 deactivation. Show the deactivated state, not a countdown.
+- `deactivation_response_due_at`: see section 2a.
 - `action` can now be `deactivated` as well as `warning_issued`, `suspended_48h` and `pending_admin_review`.
 
 For the suspension countdown, the 48 hours run from the driver profile's `suspended_at` (not `flagged_at`: a flag escalated to Level 2 later suspends from the escalation).
@@ -50,6 +52,15 @@ For the suspension countdown, the 48 hours run from the driver profile's `suspen
 - A flag can jump to **Level 3** after the driver saw it at Level 1 or 2: operations verified that the driver took cash for the trip.
 
 The driver still disputes in the app (`POST /driver/flags/{flag}/dispute`), once, before review. A driver who wants to appeal an upheld flag contacts support; there is no appeal endpoint for drivers.
+
+## 2a. Time to respond to a Level 3 flag (should do)
+
+When a flag reaches Level 3, the driver has **48 hours** to dispute it before operations can decide on deactivation. The deadline is `deactivation_response_due_at`, on `active_sanction` and on the flag in `recent_flags` (Level 3 only).
+
+- Show it prominently: "You have until 22 Oct, 15:10 to dispute this flag", with the Dispute button.
+- Disputing within the window means operations must review the dispute before any decision.
+- After the deadline the driver can still dispute until operations reviews the flag, but they may decide at any point after it.
+- The "Account Suspended — Under Review" push now says how long the driver has, and its `data` has `response_hours` (48).
 
 ## 3. New fields on each flag (nice to have)
 
@@ -68,7 +79,7 @@ All have `data.type: "compliance_warning"`. New or changed texts:
 |---|---|---|
 | Account Reinstated | A flag was overturned and nothing else keeps the driver suspended. On appeal of a deactivation the body says "Your appeal was successful…" | `reinstated: true` |
 | Flag Overturned | **New.** A flag was overturned but another flag keeps the driver suspended | `reinstated: false` |
-| Account Suspended — Under Review | Unchanged text; now also sent when cash-taking is verified (flag moved to Level 3) | `pending_deactivation: true` |
+| Account Suspended — Under Review | Body now says the driver has 48 hours to dispute in the app; also sent when cash-taking is verified (flag moved to Level 3) | `pending_deactivation: true`, `response_hours: 48` |
 | Account Deactivated | Unchanged | `deactivated: true` |
 
 On any of these, refresh `GET /driver/compliance` and the driver's status.

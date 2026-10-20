@@ -30,6 +30,7 @@ class OfflineTripFlag extends Model
         'detection_data',
         'sanction_tier',
         'sanction_action',
+        'deactivation_response_due_at',
         'is_disputed',
         'dispute_notes',
         'disputed_at',
@@ -58,6 +59,7 @@ class OfflineTripFlag extends Model
             'disputed_at' => 'datetime',
             'flagged_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'deactivation_response_due_at' => 'datetime',
             'deactivation_confirmed_at' => 'datetime',
             'deactivation_reversed_at' => 'datetime',
             'cash_taking_verified_at' => 'datetime',
@@ -203,6 +205,33 @@ class OfflineTripFlag extends Model
     }
 
     /**
+     * When a driver whose flag reaches Level 3 now must respond by.
+     */
+    public static function newResponseDeadline(): Carbon
+    {
+        return now()->addHours((int) config('offline_detection.deactivation_response_hours', 48));
+    }
+
+    /**
+     * Whether the driver still has time to respond to this Level 3 flag
+     * before anyone decides on it. Disputing ends the wait: the dispute is
+     * then what the admin reviews.
+     */
+    public function awaitsDriverResponse(): bool
+    {
+        return $this->sanction_tier === SanctionTier::Deactivation
+            && ! $this->is_disputed
+            && (bool) $this->deactivation_response_due_at?->isFuture();
+    }
+
+    private function awaitingResponseRefusal(): string
+    {
+        $due = $this->deactivation_response_due_at->copy()->timezone('Africa/Lagos')->format('j M Y, H:i');
+
+        return "The driver has until {$due} WAT to respond to this Level 3 flag. You can uphold it or confirm the deactivation after that, or as soon as they dispute it.";
+    }
+
+    /**
      * Why an admin may not uphold or overturn this flag, or null if they may.
      * An upheld flag can still be overturned on appeal; an overturn is final.
      */
@@ -210,6 +239,11 @@ class OfflineTripFlag extends Model
     {
         if ($outcome === DisputeOutcome::Upheld && $this->hasReviewOutcome()) {
             return 'This flag has already been reviewed.';
+        }
+
+        // Upholding would take away the driver's chance to dispute.
+        if ($outcome === DisputeOutcome::Upheld && $this->awaitsDriverResponse()) {
+            return $this->awaitingResponseRefusal();
         }
 
         if ($outcome === DisputeOutcome::Overturned && $this->isOverturned()) {
@@ -248,13 +282,15 @@ class OfflineTripFlag extends Model
     /**
      * Why the driver's deactivation cannot be confirmed on this flag, or
      * null if it can. A missing driver profile is the controller's 404.
+     * A super admin can confirm before the driver's response deadline.
      */
-    public function confirmDeactivationRefusal(): ?string
+    public function confirmDeactivationRefusal(?User $admin = null): ?string
     {
         return match (true) {
             $this->sanction_tier !== SanctionTier::Deactivation => 'Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation.',
             $this->isOverturned() => 'This flag was overturned and cannot lead to deactivation.',
             $this->is_disputed && $this->dispute_outcome === DisputeOutcome::Pending => "Review the driver's dispute before confirming deactivation.",
+            $this->awaitsDriverResponse() && $admin?->admin_role !== AdminRole::SuperAdmin => $this->awaitingResponseRefusal(),
             $this->hasStandingDeactivation() => 'Deactivation has already been confirmed for this flag.',
             (bool) $this->driverProfile()?->isDeactivated() => 'Driver is already deactivated.',
             default => null,
@@ -284,7 +320,7 @@ class OfflineTripFlag extends Model
             'overturn' => $this->reviewRefusal(DisputeOutcome::Overturned, $admin) === null,
             'escalate' => $this->escalateRefusal() === null,
             'de_escalate' => $this->deEscalateRefusal() === null,
-            'confirm_deactivation' => $this->confirmDeactivationRefusal() === null,
+            'confirm_deactivation' => $this->confirmDeactivationRefusal($admin) === null,
             'verify_cash_taking' => $this->cashTakingRefusal() === null,
         ];
     }

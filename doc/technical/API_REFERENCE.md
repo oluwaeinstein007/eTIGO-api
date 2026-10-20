@@ -11393,7 +11393,8 @@ Returns the authenticated driver's compliance status including active flag count
       "status": { "value": "upheld", "label": "Upheld" },
       "flagged_at": "2026-10-10T14:30:00.000000Z",
       "is_disputed": true,
-      "deactivation_confirmed": false
+      "deactivation_confirmed": false,
+      "deactivation_response_due_at": null
     },
     "lookback_days": 30
   },
@@ -11403,7 +11404,10 @@ Returns the authenticated driver's compliance status including active flag count
 
 `active_sanction` comes from the driver's latest flag that has not been overturned, flagged in the last 30 days (or any age if its deactivation was confirmed), whether or not an admin has upheld it. It is `null` otherwise. Before October 20, 2026 an upheld flag showed `null` here even while the driver was suspended.
 
+`deactivation_response_due_at` is set when the sanction is Level 3: the driver has until then (48 hours from when the flag reached Level 3, `OFFLINE_DEACTIVATION_RESPONSE_HOURS`) to dispute before an admin can uphold the flag or confirm the deactivation. Show it as a deadline on the dispute button.
+
 Each flag in `recent_flags` also has, when they apply:
+- `deactivation_response_due_at`: as above, on Level 3 flags.
 - `deactivation`: `{ "confirmed_at": "...", "reversed_at": null }`. `reversed_at` is set if the deactivation was overturned on appeal.
 - `cash_taking`: `{ "verified_at": "..." }`. An admin verified that the driver took cash for the trip, which moved the flag to Level 3.
 
@@ -11453,15 +11457,17 @@ Driver disputes an offline trip flag. Only the flagged driver can dispute, once,
 
 **When sanctions apply.** A flag's sanction starts when detection raises it, not when an admin upholds it: L1 sends a warning, L2 suspends the driver for 48 hours, L3 suspends them pending review. Upholding keeps the sanction; overturning lifts it. Level 3 never deactivates on its own: an admin confirms it with [Confirm Permanent Deactivation](#confirm-permanent-deactivation).
 
+**The driver's time to respond.** When a flag reaches Level 3 (raised at Level 3, escalated, or by verified cash-taking) the driver gets **48 hours** (`OFFLINE_DEACTIVATION_RESPONSE_HOURS`) to dispute it, shown as `deactivation_response_due_at`. Until then, unless the driver disputes sooner, nobody can uphold the flag or confirm the deactivation (422: `"The driver has until 22 Oct 2026, 15:10 WAT to respond to this Level 3 flag. You can uphold it or confirm the deactivation after that, or as soon as they dispute it."`). A dispute ends the wait: review it as usual. A **super admin** can still confirm before the deadline in an urgent case; the history says so. Overturning and de-escalating are always allowed. De-escalating below Level 3 clears the deadline; escalating back starts a new one. Level 3 flags raised before October 20, 2026 got a deadline of `flagged_at` + 48 hours.
+
 **What the admin can do now.** Show and every action's response include `flag.allowed_actions`, the rules below applied to the flag as it stands, for the admin making the request. Use it to show or hide buttons instead of repeating the rules in the dashboard:
 
 | Action | Allowed when |
 |---|---|
-| `uphold` | Not yet upheld or overturned |
+| `uphold` | Not yet upheld or overturned, and not an undisputed Level 3 flag inside the driver's response window |
 | `overturn` | Not yet overturned. An upheld flag can be overturned (an appeal). A flag whose deactivation was confirmed can be overturned only by a super admin (OQ-14) |
 | `escalate` | Below Level 3 and not overturned |
 | `de_escalate` | Above Level 1, not overturned, and the deactivation has not been confirmed |
-| `confirm_deactivation` | Level 3, not overturned, no dispute awaiting review, not confirmed already, driver not already deactivated |
+| `confirm_deactivation` | Level 3, not overturned, no dispute awaiting review, the driver's response window over (or they disputed; a super admin need not wait), not confirmed already, driver not already deactivated |
 | `verify_cash_taking` | Not overturned, not verified already, deactivation not confirmed |
 
 ### List Offline Trip Flags
@@ -11503,6 +11509,7 @@ The flag with its evidence, the driver (with their city), the passenger and ride
     "status": { "value": "flagged", "label": "Flagged" },
     "sanction_tier": { "value": 3, "label": "Permanent Deactivation" },
     "sanction_action": "pending_admin_review",
+    "deactivation_response_due_at": "2026-10-22T14:10:24.000000Z",
     "is_disputed": false,
     "review_notes": null,
     "cash_taking": {
@@ -11528,11 +11535,11 @@ The flag with its evidence, the driver (with their city), the passenger and ride
     "driver_status": "suspended",
     "driver_suspension_ends_at": null,
     "allowed_actions": {
-      "uphold": true,
+      "uphold": false,
       "overturn": true,
       "escalate": false,
       "de_escalate": true,
-      "confirm_deactivation": true,
+      "confirm_deactivation": false,
       "verify_cash_taking": false
     },
     "passenger": { "id": "uuid", "first_name": "Femi", "...": "..." },
@@ -11571,12 +11578,13 @@ The flag with its evidence, the driver (with their city), the passenger and ride
 | `deactivation` | Only once a Level 3 deactivation is confirmed: `confirmed_at`, `confirmed_by` (`id`, `name`), `notes` (the reason given) and `reversed_at` (set when a super admin overturns the flag on appeal, which reactivates the driver). |
 | `cash_taking` | Only when an admin verified cash-taking: `verified_at`, `verified_by`, `notes`. |
 | `sanction_action` | `warning_issued`, `suspended_48h`, `pending_admin_review`, or `deactivated` once the deactivation is confirmed. |
+| `deactivation_response_due_at` | Level 3 flags only: the end of the driver's 48-hour window to respond (see above). |
 | `driver_status` | The driver profile's status: `approved`, `suspended`, `deactivated`, etc. Use this to show that the driver is deactivated. `driver.is_active` is the login account and does not change when a driver is deactivated. |
 | `driver_suspension_ends_at` | When the driver's automatic 48-hour suspension lifts (`suspended_at` + `OFFLINE_SUSPENSION_HOURS`). `null` for any other status, including suspended pending review. |
 | `allowed_actions` | See the table above. |
 | `previous_flags` | The driver's other flags in the 30 days (`OFFLINE_SANCTION_LOOKBACK_DAYS`) up to this one, newest first. |
 | `route_map` | See below. |
-| `history` | Each step on the flag, oldest first, with the reason and who did it (`role` is the admin role, or `driver`). `description` is one of: "Flagged by automatic detection", "Disputed by the driver", "Upheld", "Overturned", "Overturned on appeal" (an upheld flag overturned later), "Escalated from Level 1 to Level 2", "De-escalated from Level 3 to Level 2", "Cash-taking verified from Level 1 to Level 3" (no "from…to" when the flag was already Level 3), "Deactivation confirmed", or "Upheld and deactivation confirmed" (confirmed on a flag nobody had reviewed). |
+| `history` | Each step on the flag, oldest first, with the reason and who did it (`role` is the admin role, or `driver`). `description` is one of: "Flagged by automatic detection", "Disputed by the driver", "Upheld", "Overturned", "Overturned on appeal" (an upheld flag overturned later), "Escalated from Level 1 to Level 2", "De-escalated from Level 3 to Level 2", "Cash-taking verified from Level 1 to Level 3" (no "from…to" when the flag was already Level 3), "Deactivation confirmed", or "Upheld and deactivation confirmed" (confirmed on a flag nobody had reviewed). A super admin's confirmation before the driver's deadline adds " before the driver's response deadline". |
 
 **`route_map`** has what the compliance map draws:
 
@@ -11626,7 +11634,7 @@ Uphold or overturn a flag, whether or not the driver disputed it. Overturning li
 
 The message reads `Dispute …` for a disputed flag and `Flag …` otherwise.
 
-**Response 422** (`errors.flag`): `"This flag has already been reviewed."` (upholding an upheld or overturned flag, or overturning an overturned one), `"Only a super admin can overturn a flag whose deactivation was confirmed."`, or a validation error.
+**Response 422** (`errors.flag`): `"This flag has already been reviewed."` (upholding an upheld or overturned flag, or overturning an overturned one), `"Only a super admin can overturn a flag whose deactivation was confirmed."`, `"The driver has until … WAT to respond to this Level 3 flag. …"` (upholding an undisputed Level 3 flag inside the driver's window), or a validation error.
 
 ### Escalate Flag Sanction
 
@@ -11686,7 +11694,7 @@ To remove every sanction from a flag, overturn it (Review, `outcome: overturned`
 
 `POST /api/v1/admin/offline-flags/{flag}/verify-cash-taking`
 
-Record that an admin verified the driver took cash for the trip, for example because the passenger confirmed paying the driver. This moves the flag **straight to Level 3**, whatever the driver's earlier flags, and suspends the driver pending review. It does not deactivate them: [confirm the deactivation](#confirm-permanent-deactivation) as for any Level 3. Who verified it, when and how are kept on the flag (`cash_taking`) and in `history` ("Cash-taking verified from Level 1 to Level 3").
+Record that an admin verified the driver took cash for the trip, for example because the passenger confirmed paying the driver. This moves the flag **straight to Level 3**, whatever the driver's earlier flags, and suspends the driver pending review. It does not deactivate them: [confirm the deactivation](#confirm-permanent-deactivation) as for any Level 3, once the driver's 48-hour response window has passed. Who verified it, when and how are kept on the flag (`cash_taking`) and in `history` ("Cash-taking verified from Level 1 to Level 3").
 
 **Request Body:**
 ```json
@@ -11715,7 +11723,7 @@ On a flag already at Level 3 the message is `"Cash-taking verified."` and the ti
 
 `POST /api/v1/admin/offline-flags/{flag}/confirm-deactivation`
 
-Permanently deactivate the driver on a Level 3 flag. Not while the driver's dispute of the flag awaits review, and not after the flag was overturned. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification. Level 3 never deactivates a driver on its own: this human confirmation is required.
+Permanently deactivate the driver on a Level 3 flag. Not while the driver's dispute of the flag awaits review, not after the flag was overturned, and not before the driver's response deadline (`deactivation_response_due_at`) unless they disputed or the admin is a super admin. Sets the driver's status to `deactivated`, forces them offline, removes them from the live driver index and sends a push notification. Level 3 never deactivates a driver on its own: this human confirmation is required.
 
 **A flag nobody has reviewed is upheld in the same step**, with the same reason, so "Uphold and deactivate" is one call. On a flag already upheld, the earlier `review_notes` stay as they were.
 
@@ -11771,6 +11779,7 @@ For a super admin, `allowed_actions.overturn` is `true` on this flag.
 - `"The notes field is required."` (or too short/long) in `errors.notes`
 - `"Only L3 (deactivation-tier) flags can be confirmed for permanent deactivation."`
 - `"Review the driver's dispute before confirming deactivation."` (dispute pending)
+- `"The driver has until 22 Oct 2026, 15:10 WAT to respond to this Level 3 flag. You can uphold it or confirm the deactivation after that, or as soon as they dispute it."` (response window still open; not for a super admin)
 - `"This flag was overturned and cannot lead to deactivation."`
 - `"Deactivation has already been confirmed for this flag."`
 - `"Driver is already deactivated."`
@@ -11809,14 +11818,14 @@ Deactivations confirmed before October 20, 2026 got `deactivation.confirmed_at` 
 | Kola Adebayo | L1 this morning, flagged | Approved |
 | Ada Obi | L1 this morning, **disputed** (pending) | Approved |
 | Bisi Okonkwo | L1 18 days ago; L2 yesterday, **disputed** (pending) | Suspended 48 h |
-| Musa Garba | L1, L2, then L3 two hours ago, not disputed: ready for confirm-deactivation or de-escalate | Suspended pending review |
-| Funke Ajayi | L1 three hours ago, moved to **L3 by verified cash-taking**: ready for confirm-deactivation | Suspended pending review |
+| Musa Garba | L1, L2, then L3 three days ago, not disputed and his 48 hours are over: ready for confirm-deactivation or de-escalate | Suspended pending review |
+| Funke Ajayi | L1 three hours ago, moved to **L3 by verified cash-taking**; still inside her 48 hours to respond, so uphold and confirm are refused (except for a super admin) | Suspended pending review |
 | Tayo Bankole | L1, disputed and **overturned** by Operations | Approved |
 | Ngozi Eze | L1 disputed and **upheld**; L2 four days ago | Approved (suspension lifted) |
 | Yemi Ogunleye | L1 **upheld**; L2 disputed, upheld, then **overturned on appeal** by Safety | Approved |
 | Chidi Nwosu | L1; L2 disputed and upheld by Safety; L3 yesterday, **disputed** (pending) | Suspended pending review |
 | Emeka Udeh | L1, L2; L3 two days ago, disputed and **overturned** by Safety | Approved |
-| Segun Alabi | L1, L2; L3 three days ago, **upheld and deactivation confirmed** by Safety (super admin can overturn on appeal) | **Deactivated** |
+| Segun Alabi | L1, L2; L3 three days ago, no dispute in 48 hours, then **upheld and deactivation confirmed** by Safety (super admin can overturn on appeal) | **Deactivated** |
 
 That makes 12 flagged, 3 disputed, 4 upheld and 3 overturned:
 

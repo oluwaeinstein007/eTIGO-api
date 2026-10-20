@@ -529,7 +529,8 @@ it('moves a flag straight to level 3 when cash-taking is verified', function () 
         ->assertJsonPath('flag.cash_taking.verified_by.id', $this->admin->id)
         ->assertJsonPath('flag.cash_taking.notes', 'Passenger confirmed by phone they paid ₦6,000 cash.')
         ->assertJsonPath('flag.allowed_actions.verify_cash_taking', false)
-        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', true);
+        // The driver first gets 48 hours to respond.
+        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false);
 
     $driver = $this->driver->fresh();
     expect($driver->status)->toBe(DriverStatus::Suspended)
@@ -654,4 +655,106 @@ it('says when an automatic suspension ends, and nothing for one pending review',
     $this->withToken($this->token)
         ->getJson("/api/v1/admin/offline-flags/{$flag->id}")
         ->assertJsonPath('flag.driver_suspension_ends_at', null);
+});
+
+// === The driver's time to respond before a Level 3 decision ===
+
+function levelThreeFlagFromDetection(): OfflineTripFlag
+{
+    complianceFlag(['flagged_at' => now()->subDays(10)]);
+    complianceFlag(['sanction_tier' => SanctionTier::Suspension, 'flagged_at' => now()->subDays(5)]);
+
+    $ride = Ride::factory()->cancelled()->create(['driver_id' => test()->driverUser->id]);
+
+    return app(SanctionService::class)->applyForRide($ride, ['route_match_percentage' => 90]);
+}
+
+it('gives the driver 48 hours to respond before a level 3 flag can be upheld or confirmed', function () {
+    $flag = levelThreeFlagFromDetection();
+
+    expect($flag->sanction_tier)->toBe(SanctionTier::Deactivation)
+        ->and($flag->deactivation_response_due_at->timestamp)->toBe(now()->addHours(48)->timestamp);
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/offline-flags/{$flag->id}")
+        ->assertJsonPath('flag.deactivation_response_due_at', $flag->deactivation_response_due_at->toISOString())
+        ->assertJsonPath('flag.allowed_actions.uphold', false)
+        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false)
+        ->assertJsonPath('flag.allowed_actions.overturn', true)
+        ->assertJsonPath('flag.allowed_actions.de_escalate', true);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'Third off-app trip this month.'])
+        ->assertUnprocessable()
+        ->assertJson(fn ($json) => $json->where('message', fn ($message) => str_starts_with($message, 'The driver has until '))->etc());
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/review", ['outcome' => 'upheld', 'notes' => 'Evidence is conclusive.'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('flag');
+
+    expect($this->driver->fresh()->status)->toBe(DriverStatus::Suspended);
+
+    app('auth')->forgetGuards();
+    $this->withToken($this->driverUser->createToken('auth')->plainTextToken)
+        ->getJson('/api/v1/driver/compliance')
+        ->assertJsonPath('compliance.active_sanction.deactivation_response_due_at', $flag->deactivation_response_due_at->toISOString())
+        ->assertJsonPath('recent_flags.0.deactivation_response_due_at', $flag->deactivation_response_due_at->toISOString());
+
+    $this->travel(49)->hours();
+    app('auth')->forgetGuards();
+
+    $this->withToken($this->admin->createToken('auth', ['admin'])->plainTextToken)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'No response from the driver in 48 hours.'])
+        ->assertOk()
+        ->assertJsonPath('flag.driver_status', 'deactivated');
+});
+
+it('ends the wait once the driver disputes', function () {
+    $flag = levelThreeFlagFromDetection();
+    $flag->update(['is_disputed' => true, 'dispute_outcome' => DisputeOutcome::Pending, 'dispute_notes' => 'I drove home.']);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/review", ['outcome' => 'upheld', 'notes' => 'The driver lives in the other direction.'])
+        ->assertOk();
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'Dispute reviewed and upheld.'])
+        ->assertOk();
+});
+
+it('lets a super admin confirm before the deadline and says so in the history', function () {
+    $flag = levelThreeFlagFromDetection();
+    $superAdmin = User::factory()->admin(AdminRole::SuperAdmin)->create();
+
+    $this->withToken($superAdmin->createToken('auth', ['admin'])->plainTextToken)
+        ->postJson("/api/v1/admin/offline-flags/{$flag->id}/confirm-deactivation", ['notes' => 'Passenger reported threats; deactivating now.'])
+        ->assertOk()
+        ->assertJsonPath('flag.status.value', 'upheld');
+
+    $last = collect($this->withToken($superAdmin->createToken('auth', ['admin'])->plainTextToken)->getJson("/api/v1/admin/offline-flags/{$flag->id}")->json('history'))->last();
+    expect($last['description'])->toBe("Upheld and deactivation confirmed before the driver's response deadline");
+});
+
+it('starts the wait when a flag is escalated or verified to level 3, and clears it on de-escalation', function () {
+    $escalated = complianceFlag(['sanction_tier' => SanctionTier::Suspension]);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$escalated->id}/escalate", ['notes' => 'Third trip found on review.'])
+        ->assertOk()
+        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false);
+    expect($escalated->fresh()->deactivation_response_due_at->timestamp)->toBe(now()->addHours(48)->timestamp);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$escalated->id}/de-escalate", ['notes' => 'Back to a suspension.'])
+        ->assertOk()
+        ->assertJsonMissingPath('flag.deactivation_response_due_at');
+    expect($escalated->fresh()->deactivation_response_due_at)->toBeNull();
+
+    $verified = complianceFlag();
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/offline-flags/{$verified->id}/verify-cash-taking", ['notes' => 'Passenger confirmed paying cash.'])
+        ->assertOk()
+        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false);
+    expect($verified->fresh()->deactivation_response_due_at)->not->toBeNull();
 });

@@ -17,5 +17,10 @@ return [
 
     'suspension_hours' => (int) env('OFFLINE_SUSPENSION_HOURS', 48),
 
+    // Hours a driver has to dispute a Level 3 flag before an admin can
+    // uphold it or confirm the deactivation (a super admin can confirm
+    // sooner in an urgent case).
+    'deactivation_response_hours' => (int) env('OFFLINE_DEACTIVATION_RESPONSE_HOURS', 48),
+
     'location_sample_interval_seconds' => (int) env('OFFLINE_LOCATION_SAMPLE_INTERVAL', 30),
 ];

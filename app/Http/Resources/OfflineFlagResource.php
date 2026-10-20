@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\SanctionTier;
 use App\Models\OfflineTripFlag;
 use App\Services\SanctionService;
 use Illuminate\Http\Request;
@@ -41,6 +42,12 @@ class OfflineFlagResource extends JsonResource
                 'channel' => $this->dispute_channel,
             ]),
             'review_notes' => $this->when($isAdmin, fn () => $this->review_notes),
+            // Level 3 only: until then the driver can dispute and no admin
+            // can uphold the flag or confirm the deactivation.
+            'deactivation_response_due_at' => $this->when(
+                $this->deactivation_response_due_at !== null && $this->sanction_tier === SanctionTier::Deactivation,
+                fn () => $this->deactivation_response_due_at->toISOString(),
+            ),
             // Set once an admin confirms the Level 3 deactivation;
             // reversed_at is set if a super admin later overturns the flag.
             'deactivation' => $this->when($this->deactivation_confirmed_at !== null, fn () => [

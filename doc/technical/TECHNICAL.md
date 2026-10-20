@@ -593,7 +593,7 @@ Detects drivers who cancel a ride and then complete it off the app.
 |------|----------|--------|
 | L1 | Warning (push) | — |
 | L2 | Forced offline + suspended | Automatically after 48 h (`LiftExpiredComplianceSuspensionsJob`, hourly). Suspensions set by admins for other reasons are never lifted automatically. |
-| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation, with a reason — not while the driver's dispute is pending or after it was overturned. Confirming upholds an unreviewed flag in the same step |
+| L3 | Forced offline + suspended pending review | Operations confirms permanent deactivation, with a reason — not while the driver's dispute is pending or after it was overturned. Confirming upholds an unreviewed flag in the same step. The driver first gets 48 h to dispute (`OFFLINE_DEACTIVATION_RESPONSE_HOURS`); no uphold or confirmation before then unless they dispute (a super admin may confirm early) |
 
 An admin can also move a flag straight to L3 by verifying that the driver took cash for the trip (`verify-cash-taking`).
 

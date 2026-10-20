@@ -192,6 +192,7 @@ class AdminOfflineFlagController extends Controller
             $flag->update([
                 'sanction_tier' => $newTier,
                 'sanction_action' => $newTier->action(),
+                ...($newTier === SanctionTier::Deactivation ? ['deactivation_response_due_at' => OfflineTripFlag::newResponseDeadline()] : []),
             ]);
 
             $this->sanctionService->enforceSanction($flag->driver_id, $newTier);
@@ -223,6 +224,7 @@ class AdminOfflineFlagController extends Controller
             $flag->update([
                 'sanction_tier' => $newTier,
                 'sanction_action' => $newTier->action(),
+                'deactivation_response_due_at' => null,
             ]);
 
             $this->sanctionService->deEscalate($flag, $newTier);
@@ -249,7 +251,7 @@ class AdminOfflineFlagController extends Controller
      */
     public function confirmDeactivation(ConfirmDeactivationFormRequest $request, OfflineTripFlag $flag): JsonResponse
     {
-        if ($refusal = $flag->confirmDeactivationRefusal()) {
+        if ($refusal = $flag->confirmDeactivationRefusal($request->user())) {
             return response()->json(['message' => $refusal], 422);
         }
 
@@ -262,10 +264,12 @@ class AdminOfflineFlagController extends Controller
         $admin = $request->user();
         $notes = $request->validated('notes');
         $upholds = ! $flag->hasReviewOutcome();
+        // Only a super admin gets this far before the driver's deadline.
+        $early = $flag->awaitsDriverResponse();
 
-        DB::transaction(function () use ($flag, $driver, $admin, $notes, $upholds) {
+        DB::transaction(function () use ($flag, $driver, $admin, $notes, $upholds, $early) {
             // A second click must not deactivate twice.
-            $this->lockAndRecheck($flag, fn (OfflineTripFlag $locked) => $locked->confirmDeactivationRefusal());
+            $this->lockAndRecheck($flag, fn (OfflineTripFlag $locked) => $locked->confirmDeactivationRefusal($admin));
 
             $driver->update([
                 'status' => DriverStatus::Deactivated,
@@ -293,6 +297,7 @@ class AdminOfflineFlagController extends Controller
                 'confirmed_by' => $admin->id,
                 'notes' => $notes,
                 ...($upholds ? ['dispute_outcome' => DisputeOutcome::Upheld->value] : []),
+                ...($early ? ['before_response_deadline' => true] : []),
             ]);
         });
 
@@ -340,6 +345,7 @@ class AdminOfflineFlagController extends Controller
                 'cash_taking_notes' => $request->validated('notes'),
                 'sanction_tier' => $newTier,
                 'sanction_action' => $newTier->action(),
+                ...($oldTier !== $newTier ? ['deactivation_response_due_at' => OfflineTripFlag::newResponseDeadline()] : []),
             ]);
 
             if ($oldTier !== $newTier) {
@@ -403,6 +409,9 @@ class AdminOfflineFlagController extends Controller
                     $log->event === 'offline_flag_deactivation_confirmed' && isset($new['dispute_outcome']) => 'Upheld and deactivation confirmed',
                     default => self::HISTORY_EVENTS[$log->event],
                 };
+                if (! empty($new['before_response_deadline'])) {
+                    $description .= " before the driver's response deadline";
+                }
                 if (isset($old['sanction_tier'], $new['sanction_tier']) && $old['sanction_tier'] !== $new['sanction_tier']) {
                     $description .= " from Level {$old['sanction_tier']} to Level {$new['sanction_tier']}";
                 }

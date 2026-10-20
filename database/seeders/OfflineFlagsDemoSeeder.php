@@ -276,14 +276,15 @@ class OfflineFlagsDemoSeeder extends Seeder
             'after_minutes' => 95,
         ]);
 
-        // Musa: third offence two hours ago, suspended pending deactivation review.
+        // Musa: third offence three days ago, not disputed in the 48 hours he
+        // had, so the deactivation can be confirmed.
         $this->flag($lagos, $comfort, $drivers['musa'], $passengers['uche'], 'airport', 'ikeja_gra', SanctionTier::Warning, $now->copy()->subDays(26)->setTime(9, 40), [
             'match' => 66.7, 'samples' => 12, 'on_route' => 8, 'cancel_m' => 245.3, 'accuracy' => 14.0,
         ]);
         $this->flag($lagos, $comfort, $drivers['musa'], $passengers['kunle'], 'admiralty', 'airport', SanctionTier::Suspension, $now->copy()->subDays(13)->setTime(19, 5), [
             'match' => 84.6, 'samples' => 26, 'on_route' => 22, 'cancel_m' => 98.1, 'accuracy' => 8.3,
         ]);
-        $this->flag($lagos, $comfort, $drivers['musa'], $passengers['precious'], 'landmark', 'ajah', SanctionTier::Deactivation, $now->copy()->subHours(2), [
+        $this->flag($lagos, $comfort, $drivers['musa'], $passengers['precious'], 'landmark', 'ajah', SanctionTier::Deactivation, $now->copy()->subDays(3)->setTime(8, 15), [
             'match' => 96.3, 'samples' => 27, 'on_route' => 26, 'cancel_m' => 41.7, 'accuracy' => 4.8,
         ]);
 
@@ -347,8 +348,8 @@ class OfflineFlagsDemoSeeder extends Seeder
             'after_minutes' => 40,
         ]);
 
-        // Segun: third offence three days ago, upheld and deactivation
-        // confirmed by Safety in one step.
+        // Segun: third offence three days ago, no dispute within 48 hours,
+        // then upheld and deactivation confirmed by Safety in one step.
         $this->flag($lagos, $comfort, $drivers['segun'], $passengers['kunle'], 'ikeja_gra', 'maryland', SanctionTier::Warning, $now->copy()->subDays(25)->setTime(11, 20), [
             'match' => 70.0, 'samples' => 10, 'on_route' => 7, 'cancel_m' => 230.0, 'accuracy' => 12.5,
         ]);
@@ -359,7 +360,7 @@ class OfflineFlagsDemoSeeder extends Seeder
             'match' => 95.8, 'samples' => 24, 'on_route' => 23, 'cancel_m' => 52.0, 'accuracy' => 5.2,
         ], deactivation: [
             'notes' => 'Third off-app trip in 30 days. The passenger confirmed by phone that she paid the driver ₦9,000 cash for the trip to Ajah.',
-            'after_hours' => 22,
+            'after_hours' => 50,
             'admin' => 'safety',
         ]);
 
@@ -411,6 +412,7 @@ class OfflineFlagsDemoSeeder extends Seeder
 
         // Funke: a first offence three hours ago; the passenger called support
         // to say they paid cash, so Operations moved it straight to Level 3.
+        // She has until 48 hours after that to respond.
         $this->flag($lagos, $economy, $drivers['funke'], $passengers['femi'], 'gbagada', 'ikeja_mall', SanctionTier::Deactivation, $now->copy()->subHours(3), [
             'match' => 90.9, 'samples' => 22, 'on_route' => 20, 'cancel_m' => 66.0, 'accuracy' => 6.0,
         ], cashTaking: [
@@ -514,6 +516,9 @@ class OfflineFlagsDemoSeeder extends Seeder
             'detection_data' => $this->detectionData($evidence, $cancelledAt, $ride),
             'sanction_tier' => $tier,
             'sanction_action' => $deactivation ? 'deactivated' : $tier->action(),
+            'deactivation_response_due_at' => $tier === SanctionTier::Deactivation
+                ? ($cashVerifiedAt ?? $flaggedAt)->copy()->addHours((int) config('offline_detection.deactivation_response_hours', 48))
+                : null,
             'is_disputed' => $dispute !== null,
             'dispute_notes' => $dispute['notes'] ?? null,
             'disputed_at' => $disputedAt,

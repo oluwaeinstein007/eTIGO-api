@@ -139,6 +139,8 @@ it('shows the seeded flags on the admin compliance screens', function () {
     $this->getJson("/api/v1/admin/offline-flags/{$cashTaking->id}")
         ->assertOk()
         ->assertJsonPath('flag.sanction_tier.value', 3)
+        ->assertJsonPath('flag.allowed_actions.confirm_deactivation', false)
+        ->assertJson(fn ($json) => $json->where('flag.deactivation_response_due_at', fn ($due) => now()->lt($due))->etc())
         ->assertJsonPath('history.1.description', 'Cash-taking verified from Level 1 to Level 3');
 });
 

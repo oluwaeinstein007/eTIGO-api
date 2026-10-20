@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\SanctionTier;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\OfflineTripFlag;
@@ -52,6 +53,10 @@ class DriverComplianceController extends Controller
                 'flagged_at' => $latestFlag->flagged_at?->toISOString(),
                 'is_disputed' => $latestFlag->is_disputed,
                 'deactivation_confirmed' => $latestFlag->hasStandingDeactivation(),
+                // Level 3: the time the driver has to dispute before a decision.
+                'deactivation_response_due_at' => $latestFlag->sanction_tier === SanctionTier::Deactivation
+                    ? $latestFlag->deactivation_response_due_at?->toISOString()
+                    : null,
             ];
         }
 
