@@ -60,11 +60,7 @@ class EvStationsDemoSeeder extends Seeder
 
         $station = DB::transaction(function () use ($lagos, $economy) {
             $drivers = $this->seedDrivers($lagos, $economy);
-            $station = $this->seedStation($lagos);
-
-            EvReservation::where('station_id', $station->id)
-                ->orWhereIn('driver_id', collect($drivers)->pluck('id'))
-                ->delete();
+            $station = $this->seedStation($lagos, collect($drivers)->pluck('id')->all());
 
             $this->seedStallsAndQueue($station, $drivers);
 
@@ -132,7 +128,13 @@ class EvStationsDemoSeeder extends Seeder
         return $drivers;
     }
 
-    private function seedStation(City $lagos): EvChargingStation
+    /**
+     * Also clears the station's reservations and the drivers' own, before
+     * removing any extra stalls those reservations might point at.
+     *
+     * @param  array<int, string>  $driverIds
+     */
+    private function seedStation(City $lagos, array $driverIds): EvChargingStation
     {
         $station = EvChargingStation::updateOrCreate(
             ['name' => self::STATION_NAME, 'city_id' => $lagos->id],
@@ -148,6 +150,10 @@ class EvStationsDemoSeeder extends Seeder
                 'status' => EvStationStatus::Active,
             ],
         );
+
+        EvReservation::where('station_id', $station->id)
+            ->orWhereIn('driver_id', $driverIds)
+            ->delete();
 
         $station->stalls()->where('stall_number', '>', 3)->delete();
 

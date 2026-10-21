@@ -42,6 +42,13 @@ class EvStationResource extends JsonResource
         ];
     }
 
+    /**
+     * `queue_length` is included only when the queue was counted
+     * (withCount/loadCount): on every admin station response, not on the
+     * public ones.
+     *
+     * @return array{total: int, available: int, occupied: int, reserved: int, out_of_service: int, queue_length?: int}
+     */
     private function getAvailabilitySummary(): array
     {
         $stalls = $this->stalls;
@@ -52,8 +59,6 @@ class EvStationResource extends JsonResource
             'occupied' => $stalls->where('status', EvStallStatus::Occupied)->count(),
             'reserved' => $stalls->where('status', EvStallStatus::Reserved)->count(),
             'out_of_service' => $stalls->where('status', EvStallStatus::OutOfService)->count(),
-            // Present when the queue was counted (withCount/loadCount): on
-            // every admin station response, not on the public ones.
             'queue_length' => $this->when(isset($this->queue_length), fn () => (int) $this->queue_length),
         ];
     }

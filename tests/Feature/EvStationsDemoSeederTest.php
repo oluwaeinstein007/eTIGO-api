@@ -49,3 +49,16 @@ it('seeds a station with drivers charging and queueing, and replaces them on a r
         ->and($response->json('station.stalls.0.updated_at'))->not->toBeNull()
         ->and($response->json('queue.0.wait_seconds'))->toBeGreaterThanOrEqual(14 * 60);
 });
+
+it('re-runs after the station was given an extra stall with a reservation on it', function () {
+    app(EvStationsDemoSeeder::class)->run();
+
+    $station = EvChargingStation::where('name', EvStationsDemoSeeder::STATION_NAME)->sole();
+    $extra = $station->stalls()->create(['stall_number' => 4, 'status' => 'reserved']);
+    EvReservation::factory()->create(['station_id' => $station->id, 'stall_id' => $extra->id, 'status' => EvReservationStatus::Reserved]);
+
+    app(EvStationsDemoSeeder::class)->run();
+
+    expect($station->stalls()->pluck('stall_number')->sort()->values()->all())->toBe([1, 2, 3])
+        ->and(EvReservation::where('station_id', $station->id)->count())->toBe(5);
+});

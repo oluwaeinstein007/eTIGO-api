@@ -181,7 +181,6 @@ it('shows the driver charging at a stall in the same shape as a queued driver', 
     expect($response->json('station.stalls.0.occupied_since'))->not->toBeNull()
         ->and($response->json('station.stalls.0.estimated_departure_at'))->not->toBeNull();
 
-    // The list sends the same stall shape.
     $this->withToken($this->token)
         ->getJson('/api/v1/admin/ev-stations')
         ->assertJsonPath('stations.0.stalls.0.current_driver.vehicle.plate_number', 'LND-241EV')
@@ -253,6 +252,57 @@ it('counts the queue on the station list', function () {
         ->assertJsonPath('stations.0.availability.total', 2)
         ->assertJsonPath('stations.0.availability.available', 2)
         ->assertJsonPath('stations.0.availability.queue_length', 1);
+});
+
+it('will not change a stall that a driver has a reservation on', function () {
+    $station = stationWithStalls(2);
+    $driver = User::factory()->driver()->create();
+    $stall = $station->stalls()->where('stall_number', 1)->first();
+    $stall->update([
+        'status' => EvStallStatus::Occupied,
+        'current_vehicle_driver_id' => $driver->id,
+        'occupied_since' => now()->subMinutes(20),
+    ]);
+    EvReservation::factory()->create([
+        'station_id' => $station->id, 'stall_id' => $stall->id, 'driver_id' => $driver->id, 'status' => EvReservationStatus::Active,
+    ]);
+
+    $this->withToken($this->token)
+        ->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [
+            ['stall_number' => 2, 'status' => 'out_of_service'],
+            ['stall_number' => 1, 'status' => 'available'],
+        ]])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['stalls' => "Stall 1 has a driver's reservation. Change it once the driver finishes or cancels."]);
+
+    // Nothing changed, not even the free stall in the same request.
+    expect($stall->fresh()->status)->toBe(EvStallStatus::Occupied)
+        ->and($stall->fresh()->current_vehicle_driver_id)->toBe($driver->id)
+        ->and($station->stalls()->where('stall_number', 2)->value('status'))->toBe(EvStallStatus::Available);
+
+    // Sending the status it already has is fine and keeps the driver.
+    $this->withToken($this->token)
+        ->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [['stall_number' => 1, 'status' => 'occupied']]])
+        ->assertOk()
+        ->assertJsonPath('station.stalls.0.current_driver.id', $driver->id);
+});
+
+it('starts a hand-marked occupied stall afresh, whatever it held before', function () {
+    $station = stationWithStalls(1);
+    $station->stalls()->update([
+        'status' => EvStallStatus::Available,
+        'current_vehicle_driver_id' => User::factory()->driver()->create()->id,
+        'occupied_since' => now()->subDays(3),
+        'estimated_departure_at' => now()->subDays(3),
+    ]);
+
+    $this->withToken($this->token)
+        ->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [['stall_number' => 1, 'status' => 'occupied']]])
+        ->assertOk()
+        ->assertJsonPath('station.stalls.0.current_driver', null)
+        ->assertJsonPath('station.stalls.0.estimated_departure_at', null);
+
+    expect($station->stalls()->first()->occupied_since->isAfter(now()->subMinute()))->toBeTrue();
 });
 
 it('refuses to delete a station with a reservation awaiting review', function () {

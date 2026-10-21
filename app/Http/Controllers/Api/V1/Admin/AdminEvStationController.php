@@ -191,17 +191,34 @@ class AdminEvStationController extends Controller
     public function manageStalls(ManageStallFormRequest $request, EvChargingStation $station): JsonResponse
     {
         DB::transaction(function () use ($request, $station) {
-            foreach ($request->validated('stalls') as $stallData) {
-                $stall = $station->stalls()->firstOrNew(['stall_number' => $stallData['stall_number']]);
-                $stall->status = EvStallStatus::from($stallData['status'] ?? EvStallStatus::Available->value);
+            $changes = collect($request->validated('stalls'))->map(fn (array $stallData) => [
+                'stall_number' => $stallData['stall_number'],
+                'status' => EvStallStatus::from($stallData['status'] ?? EvStallStatus::Available->value),
+            ]);
+            $stalls = $station->stalls()->lockForUpdate()->get()->keyBy('stall_number');
 
-                // Only an occupied stall has someone at it. Marked occupied by
-                // hand (say, a car from outside E-tiGo), it has no driver.
-                if ($stall->status === EvStallStatus::Occupied) {
-                    $stall->occupied_since ??= now();
-                } else {
+            // A driver's reservation decides when its stall frees up; there is
+            // no admin action that ends it, so the stall waits for the driver.
+            $held = $changes->filter(fn (array $change) => ($stall = $stalls->get($change['stall_number']))
+                && $stall->status !== $change['status']
+                && $stall->reservations()->active()->exists());
+
+            if ($held->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'stalls' => 'Stall '.$held->pluck('stall_number')->sort()->implode(', ').' has a driver\'s reservation. Change it once the driver finishes or cancels.',
+                ]);
+            }
+
+            foreach ($changes as $change) {
+                $stall = $stalls->get($change['stall_number']) ?? $station->stalls()->make(['stall_number' => $change['stall_number']]);
+                $becomesOccupied = $change['status'] === EvStallStatus::Occupied && $stall->status !== EvStallStatus::Occupied;
+                $stall->status = $change['status'];
+
+                // Marked occupied by hand (say, a car from outside E-tiGo), a
+                // stall has no driver; any other status has nobody at it.
+                if ($becomesOccupied || $stall->status !== EvStallStatus::Occupied) {
                     $stall->current_vehicle_driver_id = null;
-                    $stall->occupied_since = null;
+                    $stall->occupied_since = $becomesOccupied ? now() : null;
                     $stall->estimated_departure_at = null;
                 }
 

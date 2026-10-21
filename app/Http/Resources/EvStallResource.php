@@ -22,7 +22,6 @@ class EvStallResource extends JsonResource
             ],
             'occupied_since' => $this->occupied_since?->toISOString(),
             'estimated_departure_at' => $this->estimated_departure_at?->toISOString(),
-            // Admins only, when loaded; null unless a driver is charging here.
             'current_driver' => $this->when(
                 $isAdmin && $this->relationLoaded('currentDriver'),
                 fn () => $this->currentDriver ? new EvDriverResource($this->currentDriver) : null,
