@@ -12324,7 +12324,7 @@ GET /admin/ev-stations/{station}
 Authorization: Bearer {admin_token}
 ```
 
-Returns the station with its stalls in number order (each with its current driver and that driver's vehicle), availability, and the queue. On staging, `EvStationsDemoSeeder` keeps a filled example: "Yaba EV Hub" (two drivers charging, one stall out of service, three drivers queued). The Postman request **Admin — EV Station Management → Show Station** has this response saved.
+Returns the station with its stalls in number order (each with its current driver and that driver's vehicle), availability, and the queue. On staging, `EvStationsDemoSeeder` keeps a filled example: "Yaba EV Hub" (two drivers charging, one stall out of service, three drivers queued). The Postman request **Admin — EV Station Management → Show Station** has its staging response saved.
 
 **Response 200:**
 ```json
@@ -12426,7 +12426,9 @@ Content-Type: application/json
 
 Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station.
 
-Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. Marking a free stall `occupied` by hand sets `occupied_since` to now, with no driver. This changes only the stall: a driver's reservation on it stays as it is.
+Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. Marking a stall `occupied` by hand starts it afresh: `occupied_since` is now, with no driver and no departure time.
+
+A stall that a driver holds a reservation on (pending review, reserved or active) can't be changed to another status: 422 on `stalls`, e.g. `"Stall 1 has a driver's reservation. Change it once the driver finishes or cancels."`, and nothing in the request is saved. Sending the status it already has is fine.
 
 **Request Body:**
 ```json
