@@ -7732,6 +7732,282 @@ Changes apply on each car's next check (daily run, opening the car, going online
 
 ---
 
+## Admin — Overview
+
+The console's landing page ("Good morning, Tessy"): headline cards, a "needs your attention" row, recent activity, a live operations panel and the top-bar search. The greeting uses `user.first_name` from `GET /admin/auth/me`; the bell uses the existing `GET /notifications/unread-count`.
+
+**Middleware:** `auth:sanctum`, `user.type:admin` (live operations also `admin.role:operations`)
+
+**Who sees what:** every admin can open the overview and search. Each card or result group is `null` when the admin's role cannot open the screen behind it, so hide those rather than showing zero.
+
+| Card / group | Shown to (Super Admin always) | Opens |
+|--------------|-------------------------------|-------|
+| `stats.active_rides`, `stats.drivers_online`, `attention.unmatched_requests`, live operations, search `rides` | Operations | Live Monitoring, Manual Assignment |
+| `stats.open_disputes`, search `disputes` | Support, Support Lead, Safety | Ride Disputes (Support roles count the support queue only) |
+| `stats.revenue` | Operations, Finance | Operational Reporting |
+| `attention.safety_alerts`, search `sos_incidents` | Safety | Safety & SOS |
+| `attention.compliance_reviews`, search `offline_flags` | Operations, Safety | Anti-offline Compliance |
+| `attention.pending_kyc`, search `drivers` | Operations, Safety | Driver & Passenger → pending review |
+| search `passengers` | Support, Support Lead, Safety | Driver & Passenger |
+
+### Get Overview
+```
+GET /admin/overview
+```
+
+| Param | Type | Description |
+|-------|------|-------------|
+| activity_limit | integer | Recent activity items, 1–20. Default 5 |
+
+**What each figure means:**
+
+| Field | Meaning |
+|-------|---------|
+| `stats.active_rides.count` | Rides from `requested` to `in_progress`, all cities |
+| `stats.drivers_online.count` / `on_trip` | Approved drivers online / of those, holding a matched-to-in-progress ride |
+| `stats.drivers_online.utilisation_pct` | `on_trip ÷ count × 100`, one decimal |
+| `*.change_pct` (rides, drivers) | Against a snapshot taken within 10 minutes of this time yesterday (`compared_at`). `null` when there is none, e.g. for the first day after release. Snapshots are taken every 5 minutes |
+| `stats.open_disputes.count` / `overdue` | Open or under-review cases / those that missed their next target (the queue's "Overdue") |
+| `stats.revenue` | Gross fares (`final_fare_amount`) of rides **completed today** since midnight Lagos time, and `change_pct` against the same stretch of yesterday. Same basis as the revenue report, so not E-tiGo's commission |
+| `attention.safety_alerts.count` / `critical` | Active SOS incidents / those not yet picked up (triggered, check-in sent, escalated) |
+| `attention.compliance_reviews.count` / `high_severity` | Offline trip flags not yet resolved / of those, level 3 (pending deactivation) |
+| `attention.pending_kyc.count` | Drivers in `pending_review` |
+| `attention.unmatched_requests.count` | Rides with no driver that can still be assigned by hand (the Manual Assignment "awaiting driver" count) |
+| `change_pct` rule | From zero, any rise is `100`; no change is `0` |
+
+**Response 200:**
+```json
+{
+  "stats": {
+    "active_rides": { "count": 248, "change_pct": 12.4, "compared_at": "2026-10-20T09:05:00+00:00" },
+    "drivers_online": { "count": 1482, "on_trip": 1008, "utilisation_pct": 68.0, "change_pct": 12.4, "compared_at": "2026-10-20T09:05:00+00:00" },
+    "open_disputes": { "count": 18, "overdue": 3 },
+    "revenue": {
+      "period": "today",
+      "timezone": "Africa/Lagos",
+      "currency": "NGN",
+      "amount": 84600000,
+      "completed_rides": 1946,
+      "change_pct": 6.7,
+      "previous_amount": 79287722.5
+    }
+  },
+  "attention": {
+    "safety_alerts": { "count": 4, "critical": 3 },
+    "compliance_reviews": { "count": 11, "high_severity": 6 },
+    "pending_kyc": { "count": 3 },
+    "unmatched_requests": { "count": 3 }
+  },
+  "recent_activity": [
+    {
+      "id": "01a16011-6475-722d-9f78-2c12c7b12326",
+      "event": "driver_approved",
+      "category": "driver",
+      "title": "Driver verification approved",
+      "subtitle": "Amina Yusuf · Toyota Corolla · Lagos",
+      "subject": { "type": "driver", "id": "01a16011-643a-7304-b66c-5ca393151f5c", "reference_number": "D-000214" },
+      "actor": { "id": "01a16011-6430-7247-bacc-4094a3cf30a3", "name": "Tessy Okoro", "type": "admin" },
+      "created_at": "2026-10-21T09:01:14+00:00"
+    },
+    {
+      "id": "01a16011-6473-7254-9e62-871c7423989d",
+      "event": "pricing_config_created",
+      "category": "pricing",
+      "title": "Pricing version published",
+      "subtitle": "Abuja · Standard · v4",
+      "subject": { "type": "pricing_config", "id": "01a16011-6470-739b-84db-2b37eac7e7c4", "reference_number": null },
+      "actor": { "id": "01a16011-6430-7247-bacc-4094a3cf30a3", "name": "Tessy Okoro", "type": "admin" },
+      "created_at": "2026-10-21T08:57:02+00:00"
+    }
+  ],
+  "can_view_live_operations": true,
+  "generated_at": "2026-10-21T09:05:15+00:00"
+}
+```
+
+A Finance admin gets the same shape with `stats.revenue` filled and the other cards `null`, `can_view_live_operations: false`, and only finance events in `recent_activity`.
+
+**Recent activity** is a curated slice of the audit log, newest first, limited to areas the admin can open (dispute events also follow the queue rules). `category` drives the icon. `subject.type` + `subject.id` tell you which detail page to open. `actor` is `null` for system events. `title` reads "Dispute assigned to you" when the viewer is the assignee.
+
+| `event` | `category` | `title` | `subject.type` |
+|---------|-----------|---------|----------------|
+| `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated` | `driver` | Driver verification approved / application rejected / suspended / reactivated | `driver` |
+| `dispute_filed`, `dispute_assigned`, `dispute_resolved` | `dispute` | New dispute filed / Dispute assigned (to you) / Dispute resolved | `dispute` |
+| `sos_triggered`, `sos_resolved` | `safety` | SOS raised / SOS resolved | `sos_incident` |
+| `offline_trip_flagged` | `compliance` | Offline trip flagged | `offline_flag` |
+| `ride_manually_assigned` | `ride` | Ride assigned manually | `ride` |
+| `pricing_config_created`, `surge_rule_created` | `pricing` | Pricing version published / Surge rule created | `pricing_config`, `surge_rule` |
+| `promo_code_created` | `promo` | Promo created | `promo_code` |
+| `city_created` | `city` | City added | `city` |
+| `ev_station_created` | `ev_station` | EV station added | `ev_station` |
+| `payout.approved`, `adjustment.approved`, `commission.updated` | `finance` | Driver payout approved / Wallet adjustment approved / Commission rate updated | `payout`, `adjustment`, `commission_config` |
+| `admin_invited` | `admin` | Admin invited | `admin_invitation` |
+
+Per-trip events such as "ride completed" are not listed: at thousands a day they would push everything else off the list, and the Revenue card already counts them.
+
+**Refreshing:** poll every 30–60 seconds. For live ride movement, use the Live Monitoring WebSocket (`admin.rides`).
+
+### Live Operations Panel
+```
+GET /admin/overview/live-operations
+```
+
+Map markers and the latest trips for one city. Operations and Super Admin only (`403` otherwise).
+
+| Param | Type | Description |
+|-------|------|-------------|
+| city_id | string (UUID) | City to show. Default: the city with the most active rides |
+| rides_limit | integer | Trips in the list, 1–20. Default 3 |
+
+- `cities` lists every city with active rides, busiest first, for the city switcher.
+- `markers` holds up to 300 active rides, newest first. `markers_truncated` is `true` when there are more (`summary.active_rides` is still the full count). The position is the driver's live location when they have one (`position_source: "driver"`), otherwise the pickup point (`"pickup"`).
+- `needs_attention` (red pin) is set when the ride has an active SOS (`"sos"`) or the driver is assigned but their app has sent no location for 5+ minutes (`"driver_location_missing"`). `summary.needs_attention` counts these among the markers.
+- `city` is `null` and every list is empty when nothing is moving and no `city_id` was given.
+
+**Response 200:**
+```json
+{
+  "city": { "id": "01a16011-6419-73fe-a8a8-df4f726d6c02", "name": "Lagos" },
+  "cities": [
+    { "id": "01a16011-6419-73fe-a8a8-df4f726d6c02", "name": "Lagos", "active_rides": 168 },
+    { "id": "01a16011-7713-71b0-9d2a-0f0c7b1f1a90", "name": "Abuja", "active_rides": 80 }
+  ],
+  "summary": { "active_rides": 168, "needs_attention": 1 },
+  "markers": [
+    {
+      "ride_id": "01a16011-6453-714a-9f55-408eb5563d86",
+      "reference_number": "TRP-NG-000001",
+      "status": "in_progress",
+      "lat": 6.5012,
+      "lng": 3.379,
+      "position_source": "driver",
+      "needs_attention": false
+    },
+    {
+      "ride_id": "01a16011-6459-737e-ba4f-8b7a00b0ba9e",
+      "reference_number": "TRP-NG-000002",
+      "status": "searching",
+      "lat": 6.4474,
+      "lng": 3.4723,
+      "position_source": "pickup",
+      "needs_attention": true
+    }
+  ],
+  "markers_truncated": false,
+  "rides": [
+    {
+      "id": "01a16011-6453-714a-9f55-408eb5563d86",
+      "reference_number": "TRP-NG-000001",
+      "status": "in_progress",
+      "status_label": "In Progress",
+      "pickup_address": "Bodija Market, Ibadan Road, Yaba",
+      "destination_address": "Ring Road, Surulere",
+      "passenger": { "id": "01a16011-6433-70cb-a7fb-8eb698001ee8", "name": "Kemi Balogun" },
+      "driver": { "id": "01a16011-6438-71f7-aa44-0818c53512dc", "name": "Seyi Adeyemi" },
+      "needs_attention": false,
+      "attention_reasons": [],
+      "requested_at": "2026-10-21T09:00:14+00:00"
+    },
+    {
+      "id": "01a16011-6459-737e-ba4f-8b7a00b0ba9e",
+      "reference_number": "TRP-NG-000002",
+      "status": "searching",
+      "status_label": "Searching for Driver",
+      "pickup_address": "Admiralty Way, Lekki Phase 1",
+      "destination_address": "Victoria Island",
+      "passenger": { "id": "01a16011-6433-70cb-a7fb-8eb698001ee8", "name": "Kemi Balogun" },
+      "driver": null,
+      "needs_attention": true,
+      "attention_reasons": ["sos"],
+      "requested_at": "2026-10-21T08:58:40+00:00"
+    }
+  ],
+  "generated_at": "2026-10-21T09:05:15+00:00"
+}
+```
+
+"Open live view" goes to Live Monitoring (`GET /admin/monitoring/active-rides?city_id=…`).
+
+### Global Search
+```
+GET /admin/search?q={term}
+```
+
+Top-bar search across trips, people and cases. Matching is case-insensitive "contains". `%` and `_` are matched literally. In each group an exact reference match comes first (so `TRP-NG-00001` is not pushed out by `TRP-NG-000010`–`19`), then the newest. Rate limit: 60 per minute.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| q | string | Required, 2–100 characters |
+| limit | integer | Results per group, 1–10. Default 5 |
+
+| Group | Matches on | Then newest by |
+|-------|-----------|-----------------|
+| `rides` | Trip reference, passenger or driver name / phone / email / reference | requested |
+| `drivers` | Driver reference (`D-…`), name, phone, email, user reference | joined |
+| `passengers` | Name, phone, email, reference (`P-…`) | joined |
+| `disputes` | Dispute reference (`DPT-…`), trip reference, reporter name / phone / email | filed |
+| `sos_incidents` | Incident reference (`SOS-…`), trip reference, passenger / driver / raiser name or phone | raised |
+| `offline_flags` | Flag reference, trip reference, driver name / phone / driver ID | flagged |
+
+**Response 200:**
+```json
+{
+  "query": "kemi",
+  "results": {
+    "rides": [
+      {
+        "id": "01a16011-6453-714a-9f55-408eb5563d86",
+        "reference_number": "TRP-NG-000001",
+        "status": "in_progress",
+        "pickup_address": "Bodija Market, Ibadan Road, Yaba",
+        "destination_address": "Ring Road, Surulere",
+        "passenger_name": "Kemi Balogun",
+        "driver_name": "Seyi Adeyemi",
+        "created_at": "2026-10-21T09:00:14+00:00"
+      }
+    ],
+    "drivers": [],
+    "passengers": [
+      {
+        "id": "01a16011-6433-70cb-a7fb-8eb698001ee8",
+        "reference_number": "P-000001",
+        "name": "Kemi Balogun",
+        "phone": "+2348012345678",
+        "email": "kemi@example.com",
+        "is_active": true
+      }
+    ],
+    "disputes": [
+      {
+        "id": "01a16012-0b1e-7c3d-8a51-3f0e2d9b7c11",
+        "reference_number": "DPT-000041",
+        "status": "open",
+        "category": "fare_dispute",
+        "category_label": "Fare is incorrect",
+        "queue": "support",
+        "created_at": "2026-10-21T07:45:00+00:00"
+      }
+    ],
+    "sos_incidents": [
+      {
+        "id": "01a16011-6463-7309-8dfc-ff9c19f07156",
+        "reference_number": "SOS-000001",
+        "status": "triggered",
+        "ride_reference_number": "TRP-NG-000002",
+        "created_at": "2026-10-21T08:59:15+00:00"
+      }
+    ],
+    "offline_flags": []
+  }
+}
+```
+
+An empty array means "searched, nothing found"; `null` means "not searched for your role".
+
+**Errors:** `422 VALIDATION_ERROR` when `q` is missing, shorter than 2 or longer than 100 characters; `429` over the rate limit.
+
+---
+
 ## Admin — Live Monitoring
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`

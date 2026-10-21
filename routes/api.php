@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminLostItemController;
 use App\Http\Controllers\Api\V1\Admin\AdminManagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminMonitoringController;
 use App\Http\Controllers\Api\V1\Admin\AdminOfflineFlagController;
+use App\Http\Controllers\Api\V1\Admin\AdminOverviewController;
 use App\Http\Controllers\Api\V1\Admin\AdminPassengerController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutAccountController;
 use App\Http\Controllers\Api\V1\Admin\AdminPayoutController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminRefundController;
 use App\Http\Controllers\Api\V1\Admin\AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\AdminRideController;
 use App\Http\Controllers\Api\V1\Admin\AdminScheduledRideController;
+use App\Http\Controllers\Api\V1\Admin\AdminSearchController;
 use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminThirdPartySettingsController;
@@ -484,6 +486,12 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(function () {
+    // Landing page and top-bar search: every admin; each card or result group
+    // is null when the admin's role cannot open the screen behind it.
+    Route::get('/overview', [AdminOverviewController::class, 'index']);
+    Route::get('/overview/live-operations', [AdminOverviewController::class, 'liveOperations'])->middleware('admin.role:operations');
+    Route::get('/search', AdminSearchController::class)->middleware('throttle:60,1');
+
     Route::middleware('admin.role:operations,safety_operator')->prefix('drivers')->group(function () {
         Route::get('/', [DriverManagementController::class, 'index']);
         Route::get('/pending', [DriverManagementController::class, 'pendingReview']);
