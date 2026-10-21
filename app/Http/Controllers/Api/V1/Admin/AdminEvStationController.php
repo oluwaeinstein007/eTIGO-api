@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\EvStation\ManageStallFormRequest;
 use App\Http\Requests\EvStation\StoreEvStationFormRequest;
 use App\Http\Requests\EvStation\UpdateEvStationFormRequest;
+use App\Http\Resources\EvDriverResource;
 use App\Http\Resources\EvStationResource;
 use App\Models\AuditLog;
 use App\Models\EvChargingStall;
@@ -37,8 +38,8 @@ class AdminEvStationController extends Controller
         ]);
 
         $stations = EvChargingStation::query()
-            ->with(['city', 'stalls'])
-            ->withCount(['reservations as queue_length' => fn ($q) => $q->where('status', EvReservationStatus::Queued)])
+            ->with(self::details())
+            ->withCount(self::queueLengthCount())
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('search'), fn ($q, $search) => $q->where(
@@ -92,7 +93,7 @@ class AdminEvStationController extends Controller
             return $station->fresh();
         });
 
-        $station->load(['city', 'stalls']);
+        $this->loadDetails($station);
 
         return response()->json([
             'message' => 'EV charging station created successfully.',
@@ -102,11 +103,7 @@ class AdminEvStationController extends Controller
 
     public function show(EvChargingStation $station): JsonResponse
     {
-        $station->load([
-            'city',
-            'stalls' => fn ($q) => $q->orderBy('stall_number'),
-            'stalls.currentDriver.driver.vehicle',
-        ]);
+        $this->loadDetails($station);
 
         $queue = $station->reservations()
             ->queued()
@@ -117,17 +114,7 @@ class AdminEvStationController extends Controller
             ->map(fn (EvReservation $reservation, int $index) => [
                 'reservation_id' => $reservation->id,
                 'position' => $reservation->queue_position ?? $index + 1,
-                'driver' => $reservation->driver ? [
-                    'id' => $reservation->driver->id,
-                    'name' => trim($reservation->driver->first_name.' '.$reservation->driver->last_name),
-                    'phone' => $reservation->driver->phone,
-                ] : null,
-                'vehicle' => ($vehicle = $reservation->driver?->driver?->vehicle) ? [
-                    'make' => $vehicle->make,
-                    'model' => $vehicle->model,
-                    'colour' => $vehicle->colour,
-                    'plate_number' => $vehicle->plate_number,
-                ] : null,
+                'driver' => $reservation->driver ? new EvDriverResource($reservation->driver) : null,
                 'battery_level' => $reservation->battery_level,
                 'joined_at' => $reservation->created_at?->toISOString(),
                 'wait_seconds' => $reservation->created_at
@@ -138,6 +125,7 @@ class AdminEvStationController extends Controller
 
         return response()->json([
             'station' => new EvStationResource($station),
+            // Deprecated: the same figures as station.availability.
             'availability' => $this->stallService->getStationAvailability($station),
             // Drivers waiting for a stall, in the order they joined.
             'queue' => $queue,
@@ -164,7 +152,7 @@ class AdminEvStationController extends Controller
             );
         });
 
-        $station->load(['city', 'stalls']);
+        $this->loadDetails($station);
 
         return response()->json([
             'message' => 'EV charging station updated successfully.',
@@ -192,7 +180,7 @@ class AdminEvStationController extends Controller
             );
         });
 
-        $station->load(['city', 'stalls']);
+        $this->loadDetails($station);
 
         return response()->json([
             'message' => 'Station status updated successfully.',
@@ -204,10 +192,21 @@ class AdminEvStationController extends Controller
     {
         DB::transaction(function () use ($request, $station) {
             foreach ($request->validated('stalls') as $stallData) {
-                $station->stalls()->updateOrCreate(
-                    ['stall_number' => $stallData['stall_number']],
-                    ['status' => $stallData['status'] ?? EvStallStatus::Available->value],
-                );
+                $stall = $station->stalls()->firstOrNew(['stall_number' => $stallData['stall_number']]);
+                $stall->status = EvStallStatus::from($stallData['status'] ?? EvStallStatus::Available->value);
+
+                // Only an occupied stall has someone at it. Marked occupied by
+                // hand (say, a car from outside E-tiGo), it has no driver.
+                if ($stall->status === EvStallStatus::Occupied) {
+                    $stall->occupied_since ??= now();
+                } else {
+                    $stall->current_vehicle_driver_id = null;
+                    $stall->occupied_since = null;
+                    $stall->estimated_departure_at = null;
+                }
+
+                $stall->updated_at = now();
+                $stall->save();
             }
 
             $station->update(['total_stalls' => $station->stalls()->count()]);
@@ -215,7 +214,7 @@ class AdminEvStationController extends Controller
             AuditLog::record($station, 'ev_stalls_managed', $request->user(), [], $request->validated('stalls'));
         });
 
-        $station->load('stalls');
+        $this->loadDetails($station);
 
         return response()->json([
             'message' => 'Stalls updated successfully.',
@@ -247,7 +246,7 @@ class AdminEvStationController extends Controller
     {
         $stations = EvChargingStation::query()
             ->with('stalls')
-            ->withCount(['reservations as queue_length' => fn ($q) => $q->where('status', EvReservationStatus::Queued)])
+            ->withCount(self::queueLengthCount())
             ->when($request->query('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             ->active()
             ->get();
@@ -304,6 +303,32 @@ class AdminEvStationController extends Controller
                 'average_occupancy_rate' => $utilisation->avg('occupancy_rate'),
             ],
         ]);
+    }
+
+    /**
+     * Loaded for every station an admin endpoint returns, so the list, the
+     * details and each change all send the same station shape.
+     */
+    private static function details(): array
+    {
+        return [
+            'city',
+            'stalls' => fn ($q) => $q->orderBy('stall_number'),
+            'stalls.currentDriver.driver.vehicle',
+        ];
+    }
+
+    /**
+     * Drivers waiting for a stall, as `queue_length` in the station's availability.
+     */
+    private static function queueLengthCount(): array
+    {
+        return ['reservations as queue_length' => fn ($q) => $q->where('status', EvReservationStatus::Queued)];
+    }
+
+    private function loadDetails(EvChargingStation $station): void
+    {
+        $station->load(self::details())->loadCount(self::queueLengthCount());
     }
 
     /**

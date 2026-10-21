@@ -144,11 +144,104 @@ it('lists drivers in the queue in the order they joined, with their vehicle', fu
         ->assertJsonCount(2, 'queue')
         ->assertJsonPath('queue.0.position', 1)
         ->assertJsonPath('queue.0.driver.name', fn ($name) => str_starts_with($name, 'Driver1'))
-        ->assertJsonPath('queue.0.vehicle.plate_number', 'ABJ-001')
-        ->assertJsonPath('queue.1.vehicle.plate_number', 'ABJ-002')
-        ->assertJsonPath('availability.queue_length', 2);
+        ->assertJsonPath('queue.0.driver.vehicle.plate_number', 'ABJ-001')
+        ->assertJsonPath('queue.1.driver.vehicle.plate_number', 'ABJ-002')
+        ->assertJsonPath('station.availability.queue_length', 2)
+        ->assertJsonPath('availability.queue_length', 2)
+        ->assertJsonMissingPath('queue.0.vehicle');
 
     expect($response->json('queue.0.wait_seconds'))->toBeGreaterThanOrEqual(1200);
+});
+
+it('shows the driver charging at a stall in the same shape as a queued driver', function () {
+    $station = stationWithStalls(2);
+    $user = User::factory()->driver()->create(['first_name' => 'Ifeoma', 'last_name' => 'Chukwu', 'phone' => '+2348300000041']);
+    $driver = Driver::factory()->create(['user_id' => $user->id]);
+    Vehicle::factory()->electric()->create([
+        'driver_id' => $driver->id, 'make' => 'BYD', 'model' => 'Dolphin', 'colour' => 'White', 'plate_number' => 'LND-241EV',
+    ]);
+    $station->stalls()->where('stall_number', 1)->update([
+        'status' => EvStallStatus::Occupied,
+        'current_vehicle_driver_id' => $user->id,
+        'occupied_since' => now()->subMinutes(25),
+        'estimated_departure_at' => now()->addMinutes(25),
+    ]);
+
+    $response = $this->withToken($this->token)
+        ->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertOk()
+        ->assertJsonPath('station.stalls.0.current_driver', [
+            'id' => $user->id,
+            'name' => 'Ifeoma Chukwu',
+            'phone' => '+2348300000041',
+            'vehicle' => ['make' => 'BYD', 'model' => 'Dolphin', 'colour' => 'White', 'plate_number' => 'LND-241EV'],
+        ])
+        ->assertJsonPath('station.stalls.1.current_driver', null);
+
+    expect($response->json('station.stalls.0.occupied_since'))->not->toBeNull()
+        ->and($response->json('station.stalls.0.estimated_departure_at'))->not->toBeNull();
+
+    // The list sends the same stall shape.
+    $this->withToken($this->token)
+        ->getJson('/api/v1/admin/ev-stations')
+        ->assertJsonPath('stations.0.stalls.0.current_driver.vehicle.plate_number', 'LND-241EV')
+        ->assertJsonPath('stations.0.stalls.1.current_driver', null);
+});
+
+it('keeps the charging driver off the public station endpoints', function () {
+    $station = stationWithStalls(1);
+    $station->stalls()->update([
+        'status' => EvStallStatus::Occupied,
+        'current_vehicle_driver_id' => User::factory()->driver()->create()->id,
+    ]);
+
+    $this->getJson("/api/v1/ev-stations/{$station->id}")
+        ->assertOk()
+        ->assertJsonMissingPath('station.stalls.0.current_driver')
+        ->assertJsonMissingPath('station.availability.queue_length');
+});
+
+it('sends queue_length inside station.availability on every admin station response', function () {
+    $station = stationWithStalls(2);
+    EvReservation::factory()->queued()->create(['station_id' => $station->id]);
+    $this->withToken($this->token);
+
+    $this->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertJsonPath('station.availability.queue_length', 1);
+    $this->putJson("/api/v1/admin/ev-stations/{$station->id}", ['name' => 'Renamed'])
+        ->assertJsonPath('station.availability.queue_length', 1);
+    $this->patchJson("/api/v1/admin/ev-stations/{$station->id}/status", ['status' => 'maintenance'])
+        ->assertJsonPath('station.availability.queue_length', 1);
+    $this->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [['stall_number' => 1, 'status' => 'available']]])
+        ->assertJsonPath('station.availability.queue_length', 1)
+        ->assertJsonPath('station.city.id', $station->city_id);
+    $this->postJson('/api/v1/admin/ev-stations', [
+        'name' => 'New Hub', 'city_id' => $this->city->id, 'lat' => 9.07, 'lng' => 7.49, 'address' => 'Wuse', 'total_stalls' => 1,
+    ])->assertJsonPath('station.availability.queue_length', 0);
+});
+
+it('clears the driver when an admin frees a stall by hand', function () {
+    $station = stationWithStalls(2);
+    $station->stalls()->where('stall_number', 1)->update([
+        'status' => EvStallStatus::Occupied,
+        'current_vehicle_driver_id' => User::factory()->driver()->create()->id,
+        'occupied_since' => now()->subMinutes(30),
+        'estimated_departure_at' => now()->addMinutes(10),
+    ]);
+
+    $this->withToken($this->token)
+        ->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [
+            ['stall_number' => 1, 'status' => 'available'],
+            ['stall_number' => 2, 'status' => 'occupied'],
+        ]])
+        ->assertOk()
+        ->assertJsonPath('station.stalls.0.current_driver', null)
+        ->assertJsonPath('station.stalls.0.occupied_since', null)
+        ->assertJsonPath('station.stalls.0.estimated_departure_at', null)
+        ->assertJsonPath('station.stalls.1.status.value', 'occupied')
+        ->assertJsonPath('station.stalls.1.current_driver', null);
+
+    expect($station->stalls()->where('stall_number', 2)->value('occupied_since'))->not->toBeNull();
 });
 
 it('counts the queue on the station list', function () {

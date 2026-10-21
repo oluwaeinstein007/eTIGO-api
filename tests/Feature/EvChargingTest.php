@@ -229,6 +229,11 @@ describe('EV Reservation - Lifecycle', function () {
 
         $response->assertOk()
             ->assertJsonPath('reservation.status.value', 'active');
+
+        $stall = $reservation->stall->fresh();
+        expect($stall->current_vehicle_driver_id)->toBe($this->driverUser->id)
+            ->and($stall->occupied_since)->not->toBeNull()
+            ->and($stall->updated_at)->not->toBeNull();
     });
 
     it('completes an active reservation', function () {

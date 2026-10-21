@@ -26,6 +26,8 @@ class EvChargingStall extends Model
         'current_vehicle_driver_id',
         'occupied_since',
         'estimated_departure_at',
+        // No automatic timestamps: whoever changes the stall sets it.
+        'updated_at',
     ];
 
     protected function casts(): array
