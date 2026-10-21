@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\LostItemCategory;
 use App\Enums\PaymentMethod;
+use App\Enums\ThirdPartyRecipient;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
@@ -55,7 +56,7 @@ class ConfigController extends Controller
      * What the "book for someone else" screen needs: whether it is on, how
      * the booker may pay, and who will get the PIN and tracking.
      *
-     * @return array{enabled: bool, payment_methods: list<string>, pin_recipient: string, tracking_recipient: string, max_active_per_booker: int}
+     * @return array{enabled: bool, payment_methods: list<string>, pin_recipient: string, tracking_recipient: string, share_with_options: list<string>, default_share_with: string, max_active_per_booker: int}
      */
     private static function thirdPartyBookingRules(): array
     {
@@ -71,6 +72,13 @@ class ConfigController extends Controller
             ])),
             'pin_recipient' => $settings['pin_recipient'],
             'tracking_recipient' => $settings['tracking_recipient'],
+            // "Who gets tracking & the PIN?": the choices for share_with on
+            // POST /rides, and the one to pre-select (the admin default).
+            'share_with_options' => [ThirdPartyRecipient::Rider->value, ThirdPartyRecipient::Both->value],
+            'default_share_with' => $settings['pin_recipient'] === ThirdPartyRecipient::Rider->value
+                && $settings['tracking_recipient'] === ThirdPartyRecipient::Rider->value
+                    ? ThirdPartyRecipient::Rider->value
+                    : ThirdPartyRecipient::Both->value,
             'max_active_per_booker' => $settings['max_active_per_booker'],
         ];
     }

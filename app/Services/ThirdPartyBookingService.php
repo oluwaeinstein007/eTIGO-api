@@ -61,6 +61,7 @@ class ThirdPartyBookingService
         bool $ageConfirmed,
         PaymentMethod $paymentMethod,
         bool $scheduled,
+        ?ThirdPartyRecipient $shareWith = null,
     ): ?array {
         $riderPhone = self::normalizePhone($riderPhone);
 
@@ -114,15 +115,20 @@ class ThirdPartyBookingService
             ]);
         }
 
-        $messagesRider = ThirdPartyRecipient::from($policy['pin_recipient'])->includesRider()
-            || ThirdPartyRecipient::from($policy['tracking_recipient'])->includesRider();
+        // The booker's choice ("Rider only" / "Both of us") covers the PIN and
+        // tracking together; without one, the admin default applies.
+        $pinRecipient = $shareWith?->value ?? $policy['pin_recipient'];
+        $trackingRecipient = $shareWith?->value ?? $policy['tracking_recipient'];
+
+        $messagesRider = ThirdPartyRecipient::from($pinRecipient)->includesRider()
+            || ThirdPartyRecipient::from($trackingRecipient)->includesRider();
 
         return [
             'is_third_party' => true,
             'rider_name' => trim((string) $riderName),
             'rider_phone' => $riderPhone,
-            'pin_recipient' => $policy['pin_recipient'],
-            'tracking_recipient' => $policy['tracking_recipient'],
+            'pin_recipient' => $pinRecipient,
+            'tracking_recipient' => $trackingRecipient,
             // Nothing is sent to the rider under a booker-only policy.
             'rider_notification_status' => $messagesRider ? RiderNotificationStatus::Pending->value : null,
         ];

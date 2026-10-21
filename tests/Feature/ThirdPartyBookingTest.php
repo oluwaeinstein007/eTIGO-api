@@ -289,6 +289,53 @@ it('keeps the recipients a ride was booked with when the policy changes', functi
 
 // === PIN AND TRACKING ROUTING ===
 
+it('sends the PIN and tracking to the rider only when the booker chooses it', function () {
+    $response = ($this->book)(['share_with' => 'rider'])->assertCreated()
+        ->assertJsonPath('pin_code', null)
+        ->assertJsonPath('ride.third_party.pin_recipient', 'rider')
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'rider')
+        ->assertJsonPath('ride.third_party.booker_sees_pin', false)
+        ->assertJsonPath('ride.third_party.rider_notification_status', 'pending');
+
+    $audit = AuditLog::where('auditable_id', $response->json('ride.id'))->where('event', 'third_party_ride_booked')->first();
+    expect($audit->new_values['share_with'])->toBe('rider');
+});
+
+it('lets the booker choice override the admin default', function () {
+    ($this->setPolicy)(['pin_recipient' => 'rider', 'tracking_recipient' => 'rider']);
+
+    ($this->book)(['share_with' => 'both'])->assertCreated()
+        ->assertJsonPath('ride.third_party.pin_recipient', 'both')
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'both')
+        ->assertJsonPath('ride.third_party.booker_sees_pin', true);
+
+    // No choice sent (older app builds): the admin default still applies.
+    ($this->book)(['rider_phone' => '+2348020000009'])->assertCreated()
+        ->assertJsonPath('ride.third_party.pin_recipient', 'rider');
+});
+
+it('keeps the choice on a ride booked for later', function () {
+    $rideId = ($this->book)([
+        'share_with' => 'rider',
+        'scheduled_pickup_at' => now()->addHours(3)->toIso8601String(),
+    ])->assertCreated()->json('ride.id');
+
+    expect(Ride::find($rideId))
+        ->pin_recipient->toBe(ThirdPartyRecipient::Rider)
+        ->tracking_recipient->toBe(ThirdPartyRecipient::Rider);
+});
+
+it('only accepts rider or both as the choice', function (string $value) {
+    ($this->book)(['share_with' => $value])->assertUnprocessable()->assertJsonValidationErrors('share_with');
+})->with(['booker', 'everyone']);
+
+it('ignores the choice on the booker\'s own ride', function () {
+    ($this->book)(['share_with' => 'rider', 'rider_phone' => null, 'rider_name' => null])
+        ->assertCreated()
+        ->assertJsonPath('ride.is_third_party', false)
+        ->assertJsonPath('pin_code', fn ($pin) => preg_match('/^\d{4}$/', (string) $pin) === 1);
+});
+
 it('hides the PIN from the booker when the policy sends it to the rider only', function () {
     ($this->setPolicy)(['pin_recipient' => 'rider']);
 
@@ -621,7 +668,9 @@ it('tells the apps the third-party rules in the app config', function () {
         ->assertOk()
         ->assertJsonPath('third_party_bookings.enabled', true)
         ->assertJsonPath('third_party_bookings.payment_methods', ['wallet', 'card'])
-        ->assertJsonPath('third_party_bookings.pin_recipient', 'both');
+        ->assertJsonPath('third_party_bookings.pin_recipient', 'both')
+        ->assertJsonPath('third_party_bookings.share_with_options', ['rider', 'both'])
+        ->assertJsonPath('third_party_bookings.default_share_with', 'both');
 
     ($this->setPolicy)(['allow_bank_transfer' => true, 'tracking_recipient' => 'rider']);
 
