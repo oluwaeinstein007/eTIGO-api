@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
+use App\Enums\ThirdPartyRecipient;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ride\CancelRideRequest;
 use App\Http\Requests\Ride\StoreRideRequest;
@@ -92,6 +93,7 @@ class RideController extends Controller
                     ageConfirmed: $request->boolean('rider_age_confirmed'),
                     paymentMethod: $paymentMethod,
                     scheduled: $scheduledPickupAt !== null,
+                    shareWith: ThirdPartyRecipient::tryFrom((string) $request->input('share_with')),
                 );
 
                 // Checked again under the passenger lock so two bookings sent
@@ -153,6 +155,7 @@ class RideController extends Controller
             AuditLog::record($ride, 'third_party_ride_booked', $user, null, [
                 'pin_recipient' => $ride->pin_recipient?->value,
                 'tracking_recipient' => $ride->tracking_recipient?->value,
+                'share_with' => $request->input('share_with'),
                 'rider_age_confirmed' => true,
             ]);
 

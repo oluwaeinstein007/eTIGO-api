@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Ride;
 
 use App\Enums\PaymentMethod;
+use App\Enums\ThirdPartyRecipient;
 use App\Models\City;
 use App\Models\PricingConfig;
 use App\Services\CityDetectionService;
@@ -46,6 +47,10 @@ class StoreRideRequest extends FormRequest
             'rider_name' => ['nullable', 'string', 'max:100'],
             'rider_phone' => ['nullable', 'string', 'regex:/^\+[1-9]\d{6,14}$/'],
             'rider_age_confirmed' => ['sometimes', 'boolean'],
+            // Who gets the PIN: the rider only, or the rider and the booker
+            // (the booker keeps live tracking either way). Omit to use the
+            // admin default. Ignored on the booker's own rides.
+            'share_with' => ['nullable', 'string', Rule::in([ThirdPartyRecipient::Rider->value, ThirdPartyRecipient::Both->value])],
         ];
     }
 

@@ -751,6 +751,19 @@ No authentication required. Returns app configuration including minimum version 
     "payment_methods": ["wallet", "card"],
     "pin_recipient": "both",
     "tracking_recipient": "both",
+    "share_with_options": [
+      {
+        "value": "rider",
+        "label": "Rider only",
+        "description": "The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app."
+      },
+      {
+        "value": "both",
+        "label": "Both of us",
+        "description": "You and the rider both get the PIN and live tracking."
+      }
+    ],
+    "default_share_with": "both",
     "max_active_per_booker": 2
   },
   "lost_and_found": {
@@ -777,7 +790,7 @@ No authentication required. Returns app configuration including minimum version 
 
 `scheduled_rides` drives the "Schedule" date/time picker: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead, and hide the option when `enabled` is `false`. Matching starts `dispatch_lead_minutes` before pickup, which is also when a booking stops being editable. `reservation_fee` is added to every scheduled quote (₦0: the client decided not to charge for reservations). A passenger who cancels a booking a driver has reserved within `late_cancellation_window_minutes` (30) of pickup pays a late-cancellation fee: with `late_cancellation_fee_basis` `economy_base_fare` (the default) it is the economy base fare of the ride's city; with `flat` it is `late_cancellation_fee`; `off` means no fee. The ride shows the exact amount as `scheduled.cancellation_fee_if_cancelled_now`. See [Scheduled Rides](#scheduled-rides).
 
-`third_party_bookings` drives "Book for someone else": hide it when `enabled` is `false`, and offer only `payment_methods` for such a booking. Use `pin_recipient` and `tracking_recipient` to tell the booker what the rider will receive. The ride saves the values in effect at booking. See [Third-Party Bookings](#third-party-bookings).
+`third_party_bookings` drives "Book for someone else": hide it when `enabled` is `false`, and offer only `payment_methods` for such a booking. For "Who gets the PIN?", show `share_with_options` with each option's `label` and `description` as given, pre-select `default_share_with`, and send the chosen `value` as `share_with` on `POST /rides`. The descriptions are worded from the current tracking setting, so they never promise the booker a live map they won't get. When `share_with_options` is empty (operations send PINs to bookers only), hide the question. `pin_recipient` and `tracking_recipient` are the admin settings: the PIN default when no choice is sent, and who gets live tracking. Sending `default_share_with` always gives the same result as sending nothing. The ride saves what applied at booking. See [Third-Party Bookings](#third-party-bookings).
 
 `lost_and_found` drives "Report a lost item" on a completed trip: show it while `enabled` is `true` and the trip ended less than `report_window_days` ago, and offer `categories`. When `return_fee` is above 0, tell the passenger it is charged when the item comes back. See [Lost & Found](#lost--found).
 
@@ -5412,6 +5425,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | rider_name | string | With `rider_phone` | Book for someone else: the rider's name (max 100). See [Third-Party Bookings](#third-party-bookings) |
 | rider_phone | string | No | The rider's phone: E.164 (`+2348020000002`) or Nigerian local (`0802 000 0002`). The booker's own number makes it a normal ride |
 | rider_age_confirmed | boolean | With `rider_phone` | Must be `true`: the rider is 18 or over, or an adult travels with them |
+| share_with | string | No | Who gets the PIN: `rider` ("Rider only") or `both` ("Both of us"). Live tracking follows the admin `tracking_recipient` (default `both`: the rider gets a tracking link and the booker keeps following the trip). Omit to use the admin default (`default_share_with` in `GET /config`). Ignored on the booker's own ride, or when `share_with_options` is empty |
 | promo_code         | string  | No       | Promo code to apply (max 50 chars). **All** rules are checked at booking against this ride (user eligibility, city, vehicle class, pickup geo-fence, minimum fare vs. the estimate, peak/off-peak in the city's timezone) — an invalid code returns `422` on `promo_code`. The discount is applied to the final fare at completion; the code's validity window and peak rules are honoured as they were at booking. |
 
 **Response 201:**
@@ -6892,7 +6906,7 @@ A passenger (the **booker**) can book and pay for a ride that someone else takes
 **How it works**
 
 1. **Booking.** `POST /rides` (now, or with `scheduled_pickup_at`) plus `rider_name`, `rider_phone` and `rider_age_confirmed: true`. The booker stays the ride's `passenger`: they pay, cancel, rate, dispute and see the trip in their history. The booker is never told whether the number has an E-tiGo account.
-2. **Policy snapshot.** The ride saves who gets the PIN and who gets live tracking (`pin_recipient` and `tracking_recipient`: `booker`, `rider` or `both`; default **both**). A later settings change applies only to new bookings.
+2. **Who gets the PIN and tracking.** The booker chooses who gets the **PIN** with `share_with`: `rider` ("Rider only") or `both` ("Both of us"). Live tracking is not part of the choice: it follows the admin `tracking_recipient`, which defaults to **both**, so the rider gets a tracking link and the booker keeps following the trip, as on Uber and Bolt (the booker pays and answers for the ride). Without a choice, the admin PIN default applies (`pin_recipient` and `tracking_recipient`: `booker`, `rider` or `both`; default **both**). When operations set `pin_recipient` to `booker` (no messages to riders), the choice is not offered and `share_with` is ignored. The ride saves what applied (`third_party.pin_recipient`, `third_party.tracking_recipient`), so a later settings change affects only new bookings. With "Rider only" the booking response has `pin_code: null` and the booker does not see the PIN, unless the rider can't be reached (step 4).
 3. **Driver assigned.** The rider gets a WhatsApp message (SMS if WhatsApp fails). It contains the booker's first name, the driver's first name, the car and plate, and the safety contacts (112 and the E-tiGo safety line). It also has the **PIN** when the policy includes the rider, and a **tracking link that works without the app** (`/track/{ride}/{share_token}`) when tracking includes the rider. It tells the rider to contact the booker for changes. The booker sees the PIN and live map in the app when the policy includes them.
 4. **Delivery fallback.** If WhatsApp and SMS both refuse the message (3 attempts over about a minute), `rider_notification_status` becomes `failed`. The booker gets a `third_party_rider_unreachable` push, and **the PIN and tracking are shown to them whatever the policy**, so the ride can still start.
 5. **Trip updates.** With `rider_trip_updates` on (the default), the rider also gets "your driver has arrived" with the car and plate. If the ride is cancelled after the rider was told about it, they get a cancellation message.
@@ -6959,8 +6973,8 @@ PUT /admin/settings/third-party
 | Field | Type | Default | Range | Description |
 |-------|------|---------|-------|-------------|
 | enabled | boolean | `true` | — | Accept new third-party bookings. Rides already booked carry on |
-| pin_recipient | string | `both` | `booker`, `rider`, `both` | Who gets the ride PIN |
-| tracking_recipient | string | `both` | `booker`, `rider`, `both` | Who gets live tracking |
+| pin_recipient | string | `both` | `booker`, `rider`, `both` | Who gets the ride PIN when the booker sends no `share_with`; also the pre-selected choice. `booker` turns the booker's choice off |
+| tracking_recipient | string | `both` | `booker`, `rider`, `both` | Who gets live tracking, whatever the booker chooses. Keep `both` so the booker can follow the trip |
 | allow_cash | boolean | `false` | — | Allow cash payment |
 | allow_bank_transfer | boolean | `false` | — | Allow bank-transfer payment |
 | max_active_per_booker | integer | 2 | 1–10 | Third-party rides under way at once per booker |

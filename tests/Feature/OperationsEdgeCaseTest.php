@@ -166,6 +166,8 @@ it('refuses EV charging reservations for vehicles that cannot charge', function 
 });
 
 it('charges the reservation fee to the driver\'s earnings when a stall is held', function () {
+    $this->freezeTime();
+
     $driver = evDriver();
     $station = stationWithFreeStall();
 

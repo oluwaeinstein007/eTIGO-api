@@ -670,6 +670,8 @@ function levelThreeFlagFromDetection(): OfflineTripFlag
 }
 
 it('gives the driver 48 hours to respond before a level 3 flag can be upheld or confirmed', function () {
+    $this->freezeTime();
+
     $flag = levelThreeFlagFromDetection();
 
     expect($flag->sanction_tier)->toBe(SanctionTier::Deactivation)
@@ -737,6 +739,8 @@ it('lets a super admin confirm before the deadline and says so in the history', 
 });
 
 it('starts the wait when a flag is escalated or verified to level 3, and clears it on de-escalation', function () {
+    $this->freezeTime();
+
     $escalated = complianceFlag(['sanction_tier' => SanctionTier::Suspension]);
 
     $this->withToken($this->token)

@@ -106,6 +106,8 @@ it('gives a super admin every card with live counts', function () {
 });
 
 it('compares live counts with the snapshot from this time yesterday', function () {
+    $this->freezeTime();
+
     OperationsSnapshot::create([
         'captured_at' => now()->subDay()->addMinutes(3),
         'city_id' => $this->lagos->id,
