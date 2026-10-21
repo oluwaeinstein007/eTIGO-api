@@ -12209,11 +12209,41 @@ Cancels any non-terminal reservation. Releases the stall and triggers queue tran
   "status": { "value": "maintenance", "label": "Under Maintenance" },
   "availability": { "total": 6, "available": 3, "occupied": 2, "reserved": 1, "out_of_service": 0, "queue_length": 1 },
   "city": { "...": "..." },
-  "stalls": [ { "stall_number": 1, "status": { "value": "occupied", "label": "Occupied" }, "current_driver": { "first_name": "Emeka", "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-123-AB" } }, "...": "..." } ]
+  "stalls": [
+    {
+      "id": "uuid",
+      "stall_number": 1,
+      "status": { "value": "occupied", "label": "Occupied" },
+      "occupied_since": "2026-10-21T09:35:00.000000Z",
+      "estimated_departure_at": "2026-10-21T10:25:00.000000Z",
+      "current_driver": {
+        "id": "uuid",
+        "name": "Ifeoma Chukwu",
+        "phone": "+2348300000041",
+        "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-241EV" }
+      },
+      "updated_at": "2026-10-21T09:35:00.000000Z"
+    },
+    {
+      "id": "uuid",
+      "stall_number": 3,
+      "status": { "value": "available", "label": "Available" },
+      "occupied_since": null,
+      "estimated_departure_at": null,
+      "current_driver": null,
+      "updated_at": "2026-10-21T08:00:00.000000Z"
+    }
+  ]
 }
 ```
 
-`connector_types`, `power_output_kw`, `pricing_per_kwh` (kobo per kWh) and `operating_hours` are returned as saved, so an edit form can show them. `availability.queue_length` is present on the list and details. `status` is `active`, `inactive` or `maintenance` ("Under Maintenance": drivers cannot reserve).
+`connector_types`, `power_output_kw`, `pricing_per_kwh` (kobo per kWh) and `operating_hours` are returned as saved, so an edit form can show them. `status` is `active`, `inactive` or `maintenance` ("Under Maintenance": drivers cannot reserve).
+
+On every admin station response (List, Show, Create, Update, Toggle Status, Manage Stalls) the station has the same shape:
+- `availability` always includes `queue_length` (drivers waiting for a stall). The public endpoints leave `queue_length` out.
+- `stalls` are in stall-number order, each with `current_driver`. The public endpoints leave `current_driver` out.
+- `current_driver` is the driver charging at the stall: `{ id, name, phone, vehicle }`, with `vehicle` `{ make, model, colour, plate_number }` (or `null` if they have no vehicle on file). The plate is on `vehicle`. It is `null` when the stall is not occupied, and also when an admin marked it occupied by hand (say, a car from outside E-tiGo). A queue entry's `driver` has the same shape.
+- `occupied_since` and `estimated_departure_at` are set while a driver charges. `estimated_departure_at` is `null` when the driver gave no charging time; it can be in the past when a driver stays longer than expected.
 
 **Live updates:** the `admin.ev-stations` private channel (operations and super admins) receives `ev.station.availability_changed` whenever a stall changes status, a driver joins or leaves a queue (or moves in it), or a station is created, switched on or off, resized or deleted. Payload: `station_id`, `deleted`, `status`, `availability` (same shape as above), `updated_at`; a deleted station sends only `station_id` and `deleted: true`. The figures are read when the event is sent, so after a burst of changes the last event has the latest state.
 
@@ -12294,36 +12324,41 @@ GET /admin/ev-stations/{station}
 Authorization: Bearer {admin_token}
 ```
 
-Returns the station with its stalls in number order (each with its current driver and that driver's vehicle), availability, and the queue.
+Returns the station with its stalls in number order (each with its current driver and that driver's vehicle), availability, and the queue. On staging, `EvStationsDemoSeeder` keeps a filled example: "Yaba EV Hub" (two drivers charging, one stall out of service, three drivers queued). The Postman request **Admin — EV Station Management → Show Station** has this response saved.
 
 **Response 200:**
 ```json
 {
-  "station": { ... },
-  "availability": {
-    "total": 6,
-    "available": 3,
-    "occupied": 2,
-    "reserved": 1,
-    "out_of_service": 0,
-    "queue_length": 1
+  "station": {
+    "...": "...",
+    "availability": { "total": 3, "available": 0, "occupied": 2, "reserved": 0, "out_of_service": 1, "queue_length": 3 },
+    "stalls": [ "... see the station object above ..." ]
   },
+  "availability": { "total": 3, "available": 0, "occupied": 2, "reserved": 0, "out_of_service": 1, "queue_length": 3 },
   "queue": [
     {
       "reservation_id": "uuid",
       "position": 1,
-      "driver": { "id": "uuid", "name": "Tunde Bello", "phone": "+234..." },
-      "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-123-AB" },
+      "driver": {
+        "id": "uuid",
+        "name": "Zainab Lawal",
+        "phone": "+2348300000043",
+        "vehicle": { "make": "Nissan", "model": "Leaf", "colour": "Blue", "plate_number": "LND-243EV" }
+      },
       "battery_level": 18,
-      "joined_at": "2026-10-17T09:12:00+00:00",
+      "joined_at": "2026-10-21T09:46:00.000000Z",
       "wait_seconds": 840,
-      "estimated_available_at": "2026-10-17T09:40:00.000000Z"
+      "estimated_available_at": "2026-10-21T10:08:00.000000Z"
     }
   ]
 }
 ```
 
-`queue` lists drivers waiting for a stall in the order they joined; `wait_seconds` counts from `joined_at`.
+`queue` lists drivers waiting for a stall in the order they joined; `wait_seconds` counts from `joined_at`. `driver` has the same shape as a stall's `current_driver`, with the vehicle (and plate) inside it. `estimated_available_at` is when a stall is expected to free up for them (`null` if unknown).
+
+**Deprecated:** the top-level `availability` repeats `station.availability`. Read `station.availability`; the top-level copy will be removed in a later release.
+
+**Changed 2026-10-21:** a queue entry's vehicle moved from `queue[].vehicle` to `queue[].driver.vehicle`, and `current_driver` changed from the full user to `{ id, name, phone, vehicle }`. Neither had data on staging before, so nothing should be reading the old shapes.
 
 ### Update Station
 
@@ -12390,6 +12425,8 @@ Content-Type: application/json
 ```
 
 Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station.
+
+Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. Marking a free stall `occupied` by hand sets `occupied_since` to now, with no driver. This changes only the stall: a driver's reservation on it stays as it is.
 
 **Request Body:**
 ```json
