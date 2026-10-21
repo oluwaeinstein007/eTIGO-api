@@ -50,6 +50,12 @@ class ThirdPartyBookingService
      * phone is the booker's). Call it with the booker's row locked so two
      * bookings sent together cannot both pass the limits.
      *
+     * $shareWith is the booker's "Rider only" / "Both of us" choice and decides
+     * who gets the PIN. Live tracking always follows the admin policy (both by
+     * default, so the booker keeps following the trip, as on Uber and Bolt),
+     * which keeps sending the pre-selected choice equal to sending none. The
+     * choice is ignored when operations keep PINs from riders.
+     *
      * @return array{is_third_party: true, rider_name: string, rider_phone: string, pin_recipient: string, tracking_recipient: string, rider_notification_status: string|null}|null
      *
      * @throws ValidationException
@@ -115,14 +121,9 @@ class ThirdPartyBookingService
             ]);
         }
 
-        // The booker's choice ("Rider only" / "Both of us") decides who gets
-        // the PIN. Either way the rider gets the tracking link and the booker
-        // keeps following the trip in the app, as on Uber and Bolt: they pay
-        // and answer for the ride. Without a choice (older apps), or when
-        // operations keep PINs from riders, the admin policy applies.
         $choice = in_array($shareWith?->value, self::shareWithOptions($policy), true) ? $shareWith : null;
         $pinRecipient = $choice?->value ?? $policy['pin_recipient'];
-        $trackingRecipient = $choice ? ThirdPartyRecipient::Both->value : $policy['tracking_recipient'];
+        $trackingRecipient = $policy['tracking_recipient'];
 
         $messagesRider = ThirdPartyRecipient::from($pinRecipient)->includesRider()
             || ThirdPartyRecipient::from($trackingRecipient)->includesRider();
@@ -139,7 +140,7 @@ class ThirdPartyBookingService
     }
 
     /**
-     * The "who gets the PIN" choices a booker may make: none when operations
+     * The "who gets the PIN" values a booker may send: none when operations
      * send PINs to bookers only (no messages to riders).
      *
      * @param  array{pin_recipient: string}  $policy
@@ -150,6 +151,40 @@ class ThirdPartyBookingService
         return $policy['pin_recipient'] === ThirdPartyRecipient::Booker->value
             ? []
             : [ThirdPartyRecipient::Rider->value, ThirdPartyRecipient::Both->value];
+    }
+
+    /**
+     * The choices as the booking screen shows them. Tracking is not part of
+     * the choice, so each description is worded from the tracking policy and
+     * never promises the booker a live map they won't get.
+     *
+     * @param  array{pin_recipient: string, tracking_recipient: string}  $policy
+     * @return list<array{value: string, label: string, description: string}>
+     */
+    public static function shareWithChoices(array $policy): array
+    {
+        $tracking = ThirdPartyRecipient::from($policy['tracking_recipient']);
+        $riderLink = $tracking->includesRider() ? ' and a tracking link' : '';
+
+        $riderOnly = "The rider gets the PIN{$riderLink} by WhatsApp or SMS. ".($tracking->includesBooker()
+            ? 'You can still follow the trip in the app.'
+            : "You won't see the trip's live location.");
+
+        $both = match ($tracking) {
+            ThirdPartyRecipient::Both => 'You and the rider both get the PIN and live tracking.',
+            ThirdPartyRecipient::Rider => 'You and the rider both get the PIN. Only the rider gets live tracking.',
+            ThirdPartyRecipient::Booker => 'You and the rider both get the PIN. Only you get live tracking.',
+        };
+
+        $choices = [
+            ThirdPartyRecipient::Rider->value => ['label' => 'Rider only', 'description' => $riderOnly],
+            ThirdPartyRecipient::Both->value => ['label' => 'Both of us', 'description' => $both],
+        ];
+
+        return array_map(
+            fn (string $value) => ['value' => $value, ...$choices[$value]],
+            self::shareWithOptions($policy),
+        );
     }
 
     /**

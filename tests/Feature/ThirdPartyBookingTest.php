@@ -302,18 +302,40 @@ it('sends the PIN to the rider only when the booker chooses it, and keeps the bo
     expect($audit->new_values['share_with'])->toBe('rider');
 });
 
-it('lets the booker choice override the admin default', function () {
+it('lets the booker choose who gets the PIN while tracking follows the admin setting', function () {
     ($this->setPolicy)(['pin_recipient' => 'rider', 'tracking_recipient' => 'rider']);
 
     ($this->book)(['share_with' => 'both'])->assertCreated()
         ->assertJsonPath('ride.third_party.pin_recipient', 'both')
-        ->assertJsonPath('ride.third_party.tracking_recipient', 'both')
-        ->assertJsonPath('ride.third_party.booker_sees_pin', true);
-
-    // No choice sent (older app builds): the admin default still applies.
-    ($this->book)(['rider_phone' => '+2348020000009'])->assertCreated()
-        ->assertJsonPath('ride.third_party.pin_recipient', 'rider');
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'rider')
+        ->assertJsonPath('ride.third_party.booker_sees_pin', true)
+        ->assertJsonPath('ride.third_party.booker_sees_tracking', false);
 });
+
+it('applies the admin default when an older app sends no choice', function () {
+    ($this->setPolicy)(['pin_recipient' => 'rider', 'tracking_recipient' => 'both']);
+
+    ($this->book)()->assertCreated()
+        ->assertJsonPath('ride.third_party.pin_recipient', 'rider')
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'both');
+});
+
+it('gives the same result for the pre-selected choice as for no choice', function (string $pin, string $tracking) {
+    ($this->setPolicy)(['pin_recipient' => $pin, 'tracking_recipient' => $tracking]);
+    $default = $this->getJson('/api/v1/config')->json('third_party_bookings.default_share_with');
+
+    $omitted = ($this->book)()->assertCreated()->json('ride.third_party');
+    $chosen = ($this->book)(['rider_phone' => '+2348020000009', 'share_with' => $default])->assertCreated()->json('ride.third_party');
+
+    expect([$chosen['pin_recipient'], $chosen['tracking_recipient']])
+        ->toBe([$omitted['pin_recipient'], $omitted['tracking_recipient']]);
+})->with([
+    'default' => ['both', 'both'],
+    'rider PIN, shared tracking' => ['rider', 'both'],
+    'shared PIN, rider tracking' => ['both', 'rider'],
+    'shared PIN, booker tracking' => ['both', 'booker'],
+    'booker PIN' => ['booker', 'both'],
+]);
 
 it('keeps the choice on a ride booked for later', function () {
     $rideId = ($this->book)([
@@ -343,8 +365,28 @@ it('pre-selects rider only when that is the admin PIN default', function () {
     ($this->setPolicy)(['pin_recipient' => 'rider']);
 
     $this->getJson('/api/v1/config')
-        ->assertJsonPath('third_party_bookings.share_with_options', ['rider', 'both'])
+        ->assertJsonPath('third_party_bookings.share_with_options.*.value', ['rider', 'both'])
         ->assertJsonPath('third_party_bookings.default_share_with', 'rider');
+});
+
+it('words each choice so it never promises the booker tracking they will not get', function () {
+    $this->getJson('/api/v1/config')
+        ->assertJsonPath('third_party_bookings.share_with_options.0', [
+            'value' => 'rider',
+            'label' => 'Rider only',
+            'description' => 'The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app.',
+        ])
+        ->assertJsonPath('third_party_bookings.share_with_options.1', [
+            'value' => 'both',
+            'label' => 'Both of us',
+            'description' => 'You and the rider both get the PIN and live tracking.',
+        ]);
+
+    ($this->setPolicy)(['tracking_recipient' => 'rider']);
+
+    $this->getJson('/api/v1/config')
+        ->assertJsonPath('third_party_bookings.share_with_options.0.description', "The rider gets the PIN and a tracking link by WhatsApp or SMS. You won't see the trip's live location.")
+        ->assertJsonPath('third_party_bookings.share_with_options.1.description', 'You and the rider both get the PIN. Only the rider gets live tracking.');
 });
 
 it('only accepts rider or both as the choice', function (string $value) {
@@ -691,7 +733,7 @@ it('tells the apps the third-party rules in the app config', function () {
         ->assertJsonPath('third_party_bookings.enabled', true)
         ->assertJsonPath('third_party_bookings.payment_methods', ['wallet', 'card'])
         ->assertJsonPath('third_party_bookings.pin_recipient', 'both')
-        ->assertJsonPath('third_party_bookings.share_with_options', ['rider', 'both'])
+        ->assertJsonPath('third_party_bookings.share_with_options.*.value', ['rider', 'both'])
         ->assertJsonPath('third_party_bookings.default_share_with', 'both');
 
     ($this->setPolicy)(['allow_bank_transfer' => true, 'tracking_recipient' => 'rider']);

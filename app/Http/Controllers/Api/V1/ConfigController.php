@@ -55,8 +55,11 @@ class ConfigController extends Controller
     /**
      * What the "book for someone else" screen needs: whether it is on, how
      * the booker may pay, and who will get the PIN and tracking.
+     * share_with_options are the "Who gets the PIN?" choices for POST /rides,
+     * with the label and description to show (empty: hide the question);
+     * default_share_with is the one to pre-select.
      *
-     * @return array{enabled: bool, payment_methods: list<string>, pin_recipient: string, tracking_recipient: string, share_with_options: list<string>, default_share_with: string|null, max_active_per_booker: int}
+     * @return array{enabled: bool, payment_methods: list<string>, pin_recipient: string, tracking_recipient: string, share_with_options: list<array{value: string, label: string, description: string}>, default_share_with: string|null, max_active_per_booker: int}
      */
     private static function thirdPartyBookingRules(): array
     {
@@ -72,9 +75,7 @@ class ConfigController extends Controller
             ])),
             'pin_recipient' => $settings['pin_recipient'],
             'tracking_recipient' => $settings['tracking_recipient'],
-            // "Who gets the PIN?": the choices for share_with on POST /rides
-            // (empty: hide the question) and the one to pre-select.
-            'share_with_options' => ThirdPartyBookingService::shareWithOptions($settings),
+            'share_with_options' => ThirdPartyBookingService::shareWithChoices($settings),
             'default_share_with' => ThirdPartyBookingService::defaultShareWith($settings),
             'max_active_per_booker' => $settings['max_active_per_booker'],
         ];
