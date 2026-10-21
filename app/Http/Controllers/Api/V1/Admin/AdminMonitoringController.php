@@ -271,17 +271,8 @@ class AdminMonitoringController extends Controller
             RideStatus::DriverEnRoute,
         ];
 
-        $assignmentWindowStart = now()->subHours(config('matching.manual_assignment_window_hours'));
-        // A scheduled ride is measured from its pickup time, not from when it
-        // was booked days earlier.
-        $withinAssignmentWindow = fn ($q) => $q->where(
-            fn ($q) => $q->where('status', '!=', RideStatus::NoDriverFound)
-                ->orWhere('created_at', '>=', $assignmentWindowStart)
-                ->orWhereHas('scheduledRide', fn ($q) => $q->where('scheduled_pickup_at', '>=', $assignmentWindowStart)),
-        );
-
         $rides = Ride::whereIn('status', $allowedStatuses)
-            ->where($withinAssignmentWindow)
+            ->withinManualAssignmentWindow()
             ->with(['city', 'vehicleClass', 'passenger', 'driver.driver.vehicle', 'scheduledRide'])
             ->when($request->input('status'), function ($q, $v) use ($allowedStatuses) {
                 $statuses = array_filter(
@@ -336,7 +327,7 @@ class AdminMonitoringController extends Controller
         });
 
         $countsByStatus = Ride::whereIn('status', $allowedStatuses)
-            ->where($withinAssignmentWindow)
+            ->withinManualAssignmentWindow()
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->selectRaw('status, (driver_id IS NULL) as unassigned, COUNT(*) as count')
             ->groupBy('status', 'unassigned')

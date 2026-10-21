@@ -11965,6 +11965,195 @@
       "name": "Admin",
       "item": [
         {
+          "name": "Admin \u2014 Overview",
+          "description": "**Required Role(s):** any admin for **Get Overview** and **Global Search**; Operations for **Live Operations Panel** (Super Admin always has access).\n\nThe console's landing page. Each card or search group is `null` when the admin's role cannot open the screen behind it, so hide it rather than show zero. The greeting uses `first_name` from **Auth \u2014 Admin \u2192 Get Admin Profile**; the bell uses **Notifications \u2192 Unread Count**.\n\n- `change_pct` on active rides and drivers online compares with a snapshot from this time yesterday (taken every 5 minutes); `null` until a day of snapshots exists after release.\n- Revenue is gross fares of rides completed since midnight Lagos time, against the same stretch of yesterday.\n- Poll every 30\u201360 s; for live ride movement use the `admin.rides` WebSocket.",
+          "item": [
+            {
+              "name": "Get Overview",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/overview",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "overview"
+                  ],
+                  "query": [
+                    {
+                      "key": "activity_limit",
+                      "value": "5",
+                      "description": "Recent activity items, 1\u201320 (default 5)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Headline cards (`stats`), the \"Needs your attention\" row (`attention`) and `recent_activity`.\n\n- `stats.active_rides` / `drivers_online`: `count`, `change_pct` vs this time yesterday (`null` when no snapshot), `compared_at`. Drivers add `on_trip` and `utilisation_pct`.\n- `stats.open_disputes`: `count`, `overdue` (missed their next target).\n- `stats.revenue`: `amount` (gross fares, NGN), `completed_rides`, `change_pct`, `previous_amount`; `period` = `today`, `timezone` = `Africa/Lagos`.\n- `attention`: `safety_alerts` (`count`, `critical` = not yet picked up), `compliance_reviews` (`count`, `high_severity` = level 3), `pending_kyc`, `unmatched_requests`.\n- `recent_activity[]`: `event`, `category` (icon), `title`, `subtitle`, `subject` (`type`, `id`, `reference_number`) to open the detail page, `actor` (`null` for system), `created_at`. Only areas your role can open; per-trip events like ride completed are not listed.\n- `can_view_live_operations`: show the Live operations panel."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Overview (Super Admin)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"stats\": {\n    \"active_rides\": { \"count\": 248, \"change_pct\": 12.4, \"compared_at\": \"2026-10-20T09:05:00+00:00\" },\n    \"drivers_online\": { \"count\": 1482, \"on_trip\": 1008, \"utilisation_pct\": 68.0, \"change_pct\": 12.4, \"compared_at\": \"2026-10-20T09:05:00+00:00\" },\n    \"open_disputes\": { \"count\": 18, \"overdue\": 3 },\n    \"revenue\": {\n      \"period\": \"today\",\n      \"timezone\": \"Africa/Lagos\",\n      \"currency\": \"NGN\",\n      \"amount\": 84600000,\n      \"completed_rides\": 1946,\n      \"change_pct\": 6.7,\n      \"previous_amount\": 79287722.5\n    }\n  },\n  \"attention\": {\n    \"safety_alerts\": { \"count\": 4, \"critical\": 3 },\n    \"compliance_reviews\": { \"count\": 11, \"high_severity\": 6 },\n    \"pending_kyc\": { \"count\": 3 },\n    \"unmatched_requests\": { \"count\": 3 }\n  },\n  \"recent_activity\": [\n    {\n      \"id\": \"01a16011-6475-722d-9f78-2c12c7b12326\",\n      \"event\": \"driver_approved\",\n      \"category\": \"driver\",\n      \"title\": \"Driver verification approved\",\n      \"subtitle\": \"Amina Yusuf \u00b7 Toyota Corolla \u00b7 Lagos\",\n      \"subject\": { \"type\": \"driver\", \"id\": \"01a16011-643a-7304-b66c-5ca393151f5c\", \"reference_number\": \"D-000214\" },\n      \"actor\": { \"id\": \"01a16011-6430-7247-bacc-4094a3cf30a3\", \"name\": \"Tessy Okoro\", \"type\": \"admin\" },\n      \"created_at\": \"2026-10-21T09:01:14+00:00\"\n    },\n    {\n      \"id\": \"01a16011-6473-7254-9e62-871c7423989d\",\n      \"event\": \"pricing_config_created\",\n      \"category\": \"pricing\",\n      \"title\": \"Pricing version published\",\n      \"subtitle\": \"Abuja \u00b7 Standard \u00b7 v4\",\n      \"subject\": { \"type\": \"pricing_config\", \"id\": \"01a16011-6470-739b-84db-2b37eac7e7c4\", \"reference_number\": null },\n      \"actor\": { \"id\": \"01a16011-6430-7247-bacc-4094a3cf30a3\", \"name\": \"Tessy Okoro\", \"type\": \"admin\" },\n      \"created_at\": \"2026-10-21T08:57:02+00:00\"\n    }\n  ],\n  \"can_view_live_operations\": true,\n  \"generated_at\": \"2026-10-21T09:05:15+00:00\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Live Operations Panel",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/overview/live-operations",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "overview",
+                    "live-operations"
+                  ],
+                  "query": [
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "City UUID (default: city with most active rides)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "rides_limit",
+                      "value": "3",
+                      "description": "Trips in the list, 1\u201320 (default 3)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Map pins and latest trips for one city. Operations only.\n\n- `cities`: cities with active rides, busiest first, for the switcher.\n- `markers` (max 300, newest first; `markers_truncated` when more): `lat`/`lng` from the driver's live location (`position_source: driver`) or the pickup (`pickup`); `needs_attention` = red pin.\n- `rides[]`: `reference_number`, `status_label`, `pickup_address`, `destination_address`, `passenger.name`, `driver.name`, `attention_reasons` (`sos`, `driver_location_missing`).\n- `summary`: `active_rides` (full count), `needs_attention` (among markers).\n- `city` is `null` with empty lists when nothing is moving and no `city_id` was given."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Live Operations (Lagos)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"city\": { \"id\": \"01a16011-6419-73fe-a8a8-df4f726d6c02\", \"name\": \"Lagos\" },\n  \"cities\": [\n    { \"id\": \"01a16011-6419-73fe-a8a8-df4f726d6c02\", \"name\": \"Lagos\", \"active_rides\": 168 },\n    { \"id\": \"01a16011-7713-71b0-9d2a-0f0c7b1f1a90\", \"name\": \"Abuja\", \"active_rides\": 80 }\n  ],\n  \"summary\": { \"active_rides\": 168, \"needs_attention\": 1 },\n  \"markers\": [\n    {\n      \"ride_id\": \"01a16011-6453-714a-9f55-408eb5563d86\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"status\": \"in_progress\",\n      \"lat\": 6.5012,\n      \"lng\": 3.379,\n      \"position_source\": \"driver\",\n      \"needs_attention\": false\n    },\n    {\n      \"ride_id\": \"01a16011-6459-737e-ba4f-8b7a00b0ba9e\",\n      \"reference_number\": \"TRP-NG-000002\",\n      \"status\": \"searching\",\n      \"lat\": 6.4474,\n      \"lng\": 3.4723,\n      \"position_source\": \"pickup\",\n      \"needs_attention\": true\n    }\n  ],\n  \"markers_truncated\": false,\n  \"rides\": [\n    {\n      \"id\": \"01a16011-6453-714a-9f55-408eb5563d86\",\n      \"reference_number\": \"TRP-NG-000001\",\n      \"status\": \"in_progress\",\n      \"status_label\": \"In Progress\",\n      \"pickup_address\": \"Bodija Market, Ibadan Road, Yaba\",\n      \"destination_address\": \"Ring Road, Surulere\",\n      \"passenger\": { \"id\": \"01a16011-6433-70cb-a7fb-8eb698001ee8\", \"name\": \"Kemi Balogun\" },\n      \"driver\": { \"id\": \"01a16011-6438-71f7-aa44-0818c53512dc\", \"name\": \"Seyi Adeyemi\" },\n      \"needs_attention\": false,\n      \"attention_reasons\": [],\n      \"requested_at\": \"2026-10-21T09:00:14+00:00\"\n    },\n    {\n      \"id\": \"01a16011-6459-737e-ba4f-8b7a00b0ba9e\",\n      \"reference_number\": \"TRP-NG-000002\",\n      \"status\": \"searching\",\n      \"status_label\": \"Searching for Driver\",\n      \"pickup_address\": \"Admiralty Way, Lekki Phase 1\",\n      \"destination_address\": \"Victoria Island\",\n      \"passenger\": { \"id\": \"01a16011-6433-70cb-a7fb-8eb698001ee8\", \"name\": \"Kemi Balogun\" },\n      \"driver\": null,\n      \"needs_attention\": true,\n      \"attention_reasons\": [\"sos\"],\n      \"requested_at\": \"2026-10-21T08:58:40+00:00\"\n    }\n  ],\n  \"generated_at\": \"2026-10-21T09:05:15+00:00\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Not Operations",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Forbidden. Insufficient admin privileges.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Global Search",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/search",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "kemi",
+                      "description": "Search term, 2\u2013100 characters"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "5",
+                      "description": "Results per group, 1\u201310 (default 5)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Top-bar search: \"Search trips, people or cases\". Groups: `rides`, `drivers`, `passengers`, `disputes`, `sos_incidents`, `offline_flags`, each the few newest matches. `[]` = searched, nothing found; `null` = not searched for your role. Case-insensitive contains match on references, names, phones and emails; `%` and `_` match literally. 60 requests per minute."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Search results",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"query\": \"kemi\",\n  \"results\": {\n    \"rides\": [\n      {\n        \"id\": \"01a16011-6453-714a-9f55-408eb5563d86\",\n        \"reference_number\": \"TRP-NG-000001\",\n        \"status\": \"in_progress\",\n        \"pickup_address\": \"Bodija Market, Ibadan Road, Yaba\",\n        \"destination_address\": \"Ring Road, Surulere\",\n        \"passenger_name\": \"Kemi Balogun\",\n        \"driver_name\": \"Seyi Adeyemi\",\n        \"created_at\": \"2026-10-21T09:00:14+00:00\"\n      }\n    ],\n    \"drivers\": [],\n    \"passengers\": [\n      {\n        \"id\": \"01a16011-6433-70cb-a7fb-8eb698001ee8\",\n        \"reference_number\": \"P-000001\",\n        \"name\": \"Kemi Balogun\",\n        \"phone\": \"+2348012345678\",\n        \"email\": \"kemi@example.com\",\n        \"is_active\": true\n      }\n    ],\n    \"disputes\": [\n      {\n        \"id\": \"01a16012-0b1e-7c3d-8a51-3f0e2d9b7c11\",\n        \"reference_number\": \"DPT-000041\",\n        \"status\": \"open\",\n        \"category\": \"fare_dispute\",\n        \"category_label\": \"Fare is incorrect\",\n        \"queue\": \"support\",\n        \"created_at\": \"2026-10-21T07:45:00+00:00\"\n      }\n    ],\n    \"sos_incidents\": [\n      {\n        \"id\": \"01a16011-6463-7309-8dfc-ff9c19f07156\",\n        \"reference_number\": \"SOS-000001\",\n        \"status\": \"triggered\",\n        \"ride_reference_number\": \"TRP-NG-000002\",\n        \"created_at\": \"2026-10-21T08:59:15+00:00\"\n      }\n    ],\n    \"offline_flags\": []\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Term too short",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The q field must be at least 2 characters.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"q\": [\n      \"The q field must be at least 2 characters.\"\n    ]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Admin \u2014 Admin Management",
           "description": "**Required Role(s):** Super Admin (Super Admin always has access)\n\nSuper admin only. Manage admin users: invite, list, update roles, deactivate/reactivate.",
           "item": [

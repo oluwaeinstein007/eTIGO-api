@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\CaptureOperationsSnapshotJob;
 use App\Jobs\CheckSilentDriversJob;
 use App\Jobs\DailyReconciliationJob;
 use App\Jobs\DailyRemittanceSettlementJob;
@@ -19,6 +20,7 @@ use App\Jobs\RemittanceShortfallAlertJob;
 use App\Jobs\SettleDriverEarningsJob;
 use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\Notification;
+use App\Models\OperationsSnapshot;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
@@ -54,7 +56,9 @@ Schedule::job(new ProcessDisputeTargetsJob)->everyFifteenMinutes()->withoutOverl
 Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlapping();
 // Vehicle maintenance: due dates, reminders, the expired-papers block.
 Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
-Schedule::command('model:prune', ['--model' => [Notification::class]])->daily();
+// Admin overview: point-in-time counts for the "vs. this time yesterday" figures.
+Schedule::job(new CaptureOperationsSnapshotJob)->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('model:prune', ['--model' => [Notification::class, OperationsSnapshot::class]])->daily();
 Schedule::command('demo:simulate-drivers')
     ->everyMinute()
     ->environments(['local', 'staging'])

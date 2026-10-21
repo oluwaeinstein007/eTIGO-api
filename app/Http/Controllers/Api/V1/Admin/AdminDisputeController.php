@@ -15,7 +15,6 @@ use App\Models\DisputeRefundRequest;
 use App\Models\User;
 use App\Services\DisputeAccess;
 use App\Services\DisputeService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -80,7 +79,7 @@ class AdminDisputeController extends Controller
         }
 
         if ($request->input('sla') === 'breached') {
-            $this->wherePastDue($query->open());
+            $query->open()->pastDue();
         } elseif ($request->input('sla') === 'at_risk') {
             // Less than a quarter of the time to the next target left.
             $query->open()->whereRaw(
@@ -337,7 +336,7 @@ class AdminDisputeController extends Controller
             'open' => $open()->count(),
             'unassigned' => $open()->whereNull('assigned_admin_id')->count(),
             'mine' => $open()->where('assigned_admin_id', $admin->id)->count(),
-            'overdue' => $this->wherePastDue($open())->count(),
+            'overdue' => $open()->pastDue()->count(),
             'safety' => $open()->where('queue', 'safety')->count(),
             'tier_1' => $open()->where('queue', 'support')->where('escalation_tier', 1)->count(),
             'tier_2' => $open()->where('queue', 'support')->where('escalation_tier', 2)->count(),
@@ -347,15 +346,5 @@ class AdminDisputeController extends Controller
                 ->whereHas('dispute', fn ($q) => $this->access->scopeVisible($q, $admin))
                 ->count(),
         ];
-    }
-
-    private function wherePastDue(Builder $query): Builder
-    {
-        $now = now();
-
-        return $query->where(function ($q) use ($now) {
-            $q->where(fn ($q) => $q->whereNull('first_responded_at')->where('first_response_due_at', '<=', $now))
-                ->orWhere('resolution_due_at', '<=', $now);
-        });
     }
 }

@@ -235,6 +235,33 @@ class Ride extends Model
     }
 
     /**
+     * Leaves out "no driver found" rides older than the manual assignment
+     * window. A scheduled ride is measured from its pickup time, not from
+     * when it was booked days earlier.
+     */
+    public function scopeWithinManualAssignmentWindow(Builder $query): void
+    {
+        $windowStart = now()->subHours(config('matching.manual_assignment_window_hours'));
+
+        $query->where(
+            fn ($q) => $q->where('status', '!=', RideStatus::NoDriverFound)
+                ->orWhere('created_at', '>=', $windowStart)
+                ->orWhereHas('scheduledRide', fn ($q) => $q->where('scheduled_pickup_at', '>=', $windowStart)),
+        );
+    }
+
+    /**
+     * Rides with no driver that operations can still assign by hand: the
+     * "awaiting driver" count on the manual assignment screen.
+     */
+    public function scopeAwaitingManualAssignment(Builder $query): void
+    {
+        $query->whereIn('status', [RideStatus::Requested, RideStatus::Searching, RideStatus::NoDriverFound])
+            ->whereNull('driver_id')
+            ->withinManualAssignmentWindow();
+    }
+
+    /**
      * Whether the booker may see the ride PIN: the policy includes them, or
      * the rider's message could not be delivered (so the ride can still start).
      */

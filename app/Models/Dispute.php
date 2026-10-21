@@ -171,6 +171,20 @@ class Dispute extends Model
         return $query->whereIn('status', [DisputeStatus::Open, DisputeStatus::UnderReview]);
     }
 
+    /**
+     * Cases that have missed their next target (first response or
+     * resolution). Combine with open().
+     */
+    public function scopePastDue(Builder $query): Builder
+    {
+        $now = now();
+
+        return $query->where(function ($q) use ($now) {
+            $q->where(fn ($q) => $q->whereNull('first_responded_at')->where('first_response_due_at', '<=', $now))
+                ->orWhere('resolution_due_at', '<=', $now);
+        });
+    }
+
     public function isOpen(): bool
     {
         return ! $this->status->isTerminal();
