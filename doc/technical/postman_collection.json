@@ -12122,7 +12122,7 @@
                     }
                   ]
                 },
-                "description": "Top-bar search: \"Search trips, people or cases\". Groups: `rides`, `drivers`, `passengers`, `disputes`, `sos_incidents`, `offline_flags`, each the few newest matches. `[]` = searched, nothing found; `null` = not searched for your role. Case-insensitive contains match on references, names, phones and emails; `%` and `_` match literally. 60 requests per minute."
+                "description": "Top-bar search: \"Search trips, people or cases\". Groups: `rides`, `drivers`, `passengers`, `disputes`, `sos_incidents`, `offline_flags`, each a few matches: an exact reference first, then the newest. `[]` = searched, nothing found; `null` = not searched for your role. Case-insensitive contains match on references, names, phones and emails; `%` and `_` match literally. 60 requests per minute."
               },
               "response": [
                 {

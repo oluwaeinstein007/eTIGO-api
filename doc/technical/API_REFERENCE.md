@@ -7933,14 +7933,14 @@ Map markers and the latest trips for one city. Operations and Super Admin only (
 GET /admin/search?q={term}
 ```
 
-Top-bar search across trips, people and cases. Matching is case-insensitive "contains". `%` and `_` are matched literally. Rate limit: 60 per minute.
+Top-bar search across trips, people and cases. Matching is case-insensitive "contains". `%` and `_` are matched literally. In each group an exact reference match comes first (so `TRP-NG-00001` is not pushed out by `TRP-NG-000010`–`19`), then the newest. Rate limit: 60 per minute.
 
 | Param | Type | Description |
 |-------|------|-------------|
 | q | string | Required, 2–100 characters |
 | limit | integer | Results per group, 1–10. Default 5 |
 
-| Group | Matches on | Newest first by |
+| Group | Matches on | Then newest by |
 |-------|-----------|-----------------|
 | `rides` | Trip reference, passenger or driver name / phone / email / reference | requested |
 | `drivers` | Driver reference (`D-…`), name, phone, email, user reference | joined |

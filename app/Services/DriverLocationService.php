@@ -148,7 +148,7 @@ class DriverLocationService
      * live location are left out.
      *
      * @param  list<string>  $driverIds
-     * @return array<string, array{lat: float, lng: float, heading: float, speed: float, timestamp: int}>
+     * @return array<string, array{lat: float, lng: float, heading: float, speed: float, accuracy: float|null, timestamp: int}>
      */
     public function getDriverLocations(array $driverIds): array
     {
@@ -178,6 +178,7 @@ class DriverLocationService
                 'lng' => (float) $data['lng'],
                 'heading' => (float) ($data['heading'] ?? 0),
                 'speed' => (float) ($data['speed'] ?? 0),
+                'accuracy' => isset($data['accuracy']) && $data['accuracy'] !== '' ? (float) $data['accuracy'] : null,
                 'timestamp' => (int) ($data['timestamp'] ?? 0),
             ];
         }

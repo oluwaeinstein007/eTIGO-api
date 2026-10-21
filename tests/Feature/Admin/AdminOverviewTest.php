@@ -256,6 +256,26 @@ it('keeps activity to the areas the admin can open', function () {
     expect($finance)->toBe([]);
 });
 
+it('keeps reading past cases the admin cannot see to fill the list', function () {
+    $supportCase = Dispute::factory()->create();
+    $this->travelTo(now()->subHour());
+    AuditLog::record($supportCase->ride, 'dispute_filed', null, null, ['dispute_id' => $supportCase->id]);
+    $this->travelBack();
+
+    // More newer Safety-queue events than one page holds.
+    $safetyCase = Dispute::factory()->safety()->create();
+    foreach (range(1, 40) as $i) {
+        AuditLog::record($safetyCase, 'dispute_assigned', null, null, ['assigned_admin_id' => null]);
+    }
+
+    $activity = $this->actingAs(overviewAdmin(AdminRole::Support))
+        ->getJson('/api/v1/admin/overview?activity_limit=1')
+        ->json('recent_activity');
+
+    expect($activity)->toHaveCount(1)
+        ->and($activity[0]['subject']['id'])->toBe($supportCase->id);
+});
+
 it('points an SOS raised on a ride at the incident', function () {
     $incident = SosIncident::factory()->create();
     AuditLog::record($incident->ride, 'sos_triggered', null, null, ['incident_id' => $incident->id]);
@@ -371,6 +391,19 @@ it('finds trips, people and cases in one call', function () {
     $this->actingAs(overviewAdmin())
         ->getJson('/api/v1/admin/search?q='.$driver->reference_number)
         ->assertJsonPath('results.drivers.0.name', 'Seyi Adeyemi');
+});
+
+it('puts an exact reference first ahead of newer partial matches', function () {
+    $exact = overviewRide($this->lagos, ['reference_number' => 'TRP-NG-00001', 'created_at' => now()->subDay()], 'searching');
+    foreach (range(10, 15) as $n) {
+        overviewRide($this->lagos, ['reference_number' => "TRP-NG-0000{$n}"], 'searching');
+    }
+
+    $this->actingAs(overviewAdmin())
+        ->getJson('/api/v1/admin/search?q=trp-ng-00001')
+        ->assertOk()
+        ->assertJsonCount(5, 'results.rides')
+        ->assertJsonPath('results.rides.0.id', $exact->id);
 });
 
 it('only searches the areas the admin can open', function () {

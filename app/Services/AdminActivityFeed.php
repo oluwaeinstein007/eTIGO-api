@@ -58,6 +58,9 @@ class AdminActivityFeed
         'admin_invited' => [AdminAreaAccess::ADMINS, 'admin', 'Admin invited'],
     ];
 
+    /** Audit rows read at most per request, however many get filtered out. */
+    private const MAX_SCANNED = 300;
+
     public function __construct(
         private AdminAreaAccess $access,
         private DisputeAccess $disputeAccess,
@@ -77,31 +80,46 @@ class AdminActivityFeed
             return [];
         }
 
-        // Some dispute rows may be hidden by queue below, so read ahead.
-        $logs = AuditLog::query()
-            ->whereIn('event', $events)
-            ->with([
-                'actor',
-                'auditable' => fn (MorphTo $morph) => $morph->morphWith([
-                    Driver::class => ['user', 'vehicle', 'city'],
-                    PricingConfig::class => ['city', 'vehicleClass'],
-                    SosIncident::class => ['ride'],
-                    OfflineTripFlag::class => ['driver'],
-                ]),
-            ])
-            ->orderByDesc('created_at')
-            ->limit($limit * 3)
-            ->get();
+        // Dispute rows from queues the admin cannot see are dropped after
+        // loading, so keep reading pages until the list is full.
+        $items = [];
+        $batch = max($limit * 3, 30);
 
-        $disputes = $this->disputesFor($logs);
-        $incidents = $this->incidentsFor($logs);
+        for ($offset = 0; count($items) < $limit && $offset < self::MAX_SCANNED; $offset += $batch) {
+            $logs = AuditLog::query()
+                ->whereIn('event', $events)
+                ->with([
+                    'actor',
+                    'auditable' => fn (MorphTo $morph) => $morph->morphWith([
+                        Driver::class => ['user', 'vehicle', 'city'],
+                        PricingConfig::class => ['city', 'vehicleClass'],
+                        SosIncident::class => ['ride'],
+                        OfflineTripFlag::class => ['driver'],
+                    ]),
+                ])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->offset($offset)
+                ->limit($batch)
+                ->get();
 
-        return $logs
-            ->map(fn (AuditLog $log) => $this->item($log, $admin, $disputes, $incidents))
-            ->filter()
-            ->take($limit)
-            ->values()
-            ->all();
+            $disputes = $this->disputesFor($logs);
+            $incidents = $this->incidentsFor($logs);
+
+            foreach ($logs as $log) {
+                $item = $this->item($log, $admin, $disputes, $incidents);
+
+                if ($item !== null) {
+                    $items[] = $item;
+                }
+            }
+
+            if ($logs->count() < $batch) {
+                break;
+            }
+        }
+
+        return array_slice($items, 0, $limit);
     }
 
     /**

@@ -18,8 +18,9 @@ use Illuminate\Http\Request;
 
 /**
  * The console's top-bar search: trips, people and cases in one call. Each
- * group is null when the admin's role cannot open that screen, and holds the
- * few best matches (newest first), not a full result list.
+ * group is null when the admin's role cannot open that screen, and holds a
+ * few matches, not a full result list: an exact reference first, then the
+ * newest.
  */
 class AdminSearchController extends Controller
 {
@@ -40,6 +41,8 @@ class AdminSearchController extends Controller
         $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term).'%';
         $limit = $request->integer('limit', 5);
         $can = fn (string $area) => $this->access->can($admin, $area);
+        // "TRP-NG-0001" also matches TRP-NG-00010 to 00019; the exact one must not drop off.
+        $exactFirst = 'LOWER(reference_number) = LOWER(?) DESC';
 
         $matchesPerson = fn (Builder $q) => $q->where(function (Builder $q) use ($like) {
             $q->where('first_name', 'ilike', $like)
@@ -58,6 +61,7 @@ class AdminSearchController extends Controller
                         ->orWhereHas('passenger', $matchesPerson)
                         ->orWhereHas('driver', $matchesPerson))
                     ->with(['passenger', 'driver'])
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
                     ->get()
@@ -76,6 +80,7 @@ class AdminSearchController extends Controller
                     ->where(fn (Builder $q) => $q->where('reference_number', 'ilike', $like)
                         ->orWhereHas('user', $matchesPerson))
                     ->with(['user', 'city'])
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
                     ->get()
@@ -92,6 +97,7 @@ class AdminSearchController extends Controller
                 'passengers' => $can(AdminAreaAccess::PASSENGERS) ? User::query()
                     ->where('type', UserType::Passenger)
                     ->where($matchesPerson)
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
                     ->get()
@@ -109,6 +115,7 @@ class AdminSearchController extends Controller
                     ->where(fn (Builder $q) => $q->where('reference_number', 'ilike', $like)
                         ->orWhereHas('ride', fn (Builder $ride) => $ride->where('reference_number', 'ilike', $like))
                         ->orWhereHas('reportedBy', $matchesPerson))
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
                     ->get()
@@ -125,6 +132,7 @@ class AdminSearchController extends Controller
                 'sos_incidents' => $can(AdminAreaAccess::SOS) ? SosIncident::query()
                     ->search($term)
                     ->with('ride')
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
                     ->get()
@@ -139,6 +147,7 @@ class AdminSearchController extends Controller
                 'offline_flags' => $can(AdminAreaAccess::OFFLINE_FLAGS) ? OfflineTripFlag::query()
                     ->search($term)
                     ->with(['driver', 'ride'])
+                    ->orderByRaw($exactFirst, [$term])
                     ->latest('flagged_at')
                     ->limit($limit)
                     ->get()
