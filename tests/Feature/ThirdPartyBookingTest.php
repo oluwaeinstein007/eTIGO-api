@@ -289,12 +289,13 @@ it('keeps the recipients a ride was booked with when the policy changes', functi
 
 // === PIN AND TRACKING ROUTING ===
 
-it('sends the PIN and tracking to the rider only when the booker chooses it', function () {
+it('sends the PIN to the rider only when the booker chooses it, and keeps the booker tracking', function () {
     $response = ($this->book)(['share_with' => 'rider'])->assertCreated()
         ->assertJsonPath('pin_code', null)
         ->assertJsonPath('ride.third_party.pin_recipient', 'rider')
-        ->assertJsonPath('ride.third_party.tracking_recipient', 'rider')
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'both')
         ->assertJsonPath('ride.third_party.booker_sees_pin', false)
+        ->assertJsonPath('ride.third_party.booker_sees_tracking', true)
         ->assertJsonPath('ride.third_party.rider_notification_status', 'pending');
 
     $audit = AuditLog::where('auditable_id', $response->json('ride.id'))->where('event', 'third_party_ride_booked')->first();
@@ -322,7 +323,28 @@ it('keeps the choice on a ride booked for later', function () {
 
     expect(Ride::find($rideId))
         ->pin_recipient->toBe(ThirdPartyRecipient::Rider)
-        ->tracking_recipient->toBe(ThirdPartyRecipient::Rider);
+        ->tracking_recipient->toBe(ThirdPartyRecipient::Both);
+});
+
+it('does not offer the choice when operations send PINs to bookers only', function () {
+    ($this->setPolicy)(['pin_recipient' => 'booker', 'tracking_recipient' => 'booker']);
+
+    $this->getJson('/api/v1/config')
+        ->assertJsonPath('third_party_bookings.share_with_options', [])
+        ->assertJsonPath('third_party_bookings.default_share_with', null);
+
+    ($this->book)(['share_with' => 'rider'])->assertCreated()
+        ->assertJsonPath('ride.third_party.pin_recipient', 'booker')
+        ->assertJsonPath('ride.third_party.tracking_recipient', 'booker')
+        ->assertJsonPath('ride.third_party.rider_notification_status', null);
+});
+
+it('pre-selects rider only when that is the admin PIN default', function () {
+    ($this->setPolicy)(['pin_recipient' => 'rider']);
+
+    $this->getJson('/api/v1/config')
+        ->assertJsonPath('third_party_bookings.share_with_options', ['rider', 'both'])
+        ->assertJsonPath('third_party_bookings.default_share_with', 'rider');
 });
 
 it('only accepts rider or both as the choice', function (string $value) {

@@ -115,10 +115,14 @@ class ThirdPartyBookingService
             ]);
         }
 
-        // The booker's choice ("Rider only" / "Both of us") covers the PIN and
-        // tracking together; without one, the admin default applies.
-        $pinRecipient = $shareWith?->value ?? $policy['pin_recipient'];
-        $trackingRecipient = $shareWith?->value ?? $policy['tracking_recipient'];
+        // The booker's choice ("Rider only" / "Both of us") decides who gets
+        // the PIN. Either way the rider gets the tracking link and the booker
+        // keeps following the trip in the app, as on Uber and Bolt: they pay
+        // and answer for the ride. Without a choice (older apps), or when
+        // operations keep PINs from riders, the admin policy applies.
+        $choice = in_array($shareWith?->value, self::shareWithOptions($policy), true) ? $shareWith : null;
+        $pinRecipient = $choice?->value ?? $policy['pin_recipient'];
+        $trackingRecipient = $choice ? ThirdPartyRecipient::Both->value : $policy['tracking_recipient'];
 
         $messagesRider = ThirdPartyRecipient::from($pinRecipient)->includesRider()
             || ThirdPartyRecipient::from($trackingRecipient)->includesRider();
@@ -132,6 +136,37 @@ class ThirdPartyBookingService
             // Nothing is sent to the rider under a booker-only policy.
             'rider_notification_status' => $messagesRider ? RiderNotificationStatus::Pending->value : null,
         ];
+    }
+
+    /**
+     * The "who gets the PIN" choices a booker may make: none when operations
+     * send PINs to bookers only (no messages to riders).
+     *
+     * @param  array{pin_recipient: string}  $policy
+     * @return list<string>
+     */
+    public static function shareWithOptions(array $policy): array
+    {
+        return $policy['pin_recipient'] === ThirdPartyRecipient::Booker->value
+            ? []
+            : [ThirdPartyRecipient::Rider->value, ThirdPartyRecipient::Both->value];
+    }
+
+    /**
+     * The choice to pre-select: the admin PIN policy, or null when the
+     * booker has no choice.
+     *
+     * @param  array{pin_recipient: string}  $policy
+     */
+    public static function defaultShareWith(array $policy): ?string
+    {
+        if (self::shareWithOptions($policy) === []) {
+            return null;
+        }
+
+        return $policy['pin_recipient'] === ThirdPartyRecipient::Rider->value
+            ? ThirdPartyRecipient::Rider->value
+            : ThirdPartyRecipient::Both->value;
     }
 
     /**
