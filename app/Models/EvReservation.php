@@ -31,6 +31,10 @@ class EvReservation extends Model
         'approver_name',
         'confirmed_slot',
         'check_in_time',
+        'confirmed_slot_at',
+        'reviewed_by_admin_id',
+        'reviewed_at',
+        'decline_reason',
         'queue_position',
         'queue_ahead_count',
         'queue_ahead_description',
@@ -60,6 +64,8 @@ class EvReservation extends Model
             'estimated_charge_minutes' => 'integer',
             'estimated_available_at' => 'datetime',
             'requested_date' => 'date',
+            'confirmed_slot_at' => 'datetime',
+            'reviewed_at' => 'datetime',
             'reserved_at' => 'datetime',
             'activated_at' => 'datetime',
             'completed_at' => 'datetime',
@@ -83,14 +89,29 @@ class EvReservation extends Model
         return $this->belongsTo(User::class, 'driver_id');
     }
 
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_admin_id');
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', [
             EvReservationStatus::PendingReview,
+            EvReservationStatus::Confirmed,
             EvReservationStatus::Reserved,
             EvReservationStatus::Queued,
             EvReservationStatus::Active,
         ]);
+    }
+
+    /**
+     * Requests drivers submitted from the charge request form (they always
+     * carry a requested date), as opposed to direct stall reservations.
+     */
+    public function scopeChargeRequests(Builder $query): Builder
+    {
+        return $query->whereNotNull('requested_date');
     }
 
     public function scopeQueued(Builder $query): Builder

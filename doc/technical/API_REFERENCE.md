@@ -3202,7 +3202,7 @@ POST /admin/fleet-agreements
 **Response 422:**
 ```json
 {
-  "message": "Driver already has an active fleet agreement."
+  "message": "Driver already has an active or paused fleet agreement."
 }
 ```
 

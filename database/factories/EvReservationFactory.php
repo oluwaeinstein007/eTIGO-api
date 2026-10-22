@@ -33,6 +33,20 @@ class EvReservationFactory extends Factory
         ]);
     }
 
+    /** A request from the driver app's charge request form, awaiting review. */
+    public function chargeRequest(): static
+    {
+        return $this->state(fn () => [
+            'status' => EvReservationStatus::PendingReview,
+            'type' => 'charging',
+            'battery_level' => fake()->numberBetween(5, 40),
+            'requested_date' => now('Africa/Lagos')->toDateString(),
+            'requested_time' => '10:00 am',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     public function queued(): static
     {
         return $this->state(fn () => [

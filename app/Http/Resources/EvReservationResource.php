@@ -30,6 +30,17 @@ class EvReservationResource extends JsonResource
             'approver_name' => $this->approver_name,
             'confirmed_slot' => $this->confirmed_slot,
             'check_in_time' => $this->check_in_time,
+            // Set when operations confirm a charge request: the stall is held from then.
+            'confirmed_slot_at' => $this->confirmed_slot_at?->toISOString(),
+            'reviewed_at' => $this->reviewed_at?->toISOString(),
+            'decline_reason' => $this->decline_reason,
+            'reviewed_by' => $this->when(
+                (bool) $request->user()?->isAdmin() && $this->reviewed_by_admin_id !== null,
+                fn () => $this->reviewedBy ? [
+                    'id' => $this->reviewedBy->id,
+                    'name' => trim("{$this->reviewedBy->first_name} {$this->reviewedBy->last_name}"),
+                ] : null,
+            ),
             'queue_position' => $this->queue_position,
             'queue_ahead_count' => $this->queue_ahead_count,
             'queue_ahead_description' => $this->queue_ahead_description,

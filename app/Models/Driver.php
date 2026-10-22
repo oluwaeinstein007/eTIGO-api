@@ -139,6 +139,19 @@ class Driver extends Model
         return $this->hasOne(FleetAgreement::class)->where('status', FleetAgreementStatus::Active);
     }
 
+    /**
+     * The agreement the driver is on now, including one operations paused
+     * (no remittance is due while paused, but it is still the driver's).
+     * A driver has at most one; latestOfMany() would break on uuid keys
+     * (Postgres has no max(uuid)), so it is a plain ordered relation.
+     */
+    public function currentFleetAgreement(): HasOne
+    {
+        return $this->hasOne(FleetAgreement::class)
+            ->whereIn('status', [FleetAgreementStatus::Active, FleetAgreementStatus::Paused])
+            ->latest('created_at');
+    }
+
     public function dailyRemittances(): HasMany
     {
         return $this->hasMany(DailyRemittance::class);

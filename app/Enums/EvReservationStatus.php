@@ -5,6 +5,8 @@ namespace App\Enums;
 enum EvReservationStatus: string
 {
     case PendingReview = 'pending_review';
+    // A charge request operations accepted for a slot; the stall is held at that time.
+    case Confirmed = 'confirmed';
     case Reserved = 'reserved';
     case Queued = 'queued';
     case Active = 'active';
@@ -16,6 +18,7 @@ enum EvReservationStatus: string
     {
         return match ($this) {
             self::PendingReview => 'Pending Review',
+            self::Confirmed => 'Confirmed',
             self::Reserved => 'Reserved',
             self::Queued => 'Queued',
             self::Active => 'Active',

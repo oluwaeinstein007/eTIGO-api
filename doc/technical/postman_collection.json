@@ -14671,7 +14671,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Driver already has an active fleet agreement.\"\n}"
+                  "body": "{\n  \"message\": \"Driver already has an active or paused fleet agreement.\"\n}"
                 },
                 {
                   "name": "422 \u2014 Vehicle Not Fleet",

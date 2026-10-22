@@ -32,6 +32,10 @@ enum NotificationType: string
     // EV events
     case EvReservationReady = 'ev_reservation_ready';
     case EvReservationCancelled = 'ev_reservation_cancelled';
+    case EvChargeRequestConfirmed = 'ev_charge_request_confirmed';
+    case EvChargeRequestDeclined = 'ev_charge_request_declined';
+    case FleetAgreementPaused = 'fleet_agreement_paused';
+    case FleetAgreementResumed = 'fleet_agreement_resumed';
     case VehicleFuelTypeRequired = 'vehicle_fuel_type_required';
 
     // Dispute events
@@ -108,6 +112,10 @@ enum NotificationType: string
             self::TierUpgrade => 'Tier Upgrade',
             self::EvReservationReady => 'EV Reservation Ready',
             self::EvReservationCancelled => 'EV Reservation Cancelled',
+            self::EvChargeRequestConfirmed => 'Charging Request Confirmed',
+            self::EvChargeRequestDeclined => 'Charging Request Declined',
+            self::FleetAgreementPaused => 'Fleet Agreement Paused',
+            self::FleetAgreementResumed => 'Fleet Agreement Resumed',
             self::VehicleFuelTypeRequired => 'Add Your Vehicle\'s Fuel Type',
             self::DisputeUpdate => 'Dispute Update',
             self::KycStatusChanged => 'KYC Status Changed',
@@ -193,7 +201,10 @@ enum NotificationType: string
 
             self::TierUpgrade => NotificationCategory::Gamification,
 
-            self::EvReservationReady, self::EvReservationCancelled => NotificationCategory::EvCharging,
+            self::EvReservationReady,
+            self::EvReservationCancelled,
+            self::EvChargeRequestConfirmed,
+            self::EvChargeRequestDeclined => NotificationCategory::EvCharging,
 
             self::DisputeUpdate,
             self::KycStatusChanged,
@@ -210,7 +221,9 @@ enum NotificationType: string
             self::DriverShiftMissed,
             self::DriverShiftEnding,
             self::DriverShiftEnded,
-            self::ShiftHandoverDelayed => NotificationCategory::Account,
+            self::ShiftHandoverDelayed,
+            self::FleetAgreementPaused,
+            self::FleetAgreementResumed => NotificationCategory::Account,
         };
     }
 }
