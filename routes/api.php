@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminDisputeSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverSchedulingSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverShiftController;
+use App\Http\Controllers\Api\V1\Admin\AdminEvChargeRequestController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
@@ -658,6 +659,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::patch('/{station}/status', [AdminEvStationController::class, 'toggleStatus']);
         Route::put('/{station}/stalls', [AdminEvStationController::class, 'manageStalls']);
         Route::delete('/{station}', [AdminEvStationController::class, 'destroy']);
+    });
+
+    Route::middleware('admin.role:operations')->prefix('ev-charge-requests')->group(function () {
+        Route::get('/', [AdminEvChargeRequestController::class, 'index']);
+        Route::post('/{reservation}/confirm', [AdminEvChargeRequestController::class, 'confirm']);
+        Route::post('/{reservation}/decline', [AdminEvChargeRequestController::class, 'decline']);
     });
 
     Route::middleware('admin.role:operations,safety_operator')->prefix('offline-flags')->group(function () {

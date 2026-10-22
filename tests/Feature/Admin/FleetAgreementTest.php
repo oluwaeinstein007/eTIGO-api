@@ -109,7 +109,7 @@ it('rejects duplicate active agreement for same driver', function () {
         ]);
 
     $response->assertStatus(422)
-        ->assertJsonPath('message', 'Driver already has an active fleet agreement.');
+        ->assertJsonPath('message', 'Driver already has an active or paused fleet agreement.');
 });
 
 it('shows a fleet agreement with recent remittances', function () {

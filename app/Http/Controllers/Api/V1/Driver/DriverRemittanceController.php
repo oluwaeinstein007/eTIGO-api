@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
+use App\Enums\FleetAgreementStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DailyRemittanceResource;
 use App\Http\Resources\FleetAgreementResource;
@@ -23,16 +24,29 @@ class DriverRemittanceController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
+        $agreement = $driver->currentFleetAgreement;
+
+        if ($agreement?->status === FleetAgreementStatus::Paused) {
+            return response()->json([
+                'message' => 'Your fleet agreement is paused. No remittance is due.',
+                'agreement_status' => FleetAgreementStatus::Paused->value,
+                'paused_at' => $agreement->paused_at,
+                'remittance' => null,
+            ]);
+        }
+
         $remittance = $this->service->getDriverTodayRemittance($driver);
 
         if (! $remittance) {
             return response()->json([
                 'message' => 'No active fleet agreement.',
+                'agreement_status' => $agreement?->status->value,
                 'remittance' => null,
             ]);
         }
 
         return response()->json([
+            'agreement_status' => FleetAgreementStatus::Active->value,
             'remittance' => new DailyRemittanceResource($remittance),
         ]);
     }
@@ -66,7 +80,7 @@ class DriverRemittanceController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
-        $agreement = $driver->activeFleetAgreement;
+        $agreement = $driver->currentFleetAgreement;
 
         if (! $agreement) {
             return response()->json([

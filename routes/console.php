@@ -11,6 +11,7 @@ use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
 use App\Jobs\ProcessDisputeTargetsJob;
 use App\Jobs\ProcessDriverShiftsJob;
+use App\Jobs\ProcessEvChargeRequestsJob;
 use App\Jobs\ProcessLostItemsJob;
 use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ProcessVehicleMaintenanceJob;
@@ -44,6 +45,7 @@ Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
 Schedule::command('pricing:check-coverage')->dailyAt('07:00')->timezone('Africa/Lagos');
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
+Schedule::job(new ProcessEvChargeRequestsJob)->everyMinute()->withoutOverlapping();
 Schedule::job(new CheckSilentDriversJob)->everyMinute()->withoutOverlapping();
 // Scheduled rides: start matching shortly before pickup and send reminders.
 Schedule::job(new ProcessScheduledRidesJob)->everyMinute()->withoutOverlapping();

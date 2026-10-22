@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AccountType;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\LedgerEntryType;
+use App\Enums\NotificationType;
 use App\Enums\PaymentMethod;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
@@ -21,6 +22,7 @@ class FleetRemittanceService
 {
     public function __construct(
         private LedgerService $ledgerService,
+        private NotificationService $notifications,
     ) {}
 
     public function createAgreement(
@@ -31,12 +33,12 @@ class FleetRemittanceService
         string $startDate,
         User $admin,
     ): FleetAgreement {
-        $existingActive = FleetAgreement::where('driver_id', $driver->id)
-            ->active()
+        $existingCurrent = FleetAgreement::where('driver_id', $driver->id)
+            ->whereIn('status', [FleetAgreementStatus::Active, FleetAgreementStatus::Paused])
             ->exists();
 
-        if ($existingActive) {
-            throw new \DomainException('Driver already has an active fleet agreement.');
+        if ($existingCurrent) {
+            throw new \DomainException('Driver already has an active or paused fleet agreement.');
         }
 
         if (! $vehicle->is_fleet) {
@@ -164,7 +166,7 @@ class FleetRemittanceService
             throw new \DomainException('Only active agreements can be paused.');
         }
 
-        return DB::transaction(function () use ($agreement, $admin) {
+        $agreement = DB::transaction(function () use ($agreement, $admin) {
             $agreement->update([
                 'status' => FleetAgreementStatus::Paused,
                 'paused_at' => now(),
@@ -174,6 +176,10 @@ class FleetRemittanceService
 
             return $agreement->fresh();
         });
+
+        $this->notifyDriver($agreement, NotificationType::FleetAgreementPaused, 'E-tiGo has paused your fleet agreement. No remittance is due until it resumes.');
+
+        return $agreement;
     }
 
     public function resumeAgreement(FleetAgreement $agreement, User $admin): FleetAgreement
@@ -182,7 +188,7 @@ class FleetRemittanceService
             throw new \DomainException('Only paused agreements can be resumed.');
         }
 
-        return DB::transaction(function () use ($agreement, $admin) {
+        $agreement = DB::transaction(function () use ($agreement, $admin) {
             $agreement->update([
                 'status' => FleetAgreementStatus::Active,
                 'paused_at' => null,
@@ -192,6 +198,10 @@ class FleetRemittanceService
 
             return $agreement->fresh();
         });
+
+        $this->notifyDriver($agreement, NotificationType::FleetAgreementResumed, 'Your fleet agreement has resumed. Your daily remittance target applies again.');
+
+        return $agreement;
     }
 
     public function getOrCreateTodayRemittance(FleetAgreement $agreement): DailyRemittance
@@ -356,7 +366,7 @@ class FleetRemittanceService
 
             $agreement = $remittance->agreement;
 
-            if ($remittance->isExcused()) {
+            if ($remittance->isExcused() || $agreement->status === FleetAgreementStatus::Paused) {
                 return $remittance->fresh();
             }
 
@@ -395,6 +405,23 @@ class FleetRemittanceService
 
             return $remittance->fresh();
         });
+    }
+
+    private function notifyDriver(FleetAgreement $agreement, NotificationType $type, string $body): void
+    {
+        $userId = Driver::whereKey($agreement->driver_id)->value('user_id');
+
+        if (! $userId) {
+            return;
+        }
+
+        rescue(fn () => $this->notifications->send(
+            userId: $userId,
+            type: $type,
+            title: $type->label(),
+            body: $body,
+            data: ['fleet_agreement_id' => (string) $agreement->id],
+        ));
     }
 
     private function completeAgreement(FleetAgreement $agreement): void

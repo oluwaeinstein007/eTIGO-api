@@ -6,6 +6,7 @@ use App\Jobs\RemittanceShortfallAlertJob;
 use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
+use App\Models\Notification;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\FleetRemittanceService;
@@ -262,3 +263,69 @@ it('raises shortfall flags only after the day\'s remittances have been settled',
         RemittanceShortfallAlertJob::class,
     ]);
 });
+
+it('still shows a paused agreement to the driver', function () {
+    [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
+    app(FleetRemittanceService::class)->pauseAgreement($agreement, User::factory()->admin()->create());
+
+    $this->withToken($token)
+        ->getJson('/api/v1/driver/fleet-agreement')
+        ->assertOk()
+        ->assertJsonPath('agreement.id', $agreement->id)
+        ->assertJsonPath('agreement.status', 'paused')
+        ->assertJsonPath('agreement.paused_at', fn ($v) => $v !== null);
+
+    $this->withToken($token)
+        ->getJson('/api/v1/driver/remittance/today')
+        ->assertOk()
+        ->assertJsonPath('agreement_status', 'paused')
+        ->assertJsonPath('message', 'Your fleet agreement is paused. No remittance is due.')
+        ->assertJsonPath('remittance', null);
+});
+
+it('tells the driver when the agreement is paused and resumed', function () {
+    [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
+    $admin = User::factory()->admin()->create();
+    $service = app(FleetRemittanceService::class);
+
+    $service->pauseAgreement($agreement, $admin);
+    $service->resumeAgreement($agreement->fresh(), $admin);
+
+    expect(Notification::where('user_id', $user->id)->pluck('type')->all())
+        ->toBe(['fleet_agreement_paused', 'fleet_agreement_resumed']);
+
+    $this->withToken($token)
+        ->getJson('/api/v1/driver/remittance/today')
+        ->assertJsonPath('agreement_status', fn ($v) => $v !== 'paused');
+});
+
+it('does not count a paused day towards the shortfall streak', function () {
+    [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
+    $agreement->update(['shortfall_streak_days' => 2]);
+
+    $service = app(FleetRemittanceService::class);
+    $remittance = $service->getOrCreateTodayRemittance($agreement);
+    $service->recordRideRemittance($agreement, 10000);
+    $service->pauseAgreement($agreement->fresh(), User::factory()->admin()->create());
+
+    $service->settleDay($remittance->fresh());
+
+    expect($agreement->fresh()->shortfall_streak_days)->toBe(2)
+        ->and($remittance->fresh()->settled)->toBeTrue();
+});
+
+it('refuses a second agreement while one is paused', function () {
+    [$user, $driver, $agreement, $token] = driverWithFleetAgreement();
+    $admin = User::factory()->admin()->create();
+    $service = app(FleetRemittanceService::class);
+    $service->pauseAgreement($agreement, $admin);
+
+    $service->createAgreement(
+        $driver,
+        Vehicle::factory()->fleet()->create(),
+        30000,
+        4000000,
+        now()->toDateString(),
+        $admin,
+    );
+})->throws(DomainException::class, 'Driver already has an active or paused fleet agreement.');

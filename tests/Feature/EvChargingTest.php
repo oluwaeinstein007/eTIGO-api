@@ -335,7 +335,7 @@ describe('Driver Charge Request Form Submission', function () {
         $response = $this->withToken($this->driverToken)
             ->postJson('/api/v1/driver/ev-reservations', [
                 'battery_level' => 18,
-                'requested_date' => '2026-10-10',
+                'requested_date' => now()->addDay()->toDateString(),
                 'requested_time' => '10:00 am',
                 'notes' => 'Finishing trip in Ikeja',
             ]);

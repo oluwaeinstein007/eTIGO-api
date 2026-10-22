@@ -16,7 +16,7 @@ class StoreChargeRequestFormRequest extends FormRequest
     {
         return [
             'battery_level' => ['required', 'integer', 'min:0', 'max:100'],
-            'requested_date' => ['nullable', 'date'],
+            'requested_date' => ['nullable', 'date', 'after_or_equal:'.now('Africa/Lagos')->toDateString()],
             'requested_time' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'station_id' => ['nullable', 'uuid', 'exists:ev_charging_stations,id'],

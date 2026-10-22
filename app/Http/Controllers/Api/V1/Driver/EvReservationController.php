@@ -30,6 +30,11 @@ class EvReservationController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        // Same rule as a stall reservation: one open request or reservation at a time.
+        if (EvReservation::forDriver($user->id)->active()->count() >= (int) config('ev_charging.max_active_reservations_per_driver', 1)) {
+            return response()->json(['message' => 'You already have an active reservation.'], 422);
+        }
+
         $stationId = $validated['station_id'] ?? null;
         if (! $stationId) {
             $station = EvChargingStation::query()
@@ -45,8 +50,8 @@ class EvReservationController extends Controller
             'status' => EvReservationStatus::PendingReview,
             'type' => 'charging',
             'battery_level' => $validated['battery_level'],
-            'requested_date' => $validated['requested_date'] ?? now()->toDateString(),
-            'requested_time' => $validated['requested_time'] ?? now()->format('h:i a'),
+            'requested_date' => $validated['requested_date'] ?? now('Africa/Lagos')->toDateString(),
+            'requested_time' => $validated['requested_time'] ?? now('Africa/Lagos')->format('h:i a'),
             'notes' => $validated['notes'] ?? null,
             'reserved_at' => now(),
             'created_at' => now(),
