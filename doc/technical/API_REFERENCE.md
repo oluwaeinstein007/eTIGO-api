@@ -3322,7 +3322,7 @@ Permanently terminates an agreement. Cannot terminate already completed or termi
 POST /admin/fleet-agreements/{fleet_agreement_id}/pause
 ```
 
-Pauses an active agreement (e.g., during vehicle maintenance or driver leave). Only active agreements can be paused. While paused no daily target is created and the day never counts towards the shortfall streak. The driver still sees the agreement and gets a `fleet_agreement_paused` notification (`fleet_agreement_resumed` on resume). A new agreement for the same driver is refused while one is paused.
+Pauses an active agreement (e.g., during vehicle maintenance or driver leave). Only active agreements can be paused.
 
 **Response 200:**
 ```json
@@ -3519,12 +3519,11 @@ These endpoints provide fleet drivers with visibility into their daily remittanc
 GET /driver/remittance/today
 ```
 
-Returns the current day's remittance progress. `agreement_status` is `active`, `paused` or `null` (no agreement). While the agreement is paused no remittance is due, so `remittance` is `null`.
+Returns the current day's remittance progress. If the driver has no active fleet agreement, returns `null`.
 
 **Response 200 (active agreement):**
 ```json
 {
-  "agreement_status": "active",
   "remittance": {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "date": "2026-10-09",
@@ -3562,21 +3561,10 @@ Returns the current day's remittance progress. `agreement_status` is `active`, `
 }
 ```
 
-**Response 200 (paused agreement):**
-```json
-{
-  "message": "Your fleet agreement is paused. No remittance is due.",
-  "agreement_status": "paused",
-  "paused_at": "2026-10-22T09:00:00.000000Z",
-  "remittance": null
-}
-```
-
 **Response 200 (no active agreement):**
 ```json
 {
   "message": "No active fleet agreement.",
-  "agreement_status": null,
   "remittance": null
 }
 ```
@@ -3639,7 +3627,7 @@ Paginated list of daily remittance records, most recent first.
 GET /driver/fleet-agreement
 ```
 
-Returns the driver's current fleet agreement: the active one, or a paused one (`status: paused`, with `paused_at`; show "Agreement paused"). **Now includes `total_vehicle_cost` and `remaining_amount`** per hire-purchase disclosure requirements (Q7 reversal). The UI should emphasise percentage progress but drivers must have access to the full financial terms.
+Returns the driver's active fleet agreement. **Now includes `total_vehicle_cost` and `remaining_amount`** per hire-purchase disclosure requirements (Q7 reversal). The UI should emphasise percentage progress but drivers must have access to the full financial terms.
 
 **Response 200 (active agreement):**
 ```json
@@ -12251,7 +12239,7 @@ Submit a general EV charging request. If no `station_id` is provided, the system
 | Field          | Type    | Required | Notes                                     |
 |----------------|---------|----------|-------------------------------------------|
 | battery_level  | integer | Yes      | Current battery percentage (0–100)        |
-| requested_date | date    | No       | Preferred date, today or later (defaults to today) |
+| requested_date | date    | No       | Preferred date (defaults to today)        |
 | requested_time | string  | No       | Preferred time slot (max 50 chars)        |
 | notes          | string  | No       | Additional notes (max 1000 chars)         |
 | station_id     | uuid    | No       | Specific station; auto-selected if omitted |
@@ -12275,9 +12263,7 @@ Submit a general EV charging request. If no `station_id` is provided, the system
 }
 ```
 
-**Response 422:** Validation error (battery_level out of range, a past `requested_date`, invalid station_id, etc.), or `"You already have an active reservation."` while another request or reservation is open.
-
-Operations review the request (see **Admin — EV Charge Requests**). Until then it stays `pending_review`; one nobody reviews by the end of `requested_date` (Lagos) becomes `expired` and the driver gets `ev_charge_request_declined`. The driver can cancel it with **Cancel Reservation** at any time before the slot starts.
+**Response 422:** Validation error (battery_level out of range, invalid station_id, etc.).
 
 ---
 
@@ -12815,126 +12801,6 @@ Permanently deletes an EV charging station and all its stalls. Fails if the stat
 ```
 
 **Response 422:** Station has active reservations.
-
----
-
-## Admin — EV Charge Requests
-
-**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
-
-Drivers ask for a charging slot with **Submit EV Charge Request**. Operations confirm it for a slot or decline it. A confirmed request holds a stall when its slot starts, exactly as **Reserve EV Stall** does: the fee is taken then, the stall is held for `EV_RESERVATION_EXPIRY` minutes (default 30), and the driver joins the queue when every stall is busy. `ProcessEvChargeRequestsJob` runs every minute.
-
-Every response carries the reservation object (see **Reserve EV Stall**) with these review fields:
-
-| Field | Description |
-|---|---|
-| `confirmed_slot_at` | ISO 8601 start of the confirmed slot |
-| `confirmed_slot` | The slot time for display, Lagos time (`"10:30 am"`) |
-| `check_in_time` | Latest arrival for display: slot + hold minutes (`"11:00 am"`) |
-| `approver_name` | Always `"E-tiGo Operations"`; staff names are never sent to drivers |
-| `reviewed_at` | When it was confirmed or declined |
-| `decline_reason` | The reason given when declined (shown to the driver) |
-| `reviewed_by` | Admins only: `{ id, name }` of the reviewer |
-
-### List Charge Requests
-```
-GET /admin/ev-charge-requests?status=pending_review,confirmed&station_id={id}&city_id={id}&search=ade&per_page=20
-Authorization: Bearer {admin_token}
-```
-
-| Param | Type | Description |
-|---|---|---|
-| `status` | string | Comma list of reservation statuses. Default `pending_review,confirmed`. Unknown value → 422 |
-| `station_id` | uuid | One station |
-| `city_id` | uuid | Stations in one city |
-| `search` | string | Driver first name, last name or phone |
-| `per_page` | integer | 1–100, default 20 |
-
-Requests awaiting review come first (oldest first), then confirmed slots (soonest first). Direct stall reservations are not listed.
-
-**Response 200:**
-```json
-{
-  "charge_requests": [
-    {
-      "id": "01a1c3e0-5b2f-7d41-9a6e-3c8f2b1d4e5a",
-      "status": { "value": "pending_review", "label": "Pending Review" },
-      "battery_level": 18,
-      "requested_date": "2026-10-23",
-      "requested_time": "10:00 am",
-      "notes": "Finishing a trip in Ikeja",
-      "station_name": "Lekki Hub",
-      "confirmed_slot_at": null,
-      "decline_reason": null,
-      "vehicle_name": "Mercedes-Benz EQE",
-      "vehicle_plate": "ABJ-003EF",
-      "...": "..."
-    }
-  ],
-  "summary": { "pending_review": 1, "confirmed": 0 },
-  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
-}
-```
-
-### Confirm Charge Request
-```
-POST /admin/ev-charge-requests/{reservation}/confirm
-Authorization: Bearer {admin_token}
-Content-Type: application/json
-```
-
-| Field | Type | Required | Rules |
-|---|---|---|---|
-| `confirmed_slot_at` | datetime | Yes | ISO 8601 with offset. Not more than 5 minutes in the past, at most 7 days ahead |
-| `station_id` | uuid | No | Move the request to another station. It must be `active` |
-
-The request becomes `confirmed` and the driver gets `ev_charge_request_confirmed`. A slot that has already started is held at once, so the response can already show `reserved` (or `queued` when the station is full).
-
-**Response 200:**
-```json
-{
-  "message": "Charge request confirmed. The driver has been told.",
-  "charge_request": {
-    "status": { "value": "confirmed", "label": "Confirmed" },
-    "confirmed_slot_at": "2026-10-23T09:30:00.000000Z",
-    "confirmed_slot": "10:30 am",
-    "check_in_time": "11:00 am",
-    "approver_name": "E-tiGo Operations",
-    "reviewed_by": { "id": "…", "name": "Ola Ops" },
-    "stall_id": null,
-    "...": "..."
-  }
-}
-```
-
-**Response 422:** `"Only charge requests awaiting review can be confirmed."` or `"This station is not taking reservations."`, with `current_status`; `errors.confirmed_slot_at` for a slot out of range.
-
-### Decline Charge Request
-```
-POST /admin/ev-charge-requests/{reservation}/decline
-Authorization: Bearer {admin_token}
-Content-Type: application/json
-```
-
-| Field | Type | Required | Rules |
-|---|---|---|---|
-| `reason` | string | Yes | 5–500 characters. Shown to the driver |
-
-Works on a request awaiting review or a confirmed slot that has not started. The request becomes `cancelled` and the driver gets `ev_charge_request_declined` ("We couldn't book your charging request: {reason}. You can reserve a stall from the station list.").
-
-**Response 200:** `{ "message": "Charge request declined. The driver has been told.", "charge_request": { "status": { "value": "cancelled" }, "decline_reason": "…", "...": "..." } }`
-
-**Response 422:** `"Only charge requests awaiting review or a confirmed slot that has not started can be declined."` with `current_status`.
-
-### At the slot
-
-| Situation | Outcome | Driver notification |
-|---|---|---|
-| A stall is free | `reserved`; fee taken; check in by `check_in_time` | `ev_reservation_ready` |
-| Every stall busy | `queued`, first come first served; fee taken when a stall is handed over | `ev_reservation_ready` (says they are next in line) |
-| Earnings cannot cover the fee | `cancelled`; reason in `notes` | `ev_reservation_cancelled` |
-| Station no longer `active` | `cancelled` | `ev_reservation_cancelled` |
-| Slot found more than the hold time late (scheduler outage) | `expired` | — |
 
 ---
 
@@ -15868,13 +15734,12 @@ Priority matching keeps distance first: priority passengers are always offered t
 | Value       | Description                             |
 |-------------|-----------------------------------------|
 | `pending_review` | General charge request awaiting review by operations |
-| `confirmed` | Charge request operations accepted for a slot (`confirmed_slot_at`); a stall is held when the slot starts |
 | `reserved`  | Stall locked, awaiting driver arrival (expires after 30 min by default) |
 | `queued`    | Waiting for stall to become available   |
 | `active`    | Charging session in progress            |
 | `completed` | Charging session finished (terminal)    |
 | `expired`   | Reservation timed out (terminal)        |
-| `cancelled` | Cancelled by the driver, declined by operations, or cancelled at the slot (terminal) |
+| `cancelled` | Cancelled by driver (terminal)          |
 
 ---
 
@@ -15915,11 +15780,8 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Car off the road / back on | Driver | `vehicle_blocked` / `vehicle_unblocked` | Papers expired past the grace period (bypasses preferences; reserved pickups released) / a renewal was approved |
 | Maintenance record checked | Driver | `maintenance_record_reviewed` | Operations approved or rejected a submitted record (data: `vehicle_id`, `record_id`) |
 | Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline, and that they can go online from launch day when the city is still onboarding |
-| EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted, or a confirmed charge request's slot started — stall assigned |
-| EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled; also a confirmed charge request cancelled at its slot (fee unpaid or station closed) |
-| Charging request confirmed | Driver | `ev_charge_request_confirmed` | Operations confirmed a charge request for a slot (data: `reservation_id`, `station_name`). See [Admin — EV Charge Requests](#admin--ev-charge-requests) |
-| Charging request declined | Driver | `ev_charge_request_declined` | Operations declined a charge request (the reason is in the body and `decline_reason`), or nobody reviewed it before its day ended |
-| Fleet agreement paused / resumed | Driver | `fleet_agreement_paused` / `fleet_agreement_resumed` | Operations or Finance paused or resumed the driver's fleet agreement (data: `fleet_agreement_id`); no remittance is due while paused |
+| EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted — stall assigned |
+| EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
 | Location missing | Driver | `driver_location_missing` | The driver's app sent no location for 5 minutes (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`), so they get no ride requests (or, with `on_trip: true`, their passenger can't see them). Once per silent spell; the driver stays online. Restart location updates and show a banner |
 | Set offline | Driver | `driver_set_offline` | The driver's app sent no location for 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`), so they were set offline and get no ride requests; open the home screen so they can go online again (which restarts location updates). Never sent to drivers on a trip |

@@ -15,7 +15,7 @@ return new class extends Migration
     {
         Schema::table('ev_reservations', function (Blueprint $table) {
             $table->timestamp('confirmed_slot_at')->nullable();
-            $table->uuid('reviewed_by_admin_id')->nullable();
+            $table->foreignUuid('reviewed_by_admin_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('reviewed_at')->nullable();
             $table->string('decline_reason', 500)->nullable();
 
@@ -27,7 +27,8 @@ return new class extends Migration
     {
         Schema::table('ev_reservations', function (Blueprint $table) {
             $table->dropIndex(['status', 'confirmed_slot_at']);
-            $table->dropColumn(['confirmed_slot_at', 'reviewed_by_admin_id', 'reviewed_at', 'decline_reason']);
+            $table->dropConstrainedForeignId('reviewed_by_admin_id');
+            $table->dropColumn(['confirmed_slot_at', 'reviewed_at', 'decline_reason']);
         });
     }
 };

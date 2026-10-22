@@ -26,7 +26,6 @@ class DriverRemittanceController extends Controller
 
         $agreement = $driver->currentFleetAgreement;
 
-        // Paused: no target today, but the driver still has an agreement.
         if ($agreement?->status === FleetAgreementStatus::Paused) {
             return response()->json([
                 'message' => 'Your fleet agreement is paused. No remittance is due.',

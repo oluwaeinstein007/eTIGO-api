@@ -366,7 +366,6 @@ class FleetRemittanceService
 
             $agreement = $remittance->agreement;
 
-            // A day the agreement is paused never counts towards the streak.
             if ($remittance->isExcused() || $agreement->status === FleetAgreementStatus::Paused) {
                 return $remittance->fresh();
             }

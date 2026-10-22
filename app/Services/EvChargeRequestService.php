@@ -39,6 +39,9 @@ class EvChargeRequestService
         CarbonInterface $slotAt,
         ?EvChargingStation $station = null,
     ): EvReservation {
+        // Stored as the app's time: the datetime cast keeps an input offset as is.
+        $slotAt = $slotAt->copy()->setTimezone(config('app.timezone'));
+
         $reservation = DB::transaction(function () use ($request, $admin, $slotAt, $station) {
             $request = EvReservation::lockForUpdate()->findOrFail($request->id);
 
@@ -130,7 +133,8 @@ class EvChargeRequestService
 
     /**
      * Hold stalls for confirmed slots that have started, and expire requests
-     * nobody reviewed before their day ended.
+     * nobody reviewed before their day ended. A reservation that fails is
+     * reported and retried on the next run without holding up the others.
      *
      * @return array{started: int, expired: int}
      */
@@ -143,8 +147,9 @@ class EvChargeRequestService
             ->orderBy('confirmed_slot_at')
             ->get()
             ->each(function (EvReservation $reservation) use (&$started) {
-                $this->startSlot($reservation);
-                $started++;
+                if (rescue(fn () => $this->startSlot($reservation)) !== null) {
+                    $started++;
+                }
             });
 
         $today = now(self::TIMEZONE)->toDateString();
@@ -154,7 +159,7 @@ class EvChargeRequestService
             ->whereDate('requested_date', '<', $today)
             ->get()
             ->each(function (EvReservation $reservation) use (&$expired) {
-                if ($this->expireUnreviewed($reservation)) {
+                if (rescue(fn () => $this->expireUnreviewed($reservation), false)) {
                     $expired++;
                 }
             });
@@ -256,12 +261,14 @@ class EvChargeRequestService
                 NotificationType::EvReservationReady,
                 "Your slot at {$stationName} has started, but every stall is busy. You're next in line; we'll tell you when a stall is free.",
             ),
-            'fee_unpaid', 'station_unavailable' => $this->notify(
+            'fee_unpaid', 'station_unavailable', 'missed' => $this->notify(
                 $reservation,
                 NotificationType::EvReservationCancelled,
-                "Your charging slot at {$stationName} was cancelled. ".($outcome === 'fee_unpaid'
-                    ? 'Your earnings balance could not cover the reservation fee.'
-                    : 'The station is not taking reservations right now.'),
+                "Your charging slot at {$stationName} was cancelled. ".match ($outcome) {
+                    'fee_unpaid' => 'Your earnings balance could not cover the reservation fee.',
+                    'station_unavailable' => 'The station is not taking reservations right now.',
+                    'missed' => 'We could not hold a stall before your check-in time passed. You can reserve a stall from the station list.',
+                },
             ),
             default => null,
         };

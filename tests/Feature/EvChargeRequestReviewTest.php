@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\EvChargeRequestService;
+use App\Services\EvReservationFeeService;
 use Illuminate\Testing\TestResponse;
 
 beforeEach(function () {
@@ -196,4 +197,66 @@ it('allows one open charge request at a time and no past dates', function () {
         ->postJson('/api/v1/driver/ev-reservations', ['battery_level' => 20, 'requested_date' => now()->subDays(2)->toDateString()])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['requested_date']);
+});
+
+it('holds the stall at the right time when the slot is sent with a Lagos offset', function () {
+    confirmChargeRequest($this, now('Africa/Lagos')->addHour()->toIso8601String())->assertOk();
+
+    expect($this->request->fresh()->confirmed_slot_at->equalTo(now()->addHour()))->toBeTrue();
+
+    $this->travel(61)->minutes();
+    (new ProcessEvChargeRequestsJob)->handle(app(EvChargeRequestService::class));
+
+    expect($this->request->fresh()->status)->toBe(EvReservationStatus::Reserved);
+});
+
+it('tells the driver when a confirmed slot was missed', function () {
+    confirmChargeRequest($this, now()->addHour()->toIso8601String())->assertOk();
+
+    $this->travel(2)->hours();
+    (new ProcessEvChargeRequestsJob)->handle(app(EvChargeRequestService::class));
+
+    expect($this->request->fresh()->status)->toBe(EvReservationStatus::Expired)
+        ->and(Notification::where('user_id', $this->driverUser->id)->where('type', 'ev_reservation_cancelled')->value('body'))
+        ->toContain('check-in time passed');
+});
+
+it('keeps holding stalls for other drivers when one slot fails', function () {
+    $other = EvReservation::factory()->chargeRequest()->feeWaived()->create([
+        'driver_id' => User::factory()->create(['type' => UserType::Driver])->id,
+        'station_id' => $this->station->id,
+        'status' => EvReservationStatus::Confirmed,
+        'confirmed_slot_at' => now()->subMinute(),
+    ]);
+    $this->request->update(['status' => EvReservationStatus::Confirmed, 'confirmed_slot_at' => now()->subMinutes(2)]);
+
+    $calls = 0;
+    $this->partialMock(EvReservationFeeService::class, fn ($mock) => $mock->shouldReceive('charge')
+        ->andReturnUsing(function () use (&$calls) {
+            if ($calls++ === 0) {
+                throw new LogicException('Ledger unavailable');
+            }
+        }));
+
+    expect(app(EvChargeRequestService::class)->processDue()['started'])->toBe(1)
+        ->and($this->request->fresh()->status)->toBe(EvReservationStatus::Confirmed)
+        ->and($other->fresh()->status)->toBe(EvReservationStatus::Reserved);
+});
+
+it('dates a charge request by the Lagos day just after midnight', function () {
+    $this->travelTo(now('Africa/Lagos')->addDay()->setTime(0, 30));
+    $this->request->update(['status' => EvReservationStatus::Cancelled]);
+    $lagosToday = now('Africa/Lagos')->toDateString();
+
+    $this->withToken($this->driverToken)
+        ->postJson('/api/v1/driver/ev-reservations', ['battery_level' => 20, 'requested_date' => now('Africa/Lagos')->subDay()->toDateString()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['requested_date']);
+
+    $this->withToken($this->driverToken)
+        ->postJson('/api/v1/driver/ev-reservations', ['battery_level' => 20])
+        ->assertCreated()
+        ->assertJsonPath('reservation.requested_date', $lagosToday);
+
+    expect(app(EvChargeRequestService::class)->processDue()['expired'])->toBe(0);
 });
