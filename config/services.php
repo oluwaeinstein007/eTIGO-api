@@ -48,6 +48,9 @@ return [
         'whatsapp_sender' => env('SENDCHAMP_WHATSAPP_SENDER'),
         // Authentication template; body variable {{1}} is the code.
         'whatsapp_otp_template' => env('SENDCHAMP_WHATSAPP_OTP_TEMPLATE'),
+        // Without an own template, codes can go through Sendchamp's verification
+        // service instead, which sends from Flutterwave's WhatsApp account.
+        'whatsapp_otp_via_verification' => (bool) env('SENDCHAMP_WHATSAPP_OTP_VIA_VERIFICATION', false),
         // Utility template; body variable {{1}} is the whole message.
         'whatsapp_template' => env('SENDCHAMP_WHATSAPP_TEMPLATE'),
     ],

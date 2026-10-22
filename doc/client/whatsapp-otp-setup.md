@@ -37,7 +37,7 @@ The account **EtiGo Rides** is already connected (the dev team has the access ke
 
 ### How delivery works
 
-- **Login and bank-account codes** go by WhatsApp (verification-code template) first, then by SMS. The SMS reads: *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."*
+- **Login and bank-account codes** go by WhatsApp (verification-code template) first, then by SMS. Until E-tiGo has its own WhatsApp number and templates, codes can instead go by WhatsApp through Sendchamp's verification service, if you choose: the message then comes from **Flutterwave's** WhatsApp account and reads *"482910 is your verification code."* without mentioning E-tiGo. The SMS reads: *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."*
 - **SOS alerts, payout-account alerts, Lost & Found texts and rider messages** go by WhatsApp (notifications template) first, then by SMS.
 - SMS uses the DND route, so it also reaches numbers registered on the NCC Do-Not-Disturb list.
 - In **non-production** environments (local, staging, testing), the login code is always `123456` and no code is sent. Other messages are sent when a Sendchamp key is set.

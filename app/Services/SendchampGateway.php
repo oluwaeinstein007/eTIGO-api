@@ -23,6 +23,13 @@ class SendchampGateway implements SmsGateway
     /** Sendchamp's status code when the wallet cannot pay for the message. */
     private const LOW_BALANCE = 407;
 
+    /**
+     * Sendchamp's own expiry for codes sent through its verification service.
+     * The app checks codes itself (OtpService), so this only has to cover the
+     * app's 5 minutes.
+     */
+    private const VERIFICATION_EXPIRY_MINUTES = 5;
+
     /** Template bodies are capped at 1024 characters, fixed text included. */
     private const WHATSAPP_VARIABLE_MAX = 900;
 
@@ -49,6 +56,8 @@ class SendchampGateway implements SmsGateway
 
     private ?string $notificationTemplate;
 
+    private bool $otpViaVerification;
+
     private ?string $lastError = null;
 
     public function __construct()
@@ -60,6 +69,7 @@ class SendchampGateway implements SmsGateway
         $this->whatsappSender = config('services.sendchamp.whatsapp_sender') ?: null;
         $this->otpTemplate = config('services.sendchamp.whatsapp_otp_template') ?: null;
         $this->notificationTemplate = config('services.sendchamp.whatsapp_template') ?: null;
+        $this->otpViaVerification = (bool) config('services.sendchamp.whatsapp_otp_via_verification', false);
     }
 
     public function send(string $phone, string $message): bool
@@ -79,7 +89,41 @@ class SendchampGateway implements SmsGateway
     public function sendOtp(string $phone, string $code, string $message): bool
     {
         return $this->sendWhatsAppTemplate($phone, $this->otpTemplate, ['1' => $code])
+            || $this->sendWhatsAppVerification($phone, $code)
             || $this->sendSms($phone, $message);
+    }
+
+    /**
+     * Send our code through Sendchamp's verification service (POST
+     * /verification/create with our own token), which delivers it by
+     * WhatsApp from Flutterwave's account as "{code} is your verification
+     * code." It needs no WhatsApp number or template of our own. Sendchamp's
+     * confirm endpoint is not used: OtpService checks the code.
+     */
+    public function sendWhatsAppVerification(string $phone, string $code): bool
+    {
+        if (! $this->otpViaVerification || $this->whatsAppOtpTemplateEnabled()) {
+            return false;
+        }
+
+        $data = $this->request('post', '/verification/create', [
+            'channel' => 'whatsapp',
+            'token_type' => ctype_digit($code) ? 'numeric' : 'alphanumeric',
+            'token_length' => strlen($code),
+            'expiration_time' => self::VERIFICATION_EXPIRY_MINUTES,
+            'customer_mobile_number' => $this->number($phone),
+            'meta_data' => ['first_name' => 'Customer'],
+            'token' => $code,
+        ], ['channel' => 'whatsapp_verification', 'phone' => $phone]);
+
+        if ($data !== null && ($data['status'] ?? null) !== 'sent') {
+            $this->lastError = 'verification status '.($data['status'] ?? 'missing');
+            Log::error('Sendchamp did not send the WhatsApp code', ['phone' => $phone, 'status' => $data['status'] ?? null]);
+
+            return false;
+        }
+
+        return $data !== null;
     }
 
     public function sendSms(string $phone, string $message): bool
@@ -118,6 +162,11 @@ class SendchampGateway implements SmsGateway
     }
 
     public function whatsAppOtpEnabled(): bool
+    {
+        return $this->whatsAppOtpTemplateEnabled() || $this->otpViaVerification;
+    }
+
+    public function whatsAppOtpTemplateEnabled(): bool
     {
         return $this->whatsappSender !== null && $this->otpTemplate !== null;
     }

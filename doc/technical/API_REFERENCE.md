@@ -78,7 +78,7 @@ In **local**, **staging**, and **testing** environments, all OTP codes are set t
 1. `POST /auth/otp/send` with any valid phone number → returns success immediately
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
-This static OTP is **disabled in production** — production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
+This static OTP is **disabled in production** — production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp first (E-tiGo's approved OTP template, or, when switched on, Sendchamp's verification service, which sends from **Flutterwave's** WhatsApp account as *"482910 is your verification code."*), SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
 
 ### Dual Account Support
 

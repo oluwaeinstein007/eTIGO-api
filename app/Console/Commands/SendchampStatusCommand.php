@@ -28,8 +28,13 @@ class SendchampStatusCommand extends Command
             ['WhatsApp sender', $config['whatsapp_sender'] ?: '(not set)'],
             ['WhatsApp notification template', $config['whatsapp_template'] ?: '(not set)'],
             ['WhatsApp OTP template', $config['whatsapp_otp_template'] ?: '(not set)'],
+            ['WhatsApp codes via verification service', $config['whatsapp_otp_via_verification'] ? 'on (sender shows as Flutterwave)' : 'off'],
             ['Notifications go by', $gateway->whatsAppEnabled() ? 'WhatsApp, then SMS' : 'SMS only'],
-            ['OTP codes go by', $gateway->whatsAppOtpEnabled() ? 'WhatsApp, then SMS' : 'SMS only'],
+            ['OTP codes go by', match (true) {
+                $gateway->whatsAppOtpTemplateEnabled() => 'WhatsApp (own template), then SMS',
+                $gateway->whatsAppOtpEnabled() => 'WhatsApp (Sendchamp verification, from Flutterwave), then SMS',
+                default => 'SMS only',
+            }],
             ['SOS safety number', config('sos.safety_number') ?: '(not set: SOS alerts are skipped)'],
         ]);
 

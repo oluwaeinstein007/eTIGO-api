@@ -919,7 +919,7 @@
                     "send"
                   ]
                 },
-                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone.\" 60-second cooldown between requests. Code expires after 5 minutes.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
+                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp first (E-tiGo's approved OTP template, or, when switched on, Sendchamp's verification service, which sends from Flutterwave's WhatsApp account as \"482910 is your verification code.\"), SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone.\" 60-second cooldown between requests. Code expires after 5 minutes.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
               },
               "response": [
                 {

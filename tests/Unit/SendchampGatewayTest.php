@@ -13,6 +13,7 @@ uses(TestCase::class);
 
 const SENDCHAMP_SMS = 'https://api.sendchamp.com/api/v1/sms/send';
 const SENDCHAMP_WHATSAPP = 'https://api.sendchamp.com/api/v1/whatsapp/message/send';
+const SENDCHAMP_VERIFY = 'https://api.sendchamp.com/api/v1/verification/create';
 
 function sendchampOk(string $reference = 'MN-SMS-1'): array
 {
@@ -30,6 +31,7 @@ beforeEach(function () {
         'services.sendchamp.whatsapp_sender' => null,
         'services.sendchamp.whatsapp_template' => null,
         'services.sendchamp.whatsapp_otp_template' => null,
+        'services.sendchamp.whatsapp_otp_via_verification' => false,
     ]);
 });
 
@@ -200,4 +202,54 @@ it('sends a test SMS from the console', function () {
         ->assertSuccessful();
 
     $this->artisan('sendchamp:test', ['phone' => '08012345678'])->assertFailed();
+});
+
+it('sends codes by WhatsApp through the verification service when switched on', function () {
+    config(['services.sendchamp.whatsapp_otp_via_verification' => true]);
+    Http::fake([SENDCHAMP_VERIFY => Http::response(['code' => 200, 'data' => ['reference' => 'MN-OTP-1', 'channel' => ['name' => 'whatsapp'], 'token' => '482910', 'status' => 'sent'], 'errors' => null, 'message' => 'Success', 'status' => 'success'])]);
+
+    expect((new SendchampGateway)->sendOtp('+2348012345678', '482910', 'Your E-tiGo verification code is 482910.'))->toBeTrue();
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request) => $request->url() === SENDCHAMP_VERIFY
+        && $request['channel'] === 'whatsapp'
+        && $request['token'] === '482910'
+        && $request['token_type'] === 'numeric'
+        && $request['token_length'] === 6
+        && $request['customer_mobile_number'] === '2348012345678');
+});
+
+it('falls back to SMS when the verification service does not send the code', function (array $response, int $status) {
+    config(['services.sendchamp.whatsapp_otp_via_verification' => true]);
+    Http::fake([
+        SENDCHAMP_VERIFY => Http::response($response, $status),
+        SENDCHAMP_SMS => Http::response(sendchampOk()),
+    ]);
+
+    expect((new SendchampGateway)->sendOtp('+2348012345678', '482910', 'Your E-tiGo verification code is 482910.'))->toBeTrue();
+
+    Http::assertSent(fn (Request $request) => $request->url() === SENDCHAMP_SMS && $request['message'] === 'Your E-tiGo verification code is 482910.');
+})->with([
+    'refused' => [['code' => 400, 'data' => null, 'message' => 'Unable to send verification code via WhatsApp', 'status' => 'failed'], 400],
+    'not sent' => [['code' => 200, 'data' => ['reference' => 'MN-OTP-2', 'status' => 'failed'], 'status' => 'success'], 200],
+]);
+
+it('prefers the own OTP template over the verification service', function () {
+    enableSendchampWhatsApp();
+    config(['services.sendchamp.whatsapp_otp_via_verification' => true]);
+    Http::fake([SENDCHAMP_WHATSAPP => Http::response(['status' => 'success', 'data' => ['provider_reference' => 'MN-WHATSAPP-3']])]);
+
+    expect((new SendchampGateway)->sendOtp('+2348012345678', '482910', 'text'))->toBeTrue();
+
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn (Request $request) => $request->url() === SENDCHAMP_VERIFY);
+});
+
+it('never uses the verification service for other messages', function () {
+    config(['services.sendchamp.whatsapp_otp_via_verification' => true]);
+    Http::fake([SENDCHAMP_SMS => Http::response(sendchampOk())]);
+
+    expect((new SendchampGateway)->deliver('+2348012345678', 'Your driver has arrived.'))->toBe('sms');
+
+    Http::assertNotSent(fn (Request $request) => $request->url() === SENDCHAMP_VERIFY);
 });
