@@ -145,8 +145,8 @@ class AdminMonitoringController extends Controller
             ->with(['city', 'vehicleClass', 'passenger', 'driver.driver', 'stateTransitions', 'scheduledRide'])
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
-            ->when($request->input('search'), function ($q, $search) {
-                $term = $this->likeTerm($search);
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = $this->likeTerm($request->string('search')->value());
                 $fullName = fn ($q) => $q->where(DB::raw("concat(first_name, ' ', last_name)"), 'ilike', $term);
 
                 $q->where(function ($q) use ($term, $fullName) {
@@ -325,8 +325,8 @@ class AdminMonitoringController extends Controller
             }, fn ($q) => $q->whereNull('driver_id'))
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('vehicle_class_id', $v))
-            ->when($request->input('search'), function ($q, $search) {
-                $term = $this->likeTerm($search);
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = $this->likeTerm($request->string('search')->value());
 
                 $q->where(function ($q) use ($term) {
                     $q->where('reference_number', 'ilike', $term)

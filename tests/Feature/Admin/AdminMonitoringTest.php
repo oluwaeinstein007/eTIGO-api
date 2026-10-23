@@ -142,6 +142,22 @@ it('searches active rides by reference, addresses, passenger, rider and driver',
         ->and($search('%'))->toBe([]);
 });
 
+it('applies a search of 0 instead of ignoring it', function () {
+    Ride::factory()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_address' => 'Allen Avenue, Ikeja',
+        'destination_address' => 'Admiralty Way, Lekki',
+        'status' => RideStatus::Searching,
+    ])->forceFill(['reference_number' => 'TRP-NG-ABC'])->saveQuietly();
+
+    $this->withToken($this->adminToken)
+        ->getJson('/api/v1/admin/monitoring/active-rides?search=0')
+        ->assertOk()
+        ->assertJsonCount(0, 'rides')
+        ->assertJsonPath('meta.total', 0);
+});
+
 it('sorts active rides by request time or status', function () {
     $ride = fn (RideStatus $status, int $minutesAgo) => Ride::factory()->create([
         'city_id' => $this->city->id,
