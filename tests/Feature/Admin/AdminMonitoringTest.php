@@ -100,6 +100,78 @@ it('filters active rides by city and status', function () {
         ->assertJsonPath('summary.total_active', 1);
 });
 
+it('searches active rides by reference, addresses, passenger, rider and driver', function () {
+    $this->mockLocationService->shouldReceive('getDriverLocation')->andReturnNull();
+
+    $ride = fn (array $attributes) => Ride::factory()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'pickup_address' => 'Allen Avenue, Ikeja',
+        'destination_address' => 'Admiralty Way, Lekki',
+        'status' => RideStatus::Searching,
+        ...$attributes,
+    ]);
+
+    $byReference = $ride([]);
+    $byPickup = $ride(['pickup_address' => 'Bodija Market, Ibadan']);
+    $byDestination = $ride(['destination_address' => 'Ring Road, Surulere']);
+    $byPassenger = $ride(['passenger_id' => User::factory()->passenger()->create(['first_name' => 'Kemi', 'last_name' => 'Balogun'])->id]);
+    $byRider = $ride(['is_third_party' => true, 'rider_name' => 'Tunde Ojo']);
+    $byDriver = $ride([
+        'driver_id' => User::factory()->driver()->create(['first_name' => 'Chuka', 'last_name' => 'Eze'])->id,
+        'status' => RideStatus::InProgress,
+    ]);
+    Ride::factory()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'destination_address' => 'Ring Road, Surulere',
+        'status' => RideStatus::Completed,
+    ]);
+
+    $search = fn (string $term) => $this->withToken($this->adminToken)
+        ->getJson('/api/v1/admin/monitoring/active-rides?search='.urlencode($term))
+        ->assertOk()
+        ->json('rides.*.id');
+
+    expect($search($byReference->reference_number))->toBe([$byReference->id])
+        ->and($search('bodija'))->toBe([$byPickup->id])
+        ->and($search('ring road'))->toBe([$byDestination->id])
+        ->and($search('kemi balogun'))->toBe([$byPassenger->id])
+        ->and($search('tunde'))->toBe([$byRider->id])
+        ->and($search('chuka eze'))->toBe([$byDriver->id])
+        ->and($search('%'))->toBe([]);
+});
+
+it('sorts active rides by request time or status', function () {
+    $ride = fn (RideStatus $status, int $minutesAgo) => Ride::factory()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->vehicleClass->id,
+        'status' => $status,
+        'created_at' => now()->subMinutes($minutesAgo),
+    ]);
+
+    $searchingOld = $ride(RideStatus::Searching, 30);
+    $requestedNew = $ride(RideStatus::Requested, 5);
+    $searchingNew = $ride(RideStatus::Searching, 10);
+
+    $ids = fn (string $query) => $this->withToken($this->adminToken)
+        ->getJson("/api/v1/admin/monitoring/active-rides?{$query}")
+        ->assertOk()
+        ->json('rides.*.id');
+
+    expect($ids(''))->toBe([$requestedNew->id, $searchingNew->id, $searchingOld->id])
+        ->and($ids('sort_by=requested_at&sort_dir=asc'))->toBe([$searchingOld->id, $searchingNew->id, $requestedNew->id])
+        ->and($ids('sort_by=status&sort_dir=asc'))->toBe([$requestedNew->id, $searchingNew->id, $searchingOld->id])
+        ->and($ids('sort_by=status&sort_dir=desc'))->toBe([$searchingNew->id, $searchingOld->id, $requestedNew->id]);
+});
+
+it('rejects an unknown active rides sort', function () {
+    $this->withToken($this->adminToken)
+        ->getJson('/api/v1/admin/monitoring/active-rides?sort_by=fare&sort_dir=up')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['sort_by', 'sort_dir']);
+});
+
 it('lists online drivers with location and trip status', function () {
     $driverUser = User::factory()->driver()->create();
     $driver = Driver::factory()->approved()->for($driverUser)->create([
