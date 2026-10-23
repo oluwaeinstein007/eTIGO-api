@@ -18980,6 +18980,24 @@
                       "disabled": true
                     },
                     {
+                      "key": "search",
+                      "value": "",
+                      "description": "Contains match on trip reference, pickup/destination address, passenger, rider or driver name (max 100 chars)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort_by",
+                      "value": "requested_at",
+                      "description": "requested_at (default) or status (ride order)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort_dir",
+                      "value": "desc",
+                      "description": "desc (default) or asc",
+                      "disabled": true
+                    },
+                    {
                       "key": "per_page",
                       "value": "50",
                       "description": "Items per page (default: 50)",

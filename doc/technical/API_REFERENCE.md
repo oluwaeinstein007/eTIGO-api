@@ -8078,7 +8078,12 @@ Returns all rides in an active status (`requested`, `searching`, `matched`, `dri
 |------------|---------|-------------|
 | city_id    | string (UUID) | Filter by city |
 | status     | string  | Filter by one status |
+| search     | string  | Up to 100 characters. Case-insensitive "contains" match on the trip reference, pickup address, destination address, passenger name, rider name (on a ride booked for someone else) and driver name. `%` and `_` are matched literally |
+| sort_by    | string  | `requested_at` (default) or `status`. `status` sorts in ride order (`requested`, `searching`, `matched`, `driver_en_route`, `driver_arrived`, `in_progress`), not alphabetically, with the newest request first within a status |
+| sort_dir   | string  | `desc` (default) or `asc` |
 | per_page   | integer | Default 50, max 100 |
+
+An unknown `sort_by` or `sort_dir` returns 422. `meta.total` counts the rides matching every param; `summary` follows `city_id` and `status` but not `search`, so the status counts stay put while someone types.
 
 **Response 200:**
 ```json

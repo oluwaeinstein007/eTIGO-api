@@ -122,15 +122,55 @@ class AdminMonitoringController extends Controller
         return $resource;
     }
 
+    /**
+     * A case-insensitive "contains" pattern with `%`, `_` and `\` matched literally.
+     */
+    private function likeTerm(string $search): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+    }
+
     public function activeRides(Request $request): JsonResponse
     {
+        $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'sort_by' => ['sometimes', 'string', 'in:requested_at,status'],
+            'sort_dir' => ['sometimes', 'string', 'in:asc,desc'],
+        ]);
+
         $perPage = min(max((int) $request->input('per_page', 50), 1), 100);
+        $sortDir = $request->input('sort_dir', 'desc');
 
         $rides = Ride::whereIn('status', RideStatus::activeStatuses())
             ->with(['city', 'vehicleClass', 'passenger', 'driver.driver', 'stateTransitions', 'scheduledRide'])
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('status'), fn ($q, $v) => $q->where('status', $v))
-            ->orderByDesc('created_at')
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = $this->likeTerm($request->string('search')->value());
+                $fullName = fn ($q) => $q->where(DB::raw("concat(first_name, ' ', last_name)"), 'ilike', $term);
+
+                $q->where(function ($q) use ($term, $fullName) {
+                    $q->where('reference_number', 'ilike', $term)
+                        ->orWhere('pickup_address', 'ilike', $term)
+                        ->orWhere('destination_address', 'ilike', $term)
+                        ->orWhere('rider_name', 'ilike', $term)
+                        ->orWhereHas('passenger', $fullName)
+                        ->orWhereHas('driver', $fullName);
+                });
+            })
+            ->when(
+                $request->input('sort_by') === 'status',
+                function ($q) use ($sortDir) {
+                    // Lifecycle order (requested → in_progress), not alphabetical.
+                    $statuses = array_map(fn (RideStatus $s) => $s->value, RideStatus::activeStatuses());
+                    $cases = implode(' ', array_map(fn (int $i) => "WHEN ? THEN {$i}", array_keys($statuses)));
+
+                    $q->orderByRaw("CASE status {$cases} END {$sortDir}", $statuses)
+                        ->orderByDesc('created_at');
+                },
+                fn ($q) => $q->orderBy('created_at', $sortDir),
+            )
+            ->orderBy('id', $sortDir)
             ->paginate($perPage);
 
         $rideIds = $rides->pluck('id')->all();
@@ -285,8 +325,8 @@ class AdminMonitoringController extends Controller
             }, fn ($q) => $q->whereNull('driver_id'))
             ->when($request->input('city_id'), fn ($q, $v) => $q->where('city_id', $v))
             ->when($request->input('vehicle_class_id'), fn ($q, $v) => $q->where('vehicle_class_id', $v))
-            ->when($request->input('search'), function ($q, $search) {
-                $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = $this->likeTerm($request->string('search')->value());
 
                 $q->where(function ($q) use ($term) {
                     $q->where('reference_number', 'ilike', $term)
