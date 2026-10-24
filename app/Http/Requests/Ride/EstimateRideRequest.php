@@ -8,6 +8,8 @@ use Illuminate\Validation\Validator;
 
 class EstimateRideRequest extends FormRequest
 {
+    private ?City $pickupCity = null;
+
     public function authorize(): bool
     {
         return true;
@@ -19,7 +21,9 @@ class EstimateRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            // Optional: the server quotes the city the pickup lies in
+            // (pickupCity). Used only for a pickup outside every drawn city.
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'pickup_lat' => ['required', 'numeric', 'between:-90,90'],
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
             'destination_lat' => ['required', 'numeric', 'between:-90,90'],
@@ -36,18 +40,21 @@ class EstimateRideRequest extends FormRequest
         ];
     }
 
+    /**
+     * The city the estimate is for, decided from the pickup. Set once
+     * validation has passed.
+     */
+    public function city(): City
+    {
+        return $this->pickupCity;
+    }
+
     public function after(): array
     {
         return [
             function (Validator $validator): void {
                 if ($validator->errors()->isNotEmpty()) {
                     return;
-                }
-
-                $city = City::find($this->input('city_id'));
-
-                if ($city && ! $city->is_active) {
-                    $validator->errors()->add('city_id', $city->launch_status->unavailableMessage($city->name));
                 }
 
                 $pickupLat = $this->float('pickup_lat');
@@ -59,9 +66,7 @@ class EstimateRideRequest extends FormRequest
                     $validator->errors()->add('destination_lat', 'Pickup and destination cannot be the same location.');
                 }
 
-                if ($error = StoreRideRequest::pickupCityError($this->input('city_id'), $pickupLat, $pickupLng)) {
-                    $validator->errors()->add('pickup_lat', $error);
-                }
+                $this->pickupCity = StoreRideRequest::resolvePickupCity($validator, $this->input('city_id'), $pickupLat, $pickupLng);
             },
         ];
     }

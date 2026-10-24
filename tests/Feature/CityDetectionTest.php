@@ -73,6 +73,53 @@ it('ignores inactive cities', function () {
     $response->assertNotFound();
 });
 
+it('lets the boundary decide over the geocoded name', function () {
+    City::factory()->create([
+        'name' => 'Lagos',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3792, 6.5244], 'radius_km' => 40],
+    ]);
+
+    // A city named like the geocoded district, drawn somewhere else.
+    City::factory()->create([
+        'name' => 'Ikeja',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3420, 6.6500], 'radius_km' => 2],
+    ]);
+
+    $this->mockMaps->shouldReceive('reverseGeocode')
+        ->andReturn(['address' => 'Mafoluku, Ikeja 100261, Lagos, Nigeria', 'city' => 'Ikeja']);
+
+    $this->getJson('/api/v1/cities/detect?lat=6.5582&lng=3.3364')
+        ->assertOk()
+        ->assertJsonPath('city.name', 'Lagos')
+        ->assertJsonPath('resolved_address', 'Mafoluku, Ikeja 100261, Lagos, Nigeria');
+});
+
+it('does not name-match a city whose boundary leaves the point out', function () {
+    City::factory()->create([
+        'name' => 'Ikeja',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3420, 6.6500], 'radius_km' => 2],
+    ]);
+
+    $this->mockMaps->shouldReceive('reverseGeocode')
+        ->andReturn(['address' => 'Mafoluku, Ikeja, Lagos, Nigeria', 'city' => 'Ikeja']);
+
+    $this->getJson('/api/v1/cities/detect?lat=6.5582&lng=3.3364')->assertNotFound();
+});
+
+it('still detects by boundary when reverse geocoding fails', function () {
+    City::factory()->create([
+        'name' => 'Lagos',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.3792, 6.5244], 'radius_km' => 40],
+    ]);
+
+    $this->mockMaps->shouldReceive('reverseGeocode')->andThrow(new RuntimeException('Maps down'));
+
+    $this->getJson('/api/v1/cities/detect?lat=6.5582&lng=3.3364')
+        ->assertOk()
+        ->assertJsonPath('city.name', 'Lagos')
+        ->assertJsonPath('resolved_address', null);
+});
+
 it('detects a city from polygon boundary', function () {
     City::factory()->create([
         'name' => 'Victoria Island',

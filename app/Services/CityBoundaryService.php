@@ -46,6 +46,32 @@ class CityBoundaryService
     }
 
     /**
+     * Every pair of cities whose saved boundaries overlap. Saving refuses a
+     * new overlap, so these are boundaries saved before that check or
+     * changed outside the admin API.
+     *
+     * @return list<array{0: City, 1: City}>
+     */
+    public function overlappingPairs(): array
+    {
+        $cities = City::query()->whereNotNull('boundary')->orderBy('name')->get()
+            ->filter(fn (City $city) => is_array($city->boundary))
+            ->values();
+
+        $pairs = [];
+
+        foreach ($cities as $i => $city) {
+            foreach ($cities->slice($i + 1) as $other) {
+                if ($this->overlaps($city->boundary, $other->boundary)) {
+                    $pairs[] = [$city, $other];
+                }
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
      * @param  array<string, mixed>  $a
      * @param  array<string, mixed>  $b
      */

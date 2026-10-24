@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Ride;
 
 use App\Enums\PaymentMethod;
+use App\Services\CityDetectionService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -58,12 +59,18 @@ class UpdateScheduledRideRequest extends FormRequest
                     return;
                 }
 
-                // A new pickup must stay in the booking's city.
+                // A new pickup must stay in the booking's city: its prices
+                // and drivers were fixed when it was booked.
                 $ride = $this->route('ride');
 
-                if ($this->filled('pickup_lat') && $ride?->city_id
-                    && ($error = StoreRideRequest::pickupCityError($ride->city_id, (float) $this->input('pickup_lat'), (float) $this->input('pickup_lng')))) {
-                    $validator->errors()->add('pickup_lat', $error);
+                if ($this->filled('pickup_lat') && $ride?->city_id) {
+                    $city = app(CityDetectionService::class)->pickupCity($ride->city_id, (float) $this->input('pickup_lat'), (float) $this->input('pickup_lng'));
+
+                    if ($city !== null && $city->id !== $ride->city_id) {
+                        $validator->errors()->add('pickup_lat', $city->is_active
+                            ? "This pickup is in {$city->name}, not the booking's city. Cancel and book again to be picked up there."
+                            : $city->launch_status->unavailableMessage($city->name));
+                    }
                 }
             },
         ];

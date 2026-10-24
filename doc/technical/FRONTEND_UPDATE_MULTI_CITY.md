@@ -36,7 +36,9 @@ Request and response details are in `API_REFERENCE.md`: **Public — Cities**, *
 
 ### Booking errors
 - Estimates and bookings in a city that is not live return 422 on `city_id` with the same passenger-ready message as above. Show it as is.
-- **New (Phase 2 review, 18 Oct 2026):** a pickup inside another city's boundary returns 422 on `pickup_lat` — "This pickup is in Abuja. Choose Abuja as your city to book it." (offer to switch city), or that city's not-open message. This applies to estimates, bookings and changing a scheduled booking's pickup. Re-detect the city (`GET /cities/detect`) whenever the pickup moves rather than keeping the city from app start.
+- **Changed (24 Oct 2026): the pickup decides the city.** `POST /rides/estimate` and `POST /rides` now book the city whose boundary holds the pickup; `city_id` is optional and only used for a pickup outside every drawn city. The old 422 "This pickup is in Abuja. Choose Abuja as your city to book it." is gone, so there is no city to switch. The estimate response has `city` (`id`, `name`): show it as the trip's city and use its `id` from then on. A pickup inside a city that is not open still returns 422 on `pickup_lat` with that city's not-open message (show it as is, with the waitlist when it applies). A pickup outside every city with no `city_id` returns 422 on `pickup_lat`: "E-tiGo is not available at this pickup location yet."
+- `GET /cities/detect` now uses the same boundaries, so the city it returns for a pickup is always the city an estimate or booking from there gets.
+- Changing a scheduled booking's pickup into another city still returns 422 on `pickup_lat`: "This pickup is in Abuja, not the booking's city. Cancel and book again to be picked up there."
 - A booking cancelled because operations paused the city arrives as the usual `ride_cancelled` notification. The ride has `cancellation_reason: city_paused` and `cancellation_details` with the text to show. `city_paused` is a system reason: never offer it in the cancel-reason picker (it is not in `GET /lookup/cancellation-reasons`).
 
 ---

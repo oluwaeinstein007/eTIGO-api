@@ -17,6 +17,8 @@ use Illuminate\Validation\Validator;
 
 class StoreRideRequest extends FormRequest
 {
+    private ?City $pickupCity = null;
+
     public function authorize(): bool
     {
         return true;
@@ -28,7 +30,9 @@ class StoreRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            // Optional: the server books the city the pickup lies in
+            // (pickupCity). Used only for a pickup outside every drawn city.
+            'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'vehicle_class_id' => ['required', 'uuid', 'exists:vehicle_classes,id'],
             'pickup_lat' => ['required', 'numeric', 'between:-90,90'],
             'pickup_lng' => ['required', 'numeric', 'between:-180,180'],
@@ -81,22 +85,37 @@ class StoreRideRequest extends FormRequest
     }
 
     /**
-     * Why the pickup cannot be booked under this city: it lies inside
-     * another city's boundary (multi-city, OQ-22), so it would get that
-     * city's drivers but this city's prices, and would get round a city
-     * that has not opened. Null when it is fine.
+     * The city the ride is booked in, decided from the pickup (multi-city,
+     * OQ-22). Set once validation has passed.
      */
-    public static function pickupCityError(string $cityId, float $pickupLat, float $pickupLng): ?string
+    public function city(): City
     {
-        $other = app(CityDetectionService::class)->conflictingCity($cityId, $pickupLat, $pickupLng);
+        return $this->pickupCity;
+    }
 
-        if ($other === null) {
+    /**
+     * The city a ride from this pickup is booked in: the one whose drawn
+     * boundary holds the pickup, else the city the app sent. Adds the
+     * error and returns null when there is none or it is not open.
+     */
+    public static function resolvePickupCity(Validator $validator, ?string $requestedCityId, float $pickupLat, float $pickupLng): ?City
+    {
+        $city = app(CityDetectionService::class)->pickupCity($requestedCityId, $pickupLat, $pickupLng);
+
+        if ($city === null) {
+            $validator->errors()->add('pickup_lat', 'E-tiGo is not available at this pickup location yet.');
+
             return null;
         }
 
-        return $other->launch_status->acceptsBookings()
-            ? "This pickup is in {$other->name}. Choose {$other->name} as your city to book it."
-            : $other->launch_status->unavailableMessage($other->name);
+        if (! $city->is_active) {
+            $field = $city->id === $requestedCityId ? 'city_id' : 'pickup_lat';
+            $validator->errors()->add($field, $city->launch_status->unavailableMessage($city->name));
+
+            return null;
+        }
+
+        return $city;
     }
 
     public function messages(): array
@@ -125,11 +144,6 @@ class StoreRideRequest extends FormRequest
                     return;
                 }
 
-                $city = City::find($this->input('city_id'));
-                if ($city && ! $city->is_active) {
-                    $validator->errors()->add('city_id', $city->launch_status->unavailableMessage($city->name));
-                }
-
                 $pickupLat = (float) $this->input('pickup_lat');
                 $pickupLng = (float) $this->input('pickup_lng');
                 $destLat = (float) $this->input('destination_lat');
@@ -139,13 +153,15 @@ class StoreRideRequest extends FormRequest
                     $validator->errors()->add('destination_lat', 'Pickup and destination cannot be the same location.');
                 }
 
-                if ($error = self::pickupCityError($this->input('city_id'), $pickupLat, $pickupLng)) {
-                    $validator->errors()->add('pickup_lat', $error);
+                $this->pickupCity = self::resolvePickupCity($validator, $this->input('city_id'), $pickupLat, $pickupLng);
+
+                if ($this->pickupCity === null) {
+                    return;
                 }
 
                 $cityVehicleClass = DB::table('city_vehicle_classes')
                     ->join('vehicle_classes', 'vehicle_classes.id', '=', 'city_vehicle_classes.vehicle_class_id')
-                    ->where('city_vehicle_classes.city_id', $this->input('city_id'))
+                    ->where('city_vehicle_classes.city_id', $this->pickupCity->id)
                     ->where('city_vehicle_classes.vehicle_class_id', $this->input('vehicle_class_id'))
                     ->where('city_vehicle_classes.is_active', true)
                     ->where('vehicle_classes.is_active', true)
@@ -157,7 +173,7 @@ class StoreRideRequest extends FormRequest
                     return;
                 }
 
-                if (! PricingConfig::currentFor($this->input('city_id'), $this->input('vehicle_class_id'))) {
+                if (! PricingConfig::currentFor($this->pickupCity->id, $this->input('vehicle_class_id'))) {
                     $validator->errors()->add('vehicle_class_id', 'Pricing is not yet configured for this vehicle class in the selected city.');
                 }
 

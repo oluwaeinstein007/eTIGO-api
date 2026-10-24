@@ -93,8 +93,9 @@ it('validates required fields', function () {
 
     $response->assertUnprocessable()
         ->assertJsonValidationErrors([
-            'city_id', 'pickup_lat', 'pickup_lng', 'destination_lat', 'destination_lng',
-        ]);
+            'pickup_lat', 'pickup_lng', 'destination_lat', 'destination_lng',
+        ])
+        ->assertJsonMissingValidationErrors('city_id');
 });
 
 it('validates coordinate ranges', function () {
