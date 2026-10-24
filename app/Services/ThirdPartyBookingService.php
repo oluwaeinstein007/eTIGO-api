@@ -232,7 +232,8 @@ class ThirdPartyBookingService
 
     /**
      * Whether a third-party booking may be paid this way under the current
-     * policy. Wallet and card are always allowed.
+     * policy. Wallet and card are always allowed; cash also needs cash
+     * payments switched on for everyone.
      *
      * @param  array{allow_cash: bool, allow_bank_transfer: bool}|null  $policy
      */
@@ -241,7 +242,7 @@ class ThirdPartyBookingService
         $policy ??= AppSetting::thirdParty();
 
         return match ($method) {
-            PaymentMethod::Cash => $policy['allow_cash'],
+            PaymentMethod::Cash => $policy['allow_cash'] && AppSetting::cashPaymentsEnabled(),
             PaymentMethod::BankTransfer => $policy['allow_bank_transfer'],
             default => true,
         };

@@ -747,6 +747,8 @@ GET /config
 
 No authentication required. Returns app configuration including minimum version requirements for force-update enforcement.
 
+`payments` says how passengers may pay for a booking: `methods` lists what to offer (`card`, `wallet`, and `cash` only while `cash_enabled`). Cash is **off by default** (the client prefers card and wallet); Finance can switch it on with the wallet setting `cash_payments_enabled`. Hide the cash option when it is off.
+
 **Response 200:**
 ```json
 {
@@ -758,6 +760,10 @@ No authentication required. Returns app configuration including minimum version 
   "emergency_number": "112",
   "support_phone": null,
   "support_email": null,
+  "payments": {
+    "cash_enabled": false,
+    "methods": ["card", "wallet"]
+  },
   "scheduled_rides": {
     "enabled": true,
     "min_lead_minutes": 30,
@@ -5504,7 +5510,7 @@ On creation, the **matching engine** is automatically triggered: `DispatchRideRe
 | destination_lat    | number  | Yes      | Destination latitude                |
 | destination_lng    | number  | Yes      | Destination longitude               |
 | destination_address| string  | Yes      | Human-readable destination address  |
-| payment_method     | string  | Yes      | `cash`, `card`, `wallet`, or `bank_transfer` |
+| payment_method     | string  | Yes      | `card`, `wallet` or `bank_transfer`; `cash` only while cash payments are on (`payments.cash_enabled` in `GET /config`). Otherwise `cash` returns 422 on `payment_method`: "Cash isn't accepted. Pay by card or from your wallet." |
 | scheduled_pickup_at | string (ISO 8601) | No | Book for later. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`). See [Scheduled Rides](#scheduled-rides) for the limits. |
 | rider_name | string | With `rider_phone` | Book for someone else: the rider's name (max 100). See [Third-Party Bookings](#third-party-bookings) |
 | rider_phone | string | No | The rider's phone: E.164 (`+2348020000002`) or Nigerian local (`0802 000 0002`). The booker's own number makes it a normal ride |
@@ -6750,7 +6756,7 @@ Change the pickup time, pickup, destination or payment method of a booking befor
 | scheduled_pickup_at | string (ISO 8601) | New pickup time, with a UTC offset; same limits as booking |
 | pickup_lat / pickup_lng / pickup_address | number / number / string | New pickup |
 | destination_lat / destination_lng / destination_address | number / number / string | New destination |
-| payment_method | string | `cash`, `card`, `wallet` or `bank_transfer` |
+| payment_method | string | `card`, `wallet` or `bank_transfer`; `cash` only while cash payments are on (422 otherwise, as for booking) |
 
 **Response 200:** `{ "message": "Scheduled ride updated.", "ride": { ... } }`
 
@@ -7059,7 +7065,7 @@ PUT /admin/settings/third-party
 | enabled | boolean | `true` | — | Accept new third-party bookings. Rides already booked carry on |
 | pin_recipient | string | `both` | `booker`, `rider`, `both` | Who gets the ride PIN when the booker sends no `share_with`; also the pre-selected choice. `booker` turns the booker's choice off |
 | tracking_recipient | string | `both` | `booker`, `rider`, `both` | Who gets live tracking, whatever the booker chooses. Keep `both` so the booker can follow the trip |
-| allow_cash | boolean | `false` | — | Allow cash payment |
+| allow_cash | boolean | `false` | — | Allow cash payment (also needs the wallet setting `cash_payments_enabled`) |
 | allow_bank_transfer | boolean | `false` | — | Allow bank-transfer payment |
 | max_active_per_booker | integer | 2 | 1–10 | Third-party rides under way at once per booker |
 | max_rider_numbers_per_day | integer | 10 | 1–100 | Different rider numbers per booker in 24 hours |
@@ -9330,7 +9336,7 @@ PUT /notification-preferences
 ```
 GET /payment-methods
 ```
-Returns available payment methods for the authenticated user. Cash is always included. Saved cards appear after cash. If a saved card is set as default, cash's `is_default` is `false`; otherwise cash is the default.
+Returns available payment methods for the authenticated user: saved cards, and cash first **only while cash payments are on** (wallet setting `cash_payments_enabled`, off by default). When cash is listed and a saved card is the default, cash's `is_default` is `false`; otherwise cash is the default. With cash off and no saved card the list is empty: offer the wallet and adding a card. The example shows cash switched on.
 
 **Response 200:**
 ```json
@@ -9506,7 +9512,7 @@ Only the owner can delete it.
 
 | Method | Value | Flow |
 |--------|-------|------|
-| Cash | `cash` | Driver collects cash → confirms via API |
+| Cash | `cash` | **Off by default for new bookings** (wallet setting `cash_payments_enabled`; see `payments` in `GET /config`). A ride booked in cash: driver collects cash → confirms via API |
 | Card | `card` | If the passenger has a saved default card, auto-charged via token at ride completion. If no saved card exists, a Paystack checkout link (card-only) is generated — the passenger completes payment via the link. Confirmed via Paystack webhook. |
 | Wallet | `wallet` | Auto-debited from passenger wallet at ride completion |
 | Bank Transfer | `bank_transfer` | Paystack checkout link generated at ride completion (supports bank transfer, USSD, card). Passenger completes payment via the link. OPay users transfer to the generated temporary account. Confirmed via Paystack webhook. |
@@ -14886,7 +14892,8 @@ Returns current wallet configuration (merged from database overrides and config 
     "payout_account_hold_hours": 24,
     "payout_account_hold_first_account": false,
     "payout_account_name_check": "review",
-    "block_booking_with_balance_due": true
+    "block_booking_with_balance_due": true,
+    "cash_payments_enabled": false
   }
 }
 ```
@@ -14906,6 +14913,7 @@ Returns current wallet configuration (merged from database overrides and config 
 | `payout_account_hold_first_account` | boolean | Also hold a driver's first bank account |
 | `payout_account_name_check` | string | What a bank account name mismatch does: `off` (record only), `review` (save, pause payouts until finance approves), `block` (refuse the account) |
 | `block_booking_with_balance_due` | boolean | Refuse new bookings while the passenger has an outstanding [balance due](#passenger--balance-due) (default `true`) |
+| `cash_payments_enabled` | boolean | Let passengers choose cash for new bookings (default `false`: card and wallet only). Rides already booked in cash still finish normally (driver confirms the cash, change to wallet) |
 
 ```
 PUT /admin/settings/wallet
@@ -14933,6 +14941,7 @@ Updates wallet configuration. Only provided fields are updated; omitted fields r
 | `payout_account_hold_first_account` | boolean | |
 | `payout_account_name_check` | string | `off`, `review` or `block` (applies to accounts saved after the change; use `payout-accounts:check-names` for existing ones) |
 | `block_booking_with_balance_due` | boolean | |
+| `cash_payments_enabled` | boolean | Off refuses cash on new bookings and scheduled-booking changes and hides it from `GET /payment-methods` and `GET /config` |
 
 **Response 200:**
 ```json

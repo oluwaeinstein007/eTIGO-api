@@ -34,6 +34,9 @@ use Illuminate\Support\Facades\Queue;
 */
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     // Monday 19 Oct 2026, 08:00 UTC (09:00 in Lagos).
     $this->travelTo(Carbon::parse('2026-10-19 08:00:00', 'UTC'));
 

@@ -34,6 +34,9 @@ use Illuminate\Support\Facades\Queue;
 const SCHEDULED_TEST_FARE = 3325.0;
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake();
 
     // Monday 19 Oct 2026, 08:00 UTC (09:00 in Lagos).
