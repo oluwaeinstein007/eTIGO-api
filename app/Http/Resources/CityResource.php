@@ -37,6 +37,9 @@ class CityResource extends JsonResource
             'vehicle_classes_count' => $this->whenCounted('vehicleClasses'),
             'drivers_count' => $this->whenCounted('drivers'),
             'unpriced_vehicle_classes_count' => $this->when(isset($this->unpriced_vehicle_classes_count), $this->unpriced_vehicle_classes_count),
+            // Admin city list: cities whose boundary overlaps this one (saved
+            // before overlaps were refused). Empty when there are none.
+            'overlapping_cities' => $this->when(isset($this->overlapping_cities), $this->overlapping_cities),
             'trips_count' => $this->when(isset($this->trips_count), $this->trips_count),
             'active_rides_count' => $this->when(isset($this->active_rides_count), $this->active_rides_count),
             'active_drivers_count' => $this->when(isset($this->active_drivers_count), $this->active_drivers_count),

@@ -122,7 +122,7 @@ class RideController extends Controller
 
                 return $this->rideService->createRide(
                     passenger: $user,
-                    cityId: $request->input('city_id'),
+                    cityId: $request->city()->id,
                     vehicleClassId: $request->input('vehicle_class_id'),
                     pickupLat: (float) $request->input('pickup_lat'),
                     pickupLng: (float) $request->input('pickup_lng'),

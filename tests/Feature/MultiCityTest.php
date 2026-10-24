@@ -185,7 +185,10 @@ it('refuses estimates and bookings outside live cities with a clear message', fu
     $abuja = City::factory()->onboarding()->create(['name' => 'Abuja']);
     $abuja->vehicleClasses()->attach($this->vehicleClass->id, ['is_active' => true]);
 
-    ($this->book)($abuja)->assertUnprocessable()
+    // Abuja has no boundary yet, so a pickup there is outside every drawn
+    // city and the city the app sent is used.
+    ($this->book)($abuja, ['pickup_lat' => 9.0579, 'pickup_lng' => 7.4951, 'destination_lat' => 9.0765, 'destination_lng' => 7.3986])
+        ->assertUnprocessable()
         ->assertJsonValidationErrors(['city_id' => 'E-tiGo is not available in Abuja yet. Join the waitlist']);
 
     $this->lagos->update(['launch_status' => CityLaunchStatus::Paused]);
@@ -194,7 +197,7 @@ it('refuses estimates and bookings outside live cities with a clear message', fu
         ->assertJsonValidationErrors(['city_id' => 'Rides in Lagos are paused for now.']);
 });
 
-it('refuses a pickup inside another city booked under a live city\'s name', function () {
+it('books the city the pickup lies in, whatever city the app sent', function () {
     Queue::fake();
     $abuja = ($this->readyCity)();
     $inAbuja = ['pickup_lat' => 9.0579, 'pickup_lng' => 7.4951, 'destination_lat' => 9.0765, 'destination_lng' => 7.3986];
@@ -208,13 +211,71 @@ it('refuses a pickup inside another city booked under a live city\'s name', func
         ...$inAbuja,
     ])->assertUnprocessable()->assertJsonValidationErrors('pickup_lat');
 
-    // Once Abuja is live the passenger is pointed to it.
+    // Once Abuja is live, a stale Lagos from the app is corrected: the quote
+    // and the booking are Abuja's.
     $abuja->update(['launch_status' => CityLaunchStatus::Live]);
-    ($this->book)($this->lagos, $inAbuja)->assertUnprocessable()
-        ->assertJsonValidationErrors(['pickup_lat' => 'This pickup is in Abuja. Choose Abuja as your city to book it.']);
+
+    ($this->as)($this->passengerToken)->postJson('/api/v1/rides/estimate', [
+        'city_id' => $this->lagos->id,
+        ...$inAbuja,
+    ])->assertOk()
+        ->assertJsonPath('city.id', $abuja->id)
+        ->assertJsonPath('city.name', 'Abuja');
+
+    ($this->book)($this->lagos, $inAbuja)->assertCreated()
+        ->assertJsonPath('ride.city.id', $abuja->id);
+    Ride::query()->update(['status' => RideStatus::Cancelled]);
 
     // A pickup outside every drawn city keeps the named city, as before.
-    ($this->book)($this->lagos, ['pickup_lat' => 7.2, 'pickup_lng' => 5.2])->assertCreated();
+    ($this->book)($this->lagos, ['pickup_lat' => 7.2, 'pickup_lng' => 5.2])->assertCreated()
+        ->assertJsonPath('ride.city.id', $this->lagos->id);
+});
+
+it('needs no city_id: the pickup decides, and a pickup outside every city is refused', function () {
+    Queue::fake();
+
+    ($this->as)($this->passengerToken)->postJson('/api/v1/rides/estimate', [
+        'pickup_lat' => 6.5244, 'pickup_lng' => 3.3792,
+        'destination_lat' => 6.4541, 'destination_lng' => 3.3947,
+    ])->assertOk()->assertJsonPath('city.id', $this->lagos->id);
+
+    ($this->book)($this->lagos, ['city_id' => null])->assertCreated()
+        ->assertJsonPath('ride.city.id', $this->lagos->id);
+
+    ($this->book)($this->lagos, ['city_id' => null, 'pickup_lat' => 7.2, 'pickup_lng' => 5.2])->assertUnprocessable()
+        ->assertJsonValidationErrors(['pickup_lat' => 'E-tiGo is not available at this pickup location yet.']);
+});
+
+it('detects and books one city when a geocoded district has its own small city (staging, 23 Oct)', function () {
+    Queue::fake();
+
+    // Ikeja drawn as a small city inside Lagos before overlaps were refused.
+    // Google names Mafoluku "Ikeja", but the point is outside Ikeja's polygon.
+    $ikeja = City::factory()->create([
+        'name' => 'Ikeja',
+        'boundary' => ['type' => 'Polygon', 'coordinates' => [[
+            [3.335196958194615, 6.595607853093554], [3.3669105848082665, 6.609137484330276],
+            [3.382717690235779, 6.585139417735135], [3.331220327898393, 6.583262976730126],
+            [3.335196958194615, 6.595607853093554],
+        ]]],
+    ]);
+    $mafoluku = ['pickup_lat' => 6.5582, 'pickup_lng' => 3.3364];
+
+    $maps = Mockery::mock(MapsGateway::class);
+    $maps->shouldReceive('getDistanceAndDuration')->andReturn(['distance_km' => 8.5, 'duration_minutes' => 15.0]);
+    $maps->shouldReceive('reverseGeocode')->andReturn([
+        'address' => '23 Adekunle Street, Mafoluku, Ikeja 100261, Lagos, Nigeria',
+        'city' => 'Ikeja',
+    ]);
+    $this->app->instance(MapsGateway::class, $maps);
+
+    $this->getJson('/api/v1/cities/detect?lat=6.5582&lng=3.3364')
+        ->assertOk()
+        ->assertJsonPath('city.id', $this->lagos->id);
+
+    // An app that still sends Ikeja books Lagos instead of a 422.
+    ($this->book)($ikeja, $mafoluku)->assertCreated()
+        ->assertJsonPath('ride.city.id', $this->lagos->id);
 });
 
 it('keeps a scheduled booking\'s new pickup inside its city', function () {
@@ -548,6 +609,39 @@ it('points a passenger in a city that is not open to the waitlist when detecting
 });
 
 // === BOUNDARIES (BE2-CITY-05) ===
+
+it('shows admins the cities whose boundaries overlap, saved before overlaps were refused', function () {
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$this->lagos->id}")
+        ->assertOk()
+        ->assertJsonPath('warnings', []);
+
+    // Saved directly, as the legacy staging districts were.
+    $oshodi = City::factory()->onboarding()->create([
+        'name' => 'Oshodi',
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.336449, 6.558231], 'radius_km' => 20],
+    ]);
+    $kano = City::factory()->onboarding()->create([
+        'name' => 'Kano',
+        'boundary' => ['type' => 'Point', 'coordinates' => [8.5167, 12.0000], 'radius_km' => 20],
+    ]);
+
+    $cities = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->assertOk()->json('cities'))->keyBy('name');
+
+    expect($cities['Lagos']['overlapping_cities'])->toBe([['id' => $oshodi->id, 'name' => 'Oshodi']])
+        ->and($cities['Oshodi']['overlapping_cities'])->toBe([['id' => $this->lagos->id, 'name' => 'Lagos']])
+        ->and($cities['Kano']['overlapping_cities'])->toBe([]);
+
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$oshodi->id}")
+        ->assertOk()
+        ->assertJsonPath('warnings.0', "Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.");
+
+    // Other edits to an overlapping city still save; redrawing clears it.
+    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$oshodi->id}", [
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.336449, 7.2], 'radius_km' => 5],
+    ])->assertOk()->assertJsonPath('warnings', []);
+
+    expect($kano->fresh()->boundary)->not->toBeNull();
+});
 
 it('refuses a boundary that overlaps another city', function () {
     ($this->asAdmin)()->postJson('/api/v1/admin/cities', [

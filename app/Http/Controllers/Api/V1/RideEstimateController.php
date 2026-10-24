@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ride\EstimateRideRequest;
+use App\Models\City;
 use App\Services\FareEstimationService;
 use App\Services\TierGateService;
 use Illuminate\Http\JsonResponse;
@@ -20,9 +21,10 @@ class RideEstimateController extends Controller
     {
         $validated = $request->validated();
         $user = $request->user();
+        $city = $request->city();
 
         $result = $this->fareEstimationService->estimateAllClasses(
-            $validated['city_id'],
+            $city->id,
             $validated['pickup_lat'],
             $validated['pickup_lng'],
             $validated['destination_lat'],
@@ -34,12 +36,16 @@ class RideEstimateController extends Controller
         if (empty($result['estimates'])) {
             return response()->json([
                 'message' => 'No pricing available for this city. Please try a different city.',
+                'city' => $this->cityPayload($city),
                 'estimates' => [],
                 'warnings' => $result['warnings'],
             ]);
         }
 
+        // The city the quote is for, decided from the pickup: the app shows
+        // it and need not send city_id back when booking.
         $response = [
+            'city' => $this->cityPayload($city),
             'estimates' => $result['estimates'],
         ];
 
@@ -52,5 +58,13 @@ class RideEstimateController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * @return array{id: string, name: string}
+     */
+    private function cityPayload(City $city): array
+    {
+        return ['id' => $city->id, 'name' => $city->name];
     }
 }

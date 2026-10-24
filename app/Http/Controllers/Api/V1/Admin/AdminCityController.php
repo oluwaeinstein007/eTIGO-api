@@ -13,6 +13,7 @@ use App\Http\Resources\CityResource;
 use App\Models\AuditLog;
 use App\Models\City;
 use App\Services\AppCacheService;
+use App\Services\CityBoundaryService;
 use App\Services\CityLaunchService;
 use App\Services\CityReadinessService;
 use App\Services\PricingCoverageService;
@@ -29,6 +30,7 @@ class AdminCityController extends Controller
         private PricingCoverageService $coverage,
         private CityLaunchService $launch,
         private CityReadinessService $readiness,
+        private CityBoundaryService $boundaries,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -69,6 +71,12 @@ class AdminCityController extends Controller
 
         $gapCounts = $this->coverage->gaps($cities->getCollection()->modelKeys())->countBy('city_id');
         $cities->getCollection()->each(fn (City $city) => $city->unpriced_vehicle_classes_count = $gapCounts->get($city->id, 0));
+
+        $overlaps = $this->boundaries->overlapsFor($cities->getCollection());
+        $cities->getCollection()->each(fn (City $city) => $city->overlapping_cities = array_map(
+            fn (City $other) => ['id' => $other->id, 'name' => $other->name],
+            $overlaps[$city->id],
+        ));
 
         return response()->json([
             'cities' => CityResource::collection($cities),
@@ -133,7 +141,7 @@ class AdminCityController extends Controller
         return response()->json([
             'message' => 'City created successfully.',
             'city' => new CityResource($city->load('vehicleClasses')),
-            'warnings' => $this->coverage->warningsForCity($city),
+            'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ], 201);
     }
 
@@ -165,7 +173,7 @@ class AdminCityController extends Controller
                 'missing' => $readiness['missing'],
                 'counts' => $readiness['counts'],
             ],
-            'warnings' => $this->coverage->warningsForCity($city),
+            'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
 
@@ -221,7 +229,7 @@ class AdminCityController extends Controller
         return response()->json([
             'message' => 'City updated successfully.',
             'city' => new CityResource($city->fresh()->load('vehicleClasses')),
-            'warnings' => $this->coverage->warningsForCity($city),
+            'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
 
@@ -252,7 +260,7 @@ class AdminCityController extends Controller
             'scheduled_rides' => $result['scheduled_rides'],
             'scheduled_rides_to_cancel' => $result['scheduled_rides_to_cancel'],
             'active_rides' => $result['active_rides'],
-            'warnings' => $this->coverage->warningsForCity($city),
+            'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
 }

@@ -56,13 +56,14 @@ it('rejects estimate for an inactive city', function () {
         'created_by_admin_id' => $this->admin->id,
     ]);
 
+    // Outside every drawn city, so the city sent is the one quoted.
     $response = $this->withToken($this->token)
         ->postJson('/api/v1/rides/estimate', [
             'city_id' => $inactiveCity->id,
-            'pickup_lat' => 9.0579,
-            'pickup_lng' => 7.4951,
-            'destination_lat' => 9.0765,
-            'destination_lng' => 7.3986,
+            'pickup_lat' => 7.2,
+            'pickup_lng' => 5.2,
+            'destination_lat' => 7.25,
+            'destination_lng' => 5.25,
         ]);
 
     $response->assertUnprocessable()

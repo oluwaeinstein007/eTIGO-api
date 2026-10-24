@@ -6,6 +6,7 @@ use App\Contracts\MapsGateway;
 use App\Enums\CityLaunchStatus;
 use App\Models\City;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class CityDetectionService
 {
@@ -15,8 +16,13 @@ class CityDetectionService
 
     /**
      * The city at a point. Only live cities by default; pass more launch
-     * statuses to also find a city that is not open yet (boundaries do not
-     * overlap, so a point is in one city at most).
+     * statuses to also find a city that is not open yet.
+     *
+     * The drawn boundary decides, as it does for bookings (pickupCity), so
+     * the city the app is told is the one a booking from that point gets.
+     * The reverse-geocoded name is only matched against cities with no
+     * boundary yet: geocoders name districts ("Ikeja") that are not our
+     * service areas. The address is returned for display either way.
      *
      * @param  list<CityLaunchStatus>  $launchStatuses
      * @return array{city: City|null, resolved_address: string|null}
@@ -24,23 +30,24 @@ class CityDetectionService
     public function detectCity(float $lat, float $lng, array $launchStatuses = [CityLaunchStatus::Live]): array
     {
         $resolvedAddress = null;
-        $city = null;
+        $cityName = null;
 
         try {
             $location = $this->mapsGateway->reverseGeocode($lat, $lng);
             $resolvedAddress = $location['address'];
-
             $cityName = $location['city'] ?? $this->extractCityName($resolvedAddress);
-
-            $city = City::whereIn('launch_status', $launchStatuses)
-                ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityName)])
-                ->first();
-        } catch (\Throwable) {
-            // Reverse geocoding unavailable — fall through to boundary matching
+        } catch (\Throwable $e) {
+            // Reverse geocoding unavailable: the boundary still decides.
+            Log::warning('Reverse geocoding failed during city detection.', ['error' => $e->getMessage()]);
         }
 
-        if (! $city) {
-            $city = $this->findCityByBoundary($lat, $lng, $launchStatuses);
+        $city = $this->citiesAt($lat, $lng, $launchStatuses)->first();
+
+        if (! $city && filled($cityName)) {
+            $city = City::whereIn('launch_status', $launchStatuses)
+                ->whereNull('boundary')
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityName)])
+                ->first();
         }
 
         return [
@@ -57,27 +64,21 @@ class CityDetectionService
     }
 
     /**
-     * @param  list<CityLaunchStatus>  $launchStatuses
-     */
-    private function findCityByBoundary(float $lat, float $lng, array $launchStatuses): ?City
-    {
-        return $this->citiesAt($lat, $lng, $launchStatuses)->first();
-    }
-
-    /**
-     * The city a pickup point really lies in when that is not the city the
-     * booking names, or null when the point is in the named city (a point on
-     * a shared border is in both) or in no drawn city at all. Any launch
-     * status counts, so a pickup in a city that has not opened cannot be
-     * booked under a live city's name and prices. Boundaries only: no
+     * The city a ride from this pickup belongs to, decided by the server
+     * from the drawn boundaries (any launch status, so a city that has not
+     * opened cannot be booked under a live city's name and prices). The
+     * city the app sent is kept when the pickup lies inside it (a point on
+     * a shared border is in both) or outside every drawn city; otherwise
+     * the city the pickup is really in wins. Null only when the pickup is
+     * outside every city and the app sent none. Boundaries only: no
      * reverse geocoding call.
      */
-    public function conflictingCity(string $cityId, float $lat, float $lng): ?City
+    public function pickupCity(?string $requestedCityId, float $lat, float $lng): ?City
     {
         $cities = $this->citiesAt($lat, $lng, CityLaunchStatus::cases());
 
-        if ($cities->isEmpty() || $cities->contains('id', $cityId)) {
-            return null;
+        if ($requestedCityId !== null && ($cities->isEmpty() || $cities->contains('id', $requestedCityId))) {
+            return City::find($requestedCityId);
         }
 
         return $cities->first();

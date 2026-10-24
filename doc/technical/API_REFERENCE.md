@@ -4396,7 +4396,7 @@ Returns active vehicle classes available in a city. No authentication required. 
 GET /cities/detect
 ```
 
-No authentication required. Detects which live city a set of coordinates falls within, using reverse geocoding followed by boundary matching.
+No authentication required. Detects which live city a set of coordinates falls within. The city's drawn boundary decides, exactly as for estimates and bookings, so the city returned here is the one a booking from that point gets. Reverse geocoding only supplies `resolved_address` (and a name match for a city with no boundary drawn yet); a district name from the geocoder such as "Ikeja" never overrides the boundary.
 
 | Query Param | Type   | Required | Description                           |
 |-------------|--------|----------|---------------------------------------|
@@ -4673,6 +4673,12 @@ Authorization: Bearer {token}
 
 Single-city responses (show, create, update, toggle status, update vehicle classes) include a `warnings` array that flags vehicle classes with no pricing in effect. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
+**Overlapping boundaries.** Each pickup must belong to one city, so create and update refuse a boundary that overlaps another city's (shared borders are fine) and the readiness checklist will not launch one. Boundaries saved before that check (on staging, districts such as Ikeja or Oshodi drawn inside Lagos) can still overlap. They are shown where an admin can fix them, and never block other edits:
+- `GET /admin/cities`: each city has `overlapping_cities` (`[{ "id", "name" }]`, empty when none). Show a warning badge in the list.
+- Single-city responses: `warnings` gets one entry per overlapping city, e.g. `"Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border."`
+
+Fix it by redrawing one boundary (`PUT /admin/cities/{city_id}` with a new `boundary`) so they only share a border. Clearing a boundary does not stop a city taking bookings: a live city with no boundary can still be found by its geocoded name. To stop a city taking bookings, pause it (`POST /admin/cities/{city_id}/launch-status`); a paused city's boundary still claims the pickups inside it, so redraw or clear it as well.
+
 #### Multi-City Launches
 
 *Phase 2 (OQ-22, engineering recommendation of 16 Oct 2026, not yet client-confirmed).* A city has a `launch_status`:
@@ -4729,6 +4735,7 @@ GET /admin/cities
       "vehicle_classes_count": 3,
       "drivers_count": 12,
       "unpriced_vehicle_classes_count": 0,
+      "overlapping_cities": [],
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }
@@ -5260,11 +5267,13 @@ All fields are optional (partial update supported). Omitting `city_ids` leaves c
 POST /rides/estimate
 ```
 
-**Auth required.** Returns fare estimates for all active vehicle classes in the specified city. Detects cross-city rides and long-distance trips, returning warnings when applicable. Pickup city pricing always applies.
+**Auth required.** Returns fare estimates for all active vehicle classes in the pickup's city. Detects cross-city rides and long-distance trips, returning warnings when applicable. Pickup city pricing always applies.
+
+**The pickup decides the city (24 Oct 2026).** The server finds the city whose drawn boundary holds the pickup and quotes that city; the response's `city` says which. `city_id` is optional: it is used only when the pickup lies outside every drawn city (or inside the city sent, e.g. on a shared border). A stale or wrong `city_id` no longer causes an error. `POST /rides` resolves the city the same way, so the city quoted is the city booked.
 
 | Field           | Type   | Required | Description                |
 |-----------------|--------|----------|----------------------------|
-| city_id         | string (UUID) | Yes      | Must exist in cities table and be active |
+| city_id         | string (UUID) | No       | Fallback city for a pickup outside every drawn city. Ignored when the pickup lies inside another city |
 | pickup_lat      | number | Yes      | Pickup latitude (-90 to 90)|
 | pickup_lng      | number | Yes      | Pickup longitude (-180 to 180)|
 | destination_lat | number | Yes      | Destination latitude       |
@@ -5272,15 +5281,16 @@ POST /rides/estimate
 | scheduled_pickup_at | string (ISO 8601) | No | Quote a [scheduled ride](#scheduled-rides) for this pickup time. Must include a UTC offset (e.g. `2026-10-20T07:30:00+01:00`) and be in the future. Surge is then the surge in effect **at that time**: time-based and manual rules covering it apply, demand-based surge never does. Each estimate then also has `reservation_fee` (NGN, already included in `fare_estimate`; 0 while the fee is off). |
 
 **Validation rules:**
-- `city_id` must reference a **live** city. An onboarding city returns 422 `E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.`; a paused one `Rides in Lagos are paused for now. Please try again later.` (`POST /rides` returns the same)
+- The pickup's city must be **live**. A pickup inside an onboarding or paused city returns 422 on `pickup_lat` with that city's message (`E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.` / `Rides in Lagos are paused for now. Please try again later.`), whatever `city_id` says, so a city that has not opened cannot be booked under a live city's name and prices. When the city used is the `city_id` sent (pickup outside every drawn city), the same messages come on `city_id`. (`POST /rides` returns the same)
+- A pickup outside every drawn city with no `city_id` returns 422 on `pickup_lat`: `E-tiGo is not available at this pickup location yet.`
 - Pickup and destination coordinates cannot be identical — returns 422
-- The pickup cannot lie inside **another** city's drawn boundary (Phase 2 multi-city): 422 on `pickup_lat` — `This pickup is in Abuja. Choose Abuja as your city to book it.` when that city is live, or its not-open message (`E-tiGo is not available in Abuja yet. …` / `Rides in Abuja are paused for now. …`). This stops a city that has not opened being booked under a live city's name and prices. A pickup outside every drawn city keeps the named city. `POST /rides` and `PUT /rides/{ride}/scheduled` (new pickup) apply the same check
 
 **How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged (an upfront fare). Only two things can change it: a waiting charge after the free minutes, and a trip that runs significantly longer than the quoted time (more than 25% and at least 10 minutes over), which bills the actual trip time, capped at 3× the quoted time. A quicker trip keeps the quote.
 
 **Response 200:**
 ```json
 {
+  "city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos" },
   "estimates": [
     {
       "vehicle_class": {
@@ -6682,7 +6692,7 @@ Change the pickup time, pickup, destination or payment method of a booking befor
 
 **Response 200:** `{ "message": "Scheduled ride updated.", "ride": { ... } }`
 
-**Errors:** `403` not your ride. `422` `errors.ride` — `This ride is about to start looking for a driver and can no longer be changed. Cancel it and book again instead.` (at or after `dispatch_at`) or `Only a scheduled ride that has not started can be changed.`; `errors.scheduled_pickup_at` — as for booking; `errors.promo_code` — the code no longer applies to the changed trip; `errors.payment_method` — wallet cannot cover the new quote; `errors.pickup_lat` — the new pickup is inside another city's boundary (a booking stays in its city).
+**Errors:** `403` not your ride. `422` `errors.ride` — `This ride is about to start looking for a driver and can no longer be changed. Cancel it and book again instead.` (at or after `dispatch_at`) or `Only a scheduled ride that has not started can be changed.`; `errors.scheduled_pickup_at` — as for booking; `errors.promo_code` — the code no longer applies to the changed trip; `errors.payment_method` — wallet cannot cover the new quote; `errors.pickup_lat` — the new pickup is inside another city's boundary: `This pickup is in Abuja, not the booking's city. Cancel and book again to be picked up there.` (a booking keeps the city, prices and drivers it was booked with), or that city's not-open message.
 
 ---
 
