@@ -9,14 +9,14 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
-it('holds queued email to the provider rate and retries a refused send for an hour', function () {
+it('holds queued email to the provider rate and keeps retrying for a day', function () {
     $notification = new OperationsAlertNotification('Fleet', 'Headline', 'Body', [], '/admin', 'Open');
     $admin = new stdClass;
 
     expect($notification->middleware($admin, 'mail'))->toHaveCount(1)
         ->and($notification->middleware($admin, 'mail')[0])->toBeInstanceOf(RateLimited::class)
         ->and($notification->middleware($admin, 'database'))->toBe([])
-        ->and($notification->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addMinutes(59)->getTimestamp());
+        ->and($notification->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addHours(23)->getTimestamp());
 
     $limit = RateLimiter::limiter('mail')(new stdClass);
     expect($limit->maxAttempts)->toBe(8)->and($limit->decaySeconds)->toBe(1);

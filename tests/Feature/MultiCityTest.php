@@ -694,6 +694,31 @@ it('checks a boundary before it is saved, with warnings for one that is probably
         ->assertUnprocessable()->assertJsonValidationErrors('boundary.coordinates.0');
 });
 
+it('validates boundary shapes the same way when checking, creating and updating', function () {
+    $badPoint = ['type' => 'Point', 'coordinates' => ['bad', 'data'], 'radius_km' => 5];
+    $hugeRing = ['type' => 'Polygon', 'coordinates' => [array_map(fn (int $i) => [8.5 + 0.05 * cos($i / 80 * M_PI), 12.0 + 0.05 * sin($i / 80 * M_PI)], range(0, 501))]];
+
+    foreach ([$badPoint, $hugeRing] as $boundary) {
+        ($this->asAdmin)()->postJson('/api/v1/admin/cities/boundary-check', ['boundary' => $boundary])->assertUnprocessable();
+        ($this->asAdmin)()->postJson('/api/v1/admin/cities', ['name' => 'Kano', 'state' => 'Kano', 'boundary' => $boundary])->assertUnprocessable();
+        ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$this->lagos->id}", ['boundary' => $boundary])->assertUnprocessable();
+    }
+
+    ($this->asAdmin)()->postJson('/api/v1/admin/cities/boundary-check', ['boundary' => ['type' => 'Point', 'coordinates' => [8.5], 'radius_km' => 5]])
+        ->assertUnprocessable()->assertJsonValidationErrors('boundary.coordinates');
+});
+
+it('previews the area a polygon with a hole will be saved with', function () {
+    $outer = [[8.45, 11.95], [8.62, 11.95], [8.62, 12.08], [8.45, 12.08], [8.45, 11.95]];
+    $hole = [[8.50, 12.00], [8.55, 12.00], [8.55, 12.04], [8.50, 12.04], [8.50, 12.00]];
+    $boundary = ['type' => 'Polygon', 'coordinates' => [$outer, $hole]];
+
+    $area = ($this->asAdmin)()->postJson('/api/v1/admin/cities/boundary-check', ['boundary' => $boundary])->assertOk()->json('area_sq_km');
+
+    expect($area)->toBe(City::calculateAreaFromPolygon($boundary['coordinates']))
+        ->and($area)->toBeLessThan(City::calculateAreaFromPolygon([$outer]));
+});
+
 it('warns on the city page when a live city has no boundary or a doubtful one', function () {
     $jos = City::factory()->create(['name' => 'Jos', 'state' => 'Plateau']);
 

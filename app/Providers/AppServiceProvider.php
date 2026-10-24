@@ -110,9 +110,9 @@ class AppServiceProvider extends ServiceProvider
             return $this->createPlaceSearchGateway();
         });
 
-        // Routing and geocoding fail over Google -> Mapbox -> straight line,
-        // so one provider's rate limit or outage does not fail estimates or
-        // bookings.
+        // Each call fails over Google -> Mapbox -> straight line. The straight
+        // line answers routing (estimates and bookings never fail on a
+        // provider outage); geocoding an address needs a working provider.
         $this->app->bind(MapsGateway::class, function () {
             $googleApiKey = config('services.google_maps.api_key')
                 ?: config('services.google.places_api_key');

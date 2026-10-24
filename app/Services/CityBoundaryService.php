@@ -19,6 +19,13 @@ use App\Support\NigerianStates;
  */
 class CityBoundaryService
 {
+    /**
+     * Most points in one ring of a polygon (create, update and check
+     * enforce it): keeps the overlap and self-crossing checks fast; a
+     * detailed city outline needs far fewer.
+     */
+    public const MAX_BOUNDARY_POINTS = 500;
+
     private const DEFAULT_RADIUS_KM = 30.0;
 
     private const EDGE_TOLERANCE_KM = 0.01;
@@ -202,7 +209,8 @@ class CityBoundaryService
         }
 
         return [
-            'area_sq_km' => round(City::calculateAreaFromPolygon([[...$shape['ring'], $shape['ring'][0]]]), 2),
+            // All rings, so holes count as when the city is saved.
+            'area_sq_km' => round(City::calculateAreaFromPolygon($boundary['coordinates']), 2),
             'centre' => [
                 'lat' => round(array_sum(array_column($shape['ring'], 1)) / count($shape['ring']), 6),
                 'lng' => round(array_sum(array_column($shape['ring'], 0)) / count($shape['ring']), 6),
@@ -223,6 +231,12 @@ class CityBoundaryService
      */
     private function crossesItself(array $shape): bool
     {
+        // Quadratic in the number of edges: requests cap a ring at
+        // MAX_BOUNDARY_POINTS; an older, larger boundary is not checked.
+        if (count($shape['ring']) > self::MAX_BOUNDARY_POINTS) {
+            return false;
+        }
+
         $edges = $this->edges($this->project($shape, $this->meanLat($shape))['ring']);
         $n = count($edges);
 

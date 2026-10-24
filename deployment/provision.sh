@@ -53,6 +53,8 @@ mkdir -p /var/www/etigo-api/shared/storage/{app/public,framework/{cache,sessions
 mkdir -p /var/www/etigo-api/releases
 chown -R deploy:www-data /var/www/etigo-api
 chmod -R 775 /var/www/etigo-api/shared/storage
+# New log files keep group www-data (Reverb runs as www-data).
+chmod g+s /var/www/etigo-api/shared/storage/logs
 
 echo "==> Configuring PostgreSQL..."
 sudo -u postgres psql -c "SELECT 1 FROM pg_roles WHERE rolname='etigo'" | grep -q 1 || \

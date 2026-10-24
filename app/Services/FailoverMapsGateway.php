@@ -8,9 +8,11 @@ use Throwable;
 
 /**
  * Routing and geocoding through the configured providers in order (Google,
- * then Mapbox), ending with the straight-line estimate, so a provider's rate
- * limit or outage does not fail fare estimates, bookings or city detection.
- * Each provider that fails is logged as a warning and the next is tried.
+ * then Mapbox), ending with the straight-line gateway. Routing and reverse
+ * geocoding always get an answer, so a provider's rate limit or outage does
+ * not fail fare estimates, bookings or city detection; geocoding an address
+ * fails only when every real provider does. Each provider that fails is
+ * logged as a warning and the next is tried.
  */
 class FailoverMapsGateway implements MapsGateway
 {

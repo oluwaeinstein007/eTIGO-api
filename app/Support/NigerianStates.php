@@ -6,6 +6,8 @@ class NigerianStates
 {
     /**
      * Code, name and region of every state (the public lookup).
+     *
+     * @return list<array{code: string, name: string, region: string}>
      */
     public static function all(): array
     {

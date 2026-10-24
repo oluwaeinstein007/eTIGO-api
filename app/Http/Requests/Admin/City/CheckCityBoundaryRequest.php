@@ -12,6 +12,8 @@ use Illuminate\Validation\Rule;
  */
 class CheckCityBoundaryRequest extends FormRequest
 {
+    use ValidatesCityBoundary;
+
     public function authorize(): bool
     {
         return true;
@@ -33,12 +35,6 @@ class CheckCityBoundaryRequest extends FormRequest
             'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
         ];
 
-        if ($this->input('boundary.type') === 'Polygon') {
-            $rules['boundary.coordinates.*'] = ['array', 'min:3'];
-            $rules['boundary.coordinates.*.*'] = ['array', 'size:2'];
-            $rules['boundary.coordinates.*.*.*'] = ['numeric'];
-        }
-
-        return $rules;
+        return $this->withBoundaryShapeRules($rules);
     }
 }

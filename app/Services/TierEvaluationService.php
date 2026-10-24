@@ -43,7 +43,10 @@ class TierEvaluationService
             // outage must not fail the job after the points and tier are saved.
             DB::afterCommit(fn () => rescue(
                 fn () => TierUpgraded::dispatch($profile->user_id, $oldTier, $newTierConfig->tier_level, $newTierConfig->tier_name),
-                fn (\Throwable $e) => Log::warning('Tier upgrade broadcast failed', ['user_id' => $profile->user_id, 'error' => $e->getMessage()]),
+                fn (\Throwable $e) => rescue(
+                    fn () => Log::warning('Tier upgrade broadcast failed', ['user_id' => $profile->user_id, 'error' => $e->getMessage()]),
+                    report: false,
+                ),
                 report: false,
             ));
 

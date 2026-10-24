@@ -4739,6 +4739,8 @@ For the map editor: checks a boundary before it is saved. Saves nothing.
 
 `can_save` is false only when the boundary overlaps another city (create and update would return 422 on `boundary`). `warnings` uses the messages listed under *Doubtful boundaries*. A malformed boundary returns 422 like create.
 
+**Boundary shape rules** (check, create and update alike): a `Polygon` is rings of `[lng, lat]` number pairs, each ring 3 to 500 points (holes allowed; the area excludes them); a `Point` is exactly one `[lng, lat]` pair of numbers with an optional `radius_km`.
+
 #### Multi-City Launches
 
 *Phase 2 (OQ-22, engineering recommendation of 16 Oct 2026, not yet client-confirmed).* A city has a `launch_status`:
