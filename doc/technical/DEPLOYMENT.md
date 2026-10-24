@@ -6,7 +6,7 @@
 |-------------|---------------------------------|
 | Provider    | DigitalOcean Droplet             |
 | OS          | Ubuntu 24.04 LTS                 |
-| PHP         | 8.4 (FPM)                       |
+| PHP         | 8.5 (FPM)                       |
 | Web Server  | Nginx                           |
 | Database    | PostgreSQL 16                    |
 | Cache/Queue | Redis 7                         |
@@ -41,7 +41,7 @@ The pipeline is defined in `.github/workflows/staging.yml` and triggers on:
 
 ### Pipeline Steps
 
-1. **Test Job** (matrix: PHP 8.4 — the server version — and 8.5 — local development): spins up PostgreSQL 16 and Redis 7 service containers, installs PHP with extensions, runs `composer install`, executes migrations and runs the full test suite. Both must pass before deploying. `composer.json` pins `config.platform.php` to the server's 8.4.26, so `composer update` on a newer local PHP cannot lock packages the server cannot run.
+1. **Test Job** (PHP 8.5, the version the server and local development run): spins up PostgreSQL 16 and Redis 7 service containers, installs PHP with extensions, runs `composer install`, executes migrations and runs the full test suite. It must pass before deploying. `composer.json` pins `config.platform.php` to the server's 8.5.12, so `composer update` on a newer local PHP cannot lock packages the server cannot run.
 2. **Deploy Job** (push only): SSHs into the server and runs the deploy script, which clones the latest code, installs dependencies, runs migrations, caches config/routes/views, and swaps the symlink for zero-downtime.
 
 ### GitHub Secrets Required
@@ -90,7 +90,7 @@ php artisan storage:link
 ln -nfs ${RELEASE_DIR} ${APP_DIR}/current
 '
 
-sudo systemctl restart php8.4-fpm
+sudo systemctl restart php8.5-fpm
 sudo supervisorctl restart etigo-worker:*
 php artisan reverb:restart
 ```
@@ -148,7 +148,7 @@ ls -lt /var/www/etigo-api/releases/
 
 # Switch to a previous release
 ln -nfs /var/www/etigo-api/releases/<PREVIOUS_RELEASE> /var/www/etigo-api/current
-sudo systemctl restart php8.4-fpm
+sudo systemctl restart php8.5-fpm
 sudo supervisorctl restart etigo-worker:*
 ```
 
@@ -260,7 +260,7 @@ sudo systemctl restart nginx
 sudo nginx -t                          # test config before restart
 
 # PHP-FPM
-sudo systemctl restart php8.4-fpm
+sudo systemctl restart php8.5-fpm
 
 # Queue Workers
 sudo supervisorctl status etigo-worker:*
@@ -279,6 +279,17 @@ sudo systemctl restart redis-server
 # PostgreSQL
 sudo systemctl restart postgresql
 ```
+
+### Changing the PHP version
+
+Staging moved from 8.4 to 8.5 this way on 24 Oct 2026. Install the new version next to the old one and keep the old one until the switch is checked.
+
+1. Install the same packages as the old version: `dpkg -l 'php8.4*'` lists them (on 8.5, OPcache is built in and has no package).
+2. Copy `/etc/php/<old>/fpm/pool.d/etigo.conf` to the new version with the new socket path, delete the new version's `www.conf`, and restart its FPM service.
+3. Point `fastcgi_pass` at the new socket in `/etc/nginx/sites-enabled/etigo-api`. On staging this is its own file, not a link to `sites-available`, and it holds the long websocket timeouts. Run `nginx -t`, reload nginx and check `/api/v1/health`.
+4. `sudo update-alternatives --set php /usr/bin/php<new>` moves the CLI, so the queue workers, Reverb, telemetry and the scheduler follow. Restart them with `sudo supervisorctl restart all`.
+5. Update `PHP_VERSION` in `deployment/provision.sh`, `config.platform.php` in `composer.json` (then `composer update --lock`) and the CI matrix. The deploy script reloads every running FPM service, so it needs no change.
+6. Once a deploy has gone through on the new version, stop and disable the old FPM service.
 
 ## Logs
 

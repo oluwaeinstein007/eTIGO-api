@@ -8,14 +8,14 @@ on:
 
 jobs:
   test:
-    # 8.4 is what the servers run (composer.json pins config.platform.php to
-    # it); 8.5 is what developers run locally. Both must pass to deploy.
+    # 8.5 is what the servers and developers run (composer.json pins
+    # config.platform.php to it). Add a version here when moving to the next.
     name: Tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.4', '8.5']
+        php: ['8.5']
 
     services:
       postgres:

@@ -20,7 +20,7 @@ The API serves three clients: the **Passenger app** and **Driver app** (mobile) 
 | Component | Technology |
 |-----------|------------|
 | Framework | Laravel 13, API-only, routes under `/api/v1` |
-| PHP | Servers run 8.4 (8.4.26). `composer.json` pins `config.platform.php` to 8.4.26 so dependencies always resolve for the servers; CI runs the suite on 8.4 and 8.5 (local development) |
+| PHP | 8.5 everywhere: servers (8.5.12), local development and CI. `composer.json` requires `^8.5` and pins `config.platform.php` to 8.5.12 so dependencies always resolve for the servers |
 | Database | PostgreSQL 16 — UUID primary keys everywhere, JSONB for snapshots and payloads |
 | Cache / sessions | Redis (`CACHE_STORE=redis`, tagged cache) |
 | Driver locations | Redis connection `geolocation` (DB `REDIS_GEO_DB`, default 3) — GEO index + per-driver keys |
@@ -653,7 +653,7 @@ vendor/bin/pint --dirty --format agent         # format changed files
 - Disputes: `DisputeTest` (filing, admin list and filters, resolve, wallet and card refunds) and `AdvancedDisputesTest` (routing and safety fast track, SOS link, linked cases, visibility and tier permissions, taking and assigning, evidence lock and audit, evidence uploads, escalation and de-escalation, refund limits and approvals, target sweep and alerts, appeals and reviewer exclusion, admin deactivation and role change, reporter view, settings).
 - Driver scheduling and vehicle maintenance: `DriverSchedulingTest` (shift mode, rota and overlaps, overnight shifts, limits, edits and cancellation, go-online window and car handover, offer cut-off in matching, missed / ending / late-handover / shift-end sweep, back-to-back shifts, reservations inside shifts, availability plans and coverage, settings) and `VehicleMaintenanceTest` (items by fuel type, driver records with proof and approval, odometer rules, km and date due, trip distance, grace warning, block and its side effects, renewal lifting it, no trip interrupted, matching and manual assignment, reminders once and the operations digest, expiry rules, admin papers and records, unlinked papers, charge level, settings).
 - Edge-case suites per area: `RideEdgeCaseTest`, `MatchingEdgeCaseTest`, `WalletPayoutEdgeCaseTest`, `AccountSafetyEdgeCaseTest`, `OperationsEdgeCaseTest`, `ApiErrorHandlingTest`.
-- CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.4 and 8.5 with PostgreSQL 16 and Redis 7 for every pull request to `staging`; both must pass before a push to `staging` deploys.
+- CI (`.github/workflows/staging.yml`) runs the suite on PHP 8.5 with PostgreSQL 16 and Redis 7 for every pull request to `staging`; it must pass before a push to `staging` deploys.
 
 ---
 

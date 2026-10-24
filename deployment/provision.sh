@@ -6,6 +6,9 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Keep in step with config.platform.php in composer.json and the CI matrix.
+PHP_VERSION="8.5"
+
 echo "==> Updating system packages..."
 apt-get update && apt-get upgrade -y
 
@@ -14,16 +17,17 @@ apt-get install -y \
     curl wget git unzip software-properties-common \
     ufw fail2ban supervisor acl
 
-echo "==> Adding PHP 8.3 repository..."
+echo "==> Adding PHP repository..."
 add-apt-repository -y ppa:ondrej/php
 apt-get update
 
-echo "==> Installing PHP 8.3 and extensions..."
+echo "==> Installing PHP ${PHP_VERSION} and extensions..."
 apt-get install -y \
-    php8.4-fpm php8.4-cli php8.4-common \
-    php8.4-pgsql php8.4-mbstring php8.4-xml php8.4-curl \
-    php8.4-zip php8.4-bcmath php8.4-intl php8.4-readline \
-    php8.4-redis php8.4-gd php8.4-tokenizer
+    php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-common \
+    php${PHP_VERSION}-pgsql php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl \
+    php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath php${PHP_VERSION}-intl php${PHP_VERSION}-readline \
+    php${PHP_VERSION}-redis php${PHP_VERSION}-igbinary php${PHP_VERSION}-gd
+update-alternatives --set php "/usr/bin/php${PHP_VERSION}"
 
 echo "==> Installing Nginx..."
 apt-get install -y nginx
@@ -88,7 +92,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
+        fastcgi_pass unix:/var/run/php/phpPHP_VERSION-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_hide_header X-Powered-By;
@@ -106,17 +110,18 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 }
 NGINX
+sed -i "s/phpPHP_VERSION-fpm/php${PHP_VERSION}-fpm/" /etc/nginx/sites-available/etigo-api
 
 ln -sf /etc/nginx/sites-available/etigo-api /etc/nginx/sites-enabled/etigo-api
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 
 echo "==> Configuring PHP-FPM pool..."
-cat > /etc/php/8.3/fpm/pool.d/etigo.conf << 'PHPFPM'
+cat > "/etc/php/${PHP_VERSION}/fpm/pool.d/etigo.conf" << PHPFPM
 [etigo]
 user = deploy
 group = www-data
-listen = /var/run/php/php8.4-fpm.sock
+listen = /var/run/php/php${PHP_VERSION}-fpm.sock
 listen.owner = www-data
 listen.group = www-data
 pm = dynamic
@@ -130,9 +135,9 @@ php_admin_value[error_log] = /var/log/php/etigo-error.log
 php_admin_flag[log_errors] = on
 PHPFPM
 
-rm -f /etc/php/8.3/fpm/pool.d/www.conf
+rm -f "/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
 mkdir -p /var/log/php
-systemctl restart php8.4-fpm
+systemctl restart "php${PHP_VERSION}-fpm"
 
 echo "==> Configuring Laravel queue worker (Supervisor)..."
 cat > /etc/supervisor/conf.d/etigo-worker.conf << 'SUPERVISOR'
