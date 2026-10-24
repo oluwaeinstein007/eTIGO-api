@@ -69,16 +69,48 @@ sudo supervisorctl restart etigo-reverb 2>/dev/null || true
 # port to free up before starting.
 TELEMETRY_PORT="$(php artisan tinker --execute='echo config("telemetry.port", 8081);' 2>/dev/null | tail -1)"
 TELEMETRY_PORT="${TELEMETRY_PORT:-8081}"
+telemetry_port_held() {
+    ss -ltnH "sport = :${TELEMETRY_PORT}" | grep -q .
+}
+
+# Stop the telemetry gateway processes holding the port: each worker's
+# Workerman master first (it restarts workers that exit), then the worker.
+# Only our own processes titled EtigoTelemetryGateway, never another listener.
+stop_leftover_telemetry() {
+    local signal="$1" pid ppid masters="" workers=""
+    for pid in $(ss -ltnpH "sport = :${TELEMETRY_PORT}" | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
+        ps -o cmd= -p "${pid}" | grep -q "EtigoTelemetryGateway" || continue
+        workers="${workers} ${pid}"
+        ppid="$(ps -o ppid= -p "${pid}" | tr -d ' ')"
+        if [ -n "${ppid}" ] && ps -o cmd= -p "${ppid}" | grep -q "WorkerMan: master process"; then
+            masters="${masters} ${ppid}"
+        fi
+    done
+    # Each process once, masters first.
+    for pid in $(echo "${masters}" | tr ' ' '\n' | sort -u) $(echo "${workers}" | tr ' ' '\n' | sort -u); do
+        kill "-${signal}" "${pid}" 2>/dev/null || true
+    done
+}
+
+wait_for_telemetry_port() {
+    for _ in $(seq 1 "$1"); do
+        telemetry_port_held || return 0
+        sleep 1
+    done
+    ! telemetry_port_held
+}
+
 sudo supervisorctl stop etigo-telemetry 2>/dev/null || true
 php artisan telemetry:serve stop 2>/dev/null || true
-for _ in $(seq 1 15); do
-    ss -ltn "sport = :${TELEMETRY_PORT}" | grep -q LISTEN || break
-    sleep 1
-done
-if ss -ltn "sport = :${TELEMETRY_PORT}" | grep -q LISTEN; then
-    echo "    port ${TELEMETRY_PORT} still held; stopping leftover telemetry workers"
-    pkill -INT -u "$(id -un)" -f "EtigoTelemetryGateway" 2>/dev/null || true
-    sleep 3
+if ! wait_for_telemetry_port 15; then
+    echo "    port ${TELEMETRY_PORT} still held; stopping leftover telemetry processes"
+    stop_leftover_telemetry INT
+    wait_for_telemetry_port 10 || { stop_leftover_telemetry KILL; wait_for_telemetry_port 5 || true; }
+fi
+if telemetry_port_held; then
+    echo "ERROR: port ${TELEMETRY_PORT} is held by a process that is not the telemetry gateway; telemetry not started." >&2
+    ss -ltnp "sport = :${TELEMETRY_PORT}" >&2 || true
+    exit 1
 fi
 sudo supervisorctl start etigo-telemetry 2>/dev/null || true
 
