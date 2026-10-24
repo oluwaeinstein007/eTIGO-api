@@ -17,7 +17,7 @@
 
 All seeded accounts use the password: **`Qwer!234`**
 
-Run `php artisan db:seed` to populate the database with the test data below.
+Run `php artisan db:seed` (local and staging only; the demo seeders refuse to run in production) to populate the database with the test data below. Running it again adds nothing.
 
 #### Admin Accounts (email/password login)
 
@@ -26,39 +26,62 @@ Run `php artisan db:seed` to populate the database with the test data below.
 | `admin@etigo.com` | Super Admin | Default super admin |
 | `ops@etigo.com` | Operations | Operations manager |
 | `safety@etigo.com` | Safety Operator | SOS/safety console |
-| `support@etigo.com` | Support | Customer support |
+| `support@etigo.com` | Support | Customer support (tier 1 disputes) |
+| `supportlead@etigo.com` | Support Lead | Tier 2 disputes, refund approvals up to ₦50,000 |
 | `finance@etigo.com` | Finance | Finance & payments manager |
 
 #### Passenger Accounts (OTP login)
 
 | Phone | Email | Name |
 |-------|-------|------|
-| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye |
-| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor |
-| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu |
+| `+2348100000001` | `ade@demo.etigo.com` | Ade Ogunleye (on a wallet trip in Lagos now; airport booking tomorrow) |
+| `+2348100000002` | `ngozi@demo.etigo.com` | Ngozi Okafor (booking in three days) |
+| `+2348100000003` | `emeka@demo.etigo.com` | Emeka Nwosu (Abuja; airport booking in two days) |
 | `+2348100000004` | `funmi@demo.etigo.com` | Funmi Adeyemi |
-| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze |
+| `+2348100000005` | `chidi@demo.etigo.com` | Chidi Eze (Abuja) |
 
 #### Driver Accounts (OTP login)
 
-| Phone | Email | Name | Status | Vehicle |
-|-------|-------|------|--------|---------|
-| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Approved (Online) | Toyota Corolla — Economy |
-| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Approved (Offline) | Honda Accord — Comfort |
-| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Approved (Online) | Mercedes-Benz EQE (electric) — Premium |
-| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Pending Review | Toyota Highlander — SUV |
-| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Suspended | Nissan Sentra — Economy |
-| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Rejected | — |
+| Phone | Email | Name | City | Status | Vehicle |
+|-------|-------|------|------|--------|---------|
+| `+2348200000001` | `bayo@demo.etigo.com` | Bayo Akinola | Lagos | Approved (Online) | Toyota Corolla — Economy |
+| `+2348200000002` | `kemi@demo.etigo.com` | Kemi Bakare | Lagos | Approved (Offline) | Honda Accord — Comfort |
+| `+2348200000003` | `segun@demo.etigo.com` | Segun Obaseki | Abuja | Approved (Online) | Mercedes-Benz EQE (electric) — Premium |
+| `+2348200000004` | `amara@demo.etigo.com` | Amara Nnamdi | Abuja | Pending Review | Toyota Highlander — SUV |
+| `+2348200000005` | `tunde@demo.etigo.com` | Tunde Fashola | Lagos | Suspended | Nissan Sentra — Economy |
+| `+2348200000006` | `ify@demo.etigo.com` | Ify Okoro | Port Harcourt | Rejected | — |
+
+#### City Demo Accounts
+
+Every city also has local drivers and passengers (`CityActivityDemoSeeder`), named for the area:
+
+- Drivers: `<first>.<last>.<city-slug>@ops-demo.etigo.com`, phones `+234906…`. Matching never offers real rides to `@ops-demo.etigo.com` drivers, and they stay offline. Most are approved with documents, KYC and a bank account; one per city is awaiting review.
+- Passengers: `<first>.<last>.<city-slug>@demo.etigo.com`, phones `+234907…`, with home and work saved, most with a card and a topped-up wallet.
+- Fleet shift drivers: `rasheed.adewale.fleet@ops-demo.etigo.com` and `chukwudi.eze.fleet@ops-demo.etigo.com` share the Lagos fleet Corolla `KJA-910FL`.
 
 ### Seeded Reference Data
 
-**Cities:** Lagos (live, 40km), Abuja (live, 30km), Port Harcourt (live, 20km), Ibadan (onboarding, 20km)
+**Cities** (`CitySeeder`, from `database/seeders/Data/NigerianCities.php`): each has a polygon boundary around its built-up area (no two overlap) and real landmarks used for trips.
 
-**Vehicle Classes:** Economy (4 pax), Comfort (4 pax), Premium (4 pax), SUV (6 pax)
+All 22 are live: Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekiti, Akure, Enugu, Aba, Umuahia, Benin City, Owerri, Kano, Uyo, Warri, Asaba, Onitsha, Kaduna, Jos, Osogbo and Calabar.
 
-**Pricing:** Configured per city per vehicle class (base fare ₦600–₦1,200; per-km ₦250–₦500; 5 min free waiting)
+**Vehicle Classes:** Economy (4 pax), Comfort (4 pax), Premium (4 pax), SUV (6 pax). Lagos and Abuja offer all four; large cities (Port Harcourt, Ibadan, Enugu, Benin City, Kano) Economy to Premium; other cities Economy and Comfort.
 
-**Promo Codes:** `WELCOME50` (50% off, max ₦2,000), `RIDE500` (₦500 flat), `OFFPEAK20` (20% off-peak only)
+**Pricing** (`PricingConfigSeeder`, NGN, 5 min free waiting everywhere):
+
+| Tier | Economy (base / per km / per min / minimum) | Comfort | Premium | SUV |
+|------|------|------|------|------|
+| A: Lagos, Abuja | 700 / 230 / 35 / 1,800 | 1,000 / 320 / 50 / 2,500 | 1,500 / 450 / 70 / 4,000 | 1,300 / 400 / 60 / 3,500 |
+| B: large cities | 600 / 200 / 30 / 1,500 | 850 / 270 / 45 / 2,100 | 1,300 / 380 / 60 / 3,400 | 1,100 / 340 / 50 / 3,000 |
+| C: other cities | 500 / 170 / 25 / 1,200 | 700 / 230 / 35 / 1,700 | 1,100 / 320 / 50 / 2,800 | 950 / 290 / 45 / 2,500 |
+
+**Promo Codes:** `WELCOME50` (50% off, max ₦2,000), `RIDE500` (₦500 flat), `OFFPEAK20` (20% off-peak only); city codes `ILORIN500`, `COALCITY20` (Enugu), `GARDENCITY15` (Port Harcourt), `BENINLAUNCH` (Benin City, from its launch date).
+
+**Activity:** a few weeks of trips in every city (cash, card and wallet; some cancelled or with no driver found), priced from the city's fares, settled through the ledger, rated and scored for carbon points. `ledger:check` passes on the seeded data.
+
+**Phase 2 screens:** `ScheduledRidesDemoSeeder` (bookings upcoming, reserved, dispatched, failed), `DisputesDemoSeeder` (every status, tier 2, safety, refunds approved, pending and rejected, an appeal), `LostAndFoundDemoSeeder` (every status, with conversations), `DriverOperationsDemoSeeder` (availability plans, fleet shifts, maintenance records and statuses, repair requests) and `FinanceDemoSeeder` (payouts in every status, adjustments, abandoned and failed top-ups). Each can be run on its own with `php artisan db:seed --class=<Seeder>`.
+
+**On demand** (reset each time they run, not part of `db:seed`): `MonitoringDemoSeeder` (live monitoring, needs Redis), `OfflineFlagsDemoSeeder` (compliance), `EvStationsDemoSeeder` (EV station details).
 
 ### Authentication Flow
 
