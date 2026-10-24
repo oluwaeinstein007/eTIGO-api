@@ -167,6 +167,15 @@ cat > /etc/cron.d/etigo-scheduler << 'CRON'
 CRON
 chmod 644 /etc/cron.d/etigo-scheduler
 
+echo "==> Enabling PHP security auto-updates..."
+# Copied next to this script (see DEPLOYMENT.md, Server Provisioning).
+PHP_AUTO_UPDATE="$(dirname "$0")/php-auto-update.sh"
+if [ -f "${PHP_AUTO_UPDATE}" ]; then
+    bash "${PHP_AUTO_UPDATE}"
+else
+    echo "    WARNING: ${PHP_AUTO_UPDATE} not found; run deployment/php-auto-update.sh on this server."
+fi
+
 echo "==> Configuring UFW firewall..."
 ufw default deny incoming
 ufw default allow outgoing
