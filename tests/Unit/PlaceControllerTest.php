@@ -3,6 +3,7 @@
 use App\Contracts\MapsGateway;
 use App\Contracts\PlaceSearchGateway;
 use App\Http\Controllers\Api\V1\PlaceController;
+use App\Services\FailoverMapsGateway;
 use App\Services\FailoverPlaceSearchGateway;
 use App\Services\GeoapifyGateway;
 use App\Services\GooglePlacesGateway;
@@ -129,11 +130,22 @@ test('container resolves GooglePlacesGateway when google driver configured', fun
     expect($resolved)->toBeInstanceOf(GooglePlacesGateway::class);
 });
 
-test('container resolves MapsGateway as GooglePlacesGateway when google api key configured', function () {
+test('container resolves MapsGateway with Google first, failing over to Mapbox and the straight line', function () {
     config()->set('services.google_maps.api_key', 'test-google-key');
     config()->set('services.google.places_api_key', 'test-google-key');
+    config()->set('services.mapbox.access_token', 'test-mapbox-token');
 
     $resolved = app(MapsGateway::class);
 
-    expect($resolved)->toBeInstanceOf(GooglePlacesGateway::class);
+    expect($resolved)->toBeInstanceOf(FailoverMapsGateway::class)
+        ->and(array_map(fn ($driver) => $driver::class, $resolved->getDrivers()))
+        ->toBe([GooglePlacesGateway::class, MapboxGateway::class, HaversineMapsGateway::class]);
+});
+
+test('container resolves MapsGateway as the straight line alone when no provider is configured', function () {
+    config()->set('services.google_maps.api_key', null);
+    config()->set('services.google.places_api_key', null);
+    config()->set('services.mapbox.access_token', null);
+
+    expect(app(MapsGateway::class))->toBeInstanceOf(HaversineMapsGateway::class);
 });

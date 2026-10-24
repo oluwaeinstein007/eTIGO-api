@@ -143,6 +143,23 @@ describe('TierEvaluationService', function () {
         });
     });
 
+    it('keeps the promotion when the tier broadcast fails', function () {
+        // As when Reverb is down: the broadcast throws after the commit.
+        Event::listen(TierUpgraded::class, fn () => throw new RuntimeException('Pusher error: <html>'));
+
+        $profile = GamificationProfile::create([
+            'user_id' => $this->passenger->id,
+            'total_carbon_score' => 0,
+            'total_ranking_points' => 450,
+            'current_tier' => TierLevel::Bronze->value,
+        ]);
+
+        $result = app(TierEvaluationService::class)->evaluateAndPromote($profile, 100, 5.0);
+
+        expect($result['promoted'])->toBeTrue()
+            ->and($profile->fresh()->current_tier)->toBe(TierLevel::Silver->value);
+    });
+
     it('does not promote when below threshold', function () {
         Event::fake([TierUpgraded::class]);
 

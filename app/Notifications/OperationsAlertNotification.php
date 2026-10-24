@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\ThrottlesMail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -13,7 +14,7 @@ use Illuminate\Notifications\Notification;
  */
 class OperationsAlertNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, ThrottlesMail;
 
     /**
      * @param  list<string>  $lines  one entry per car or shift

@@ -17,6 +17,12 @@ return [
     'default' => env('MAIL_MAILER', 'log'),
 
     /*
+    | Most emails queued per second (App\Notifications\Concerns\ThrottlesMail).
+    | Resend allows 10 a second on its standard plan; keep some headroom.
+    */
+    'rate_limit_per_second' => (int) env('MAIL_RATE_LIMIT_PER_SECOND', 8),
+
+    /*
     |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------

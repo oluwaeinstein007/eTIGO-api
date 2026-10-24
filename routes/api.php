@@ -512,6 +512,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:operations')->prefix('cities')->group(function () {
         Route::get('/', [AdminCityController::class, 'index']);
         Route::post('/', [AdminCityController::class, 'store']);
+        Route::post('/boundary-check', [AdminCityController::class, 'checkBoundary']);
         Route::get('/{city}', [AdminCityController::class, 'show']);
         Route::put('/{city}', [AdminCityController::class, 'update']);
         Route::patch('/{city}/status', [AdminCityController::class, 'toggleStatus']);

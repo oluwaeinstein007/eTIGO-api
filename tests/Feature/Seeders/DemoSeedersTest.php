@@ -53,6 +53,9 @@ it('seeds consistent data across Nigerian cities', function () {
     expect(City::whereIn('slug', array_column(NigerianCities::all(), 'slug'))->count())->toBe(count(NigerianCities::all()));
     expect(collect(app(CityBoundaryService::class)->overlapsFor(City::all()))->filter()->keys()->all())->toBe([]);
 
+    // ...and none looks wrong (size, shape, state).
+    City::all()->each(fn (City $city) => expect(app(CityBoundaryService::class)->sanityWarnings($city->boundary, $city->state))->toBe([], "{$city->name} boundary"));
+
     $detection = app(CityDetectionService::class);
     foreach (NigerianCities::all() as $data) {
         foreach ($data['landmarks'] as [$lat, $lng, $label]) {

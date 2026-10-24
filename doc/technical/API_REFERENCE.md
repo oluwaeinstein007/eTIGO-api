@@ -4702,6 +4702,43 @@ Single-city responses (show, create, update, toggle status, update vehicle class
 
 Fix it by redrawing one boundary (`PUT /admin/cities/{city_id}` with a new `boundary`) so they only share a border. Clearing a boundary does not stop a city taking bookings: a live city with no boundary can still be found by its geocoded name. To stop a city taking bookings, pause it (`POST /admin/cities/{city_id}/launch-status`); a paused city's boundary still claims the pickups inside it, so redraw or clear it as well.
 
+**Doubtful boundaries.** Single-city responses' `warnings` also flag a boundary that saves but is probably wrong (they never block a save):
+- coordinates swapped (GeoJSON is `[longitude, latitude]`), or part of the boundary outside Nigeria;
+- a circle instead of an outline;
+- an area under 10 km² or over 2,500 km² (the Lagos metropolis is about 1,400 km²);
+- an outline that crosses itself;
+- a centre more than 250 km from the capital of the city's `state`;
+- a live city with no boundary at all.
+
+Check a boundary while drawing it with [Check City Boundary](#check-city-boundary) before saving.
+
+### Check City Boundary
+```
+POST /admin/cities/boundary-check
+```
+For the map editor: checks a boundary before it is saved. Saves nothing.
+
+| Field    | Type          | Required | Description |
+|----------|---------------|----------|-------------|
+| boundary | object        | Yes      | As on create: `{ "type": "Polygon", "coordinates": [[[lng, lat], ...]] }` or `{ "type": "Point", "coordinates": [lng, lat], "radius_km": 10 }` |
+| state    | string        | No       | The city's state, to check the boundary is drawn there |
+| city_id  | string (UUID) | No       | The city being edited (its own boundary is not an overlap) |
+
+**Response 200:**
+```json
+{
+  "can_save": false,
+  "overlapping_city": { "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b", "name": "Lagos" },
+  "area_sq_km": 98.42,
+  "centre": { "lat": 6.54, "lng": 3.35 },
+  "warnings": [
+    "This boundary is a circle. Draw an outline around the built-up area instead: a circle takes in water, farmland and neighbouring towns, and is hard to keep clear of other cities."
+  ]
+}
+```
+
+`can_save` is false only when the boundary overlaps another city (create and update would return 422 on `boundary`). `warnings` uses the messages listed under *Doubtful boundaries*. A malformed boundary returns 422 like create.
+
 #### Multi-City Launches
 
 *Phase 2 (OQ-22, engineering recommendation of 16 Oct 2026, not yet client-confirmed).* A city has a `launch_status`:

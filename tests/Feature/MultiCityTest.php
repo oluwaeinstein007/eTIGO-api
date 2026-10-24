@@ -611,9 +611,9 @@ it('points a passenger in a city that is not open to the waitlist when detecting
 // === BOUNDARIES (BE2-CITY-05) ===
 
 it('shows admins the cities whose boundaries overlap, saved before overlaps were refused', function () {
-    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$this->lagos->id}")
-        ->assertOk()
-        ->assertJsonPath('warnings', []);
+    $overlapWarnings = fn ($response) => collect($response->assertOk()->json('warnings'))->filter(fn (string $w) => str_contains($w, 'overlaps'))->values()->all();
+
+    expect($overlapWarnings(($this->asAdmin)()->getJson("/api/v1/admin/cities/{$this->lagos->id}")))->toBe([]);
 
     // Saved directly, as the legacy staging districts were.
     $oshodi = City::factory()->onboarding()->create([
@@ -636,11 +636,76 @@ it('shows admins the cities whose boundaries overlap, saved before overlaps were
         ->assertJsonPath('warnings.0', "Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.");
 
     // Other edits to an overlapping city still save; redrawing clears it.
-    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$oshodi->id}", [
+    expect($overlapWarnings(($this->asAdmin)()->putJson("/api/v1/admin/cities/{$oshodi->id}", [
         'boundary' => ['type' => 'Point', 'coordinates' => [3.336449, 7.2], 'radius_km' => 5],
-    ])->assertOk()->assertJsonPath('warnings', []);
+    ])))->toBe([]);
 
     expect($kano->fresh()->boundary)->not->toBeNull();
+});
+
+it('checks a boundary before it is saved, with warnings for one that is probably wrong', function () {
+    $check = fn (array $boundary, ?string $state = null) => ($this->asAdmin)()
+        ->postJson('/api/v1/admin/cities/boundary-check', array_filter(['boundary' => $boundary, 'state' => $state]))
+        ->assertOk();
+    $polygon = fn (array $ring) => ['type' => 'Polygon', 'coordinates' => [$ring]];
+    $kano = [[8.45, 11.95], [8.62, 11.95], [8.62, 12.08], [8.45, 12.08], [8.45, 11.95]];
+
+    // A sensible outline: saves, no warnings.
+    $check($polygon($kano), 'Kano')
+        ->assertJsonPath('can_save', true)
+        ->assertJsonPath('overlapping_city', null)
+        ->assertJsonPath('warnings', [])
+        ->assertJsonPath('centre.lat', 12.015);
+    expect($check($polygon($kano), 'Kano')->json('area_sq_km'))->toBeGreaterThan(200)->toBeLessThan(330);
+
+    // Latitude and longitude swapped.
+    $check($polygon(array_map(fn ($p) => [$p[1], $p[0]], $kano)), 'Kano')
+        ->assertJsonPath('warnings', ['The coordinates look swapped. GeoJSON lists longitude first, then latitude ([lng, lat]); swapped back, this boundary is where the city should be.']);
+
+    // Swapped Lagos points fall outside Nigeria altogether.
+    $check($polygon([[6.50, 3.30], [6.50, 3.40], [6.58, 3.40], [6.58, 3.30], [6.50, 3.30]]))
+        ->assertJsonPath('warnings.0', 'The coordinates look swapped. GeoJSON lists longitude first, then latitude ([lng, lat]); swapped back, this boundary is where the city should be.');
+
+    // A 50 km circle (staging's old Kagoro): a circle, and far too big.
+    expect($check(['type' => 'Point', 'coordinates' => [8.512867, 9.668549], 'radius_km' => 50], 'Kaduna')->json('warnings'))
+        ->toHaveCount(2)
+        ->sequence(
+            fn ($w) => $w->toStartWith('This boundary is a circle.'),
+            fn ($w) => $w->toStartWith('This boundary covers 7,854 km²'),
+        );
+
+    // Too small, crossing itself, and in the wrong state.
+    $check($polygon([[8.50, 12.00], [8.52, 12.00], [8.52, 12.02], [8.50, 12.02], [8.50, 12.00]]), 'Kano')
+        ->assertJsonPath('warnings.0', 'This boundary covers only 4.8 km², so most pickups in the city would fall outside it.');
+    $check($polygon([[8.45, 11.95], [8.62, 12.08], [8.62, 11.95], [8.45, 12.08], [8.45, 11.95]]), 'Kano')
+        ->assertJsonPath('warnings', ['The outline crosses itself. Redraw it so its edges do not cross.']);
+    expect($check($polygon($kano), 'Lagos')->json('warnings.0'))->toStartWith('This boundary is about 828 km from Ikeja, Lagos\'s capital.');
+
+    // Overlapping Lagos: saving would be refused.
+    $check($polygon([[3.30, 6.50], [3.40, 6.50], [3.40, 6.58], [3.30, 6.58], [3.30, 6.50]]), 'Lagos')
+        ->assertJsonPath('can_save', false)
+        ->assertJsonPath('overlapping_city.id', $this->lagos->id);
+
+    // ...but not when it is Lagos's own boundary being edited.
+    ($this->asAdmin)()->postJson('/api/v1/admin/cities/boundary-check', ['boundary' => $this->lagos->boundary, 'city_id' => $this->lagos->id])
+        ->assertOk()->assertJsonPath('can_save', true);
+
+    ($this->asAdmin)()->postJson('/api/v1/admin/cities/boundary-check', ['boundary' => ['type' => 'Polygon', 'coordinates' => [[[3.3, 6.5]]]]])
+        ->assertUnprocessable()->assertJsonValidationErrors('boundary.coordinates.0');
+});
+
+it('warns on the city page when a live city has no boundary or a doubtful one', function () {
+    $jos = City::factory()->create(['name' => 'Jos', 'state' => 'Plateau']);
+
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$jos->id}")
+        ->assertOk()
+        ->assertJsonFragment(['Jos has no map boundary, so pickups are not placed in it by location. Draw its outline.']);
+
+    $jos->update(['boundary' => ['type' => 'Point', 'coordinates' => [8.8583, 9.8965], 'radius_km' => 10]]);
+
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$jos->id}")
+        ->assertOk()
+        ->assertJsonFragment(['This boundary is a circle. Draw an outline around the built-up area instead: a circle takes in water, farmland and neighbouring towns, and is hard to keep clear of other cities.']);
 });
 
 it('refuses a boundary that overlaps another city', function () {

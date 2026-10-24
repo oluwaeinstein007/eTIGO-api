@@ -16808,6 +16808,163 @@
               ]
             },
             {
+              "name": "Check City Boundary",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          8.45,\n          11.95\n        ],\n        [\n          8.62,\n          11.95\n        ],\n        [\n          8.62,\n          12.08\n        ],\n        [\n          8.45,\n          12.08\n        ],\n        [\n          8.45,\n          11.95\n        ]\n      ]\n    ]\n  },\n  \"state\": \"Kano\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/cities/boundary-check",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "cities",
+                    "boundary-check"
+                  ]
+                },
+                "description": "For the map editor: checks a boundary before saving it. Saves nothing.\n\n- `can_save` is false when the boundary overlaps another city (create/update would return 422 on `boundary`); `overlapping_city` names it.\n- `area_sq_km` and `centre` describe the shape.\n- `warnings` flags a boundary that saves but is probably wrong: coordinates swapped (GeoJSON is [lng, lat]) or outside Nigeria, a circle instead of an outline, under 10 km\u00b2 or over 2,500 km\u00b2, an outline crossing itself, or more than 250 km from the capital of `state`.\n\nOptional `state` (checks the boundary is drawn there) and `city_id` (the city being edited, whose own boundary is not an overlap)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Good Outline",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          8.45,\n          11.95\n        ],\n        [\n          8.62,\n          11.95\n        ],\n        [\n          8.62,\n          12.08\n        ],\n        [\n          8.45,\n          12.08\n        ],\n        [\n          8.45,\n          11.95\n        ]\n      ]\n    ]\n  },\n  \"state\": \"Kano\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/cities/boundary-check",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "cities",
+                        "boundary-check"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"can_save\": true,\n  \"overlapping_city\": null,\n  \"area_sq_km\": 266.03,\n  \"centre\": {\n    \"lat\": 12.015,\n    \"lng\": 8.535\n  },\n  \"warnings\": []\n}"
+                },
+                {
+                  "name": "200 \u2014 Overlap and Circle",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"boundary\": {\n    \"type\": \"Point\",\n    \"coordinates\": [\n      3.336449,\n      6.558231\n    ],\n    \"radius_km\": 10\n  },\n  \"state\": \"Lagos\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/cities/boundary-check",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "cities",
+                        "boundary-check"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"can_save\": false,\n  \"overlapping_city\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"name\": \"Lagos\"\n  },\n  \"area_sq_km\": 314.16,\n  \"centre\": {\n    \"lat\": 6.558231,\n    \"lng\": 3.336449\n  },\n  \"warnings\": [\n    \"This boundary is a circle. Draw an outline around the built-up area instead: a circle takes in water, farmland and neighbouring towns, and is hard to keep clear of other cities.\"\n  ]\n}"
+                },
+                {
+                  "name": "200 \u2014 Coordinates Swapped",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"boundary\": {\n    \"type\": \"Polygon\",\n    \"coordinates\": [\n      [\n        [\n          11.95,\n          8.45\n        ],\n        [\n          11.95,\n          8.62\n        ],\n        [\n          12.08,\n          8.62\n        ],\n        [\n          12.08,\n          8.45\n        ],\n        [\n          11.95,\n          8.45\n        ]\n      ]\n    ]\n  },\n  \"state\": \"Kano\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/cities/boundary-check",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "cities",
+                        "boundary-check"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"can_save\": true,\n  \"overlapping_city\": null,\n  \"area_sq_km\": 266.03,\n  \"centre\": {\n    \"lat\": 8.535,\n    \"lng\": 12.015\n  },\n  \"warnings\": [\n    \"The coordinates look swapped. GeoJSON lists longitude first, then latitude ([lng, lat]); swapped back, this boundary is where the city should be.\"\n  ]\n}"
+                }
+              ]
+            },
+            {
               "name": "Get City",
               "request": {
                 "method": "GET",
@@ -16839,7 +16996,7 @@
                     }
                   ]
                 },
-                "description": "Returns city with loaded vehicle classes and aggregate counts.\n\n**Counts included:**\n- `vehicle_classes_count` \u2014 number of assigned vehicle classes\n- `drivers_count` \u2014 total registered drivers in this city\n- `trips_count` \u2014 total rides (all statuses)\n- `active_rides_count` \u2014 rides currently in progress (Matched, DriverEnRoute, DriverArrived, InProgress)\n- `active_drivers_count` \u2014 approved drivers currently online\n\n**Multi-city:** the response adds `readiness` ({ready, missing, counts}); the full checklist is `GET /admin/cities/{city}/readiness`.\n\n`warnings` (plain English, never blocking) flags pricing gaps and a boundary that overlaps another city: \"Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.\""
+                "description": "Returns city with loaded vehicle classes and aggregate counts.\n\n**Counts included:**\n- `vehicle_classes_count` \u2014 number of assigned vehicle classes\n- `drivers_count` \u2014 total registered drivers in this city\n- `trips_count` \u2014 total rides (all statuses)\n- `active_rides_count` \u2014 rides currently in progress (Matched, DriverEnRoute, DriverArrived, InProgress)\n- `active_drivers_count` \u2014 approved drivers currently online\n\n**Multi-city:** the response adds `readiness` ({ready, missing, counts}); the full checklist is `GET /admin/cities/{city}/readiness`.\n\n`warnings` (plain English, never blocking) flags pricing gaps and a boundary that overlaps another city: \"Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.\"\n\n`warnings` also flags a doubtful boundary (coordinates swapped or outside Nigeria, a circle, under 10 km\u00b2 or over 2,500 km\u00b2, crossing itself, far from the city's state) and a live city with no boundary. See **Check City Boundary**."
               },
               "response": [
                 {

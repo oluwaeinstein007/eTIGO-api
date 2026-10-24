@@ -282,9 +282,23 @@ sudo systemctl restart postgresql
 
 ## Logs
 
+The application log rotates daily: one file per day, kept 14 days, so it never grows without limit. Set in `shared/.env`:
+
+```env
+LOG_CHANNEL=stack
+LOG_STACK=daily
+LOG_DAILY_DAYS=14
+LOG_LEVEL=info
+```
+
+Run `php artisan config:cache` after changing them (config is cached). Each day's file is created by whichever process logs first: the web, queue and telemetry processes run as `deploy` but Reverb runs as `www-data`, so the channel writes files group-writable (`0664`) and `shared/storage/logs` has the setgid bit (`chmod g+s`, group `www-data`) so new files keep group `www-data`. Logs are for engineers on the server; they hold personal data and are never served over the API. Errors worth acting on belong in an error tracker (Sentry or Laravel Nightwatch), and problems admins must fix are shown to them in the app (city and pricing `warnings`, operations alert emails).
+
 ```bash
-# Laravel application log
-tail -f /var/www/etigo-api/shared/storage/logs/laravel.log
+# Laravel application log (today's file)
+tail -f /var/www/etigo-api/shared/storage/logs/laravel-$(date +%F).log
+
+# Errors and warnings in the last few days
+grep -hE '\.(ERROR|CRITICAL|WARNING):' /var/www/etigo-api/shared/storage/logs/laravel-*.log | tail -50
 
 # Queue worker log
 tail -f /var/www/etigo-api/shared/storage/logs/worker.log

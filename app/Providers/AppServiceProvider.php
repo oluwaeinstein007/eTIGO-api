@@ -13,6 +13,7 @@ use App\Events\TierUpgraded;
 use App\Gateways\PaystackWalletGateway;
 use App\Listeners\SendTierUpgradedNotification;
 use App\Models\PersonalAccessToken;
+use App\Services\FailoverMapsGateway;
 use App\Services\FailoverPlaceSearchGateway;
 use App\Services\FakeKycGateway;
 use App\Services\FakePaymentGateway;
@@ -32,8 +33,10 @@ use App\Services\QoreIdKycGateway;
 use App\Services\SendchampGateway;
 use App\Support\CloudinaryAdapter;
 use Cloudinary\Cloudinary;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Kreait\Firebase\Factory;
@@ -71,6 +74,10 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(TierUpgraded::class, SendTierUpgradedNotification::class);
 
         $this->registerCloudinaryDriver();
+
+        // Queued email stays under the provider's limit (Resend allows 10 a
+        // second); see App\Notifications\Concerns\ThrottlesMail.
+        RateLimiter::for('mail', fn () => Limit::perSecond(max(1, (int) config('mail.rate_limit_per_second'))));
     }
 
     private function registerCloudinaryDriver(): void
@@ -103,24 +110,22 @@ class AppServiceProvider extends ServiceProvider
             return $this->createPlaceSearchGateway();
         });
 
+        // Routing and geocoding fail over Google -> Mapbox -> straight line,
+        // so one provider's rate limit or outage does not fail estimates or
+        // bookings.
         $this->app->bind(MapsGateway::class, function () {
             $googleApiKey = config('services.google_maps.api_key')
                 ?: config('services.google.places_api_key');
-
-            if (! empty($googleApiKey)) {
-                return new GooglePlacesGateway(
-                    $googleApiKey,
-                    config('services.places.country', 'ng'),
-                );
-            }
-
             $accessToken = config('services.mapbox.access_token');
 
-            if ($accessToken) {
-                return new MapboxGateway($accessToken);
-            }
+            $drivers = array_values(array_filter([
+                ! empty($googleApiKey) ? new GooglePlacesGateway($googleApiKey, config('services.places.country', 'ng')) : null,
+                $accessToken ? new MapboxGateway($accessToken) : null,
+            ]));
 
-            return new HaversineMapsGateway;
+            return $drivers === []
+                ? new HaversineMapsGateway
+                : new FailoverMapsGateway([...$drivers, new HaversineMapsGateway]);
         });
     }
 
