@@ -9,7 +9,7 @@ class LogSmsGateway implements SmsGateway
 {
     public function send(string $phone, string $message): bool
     {
-        Log::channel('single')->info('SMS sent', [
+        Log::info('SMS sent', [
             'phone' => $phone,
             'message' => $message,
         ]);

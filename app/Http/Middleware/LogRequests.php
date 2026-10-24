@@ -17,7 +17,8 @@ class LogRequests
 
         $duration = round((microtime(true) - $start) * 1000, 2);
 
-        Log::channel('single')->info('API Request', [
+        // Its own daily file (requests-YYYY-MM-DD.log), kept LOG_DAILY_DAYS.
+        Log::channel('requests')->info('API Request', [
             'method' => $request->method(),
             'path' => $request->path(),
             'status' => $response->getStatusCode(),

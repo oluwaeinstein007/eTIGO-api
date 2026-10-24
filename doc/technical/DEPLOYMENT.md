@@ -297,6 +297,9 @@ Run `php artisan config:cache` after changing them (config is cached). Each day'
 # Laravel application log (today's file; -F waits for it to be created)
 tail -F /var/www/etigo-api/shared/storage/logs/laravel-$(date +%F).log
 
+# API requests (one line each, LogRequests), also daily
+tail -F /var/www/etigo-api/shared/storage/logs/requests-$(date +%F).log
+
 # The last 50 errors and warnings across the kept files
 grep -hE '\.(ERROR|CRITICAL|WARNING):' /var/www/etigo-api/shared/storage/logs/laravel-*.log | tail -50
 
