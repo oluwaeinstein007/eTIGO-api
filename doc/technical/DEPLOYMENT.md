@@ -160,8 +160,14 @@ For provisioning a fresh server, use `deployment/provision.sh`. It installs all 
 
 ```bash
 # On a fresh Ubuntu 24.04 droplet as root:
-scp deployment/provision.sh root@<SERVER_IP>:/tmp/provision.sh
+scp deployment/provision.sh deployment/php-auto-update.sh root@<SERVER_IP>:/tmp/
 ssh root@<SERVER_IP> "bash /tmp/provision.sh"
+```
+
+`provision.sh` runs `php-auto-update.sh` from the same folder. That script lets Ubuntu's unattended-upgrades install PHP from the ondrej PPA (Ubuntu's default skips it) and adds an apt hook that restarts any supervisor program still running a replaced PHP binary, so Reverb and the telemetry gateway pick up a PHP security release without anyone watching. PHP-FPM is restarted by its own package, and queue workers also recycle hourly. Restarts are logged to syslog under `etigo-restart-stale-php`. On an existing server, run it on its own:
+
+```bash
+ssh root@<SERVER_IP> 'bash -s' < deployment/php-auto-update.sh
 ```
 
 After provisioning, update:
