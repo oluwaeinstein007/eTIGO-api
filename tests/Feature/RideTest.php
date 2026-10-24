@@ -8,6 +8,7 @@ use App\Events\RideStatusUpdated;
 use App\Jobs\DispatchRideRequestJob;
 use App\Jobs\FinalFareCalculationJob;
 use App\Jobs\MatchingTimeoutJob;
+use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\Payment;
@@ -24,6 +25,9 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake();
 
     $this->passenger = User::factory()->create(['type' => UserType::Passenger]);

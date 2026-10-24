@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\PaymentGateway;
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Services\FakePaymentGateway;
@@ -28,21 +29,23 @@ it('lists payment methods for the authenticated user', function () {
         ->getJson('/api/v1/payment-methods');
 
     $response->assertOk()
-        ->assertJsonCount(2, 'payment_methods')
-        ->assertJsonPath('payment_methods.0.type', 'cash')
-        ->assertJsonPath('payment_methods.0.is_default', false)
-        ->assertJsonPath('payment_methods.1.type', 'card')
-        ->assertJsonPath('payment_methods.1.card_last_four', '4242')
-        ->assertJsonPath('payment_methods.1.provider', 'paystack')
-        ->assertJsonPath('payment_methods.1.is_default', true)
+        ->assertJsonCount(1, 'payment_methods')
+        ->assertJsonPath('payment_methods.0.type', 'card')
+        ->assertJsonPath('payment_methods.0.card_last_four', '4242')
+        ->assertJsonPath('payment_methods.0.provider', 'paystack')
+        ->assertJsonPath('payment_methods.0.is_default', true)
         ->assertJsonMissing(['gateway_token' => 'tok_test_123']);
 });
 
-it('always includes cash as a payment method even with no saved cards', function () {
-    $response = $this->withToken($this->token)
-        ->getJson('/api/v1/payment-methods');
+it('lists cash only while cash payments are switched on', function () {
+    $this->withToken($this->token)->getJson('/api/v1/payment-methods')
+        ->assertOk()
+        ->assertJsonCount(0, 'payment_methods');
 
-    $response->assertOk()
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
+    $this->withToken($this->token)->getJson('/api/v1/payment-methods')
+        ->assertOk()
         ->assertJsonCount(1, 'payment_methods')
         ->assertJsonPath('payment_methods.0.type', 'cash')
         ->assertJsonPath('payment_methods.0.label', 'Cash')

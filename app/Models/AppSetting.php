@@ -92,7 +92,16 @@ class AppSetting extends Model
             'payout_account_hold_first_account' => filter_var($settings['wallet.payout_account_hold_first_account'] ?? config('wallet.payout_account_hold_first_account'), FILTER_VALIDATE_BOOLEAN),
             'payout_account_name_check' => (string) ($settings['wallet.payout_account_name_check'] ?? config('wallet.payout_account_name_check')),
             'block_booking_with_balance_due' => filter_var($settings['wallet.block_booking_with_balance_due'] ?? config('wallet.block_booking_with_balance_due'), FILTER_VALIDATE_BOOLEAN),
+            'cash_payments_enabled' => filter_var($settings['wallet.cash_payments_enabled'] ?? config('wallet.cash_payments_enabled'), FILTER_VALIDATE_BOOLEAN),
         ];
+    }
+
+    /**
+     * Whether passengers may choose cash for new bookings.
+     */
+    public static function cashPaymentsEnabled(): bool
+    {
+        return (bool) static::wallet('cash_payments_enabled');
     }
 
     /**

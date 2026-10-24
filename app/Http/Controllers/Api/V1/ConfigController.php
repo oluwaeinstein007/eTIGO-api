@@ -25,6 +25,15 @@ class ConfigController extends Controller
             'emergency_number' => (string) config('sos.emergency_number', '112'),
             'support_phone' => AppSetting::getValue('general.support_phone'),
             'support_email' => AppSetting::getValue('general.support_email'),
+            // How passengers may pay for a booking: hide cash when it is off.
+            'payments' => [
+                'cash_enabled' => AppSetting::cashPaymentsEnabled(),
+                'methods' => array_values(array_filter([
+                    PaymentMethod::Card->value,
+                    PaymentMethod::Wallet->value,
+                    AppSetting::cashPaymentsEnabled() ? PaymentMethod::Cash->value : null,
+                ])),
+            ],
             'scheduled_rides' => self::scheduledRideBookingRules(),
             'third_party_bookings' => self::thirdPartyBookingRules(),
             'lost_and_found' => self::lostAndFoundRules(),
@@ -70,7 +79,7 @@ class ConfigController extends Controller
             'payment_methods' => array_values(array_filter([
                 PaymentMethod::Wallet->value,
                 PaymentMethod::Card->value,
-                $settings['allow_cash'] ? PaymentMethod::Cash->value : null,
+                $settings['allow_cash'] && AppSetting::cashPaymentsEnabled() ? PaymentMethod::Cash->value : null,
                 $settings['allow_bank_transfer'] ? PaymentMethod::BankTransfer->value : null,
             ])),
             'pin_recipient' => $settings['pin_recipient'],

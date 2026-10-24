@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\ThirdPartyRecipient;
 use App\Models\City;
 use App\Models\PricingConfig;
+use App\Rules\CashPaymentsAllowed;
 use App\Services\CityDetectionService;
 use App\Services\ScheduledRideService;
 use App\Services\ThirdPartyBookingService;
@@ -40,7 +41,7 @@ class StoreRideRequest extends FormRequest
             'destination_lat' => ['required', 'numeric', 'between:-90,90'],
             'destination_lng' => ['required', 'numeric', 'between:-180,180'],
             'destination_address' => ['required', 'string', 'max:500'],
-            'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'payment_method' => ['required', Rule::enum(PaymentMethod::class), new CashPaymentsAllowed],
             'promo_code' => ['nullable', 'string', 'max:50'],
             // Book for later (Phase 2): ISO 8601 with a UTC offset, e.g.
             // 2026-10-20T07:30:00+01:00. Omit to request a ride now.

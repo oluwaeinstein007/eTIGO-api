@@ -30,6 +30,11 @@ return [
 
     'max_cash_overpayment' => (int) env('WALLET_MAX_CASH_OVERPAYMENT', 200000), // ₦2,000
 
+    // Whether passengers may choose cash for new bookings. Off: the client
+    // prefers card and wallet only. Rides already booked in cash still
+    // finish normally. Finance can switch it on (PUT /admin/settings/wallet).
+    'cash_payments_enabled' => (bool) env('WALLET_CASH_PAYMENTS_ENABLED', false),
+
     /*
     |--------------------------------------------------------------------------
     | Hold Expiry

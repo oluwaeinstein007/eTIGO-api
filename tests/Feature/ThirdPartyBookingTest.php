@@ -37,6 +37,9 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake();
 
     $this->travelTo(Carbon::parse('2026-10-19 08:00:00', 'UTC'));

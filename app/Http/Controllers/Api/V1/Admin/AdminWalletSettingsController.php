@@ -34,6 +34,7 @@ class AdminWalletSettingsController extends Controller
                 'payout_account_hold_first_account' => $settings['payout_account_hold_first_account'],
                 'payout_account_name_check' => $settings['payout_account_name_check'],
                 'block_booking_with_balance_due' => $settings['block_booking_with_balance_due'],
+                'cash_payments_enabled' => $settings['cash_payments_enabled'],
             ],
         ]);
     }
@@ -54,9 +55,10 @@ class AdminWalletSettingsController extends Controller
             'payout_account_hold_first_account' => ['sometimes', 'boolean'],
             'payout_account_name_check' => ['sometimes', 'string', Rule::enum(PayoutAccountNameCheck::class)],
             'block_booking_with_balance_due' => ['sometimes', 'boolean'],
+            'cash_payments_enabled' => ['sometimes', 'boolean'],
         ]);
 
-        foreach (['payout_account_hold_first_account', 'block_booking_with_balance_due'] as $flag) {
+        foreach (['payout_account_hold_first_account', 'block_booking_with_balance_due', 'cash_payments_enabled'] as $flag) {
             if (array_key_exists($flag, $validated)) {
                 $validated[$flag] = $request->boolean($flag);
             }
