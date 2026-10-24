@@ -43,8 +43,9 @@ use Illuminate\Support\Str;
  *   of trips (cash, card and wallet, some cancelled or unmatched), priced
  *   from the city's fares, settled through the real services, rated and
  *   scored for carbon points.
- * - Calabar (paused): the same, up to the day it was paused.
- * - Onboarding cities: driver applicants and a passenger waitlist.
+ * - A city an admin has since paused: the same, up to the day it was
+ *   paused, and a waitlist. An onboarding one: driver applicants and a
+ *   waitlist.
  * - City promo codes for Ilorin, Enugu, Port Harcourt and Benin City.
  *
  * Drivers use @ops-demo.etigo.com, so matching never offers them real rides,

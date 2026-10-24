@@ -3,9 +3,9 @@
 namespace Database\Seeders\Data;
 
 /**
- * Demo cities across Nigeria for staging and local data: the launch cities
- * and the next ones in line, each with a map boundary drawn around its built-up
- * area and real landmarks (lat, lng, label) used as pickups and destinations.
+ * Demo cities across Nigeria for staging and local data, all live, each
+ * with a map boundary drawn around its built-up area and real landmarks
+ * (lat, lng, label) used as pickups and destinations.
  *
  * Boundaries never overlap, so every pickup maps to one city (OQ-22).
  * Coordinates are [lng, lat], as GeoJSON. `tier` sets the fare level:
@@ -370,8 +370,8 @@ final class NigerianCities
                 'slug' => 'benin-city',
                 'state' => 'Edo',
                 'region' => 'South-South',
-                'launch_status' => 'onboarding',
-                'launch_date' => '2026-12-01',
+                'launch_status' => 'live',
+                'launch_date' => null,
                 'tier' => 'B',
                 'boundary' => [[
                     [5.5909, 6.2872],
@@ -397,8 +397,8 @@ final class NigerianCities
                 'slug' => 'owerri',
                 'state' => 'Imo',
                 'region' => 'South-East',
-                'launch_status' => 'onboarding',
-                'launch_date' => '2027-01-15',
+                'launch_status' => 'live',
+                'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
                     [6.9910, 5.3620],
@@ -423,7 +423,7 @@ final class NigerianCities
                 'slug' => 'uyo',
                 'state' => 'Akwa Ibom',
                 'region' => 'South-South',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -449,7 +449,7 @@ final class NigerianCities
                 'slug' => 'calabar',
                 'state' => 'Cross River',
                 'region' => 'South-South',
-                'launch_status' => 'paused',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -475,7 +475,7 @@ final class NigerianCities
                 'slug' => 'warri',
                 'state' => 'Delta',
                 'region' => 'South-South',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -501,7 +501,7 @@ final class NigerianCities
                 'slug' => 'asaba',
                 'state' => 'Delta',
                 'region' => 'South-South',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -526,7 +526,7 @@ final class NigerianCities
                 'slug' => 'onitsha',
                 'state' => 'Anambra',
                 'region' => 'South-East',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -551,8 +551,8 @@ final class NigerianCities
                 'slug' => 'kano',
                 'state' => 'Kano',
                 'region' => 'North-West',
-                'launch_status' => 'onboarding',
-                'launch_date' => '2027-02-01',
+                'launch_status' => 'live',
+                'launch_date' => null,
                 'tier' => 'B',
                 'boundary' => [[
                     [8.4871, 11.9480],
@@ -578,7 +578,7 @@ final class NigerianCities
                 'slug' => 'kaduna',
                 'state' => 'Kaduna',
                 'region' => 'North-West',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -604,7 +604,7 @@ final class NigerianCities
                 'slug' => 'jos',
                 'state' => 'Plateau',
                 'region' => 'North-Central',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[
@@ -630,7 +630,7 @@ final class NigerianCities
                 'slug' => 'osogbo',
                 'state' => 'Osun',
                 'region' => 'South-West',
-                'launch_status' => 'onboarding',
+                'launch_status' => 'live',
                 'launch_date' => null,
                 'tier' => 'C',
                 'boundary' => [[

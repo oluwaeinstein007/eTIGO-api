@@ -12,10 +12,9 @@ use Database\Seeders\Data\NigerianCities;
 use Illuminate\Database\Seeder;
 
 /**
- * Cities across Nigeria (Data\NigerianCities): the live launch cities, the
- * next ones onboarding (some with the client's target date), and Calabar
- * paused. Each has a map boundary around its built-up area and the vehicle
- * classes its fare tier offers.
+ * Cities across Nigeria (Data\NigerianCities), all live. Each has a map
+ * boundary around its built-up area and the vehicle classes its fare tier
+ * offers.
  *
  * Only missing cities are created, so launch statuses and boundaries changed
  * by admins are kept. A city still on the circle an earlier seeder drew gets

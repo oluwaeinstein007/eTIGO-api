@@ -9,7 +9,6 @@ use App\Enums\PayoutStatus;
 use App\Enums\RideStatus;
 use App\Models\Adjustment;
 use App\Models\City;
-use App\Models\CityWaitlistEntry;
 use App\Models\Dispute;
 use App\Models\DisputeRefundRequest;
 use App\Models\Driver;
@@ -55,9 +54,7 @@ it('seeds consistent data across Nigerian cities', function () {
         }
     }
 
-    expect(City::where('launch_status', CityLaunchStatus::Live)->count())->toBeGreaterThanOrEqual(11)
-        ->and(City::where('launch_status', CityLaunchStatus::Onboarding)->count())->toBeGreaterThanOrEqual(10)
-        ->and(City::where('launch_status', CityLaunchStatus::Paused)->count())->toBe(1)
+    expect(City::where('launch_status', CityLaunchStatus::Live)->count())->toBe(count(NigerianCities::all()))
         ->and(app(PricingCoverageService::class)->gaps(City::live()->pluck('id')->all()))->toBeEmpty();
 
     // Every live city has drivers and trips; every pickup is in its city.
@@ -68,8 +65,7 @@ it('seeds consistent data across Nigerian cities', function () {
     Ride::all()->each(fn (Ride $ride) => expect($detection->pickupCity($ride->city_id, (float) $ride->pickup_lat, (float) $ride->pickup_lng)?->id)->toBe($ride->city_id));
 
     // Phase 2 screens have something in each state.
-    expect(CityWaitlistEntry::count())->toBeGreaterThan(10)
-        ->and(PromoCode::whereHas('cities')->count())->toBe(4)
+    expect(PromoCode::whereHas('cities')->count())->toBe(4)
         ->and(ScheduledRide::count())->toBeGreaterThanOrEqual(5)
         ->and(Dispute::pluck('status')->unique()->sort()->values()->all())->toEqualCanonicalizing([DisputeStatus::Open, DisputeStatus::UnderReview, DisputeStatus::Resolved, DisputeStatus::Dismissed])
         ->and(Dispute::where('escalation_tier', 2)->count())->toBeGreaterThanOrEqual(2)

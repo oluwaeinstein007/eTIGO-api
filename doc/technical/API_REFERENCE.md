@@ -63,11 +63,7 @@ Every city also has local drivers and passengers (`CityActivityDemoSeeder`), nam
 
 **Cities** (`CitySeeder`, from `database/seeders/Data/NigerianCities.php`): each has a polygon boundary around its built-up area (no two overlap) and real landmarks used for trips.
 
-| Status | Cities |
-|--------|--------|
-| Live | Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekiti, Akure, Enugu, Aba, Umuahia |
-| Onboarding | Benin City, Owerri and Kano (with made-up target dates for the readiness screen; real launch dates are the client's), Uyo, Warri, Asaba, Onitsha, Kaduna, Jos, Osogbo |
-| Paused | Calabar |
+All 22 are live: Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekiti, Akure, Enugu, Aba, Umuahia, Benin City, Owerri, Kano, Uyo, Warri, Asaba, Onitsha, Kaduna, Jos, Osogbo and Calabar.
 
 **Vehicle Classes:** Economy (4 pax), Comfort (4 pax), Premium (4 pax), SUV (6 pax). Lagos and Abuja offer all four; large cities (Port Harcourt, Ibadan, Enugu, Benin City, Kano) Economy to Premium; other cities Economy and Comfort.
 
@@ -81,7 +77,7 @@ Every city also has local drivers and passengers (`CityActivityDemoSeeder`), nam
 
 **Promo Codes:** `WELCOME50` (50% off, max ₦2,000), `RIDE500` (₦500 flat), `OFFPEAK20` (20% off-peak only); city codes `ILORIN500`, `COALCITY20` (Enugu), `GARDENCITY15` (Port Harcourt), `BENINLAUNCH` (Benin City, from its launch date).
 
-**Activity:** a few weeks of trips in every launched city (cash, card and wallet; some cancelled or with no driver found), priced from the city's fares, settled through the ledger, rated and scored for carbon points. Waitlists for the onboarding cities and paused Calabar. `ledger:check` passes on the seeded data.
+**Activity:** a few weeks of trips in every city (cash, card and wallet; some cancelled or with no driver found), priced from the city's fares, settled through the ledger, rated and scored for carbon points. `ledger:check` passes on the seeded data.
 
 **Phase 2 screens:** `ScheduledRidesDemoSeeder` (bookings upcoming, reserved, dispatched, failed), `DisputesDemoSeeder` (every status, tier 2, safety, refunds approved, pending and rejected, an appeal), `LostAndFoundDemoSeeder` (every status, with conversations), `DriverOperationsDemoSeeder` (availability plans, fleet shifts, maintenance records and statuses, repair requests) and `FinanceDemoSeeder` (payouts in every status, adjustments, abandoned and failed top-ups). Each can be run on its own with `php artisan db:seed --class=<Seeder>`.
 
