@@ -44,7 +44,6 @@ Schedule::job(new ReconcilePayoutsJob)->everyFifteenMinutes()->withoutOverlappin
 Schedule::job(new DailyReconciliationJob)->dailyAt('02:00');
 Schedule::command('ledger:check')->dailyAt('02:30')->withoutOverlapping();
 Schedule::command('pricing:check-coverage')->dailyAt('07:00')->timezone('Africa/Lagos');
-Schedule::command('cities:check-overlaps')->dailyAt('07:05')->timezone('Africa/Lagos');
 Schedule::job(new ExpireEvReservationsJob)->everyFiveMinutes()->withoutOverlapping();
 Schedule::job(new ProcessEvChargeRequestsJob)->everyMinute()->withoutOverlapping();
 Schedule::job(new CheckSilentDriversJob)->everyMinute()->withoutOverlapping();

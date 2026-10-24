@@ -46,29 +46,41 @@ class CityBoundaryService
     }
 
     /**
-     * Every pair of cities whose saved boundaries overlap. Saving refuses a
-     * new overlap, so these are boundaries saved before that check or
-     * changed outside the admin API.
+     * For each city, the other cities whose saved boundary overlaps it.
+     * Saving refuses a new overlap, so these are boundaries saved before
+     * that check; the admin city screens show them so they get redrawn.
      *
-     * @return list<array{0: City, 1: City}>
+     * @param  iterable<City>  $cities
+     * @return array<string, list<City>>
      */
-    public function overlappingPairs(): array
+    public function overlapsFor(iterable $cities): array
     {
-        $cities = City::query()->whereNotNull('boundary')->orderBy('name')->get()
-            ->filter(fn (City $city) => is_array($city->boundary))
-            ->values();
+        $drawn = City::query()->whereNotNull('boundary')->orderBy('name')->get()
+            ->filter(fn (City $city) => is_array($city->boundary));
 
-        $pairs = [];
+        $overlaps = [];
 
-        foreach ($cities as $i => $city) {
-            foreach ($cities->slice($i + 1) as $other) {
-                if ($this->overlaps($city->boundary, $other->boundary)) {
-                    $pairs[] = [$city, $other];
-                }
-            }
+        foreach ($cities as $city) {
+            $overlaps[$city->id] = is_array($city->boundary)
+                ? $drawn->filter(fn (City $other) => $other->id !== $city->id && $this->overlaps($city->boundary, $other->boundary))->values()->all()
+                : [];
         }
 
-        return $pairs;
+        return $overlaps;
+    }
+
+    /**
+     * Plain-English warnings for the admin city screens, one per city whose
+     * boundary overlaps this one.
+     *
+     * @return list<string>
+     */
+    public function warningsForCity(City $city): array
+    {
+        return array_map(
+            fn (City $other) => "{$city->name}'s boundary overlaps {$other->name}. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.",
+            $this->overlapsFor([$city])[$city->id],
+        );
     }
 
     /**

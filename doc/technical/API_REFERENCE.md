@@ -4673,6 +4673,12 @@ Authorization: Bearer {token}
 
 Single-city responses (show, create, update, toggle status, update vehicle classes) include a `warnings` array that flags vehicle classes with no pricing in effect. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
+**Overlapping boundaries.** Each pickup must belong to one city, so create and update refuse a boundary that overlaps another city's (shared borders are fine) and the readiness checklist will not launch one. Boundaries saved before that check (on staging, districts such as Ikeja or Oshodi drawn inside Lagos) can still overlap. They are shown where an admin can fix them, and never block other edits:
+- `GET /admin/cities`: each city has `overlapping_cities` (`[{ "id", "name" }]`, empty when none). Show a warning badge in the list.
+- Single-city responses: `warnings` gets one entry per overlapping city, e.g. `"Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border."`
+
+Fix it by redrawing one boundary (`PUT /admin/cities/{city_id}` with a new `boundary`), or by clearing the boundary of a city that should not take bookings.
+
 #### Multi-City Launches
 
 *Phase 2 (OQ-22, engineering recommendation of 16 Oct 2026, not yet client-confirmed).* A city has a `launch_status`:
@@ -4729,6 +4735,7 @@ GET /admin/cities
       "vehicle_classes_count": 3,
       "drivers_count": 12,
       "unpriced_vehicle_classes_count": 0,
+      "overlapping_cities": [],
       "created_at": "2026-10-01T10:00:00.000000Z",
       "updated_at": "2026-10-01T10:00:00.000000Z"
     }

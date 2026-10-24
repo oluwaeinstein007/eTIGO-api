@@ -8,6 +8,7 @@ use App\Exceptions\CityLaunchException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CityResource;
 use App\Models\City;
+use App\Services\CityBoundaryService;
 use App\Services\CityLaunchService;
 use App\Services\CityReadinessService;
 use App\Services\PricingCoverageService;
@@ -25,6 +26,7 @@ class AdminCityLaunchController extends Controller
         private CityReadinessService $readiness,
         private CityLaunchService $launch,
         private PricingCoverageService $coverage,
+        private CityBoundaryService $boundaries,
     ) {}
 
     public function readiness(City $city): JsonResponse
@@ -119,7 +121,7 @@ class AdminCityLaunchController extends Controller
             'scheduled_rides_to_cancel' => $result['scheduled_rides_to_cancel'],
             'active_rides' => $result['active_rides'],
             'readiness' => $this->readiness->report($city),
-            'warnings' => $this->coverage->warningsForCity($city),
+            'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
 }

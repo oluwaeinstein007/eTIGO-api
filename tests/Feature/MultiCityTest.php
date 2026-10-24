@@ -610,22 +610,37 @@ it('points a passenger in a city that is not open to the waitlist when detecting
 
 // === BOUNDARIES (BE2-CITY-05) ===
 
-it('lists overlapping city boundaries saved before overlaps were refused', function () {
-    $this->artisan('cities:check-overlaps')->assertSuccessful();
+it('shows admins the cities whose boundaries overlap, saved before overlaps were refused', function () {
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$this->lagos->id}")
+        ->assertOk()
+        ->assertJsonPath('warnings', []);
 
-    City::factory()->create([
+    // Saved directly, as the legacy staging districts were.
+    $oshodi = City::factory()->onboarding()->create([
         'name' => 'Oshodi',
         'boundary' => ['type' => 'Point', 'coordinates' => [3.336449, 6.558231], 'radius_km' => 20],
     ]);
-    City::factory()->create([
+    $kano = City::factory()->onboarding()->create([
         'name' => 'Kano',
         'boundary' => ['type' => 'Point', 'coordinates' => [8.5167, 12.0000], 'radius_km' => 20],
     ]);
 
-    $this->artisan('cities:check-overlaps')
-        ->expectsOutputToContain('1 pair(s) of cities have overlapping boundaries')
-        ->expectsTable(['City', 'Status', 'Overlaps', 'Status'], [['Lagos', 'live', 'Oshodi', 'live']])
-        ->assertFailed();
+    $cities = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->assertOk()->json('cities'))->keyBy('name');
+
+    expect($cities['Lagos']['overlapping_cities'])->toBe([['id' => $oshodi->id, 'name' => 'Oshodi']])
+        ->and($cities['Oshodi']['overlapping_cities'])->toBe([['id' => $this->lagos->id, 'name' => 'Lagos']])
+        ->and($cities['Kano']['overlapping_cities'])->toBe([]);
+
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$oshodi->id}")
+        ->assertOk()
+        ->assertJsonPath('warnings.0', "Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.");
+
+    // Other edits to an overlapping city still save; redrawing clears it.
+    ($this->asAdmin)()->putJson("/api/v1/admin/cities/{$oshodi->id}", [
+        'boundary' => ['type' => 'Point', 'coordinates' => [3.336449, 7.2], 'radius_km' => 5],
+    ])->assertOk()->assertJsonPath('warnings', []);
+
+    expect($kano->fresh()->boundary)->not->toBeNull();
 });
 
 it('refuses a boundary that overlaps another city', function () {
