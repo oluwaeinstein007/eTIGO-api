@@ -2,10 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Enums\AccountStatus;
-use App\Enums\AccountType;
-use App\Enums\DisputeCategory;
-use App\Enums\DisputeOutcome;
+use App\Enums\CancellationReason;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
@@ -18,11 +15,10 @@ use App\Enums\KycVerificationType;
 use App\Enums\NotificationCategory;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
-use App\Enums\SanctionTier;
+use App\Enums\RideStatus;
 use App\Enums\SosTriggerType;
 use App\Enums\SurgeType;
 use App\Enums\UserType;
-use App\Models\Account;
 use App\Models\AppSetting;
 use App\Models\BankAccount;
 use App\Models\City;
@@ -37,16 +33,16 @@ use App\Models\GamificationProfile;
 use App\Models\KycVerification;
 use App\Models\Notification;
 use App\Models\NotificationPreference;
-use App\Models\OfflineTripFlag;
-use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\SavedPlace;
 use App\Models\SurgeRule;
-use App\Models\TripCarbonScore;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Services\WalletPaymentService;
+use Database\Seeders\Concerns\SeedsDemoActivity;
+use Database\Seeders\Data\NigerianCities;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -54,6 +50,8 @@ use Illuminate\Support\Str;
 
 class DemoSeeder extends Seeder
 {
+    use SeedsDemoActivity;
+
     public function run(): void
     {
         if (app()->isProduction()) {
@@ -64,22 +62,18 @@ class DemoSeeder extends Seeder
 
         $password = Hash::make('Qwer!234');
 
-        $this->seedVehicleClasses();
-        $this->seedCities();
+        $this->callOnce([ReferenceDataSeeder::class, AdminSeeder::class, CitySeeder::class, PricingConfigSeeder::class]);
         $passengers = $this->seedPassengers($password);
         $drivers = $this->seedDrivers($password);
         $this->seedPaymentMethods($passengers);
+        $this->seedWallets($passengers);
         $this->seedPromoCodes();
         $rides = $this->seedRides($passengers, $drivers);
-        $this->seedRatings($rides);
-        $this->seedDisputes($rides);
         $this->seedNotifications($passengers, $drivers);
         $this->seedSavedPlaces($passengers);
-        $this->seedDisputeNotes();
         $this->seedSurgeRules();
         $this->seedKycVerifications($drivers);
         $this->seedGamificationProfiles($passengers, $drivers);
-        $this->seedTripCarbonScores($rides);
         $this->seedNotificationPreferences($passengers, $drivers);
         $this->seedAppSettings();
         $this->seedPromoRedemptions($passengers, $rides);
@@ -87,112 +81,6 @@ class DemoSeeder extends Seeder
         $this->seedEvCharging($drivers);
         $this->seedFleetAgreements($drivers);
         $this->seedSosIncident($rides);
-        $this->seedWalletAccounts($passengers, $drivers);
-        $this->seedOfflineTripFlags($rides, $drivers);
-    }
-
-    private function seedVehicleClasses(): void
-    {
-        $classes = [
-            ['name' => 'economy', 'display_name' => 'Economy', 'capacity' => 4, 'description' => 'Affordable rides for everyday trips.'],
-            ['name' => 'comfort', 'display_name' => 'Comfort', 'capacity' => 4, 'description' => 'A step up in comfort with newer vehicles.'],
-            ['name' => 'premium', 'display_name' => 'Premium', 'capacity' => 4, 'description' => 'Luxury vehicles for a premium experience.'],
-            ['name' => 'suv', 'display_name' => 'SUV', 'capacity' => 6, 'description' => 'Spacious SUVs for groups and luggage.'],
-        ];
-
-        foreach ($classes as $class) {
-            VehicleClass::firstOrCreate(
-                ['name' => $class['name']],
-                $class + ['is_active' => true],
-            );
-        }
-    }
-
-    private function seedCities(): void
-    {
-        $vehicleClasses = VehicleClass::all();
-
-        $cities = [
-            [
-                'name' => 'Lagos',
-                'slug' => 'lagos',
-                'state' => 'Lagos',
-                'region' => 'South-West',
-                'timezone' => 'Africa/Lagos',
-                'currency_code' => 'NGN',
-                'is_active' => true,
-                'boundary' => [
-                    'type' => 'Point',
-                    'coordinates' => [3.3792, 6.5244],
-                    'radius_km' => 40,
-                ],
-            ],
-            [
-                'name' => 'Abuja',
-                'slug' => 'abuja',
-                'state' => 'FCT',
-                'region' => 'North-Central',
-                'timezone' => 'Africa/Lagos',
-                'currency_code' => 'NGN',
-                'is_active' => true,
-                'boundary' => [
-                    'type' => 'Point',
-                    'coordinates' => [7.4951, 9.0579],
-                    'radius_km' => 30,
-                ],
-            ],
-            [
-                'name' => 'Port Harcourt',
-                'slug' => 'port-harcourt',
-                'state' => 'Rivers',
-                'region' => 'South-South',
-                'timezone' => 'Africa/Lagos',
-                'currency_code' => 'NGN',
-                'is_active' => true,
-                'boundary' => [
-                    'type' => 'Point',
-                    'coordinates' => [7.0498, 4.8156],
-                    'radius_km' => 20,
-                ],
-            ],
-            [
-                'name' => 'Ibadan',
-                'slug' => 'ibadan',
-                'state' => 'Oyo',
-                'region' => 'South-West',
-                'timezone' => 'Africa/Lagos',
-                'currency_code' => 'NGN',
-                // Recruiting drivers before launch (Phase 2 multi-city).
-                'launch_status' => 'onboarding',
-                'boundary' => [
-                    'type' => 'Point',
-                    'coordinates' => [3.9470, 7.3775],
-                    'radius_km' => 20,
-                ],
-            ],
-        ];
-
-        foreach ($cities as $cityData) {
-            $city = City::firstOrCreate(
-                ['slug' => $cityData['slug']],
-                $cityData,
-            );
-
-            if (! $city->wasRecentlyCreated) {
-                $city->updateQuietly(array_filter([
-                    'state' => $city->state ?? $cityData['state'],
-                    'region' => $city->region ?? $cityData['region'],
-                ]));
-            }
-
-            if ($city->vehicleClasses()->count() === 0) {
-                $syncData = [];
-                foreach ($vehicleClasses as $i => $vc) {
-                    $syncData[$vc->id] = ['is_active' => true, 'sort_order' => $i + 1];
-                }
-                $city->vehicleClasses()->sync($syncData);
-            }
-        }
     }
 
     /**
@@ -237,33 +125,39 @@ class DemoSeeder extends Seeder
 
         $drivers = [
             'bayo' => [
+                'city' => 'lagos',
                 'user' => ['first_name' => 'Bayo', 'last_name' => 'Akinola', 'phone' => '+2348200000001', 'email' => 'bayo@demo.etigo.com'],
-                'driver' => ['licence_number' => 'LA123ABC', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(30), 'is_online' => true],
-                'vehicle' => ['make' => 'Toyota', 'model' => 'Corolla', 'colour' => 'White', 'plate_number' => 'LAG-001AB', 'year' => 2022, 'fuel_type' => 'petrol', 'vehicle_class_id' => $economyClass?->id],
+                'driver' => ['licence_number' => 'LAG48213AB25', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(30), 'is_online' => true],
+                'vehicle' => ['make' => 'Toyota', 'model' => 'Corolla', 'colour' => 'White', 'plate_number' => 'KJA-482AB', 'year' => 2022, 'fuel_type' => 'petrol', 'vehicle_class_id' => $economyClass?->id],
             ],
             'kemi' => [
+                'city' => 'lagos',
                 'user' => ['first_name' => 'Kemi', 'last_name' => 'Bakare', 'phone' => '+2348200000002', 'email' => 'kemi@demo.etigo.com'],
-                'driver' => ['licence_number' => 'LA456DEF', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(15), 'is_online' => false],
-                'vehicle' => ['make' => 'Honda', 'model' => 'Accord', 'colour' => 'Black', 'plate_number' => 'LAG-002CD', 'year' => 2023, 'fuel_type' => 'hybrid', 'vehicle_class_id' => $comfortClass?->id],
+                'driver' => ['licence_number' => 'LAG73590KB18', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(15), 'is_online' => false],
+                'vehicle' => ['make' => 'Honda', 'model' => 'Accord', 'colour' => 'Black', 'plate_number' => 'EKY-317CD', 'year' => 2023, 'fuel_type' => 'hybrid', 'vehicle_class_id' => $comfortClass?->id],
             ],
             'segun' => [
+                'city' => 'abuja',
                 'user' => ['first_name' => 'Segun', 'last_name' => 'Obaseki', 'phone' => '+2348200000003', 'email' => 'segun@demo.etigo.com'],
-                'driver' => ['licence_number' => 'AB789GHI', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(45), 'is_online' => true],
-                'vehicle' => ['make' => 'Mercedes-Benz', 'model' => 'EQE', 'colour' => 'Silver', 'plate_number' => 'ABJ-003EF', 'year' => 2024, 'fuel_type' => 'electric', 'vehicle_class_id' => $premiumClass?->id],
+                'driver' => ['licence_number' => 'FCT20871SO27', 'status' => DriverStatus::Approved, 'approved_at' => now()->subDays(45), 'is_online' => true],
+                'vehicle' => ['make' => 'Mercedes-Benz', 'model' => 'EQE', 'colour' => 'Silver', 'plate_number' => 'ABC-905EF', 'year' => 2024, 'fuel_type' => 'electric', 'vehicle_class_id' => $premiumClass?->id],
             ],
             'amara' => [
+                'city' => 'abuja',
                 'user' => ['first_name' => 'Amara', 'last_name' => 'Nnamdi', 'phone' => '+2348200000004', 'email' => 'amara@demo.etigo.com'],
-                'driver' => ['licence_number' => 'AB012JKL', 'status' => DriverStatus::PendingReview, 'is_online' => false],
-                'vehicle' => ['make' => 'Toyota', 'model' => 'Highlander', 'colour' => 'Blue', 'plate_number' => 'ABJ-004GH', 'year' => 2021, 'fuel_type' => 'petrol', 'vehicle_class_id' => $suvClass?->id],
+                'driver' => ['licence_number' => 'FCT51642AN29', 'status' => DriverStatus::PendingReview, 'is_online' => false],
+                'vehicle' => ['make' => 'Toyota', 'model' => 'Highlander', 'colour' => 'Blue', 'plate_number' => 'BWR-224GH', 'year' => 2021, 'fuel_type' => 'petrol', 'vehicle_class_id' => $suvClass?->id],
             ],
             'tunde' => [
+                'city' => 'lagos',
                 'user' => ['first_name' => 'Tunde', 'last_name' => 'Fashola', 'phone' => '+2348200000005', 'email' => 'tunde@demo.etigo.com'],
-                'driver' => ['licence_number' => 'LA345MNO', 'status' => DriverStatus::Suspended, 'approved_at' => now()->subDays(60), 'suspended_at' => now()->subDays(5), 'is_online' => false],
-                'vehicle' => ['make' => 'Nissan', 'model' => 'Sentra', 'colour' => 'Red', 'plate_number' => 'LAG-005IJ', 'year' => 2019, 'fuel_type' => 'cng', 'vehicle_class_id' => $economyClass?->id],
+                'driver' => ['licence_number' => 'LAG66127TF16', 'status' => DriverStatus::Suspended, 'approved_at' => now()->subDays(60), 'suspended_at' => now()->subDays(5), 'is_online' => false],
+                'vehicle' => ['make' => 'Nissan', 'model' => 'Sentra', 'colour' => 'Red', 'plate_number' => 'AAA-671IJ', 'year' => 2019, 'fuel_type' => 'cng', 'vehicle_class_id' => $economyClass?->id],
             ],
             'ify' => [
+                'city' => 'port-harcourt',
                 'user' => ['first_name' => 'Ify', 'last_name' => 'Okoro', 'phone' => '+2348200000006', 'email' => 'ify@demo.etigo.com'],
-                'driver' => ['licence_number' => 'PH678PQR', 'status' => DriverStatus::Rejected, 'rejection_reason' => 'Documents are blurry and unreadable.', 'is_online' => false],
+                'driver' => ['licence_number' => 'RIV30915IO28', 'status' => DriverStatus::Rejected, 'rejection_reason' => 'Documents are blurry and unreadable.', 'is_online' => false],
                 'vehicle' => null,
             ],
         ];
@@ -283,8 +177,12 @@ class DemoSeeder extends Seeder
 
             $driver = Driver::firstOrCreate(
                 ['user_id' => $user->id],
-                $data['driver'],
+                $data['driver'] + ['city_id' => City::where('slug', $data['city'])->value('id')],
             );
+
+            if ($driver->city_id === null) {
+                $driver->update(['city_id' => City::where('slug', $data['city'])->value('id')]);
+            }
 
             if ($data['vehicle'] && ! $driver->vehicle()->exists()) {
                 Vehicle::create($data['vehicle'] + ['driver_id' => $driver->id]);
@@ -355,6 +253,23 @@ class DemoSeeder extends Seeder
                 'is_default' => true,
             ]);
             $i++;
+        }
+    }
+
+    /**
+     * Wallet money comes from top-ups posted through the ledger; drivers'
+     * balances come from settling their trips (seedRides).
+     *
+     * @param  array<string, User>  $passengers
+     */
+    private function seedWallets(array $passengers): void
+    {
+        $topUps = ['ade' => 4_000_000, 'ngozi' => 750_000, 'emeka' => 3_200_000, 'funmi' => 250_000];
+
+        foreach ($topUps as $key => $kobo) {
+            if ($this->walletBalance($passengers[$key]) === 0) {
+                $this->topUp($passengers[$key], $kobo, now()->subDays(10)->setTime(19, 30));
+            }
         }
     }
 
@@ -429,316 +344,96 @@ class DemoSeeder extends Seeder
     }
 
     /**
+     * The demo accounts' trips, priced from the city's fares and settled
+     * through the ledger, plus Ade's trip in progress now.
+     *
      * @param  array<string, User>  $passengers
      * @param  array<string, array{user: User, driver: Driver}>  $drivers
      * @return array<int, Ride>
      */
     private function seedRides(array $passengers, array $drivers): array
     {
-        if (Ride::exists()) {
-            return Ride::all()->all();
+        if (Ride::whereIn('passenger_id', collect($passengers)->pluck('id'))->exists()) {
+            return Ride::whereIn('passenger_id', collect($passengers)->pluck('id'))->get()->all();
         }
 
         $lagos = City::where('slug', 'lagos')->first();
         $abuja = City::where('slug', 'abuja')->first();
-        $economyClass = VehicleClass::where('name', 'economy')->first();
-        $comfortClass = VehicleClass::where('name', 'comfort')->first();
-        $premiumClass = VehicleClass::where('name', 'premium')->first();
+        $classes = VehicleClass::all()->keyBy('name');
 
-        if (! $lagos || ! $abuja || ! $economyClass) {
+        if (! $lagos || ! $abuja || ! $classes->has('economy')) {
             return [];
         }
 
-        $lagosRoutes = [
-            ['pickup' => [6.5244, 3.3792, 'Ikeja City Mall, Alausa'], 'dest' => [6.4281, 3.4219, 'Victoria Island, Adeola Odeku']],
-            ['pickup' => [6.4355, 3.4167, 'Lekki Phase 1, Admiralty Way'], 'dest' => [6.5959, 3.3473, 'Murtala Muhammed Airport']],
-            ['pickup' => [6.4541, 3.3947, 'Yaba, University of Lagos'], 'dest' => [6.5116, 3.3565, 'Ikeja GRA, Joel Ogunnaike']],
-            ['pickup' => [6.4698, 3.2816, 'Surulere, National Stadium'], 'dest' => [6.4281, 3.4219, 'Ikoyi, Bourdillon Road']],
-            ['pickup' => [6.5922, 3.3413, 'Airport Road, Ikeja'], 'dest' => [6.4355, 3.4167, 'Lekki Phase 1']],
-        ];
+        $place = fn (string $slug, string $label) => collect(NigerianCities::find($slug)['landmarks'])
+            ->first(fn (array $landmark) => str_starts_with($landmark[2], $label));
 
-        $abujaRoutes = [
-            ['pickup' => [9.0579, 7.4951, 'Wuse 2, Aminu Kano Crescent'], 'dest' => [9.0765, 7.3986, 'Nnamdi Azikiwe Airport']],
-            ['pickup' => [9.0643, 7.4892, 'Garki, Area 11'], 'dest' => [9.0246, 7.4939, 'Maitama, Aguiyi Ironsi Street']],
-        ];
-
-        $rideData = [
-            [
-                'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
-                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[0],
-                'status' => 'completed', 'fare' => 3500.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(7), 'started' => now()->subDays(7)->addMinutes(5), 'completed' => now()->subDays(7)->addMinutes(35),
-            ],
-            [
-                'passenger' => $passengers['ngozi'], 'driver' => $drivers['kemi'],
-                'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[1],
-                'status' => 'completed', 'fare' => 5200.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(5), 'started' => now()->subDays(5)->addMinutes(8), 'completed' => now()->subDays(5)->addMinutes(50),
-            ],
-            [
-                'passenger' => $passengers['emeka'], 'driver' => $drivers['segun'],
-                'city' => $abuja, 'class' => $premiumClass, 'route' => $abujaRoutes[0],
-                'status' => 'completed', 'fare' => 8500.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(3), 'started' => now()->subDays(3)->addMinutes(4), 'completed' => now()->subDays(3)->addMinutes(40),
-            ],
-            [
-                'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
-                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[2],
-                'status' => 'completed', 'fare' => 2800.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(2), 'started' => now()->subDays(2)->addMinutes(6), 'completed' => now()->subDays(2)->addMinutes(25),
-            ],
-            [
-                'passenger' => $passengers['funmi'], 'driver' => $drivers['kemi'],
-                'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[3],
-                'status' => 'completed', 'fare' => 4100.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(1), 'started' => now()->subDays(1)->addMinutes(7), 'completed' => now()->subDays(1)->addMinutes(30),
-            ],
-            [
-                'passenger' => $passengers['chidi'], 'driver' => $drivers['segun'],
-                'city' => $abuja, 'class' => $premiumClass, 'route' => $abujaRoutes[1],
-                'status' => 'completed', 'fare' => 6000.00, 'payment_status' => PaymentStatus::Settled->value,
-                'created' => now()->subDays(1), 'started' => now()->subDays(1)->addMinutes(3), 'completed' => now()->subDays(1)->addMinutes(20),
-            ],
-            [
-                'passenger' => $passengers['ngozi'], 'driver' => $drivers['bayo'],
-                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[4],
-                'status' => 'cancelled', 'fare' => null, 'payment_status' => PaymentStatus::Pending->value,
-                'created' => now()->subDays(4), 'started' => null, 'completed' => null,
-                'cancelled_by' => $passengers['ngozi']->id, 'cancellation_reason' => 'Driver was taking too long to arrive.',
-            ],
-            [
-                'passenger' => $passengers['funmi'], 'driver' => $drivers['bayo'],
-                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[2],
-                'status' => 'completed', 'fare' => 2200.00, 'payment_status' => PaymentStatus::Collected->value,
-                'payment_method' => PaymentMethod::Cash,
-                'created' => now()->subDays(3), 'started' => now()->subDays(3)->addMinutes(5), 'completed' => now()->subDays(3)->addMinutes(28),
-            ],
-            [
-                'passenger' => $passengers['ngozi'], 'driver' => $drivers['kemi'],
-                'city' => $lagos, 'class' => $comfortClass, 'route' => $lagosRoutes[3],
-                'status' => 'completed', 'fare' => 4800.00, 'payment_status' => PaymentStatus::Settled->value,
-                'payment_method' => PaymentMethod::Wallet,
-                'created' => now()->subDays(2), 'started' => now()->subDays(2)->addMinutes(4), 'completed' => now()->subDays(2)->addMinutes(35),
-            ],
-            [
-                'passenger' => $passengers['ade'], 'driver' => $drivers['bayo'],
-                'city' => $lagos, 'class' => $economyClass, 'route' => $lagosRoutes[0],
-                'status' => 'in_progress', 'fare' => null, 'payment_status' => 'pending',
-                'created' => now()->subMinutes(15), 'started' => now()->subMinutes(10), 'completed' => null,
-            ],
+        $trips = [
+            ['ade', 'bayo', 'lagos', 'economy', ['lagos', 'Ikeja City Mall'], ['lagos', 'Eko Hotel'], 7, 'completed', PaymentMethod::Card],
+            ['ngozi', 'kemi', 'lagos', 'comfort', ['lagos', 'Admiralty Way'], ['lagos', 'Murtala Muhammed'], 5, 'completed', PaymentMethod::Card],
+            ['emeka', 'segun', 'abuja', 'premium', ['abuja', 'Aminu Kano Crescent'], ['abuja', 'Nnamdi Azikiwe'], 3, 'completed', PaymentMethod::Card],
+            ['ade', 'bayo', 'lagos', 'economy', ['lagos', 'University of Lagos'], ['lagos', 'Allen Avenue'], 2, 'completed', PaymentMethod::Wallet],
+            ['funmi', 'kemi', 'lagos', 'comfort', ['lagos', 'Bode Thomas'], ['lagos', 'Bourdillon Road'], 1, 'completed', PaymentMethod::Card],
+            ['chidi', 'segun', 'abuja', 'premium', ['abuja', 'Area 11'], ['abuja', 'Transcorp Hilton'], 1, 'completed', PaymentMethod::Cash],
+            ['ngozi', 'bayo', 'lagos', 'economy', ['lagos', 'Computer Village'], ['lagos', 'Admiralty Way'], 4, 'cancelled', PaymentMethod::Card],
+            ['funmi', 'bayo', 'lagos', 'economy', ['lagos', 'University of Lagos'], ['lagos', 'Herbert Macaulay'], 3, 'completed', PaymentMethod::Cash],
+            ['ngozi', 'kemi', 'lagos', 'comfort', ['lagos', 'Bode Thomas'], ['lagos', 'The Palms'], 2, 'completed', PaymentMethod::Wallet],
         ];
 
         $rides = [];
 
-        foreach ($rideData as $data) {
-            $pricingSnapshot = [
-                'base_fare' => match ($data['class']->name) {
-                    'economy' => 600, 'comfort' => 800, 'premium' => 1200, default => 600,
-                },
-                'per_km_rate' => match ($data['class']->name) {
-                    'economy' => 250, 'comfort' => 350, 'premium' => 500, default => 250,
-                },
-                'per_minute_rate' => match ($data['class']->name) {
-                    'economy' => 40, 'comfort' => 55, 'premium' => 80, default => 40,
-                },
-                'minimum_fare' => match ($data['class']->name) {
-                    'economy' => 1500, 'comfort' => 2000, 'premium' => 3000, default => 1500,
-                },
-            ];
-
-            $ride = Ride::create([
-                'city_id' => $data['city']->id,
-                'vehicle_class_id' => $data['class']->id,
-                'passenger_id' => $data['passenger']->id,
-                'driver_id' => $data['driver']['user']->id,
-                'pickup_lat' => $data['route']['pickup'][0],
-                'pickup_lng' => $data['route']['pickup'][1],
-                'pickup_address' => $data['route']['pickup'][2],
-                'destination_lat' => $data['route']['dest'][0],
-                'destination_lng' => $data['route']['dest'][1],
-                'destination_address' => $data['route']['dest'][2],
-                'status' => $data['status'],
-                'pin_code' => str_pad((string) rand(0, 9999), 4, '0', STR_PAD_LEFT),
-                'share_token' => Str::random(32),
-                'fare_estimate_amount' => $data['fare'] ?? $pricingSnapshot['minimum_fare'],
-                'final_fare_amount' => $data['status'] === 'completed' ? $data['fare'] : null,
-                'fare_currency' => 'NGN',
-                'pricing_snapshot' => $pricingSnapshot,
-                'payment_method' => isset($data['payment_method']) ? $data['payment_method']->value : PaymentMethod::Card->value,
-                'payment_status' => $data['payment_status'],
-                'cancelled_by' => $data['cancelled_by'] ?? null,
-                'cancellation_reason' => $data['cancellation_reason'] ?? null,
-                'matched_at' => $data['created']->copy()->addMinutes(2),
-                'started_at' => $data['started'],
-                'completed_at' => $data['completed'],
-                'created_at' => $data['created'],
-                'updated_at' => $data['completed'] ?? $data['started'] ?? $data['created'],
-            ]);
-
-            $this->seedRideTransitions($ride, $data);
-
-            if ($data['status'] === 'completed' && $data['fare']) {
-                $paymentMethod = $data['payment_method'] ?? PaymentMethod::Card;
-                $userPaymentMethodId = null;
-                if ($paymentMethod === PaymentMethod::Card) {
-                    $userPaymentMethodId = UserPaymentMethod::where('user_id', $ride->passenger_id)
-                        ->where('is_default', true)
-                        ->value('id');
-                }
-
-                Payment::create([
-                    'ride_id' => $ride->id,
-                    'amount' => $data['fare'],
-                    'currency' => 'NGN',
-                    'method' => $paymentMethod->value,
-                    'gateway_transaction_id' => $paymentMethod === PaymentMethod::Cash ? null : 'PSK_TXN_'.Str::random(16),
-                    'gateway_payment_method_id' => $userPaymentMethodId,
-                    'tip_amount' => rand(0, 3) === 0 ? rand(2, 10) * 100 : 0,
-                    'status' => $data['payment_status'],
-                    'created_at' => $data['completed'],
-                    'updated_at' => $data['completed'],
-                ]);
-            }
-
-            $rides[] = $ride;
-        }
-
-        return $rides;
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function seedRideTransitions(Ride $ride, array $data): void
-    {
-        $transitions = [
-            ['from' => null, 'to' => 'requested', 'at' => $data['created']],
-            ['from' => 'requested', 'to' => 'matched', 'at' => $data['created']->copy()->addMinutes(2)],
-        ];
-
-        if ($data['started']) {
-            $transitions[] = ['from' => 'matched', 'to' => 'driver_arrived', 'at' => $data['started']->copy()->subMinutes(2)];
-            $transitions[] = ['from' => 'driver_arrived', 'to' => 'in_progress', 'at' => $data['started']];
-        }
-
-        if ($data['completed']) {
-            $transitions[] = ['from' => 'in_progress', 'to' => 'completed', 'at' => $data['completed']];
-        }
-
-        if ($data['status'] === 'cancelled') {
-            $transitions[] = ['from' => 'matched', 'to' => 'cancelled', 'at' => $data['created']->copy()->addMinutes(8)];
-        }
-
-        foreach ($transitions as $t) {
-            DB::table('ride_state_transitions')->insert([
-                'id' => (string) Str::uuid(),
-                'ride_id' => $ride->id,
-                'from_state' => $t['from'],
-                'to_state' => $t['to'],
-                'triggered_by_type' => 'App\\Models\\User',
-                'triggered_by_id' => $ride->passenger_id,
-                'metadata' => json_encode([]),
-                'created_at' => $t['at'],
+        foreach ($trips as [$passenger, $driver, $citySlug, $class, $from, $to, $daysAgo, $status, $payment]) {
+            $rides[] = $this->trip([
+                'city' => $citySlug === 'lagos' ? $lagos : $abuja,
+                'tier' => 'A',
+                'class' => $classes[$class],
+                'passenger' => $passengers[$passenger],
+                'driver' => $drivers[$driver]['user'],
+                'from' => $place(...$from),
+                'to' => $place(...$to),
+                'requested_at' => now()->subDays($daysAgo)->setTime(8 + $daysAgo, 15),
+                'status' => $status,
+                'payment' => $payment,
+                'cancelled_by' => $status === 'cancelled' ? 'passenger' : null,
+                'cancellation_reason' => $status === 'cancelled' ? CancellationReason::DriverTooFar->value : null,
+                'tip_kobo' => $passenger === 'emeka' ? 50_000 : 0,
+                'rating' => [$daysAgo % 2 === 0 ? 4 : 5, $daysAgo % 2 === 0 ? 'Good ride, a bit of traffic on Third Mainland Bridge.' : 'Driver was punctual and polite.'],
+                'driver_rating' => 5,
             ]);
         }
-    }
 
-    /**
-     * @param  array<int, Ride>  $rides
-     */
-    private function seedRatings(array $rides): void
-    {
-        if (DB::table('ratings')->exists()) {
-            return;
-        }
+        // Ade is on a trip with Bayo right now, paid from the wallet, so the
+        // fare is held (the SOS demo uses this trip).
+        $quote = $this->quote($lagos, $classes['economy'], $place('lagos', 'Ikeja City Mall'), $place('lagos', 'Eko Hotel'), 'A');
+        [$from, $to] = [$place('lagos', 'Ikeja City Mall'), $place('lagos', 'Eko Hotel')];
 
-        foreach ($rides as $ride) {
-            if ($ride->status !== 'completed') {
-                continue;
-            }
+        $inProgress = Ride::create([
+            'city_id' => $lagos->id,
+            'vehicle_class_id' => $classes['economy']->id,
+            'passenger_id' => $passengers['ade']->id,
+            'driver_id' => $drivers['bayo']['user']->id,
+            'pickup_lat' => $from[0],
+            'pickup_lng' => $from[1],
+            'pickup_address' => $from[2],
+            'destination_lat' => $to[0],
+            'destination_lng' => $to[1],
+            'destination_address' => $to[2],
+            'status' => RideStatus::InProgress,
+            'pin_code' => str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT),
+            'share_token' => Str::random(32),
+            'fare_estimate_amount' => $quote['fare'],
+            'fare_currency' => 'NGN',
+            'pricing_snapshot' => $quote['snapshot'],
+            'payment_method' => PaymentMethod::Wallet,
+            'payment_status' => PaymentStatus::Pending->value,
+            'matched_at' => now()->subMinutes(14),
+            'started_at' => now()->subMinutes(10),
+        ]);
 
-            DB::table('ratings')->insert([
-                'id' => (string) Str::uuid(),
-                'ride_id' => $ride->id,
-                'rated_by_user_id' => $ride->passenger_id,
-                'rated_user_id' => $ride->driver_id,
-                'score' => rand(3, 5),
-                'comment' => collect([
-                    'Great ride, very smooth!',
-                    'Driver was punctual and polite.',
-                    'Good experience overall.',
-                    'Nice and clean vehicle.',
-                    null,
-                    null,
-                ])->random(),
-                'created_at' => $ride->completed_at?->addMinutes(rand(1, 30)),
-            ]);
+        $this->at(now()->subMinutes(15), fn () => app(WalletPaymentService::class)->placeHold($passengers['ade'], $inProgress, (int) round($quote['fare'] * 100)));
+        $rides[] = $inProgress;
 
-            if (rand(1, 10) <= 7) {
-                DB::table('ratings')->insert([
-                    'id' => (string) Str::uuid(),
-                    'ride_id' => $ride->id,
-                    'rated_by_user_id' => $ride->driver_id,
-                    'rated_user_id' => $ride->passenger_id,
-                    'score' => rand(4, 5),
-                    'comment' => null,
-                    'created_at' => $ride->completed_at?->addMinutes(rand(1, 60)),
-                ]);
-            }
-        }
-    }
-
-    /**
-     * @param  array<int, Ride>  $rides
-     */
-    private function seedDisputes(array $rides): void
-    {
-        if (DB::table('disputes')->exists()) {
-            return;
-        }
-
-        $completedRides = array_filter($rides, fn (Ride $r) => $r->status === 'completed');
-
-        if (count($completedRides) < 2) {
-            return;
-        }
-
-        $disputeRides = array_slice(array_values($completedRides), 0, 2);
-
-        $admin = User::where('email', 'admin@etigo.com')->first();
-
-        $disputes = [
-            [
-                'ride' => $disputeRides[0],
-                'category' => DisputeCategory::FareDispute->value,
-                'description' => 'I was charged more than the estimated fare. The driver took a longer route through heavy traffic instead of the shorter route I suggested.',
-                'status' => 'resolved',
-                'resolution_notes' => 'Fare adjusted. Partial refund of ₦500 issued to passenger. Driver route deviation confirmed via GPS logs.',
-            ],
-            [
-                'ride' => $disputeRides[1],
-                'category' => DisputeCategory::VehicleCondition->value,
-                'description' => 'The vehicle was not clean and the air conditioning was not working during the ride.',
-                'status' => 'open',
-                'resolution_notes' => null,
-            ],
-        ];
-
-        foreach ($disputes as $d) {
-            DB::table('disputes')->insert([
-                'id' => (string) Str::uuid(),
-                'ride_id' => $d['ride']->id,
-                'reported_by_user_id' => $d['ride']->passenger_id,
-                'category' => $d['category'],
-                'description' => $d['description'],
-                'status' => $d['status'],
-                'resolution_notes' => $d['resolution_notes'],
-                'resolved_by_admin_id' => $d['status'] === 'resolved' ? $admin?->id : null,
-                'resolved_at' => $d['status'] === 'resolved' ? now()->subDays(1) : null,
-                'created_at' => $d['ride']->completed_at?->addHours(rand(1, 12)),
-                'updated_at' => now(),
-            ]);
-        }
+        return array_values(array_filter($rides));
     }
 
     /**
@@ -797,37 +492,6 @@ class DemoSeeder extends Seeder
                 'address' => $place['address'],
                 'latitude' => $place['latitude'],
                 'longitude' => $place['longitude'],
-            ]);
-        }
-    }
-
-    private function seedDisputeNotes(): void
-    {
-        if (DB::table('dispute_notes')->exists()) {
-            return;
-        }
-
-        $resolvedDispute = DB::table('disputes')->where('status', 'resolved')->first();
-        $admin = User::where('email', 'admin@etigo.com')->first();
-
-        if (! $resolvedDispute || ! $admin) {
-            return;
-        }
-
-        $notes = [
-            ['content' => 'Reviewed GPS logs. Driver deviated from suggested route by 3.2 km.', 'created_at' => now()->subDays(2)],
-            ['content' => 'Contacted passenger via phone. Confirmed fare discrepancy of ₦500.', 'created_at' => now()->subDays(2)->addHours(2)],
-            ['content' => 'Partial refund of ₦500 approved and processed. Case resolved.', 'created_at' => now()->subDays(1)],
-        ];
-
-        foreach ($notes as $note) {
-            DB::table('dispute_notes')->insert([
-                'id' => (string) Str::uuid(),
-                'dispute_id' => $resolvedDispute->id,
-                'admin_id' => $admin->id,
-                'content' => $note['content'],
-                'created_at' => $note['created_at'],
-                'updated_at' => $note['created_at'],
             ]);
         }
     }
@@ -955,10 +619,6 @@ class DemoSeeder extends Seeder
      */
     private function seedGamificationProfiles(array $passengers, array $drivers): void
     {
-        if (GamificationProfile::exists()) {
-            return;
-        }
-
         $profiles = [
             ['user' => $passengers['ade'], 'carbon' => 12.50, 'points' => 320, 'tier' => 2],
             ['user' => $passengers['ngozi'], 'carbon' => 8.30, 'points' => 180, 'tier' => 1],
@@ -971,45 +631,11 @@ class DemoSeeder extends Seeder
         ];
 
         foreach ($profiles as $profile) {
-            GamificationProfile::create([
-                'user_id' => $profile['user']->id,
+            GamificationProfile::updateOrCreate(['user_id' => $profile['user']->id], [
                 'total_carbon_score' => $profile['carbon'],
                 'total_ranking_points' => $profile['points'],
                 'current_tier' => $profile['tier'],
                 'tier_upgraded_at' => $profile['tier'] > 1 ? now()->subDays(rand(5, 30)) : null,
-            ]);
-        }
-    }
-
-    /**
-     * @param  array<int, Ride>  $rides
-     */
-    private function seedTripCarbonScores(array $rides): void
-    {
-        if (TripCarbonScore::exists()) {
-            return;
-        }
-
-        foreach ($rides as $ride) {
-            if ($ride->status !== 'completed') {
-                continue;
-            }
-
-            $distanceKm = rand(5, 25) + (rand(0, 99) / 100);
-            $baselineEmission = $distanceKm * 0.21;
-            $vehicleEmission = $distanceKm * 0.12;
-
-            TripCarbonScore::create([
-                'ride_id' => $ride->id,
-                'user_id' => $ride->passenger_id,
-                'distance_km' => $distanceKm,
-                'baseline_emission' => $baselineEmission,
-                'vehicle_emission' => $vehicleEmission,
-                'co2_saved' => max(0, $baselineEmission - $vehicleEmission),
-                'base_points' => (int) ($distanceKm * 2),
-                'multiplier_applied' => 1.00,
-                'multiplier_reason' => null,
-                'final_points' => (int) ($distanceKm * 2),
             ]);
         }
     }
@@ -1092,7 +718,7 @@ class DemoSeeder extends Seeder
         $welcomePromo = DB::table('promo_codes')->where('code', 'WELCOME50')->first();
         $ridePromo = DB::table('promo_codes')->where('code', 'RIDE500')->first();
 
-        $completedRides = array_values(array_filter($rides, fn (Ride $r) => $r->status === 'completed'));
+        $completedRides = array_values(array_filter($rides, fn (Ride $r) => $r->status === RideStatus::Completed));
 
         if (! $welcomePromo || count($completedRides) < 2) {
             return;
@@ -1308,7 +934,7 @@ class DemoSeeder extends Seeder
             return;
         }
 
-        $inProgressRide = collect($rides)->first(fn (Ride $r) => $r->status === 'in_progress');
+        $inProgressRide = collect($rides)->first(fn (Ride $r) => $r->status === RideStatus::InProgress);
         $admin = User::where('email', 'safety@etigo.com')->orWhere('email', 'admin@etigo.com')->first();
 
         if (! $inProgressRide) {
@@ -1348,143 +974,5 @@ class DemoSeeder extends Seeder
                 'created_at' => $event['created_at'],
             ]);
         }
-    }
-
-    /**
-     * @param  array<string, User>  $passengers
-     * @param  array<string, array{user: User, driver: Driver}>  $drivers
-     */
-    private function seedWalletAccounts(array $passengers, array $drivers): void
-    {
-        if (Account::where('type', AccountType::PassengerWallet)->exists()) {
-            return;
-        }
-
-        $walletBalances = [
-            'ade' => 1500000,
-            'ngozi' => 750000,
-            'emeka' => 3200000,
-            'funmi' => 250000,
-            'chidi' => 0,
-        ];
-
-        foreach ($passengers as $key => $passenger) {
-            Account::create([
-                'owner_type' => User::class,
-                'owner_id' => $passenger->id,
-                'type' => AccountType::PassengerWallet,
-                'currency' => 'NGN',
-                'status' => AccountStatus::Active,
-                'balance' => $walletBalances[$key] ?? 0,
-                'balance_version' => 0,
-            ]);
-        }
-
-        foreach ($drivers as $key => $data) {
-            if (! in_array($data['driver']->status, [DriverStatus::Approved, DriverStatus::Suspended])) {
-                continue;
-            }
-
-            Account::create([
-                'owner_type' => User::class,
-                'owner_id' => $data['user']->id,
-                'type' => AccountType::DriverEarningsPending,
-                'currency' => 'NGN',
-                'status' => AccountStatus::Active,
-                'balance' => 0,
-                'balance_version' => 0,
-            ]);
-
-            $availableBalance = match ($key) {
-                'bayo' => 850000,
-                'kemi' => 420000,
-                'segun' => 1200000,
-                'tunde' => -150000,
-                default => 0,
-            };
-
-            Account::create([
-                'owner_type' => User::class,
-                'owner_id' => $data['user']->id,
-                'type' => AccountType::DriverEarningsAvailable,
-                'currency' => 'NGN',
-                'status' => AccountStatus::Active,
-                'balance' => $availableBalance,
-                'balance_version' => 0,
-            ]);
-        }
-    }
-
-    /**
-     * @param  array<int, Ride>  $rides
-     * @param  array<string, array{user: User, driver: Driver}>  $drivers
-     */
-    private function seedOfflineTripFlags(array $rides, array $drivers): void
-    {
-        if (OfflineTripFlag::exists()) {
-            return;
-        }
-
-        $cancelledRide = collect($rides)->first(fn (Ride $r) => $r->status === 'cancelled');
-        $completedRides = collect($rides)->filter(fn (Ride $r) => $r->status === 'completed')->values();
-        $admin = User::where('email', 'admin@etigo.com')->first();
-
-        if (! $cancelledRide || $completedRides->count() < 3) {
-            return;
-        }
-
-        OfflineTripFlag::create([
-            'ride_id' => $cancelledRide->id,
-            'driver_id' => $cancelledRide->driver_id,
-            'passenger_id' => $cancelledRide->passenger_id,
-            'detection_data' => [
-                'collocation_points' => 5,
-                'route_match_pct' => 72.5,
-                'monitoring_duration_minutes' => 15,
-                'max_distance_from_route_m' => 85,
-            ],
-            'sanction_tier' => SanctionTier::Warning,
-            'sanction_action' => SanctionTier::Warning->action(),
-            'is_disputed' => false,
-            'flagged_at' => $cancelledRide->created_at->addMinutes(35),
-        ]);
-
-        OfflineTripFlag::create([
-            'ride_id' => $completedRides[1]->id,
-            'driver_id' => $completedRides[1]->driver_id,
-            'passenger_id' => $completedRides[1]->passenger_id,
-            'detection_data' => [
-                'collocation_points' => 8,
-                'route_match_pct' => 88.3,
-                'monitoring_duration_minutes' => 15,
-                'max_distance_from_route_m' => 42,
-            ],
-            'sanction_tier' => SanctionTier::Suspension,
-            'sanction_action' => SanctionTier::Suspension->action(),
-            'is_disputed' => true,
-            'dispute_notes' => 'The passenger asked me to pull over briefly to pick up a package. We continued the trip normally after.',
-            'dispute_outcome' => DisputeOutcome::Overturned,
-            'dispute_resolved_by_admin_id' => $admin?->id,
-            'flagged_at' => now()->subDays(20),
-            'resolved_at' => now()->subDays(18),
-        ]);
-
-        OfflineTripFlag::create([
-            'ride_id' => $completedRides[2]->id,
-            'driver_id' => $completedRides[2]->driver_id,
-            'passenger_id' => $completedRides[2]->passenger_id,
-            'detection_data' => [
-                'collocation_points' => 6,
-                'route_match_pct' => 65.1,
-                'monitoring_duration_minutes' => 15,
-                'max_distance_from_route_m' => 120,
-            ],
-            'sanction_tier' => SanctionTier::Warning,
-            'sanction_action' => SanctionTier::Warning->action(),
-            'is_disputed' => true,
-            'dispute_notes' => 'This was a legitimate ride that I completed on the app. The detection must be a false positive.',
-            'dispute_outcome' => DisputeOutcome::Pending,
-            'flagged_at' => now()->subDays(2),
-        ]);
     }
 }

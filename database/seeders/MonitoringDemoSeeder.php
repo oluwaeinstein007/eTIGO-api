@@ -499,7 +499,7 @@ class MonitoringDemoSeeder extends Seeder
     private function seedGamification(Driver $driver): void
     {
         $definitions = [
-            'tolu' => ['Tolu', 'Bakare', '+2348400000011', 'lagos', 5, 16200, 182.40, [9.21, 7.40], [6.45, 3.43]],
+            'tolu' => ['Tolu', 'Bakare', '+2348400000011', 'lagos', 5, 16200, 182.40, [6.51, 3.37], [6.45, 3.43]],
             'musa' => ['Musa', 'Ibrahim', '+2348400000012', 'abuja', 4, 6100, 74.10, [9.08, 7.47], [9.03, 7.49]],
             'zainab' => ['Zainab', 'Bello', '+2348400000013', 'abuja', 3, 2450, 31.75, [9.09, 7.50], [9.01, 7.26]],
             'kelechi' => ['Kelechi', 'Obi', '+2348400000014', 'lagos', 3, 3100, 38.20, [6.52, 3.39], [6.43, 3.42]],
