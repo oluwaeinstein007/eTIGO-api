@@ -60,7 +60,9 @@ class FinanceDemoSeeder extends Seeder
             ->values();
 
         if (! $finance || ! $superAdmin || $drivers->count() < 5) {
-            $this->command?->warn('Run AdminSeeder and CityActivityDemoSeeder first.');
+            // Where earnings are held (wallet.settlement_delay), trip earnings
+            // reach the available balance only after the hourly settlement.
+            $this->command?->warn('Needs five demo drivers with at least ₦10,000 available. Run AdminSeeder and CityActivityDemoSeeder first; if earnings are held, run this again after the hourly settlement.');
 
             return;
         }
