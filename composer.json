@@ -9,7 +9,7 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.5",
         "barryvdh/laravel-dompdf": "^3.1",
         "cloudinary/cloudinary_php": "^3.1",
         "kreait/firebase-php": "^8.5",
@@ -96,7 +96,7 @@
             "php-http/discovery": true
         },
         "platform": {
-            "php": "8.4.26"
+            "php": "8.5.12"
         }
     },
     "minimum-stability": "stable",

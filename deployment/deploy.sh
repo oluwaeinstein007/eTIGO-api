@@ -54,7 +54,11 @@ echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 
 echo "==> Restarting services..."
-sudo systemctl reload php8.4-fpm
+# Reload whichever PHP-FPM version is running, so the server can move to a
+# new PHP version without this script changing in step.
+for fpm in $(systemctl list-units --type=service --state=running --no-legend 'php*-fpm.service' | awk '{print $1}'); do
+    sudo systemctl reload "${fpm}"
+done
 sudo supervisorctl restart etigo-worker:*
 # Reverb and the telemetry gateway each hold a port. Stop the old process
 # fully before starting the new one: `reverb:restart` only asks the server
