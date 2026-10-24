@@ -6,6 +6,7 @@ use App\Contracts\MapsGateway;
 use App\Enums\CityLaunchStatus;
 use App\Models\City;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class CityDetectionService
 {
@@ -35,8 +36,9 @@ class CityDetectionService
             $location = $this->mapsGateway->reverseGeocode($lat, $lng);
             $resolvedAddress = $location['address'];
             $cityName = $location['city'] ?? $this->extractCityName($resolvedAddress);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             // Reverse geocoding unavailable: the boundary still decides.
+            Log::warning('Reverse geocoding failed during city detection.', ['error' => $e->getMessage()]);
         }
 
         $city = $this->citiesAt($lat, $lng, $launchStatuses)->first();

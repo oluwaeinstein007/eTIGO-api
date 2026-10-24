@@ -2,6 +2,8 @@
 
 use App\Contracts\MapsGateway;
 use App\Models\City;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Event;
 
 beforeEach(function () {
     $this->mockMaps = Mockery::mock(MapsGateway::class);
@@ -113,11 +115,17 @@ it('still detects by boundary when reverse geocoding fails', function () {
     ]);
 
     $this->mockMaps->shouldReceive('reverseGeocode')->andThrow(new RuntimeException('Maps down'));
+    Event::fake([MessageLogged::class]);
 
     $this->getJson('/api/v1/cities/detect?lat=6.5582&lng=3.3364')
         ->assertOk()
         ->assertJsonPath('city.name', 'Lagos')
         ->assertJsonPath('resolved_address', null);
+
+    // Logged without the rider's coordinates.
+    Event::assertDispatched(MessageLogged::class, fn (MessageLogged $log) => $log->level === 'warning'
+        && $log->message === 'Reverse geocoding failed during city detection.'
+        && $log->context === ['error' => 'Maps down']);
 });
 
 it('detects a city from polygon boundary', function () {

@@ -4704,7 +4704,7 @@ Single-city responses (show, create, update, toggle status, update vehicle class
 - `GET /admin/cities`: each city has `overlapping_cities` (`[{ "id", "name" }]`, empty when none). Show a warning badge in the list.
 - Single-city responses: `warnings` gets one entry per overlapping city, e.g. `"Oshodi's boundary overlaps Lagos. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border."`
 
-Fix it by redrawing one boundary (`PUT /admin/cities/{city_id}` with a new `boundary`), or by clearing the boundary of a city that should not take bookings.
+Fix it by redrawing one boundary (`PUT /admin/cities/{city_id}` with a new `boundary`) so they only share a border. Clearing a boundary does not stop a city taking bookings: a live city with no boundary can still be found by its geocoded name. To stop a city taking bookings, pause it (`POST /admin/cities/{city_id}/launch-status`); a paused city's boundary still claims the pickups inside it, so redraw or clear it as well.
 
 #### Multi-City Launches
 
