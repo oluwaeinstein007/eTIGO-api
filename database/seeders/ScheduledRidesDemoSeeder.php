@@ -9,6 +9,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
 use App\Models\City;
+use App\Models\PricingConfig;
 use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\User;
@@ -86,14 +87,14 @@ class ScheduledRidesDemoSeeder extends Seeder
     {
         $lead = AppSetting::scheduledRides()['dispatch_lead_minutes'];
 
-        $this->booking($lagos, $classes['comfort'], $users['ade'], ['lagos', 'Admiralty Way'], ['lagos', 'Murtala Muhammed'],
+        $this->booking($lagos, $this->classFor($lagos, 'comfort', $classes), $users['ade'], ['lagos', 'Admiralty Way'], ['lagos', 'Murtala Muhammed'],
             now()->addDay()->setTime(5, 30), PaymentMethod::Card, bookedAt: now()->subHours(9),
             scheduled: ['reserved_driver_id' => $users['kemi']->id, 'reserved_at' => now()->subHours(2)]);
 
-        $this->booking($lagos, $classes['economy'], $users['ngozi'], ['lagos', 'Bode Thomas'], ['lagos', 'Adeola Odeku'],
+        $this->booking($lagos, $this->classFor($lagos, 'economy', $classes), $users['ngozi'], ['lagos', 'Bode Thomas'], ['lagos', 'Adeola Odeku'],
             now()->addDays(3)->setTime(8, 0), PaymentMethod::Wallet, bookedAt: now()->subHours(3));
 
-        $this->booking($abuja, $classes['premium'], $users['emeka'], ['abuja', 'Transcorp Hilton'], ['abuja', 'Nnamdi Azikiwe'],
+        $this->booking($abuja, $this->classFor($abuja, 'premium', $classes), $users['emeka'], ['abuja', 'Transcorp Hilton'], ['abuja', 'Nnamdi Azikiwe'],
             now()->addDays(2)->setTime(6, 0), PaymentMethod::Card, bookedAt: now()->subDay(),
             scheduled: ['reserved_driver_id' => $users['segun']->id, 'reserved_at' => now()->subHours(20)]);
 
@@ -102,7 +103,7 @@ class ScheduledRidesDemoSeeder extends Seeder
         $ride = $this->trip([
             'city' => $lagos,
             'tier' => 'A',
-            'class' => $classes['economy'],
+            'class' => $this->classFor($lagos, 'economy', $classes),
             'passenger' => $users['funmi'],
             'driver' => $users['bayo'],
             'from' => $this->place('lagos', 'Bode Thomas'),
@@ -120,12 +121,34 @@ class ScheduledRidesDemoSeeder extends Seeder
         ])->forceFill(['created_at' => $pickupAt->copy()->subHours(14)])->saveQuietly();
 
         // A wallet booking whose balance had run down by dispatch time.
-        $failed = $this->booking($abuja, $classes['economy'], $abujaRiders[0], ['abuja', 'Life Camp'], ['abuja', 'Wuse Market'],
+        $failed = $this->booking($abuja, $this->classFor($abuja, 'economy', $classes), $abujaRiders[0], ['abuja', 'Life Camp'], ['abuja', 'Wuse Market'],
             now()->subDays(2)->setTime(18, 30), PaymentMethod::Wallet, bookedAt: now()->subDays(3),
             scheduled: ['dispatch_failure_reason' => 'insufficient_wallet_balance', 'cancelled_at' => now()->subDays(2)->setTime(18, 30 - $lead)]);
         $failed->update(['status' => RideStatus::Cancelled, 'cancellation_reason' => CancellationReason::ScheduledDispatchFailed->value, 'cancellation_details' => 'Your wallet balance was too low to pay for this ride when we started looking for a driver.']);
 
-        $this->lateCancellation($abuja, $classes['economy'], $abujaRiders[1]);
+        $this->lateCancellation($abuja, $this->classFor($abuja, 'economy', $classes), $abujaRiders[1]);
+    }
+
+    /**
+     * The class to book: the one asked for when the city offers and prices
+     * it, else the first standard class it does (a city set up by hand, as
+     * on staging, may not offer Economy).
+     *
+     * @param  Collection<string, VehicleClass>  $classes
+     */
+    private function classFor(City $city, string $preferred, Collection $classes): VehicleClass
+    {
+        foreach (array_unique([$preferred, 'economy', 'comfort', 'premium', 'suv']) as $name) {
+            $class = $classes->get($name);
+
+            if ($class
+                && $city->vehicleClasses()->wherePivot('is_active', true)->where('vehicle_classes.id', $class->id)->exists()
+                && PricingConfig::currentFor($city->id, $class->id)) {
+                return $class;
+            }
+        }
+
+        throw new \RuntimeException("{$city->name} offers no priced standard vehicle class.");
     }
 
     /**
