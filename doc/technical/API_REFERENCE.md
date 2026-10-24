@@ -79,7 +79,7 @@ All 22 are live: Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekit
 
 **Activity:** a few weeks of trips in every city (cash, card and wallet; some cancelled or with no driver found), priced from the city's fares, settled through the ledger, rated and scored for carbon points. `ledger:check` passes on the seeded data.
 
-**Phase 2 screens:** `ScheduledRidesDemoSeeder` (bookings upcoming, reserved, dispatched, failed), `DisputesDemoSeeder` (every status, tier 2, safety, refunds approved, pending and rejected, an appeal), `LostAndFoundDemoSeeder` (every status, with conversations), `DriverOperationsDemoSeeder` (availability plans, fleet shifts, maintenance records and statuses, repair requests) and `FinanceDemoSeeder` (payouts in every status, adjustments, abandoned and failed top-ups). Each can be run on its own with `php artisan db:seed --class=<Seeder>`.
+**Phase 2 screens:** `ScheduledRidesDemoSeeder` (bookings upcoming, reserved, dispatched, failed), `DisputesDemoSeeder` (every status, tier 2, safety, refunds approved, pending and rejected, an appeal), `LostAndFoundDemoSeeder` (every status, with conversations), `DriverOperationsDemoSeeder` (availability plans, fleet shifts, maintenance records and statuses, repair requests) and `FinanceDemoSeeder` (payouts paid, awaiting approval, rejected, and failed then reversed; never left processing, since reconciliation would check its made-up reference with Paystack; adjustments; abandoned and failed top-ups). Each can be run on its own with `php artisan db:seed --class=<Seeder>`.
 
 **On demand** (reset each time they run, not part of `db:seed`): `MonitoringDemoSeeder` (live monitoring, needs Redis), `OfflineFlagsDemoSeeder` (compliance), `EvStationsDemoSeeder` (EV station details).
 

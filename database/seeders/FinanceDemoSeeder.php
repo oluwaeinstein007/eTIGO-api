@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
  * Money movements for the admin Finance screens, posted through the ledger
  * so balances and ledger:check agree:
  *
- * - Driver payouts paid, processing, awaiting approval, rejected, and failed
+ * - Driver payouts paid, awaiting approval, rejected, and failed
  *   then reversed back to the driver's balance.
  * - Manual adjustments approved (a goodwill credit), pending and rejected.
  * - Wallet top-ups the passenger abandoned at the payment page or the bank
@@ -81,9 +81,12 @@ class FinanceDemoSeeder extends Seeder
      */
     private function payouts(array $drivers, User $finance, PayoutLedgerService $payoutLedger): void
     {
+        // No payout is left processing: its made-up transfer reference
+        // would send the payout reconciliation to Paystack, which has no such
+        // transfer, every 15 minutes.
         $plans = [
             [PayoutStatus::Paid, 6, null],
-            [PayoutStatus::Processing, 0, null],
+            [PayoutStatus::Paid, 1, null],
             [PayoutStatus::Requested, 0, null],
             [PayoutStatus::Rejected, 2, 'Bank account under review after a change of details.'],
             [PayoutStatus::Reversed, 3, 'Destination bank was unavailable; the amount is back in the driver\'s balance.'],
