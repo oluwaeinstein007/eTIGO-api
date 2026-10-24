@@ -77,6 +77,17 @@ return [
             'permission' => 0664,
         ],
 
+        // One line per API request (LogRequests), in its own daily file so
+        // it rotates and stays out of the application log.
+        'requests' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/requests.log'),
+            'level' => 'info',
+            'max_files' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+            'permission' => 0664,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),

@@ -56,9 +56,63 @@ ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 echo "==> Restarting services..."
 sudo systemctl reload php8.4-fpm
 sudo supervisorctl restart etigo-worker:*
-php artisan reverb:restart 2>/dev/null || sudo supervisorctl restart etigo-reverb 2>/dev/null || true
-# The telemetry gateway is long-running and keeps the old code until restarted.
-sudo supervisorctl restart etigo-telemetry 2>/dev/null || true
+# Reverb and the telemetry gateway each hold a port. Stop the old process
+# fully before starting the new one: `reverb:restart` only asks the server
+# to stop, and supervisor started the new one while the old still held 8080
+# (EADDRINUSE, 21 Oct 2026).
+sudo supervisorctl restart etigo-reverb 2>/dev/null || true
+
+# The telemetry gateway keeps its old code until restarted. A gateway started
+# by hand in daemon mode (-d) sits outside supervisor, keeps the port and
+# makes every supervisor start exit as "already running" (staging ran 20 Oct
+# code until 24 Oct), so stop it through its pid file too and wait for the
+# port to free up before starting.
+TELEMETRY_PORT="$(php artisan tinker --execute='echo config("telemetry.port", 8081);' 2>/dev/null | tail -1)"
+TELEMETRY_PORT="${TELEMETRY_PORT:-8081}"
+telemetry_port_held() {
+    ss -ltnH "sport = :${TELEMETRY_PORT}" | grep -q .
+}
+
+# Stop the telemetry gateway processes holding the port: each worker's
+# Workerman master first (it restarts workers that exit), then the worker.
+# Only our own processes titled EtigoTelemetryGateway, never another listener.
+stop_leftover_telemetry() {
+    local signal="$1" pid ppid masters="" workers=""
+    for pid in $(ss -ltnpH "sport = :${TELEMETRY_PORT}" | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
+        ps -o cmd= -p "${pid}" | grep -q "EtigoTelemetryGateway" || continue
+        workers="${workers} ${pid}"
+        ppid="$(ps -o ppid= -p "${pid}" | tr -d ' ')"
+        if [ -n "${ppid}" ] && ps -o cmd= -p "${ppid}" | grep -q "WorkerMan: master process"; then
+            masters="${masters} ${ppid}"
+        fi
+    done
+    # Each process once, masters first.
+    for pid in $(echo "${masters}" | tr ' ' '\n' | sort -u) $(echo "${workers}" | tr ' ' '\n' | sort -u); do
+        kill "-${signal}" "${pid}" 2>/dev/null || true
+    done
+}
+
+wait_for_telemetry_port() {
+    for _ in $(seq 1 "$1"); do
+        telemetry_port_held || return 0
+        sleep 1
+    done
+    ! telemetry_port_held
+}
+
+sudo supervisorctl stop etigo-telemetry 2>/dev/null || true
+php artisan telemetry:serve stop 2>/dev/null || true
+if ! wait_for_telemetry_port 15; then
+    echo "    port ${TELEMETRY_PORT} still held; stopping leftover telemetry processes"
+    stop_leftover_telemetry INT
+    wait_for_telemetry_port 10 || { stop_leftover_telemetry KILL; wait_for_telemetry_port 5 || true; }
+fi
+if telemetry_port_held; then
+    echo "ERROR: port ${TELEMETRY_PORT} is held by a process that is not the telemetry gateway; telemetry not started." >&2
+    ss -ltnp "sport = :${TELEMETRY_PORT}" >&2 || true
+    exit 1
+fi
+sudo supervisorctl start etigo-telemetry 2>/dev/null || true
 
 echo "==> Ensuring the scheduler cron entry..."
 # Every scheduled job (earnings settlement, hold expiry, reconciliation,
