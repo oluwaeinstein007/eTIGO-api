@@ -84,7 +84,8 @@ it('seeds consistent data across Nigerian cities', function () {
         ->and(VehicleMaintenanceItem::where('status', MaintenanceItemStatus::Expired)->count())->toBeGreaterThanOrEqual(1)
         ->and(VehicleMaintenanceItem::where('status', MaintenanceItemStatus::Overdue)->count())->toBeGreaterThanOrEqual(1)
         ->and(DriverRepair::count())->toBe(3)
-        ->and(Payout::pluck('status')->unique()->count())->toBe(5)
+        ->and(Payout::pluck('status')->unique()->count())->toBe(4)
+        ->and(Payout::where('status', PayoutStatus::Processing)->count())->toBe(0)
         ->and(Payout::where('status', PayoutStatus::Reversed)->count())->toBe(1)
         ->and(Adjustment::count())->toBe(3)
         ->and(WalletTransaction::where('status', 'abandoned')->count())->toBeGreaterThan(0);
