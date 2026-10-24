@@ -104,10 +104,13 @@ class DemoSeeder extends Seeder
                 $data + [
                     'type' => UserType::Passenger,
                     'password' => $password,
-                    'phone_verified_at' => now(),
                     'is_active' => true,
                 ],
             );
+
+            // Not mass assignable on User.
+            $result[$key]->phone_verified_at ??= now();
+            $result[$key]->saveQuietly();
         }
 
         return $result;
@@ -170,10 +173,11 @@ class DemoSeeder extends Seeder
                 $data['user'] + [
                     'type' => UserType::Driver,
                     'password' => $password,
-                    'phone_verified_at' => now(),
                     'is_active' => true,
                 ],
             );
+            $user->phone_verified_at ??= now();
+            $user->saveQuietly();
 
             $driver = Driver::firstOrCreate(
                 ['user_id' => $user->id],

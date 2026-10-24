@@ -89,7 +89,11 @@ class FinanceDemoSeeder extends Seeder
 
         foreach ($plans as $n => [$status, $daysAgo, $reason]) {
             [$driver, $account] = $drivers[$n];
-            $requestedAt = now()->subDays($daysAgo)->setTime(9 + $n, 15);
+            // Today's requests are a few hours old, so every step (and the
+            // processing payout's approval two hours later) is in the past.
+            $requestedAt = $daysAgo === 0
+                ? now()->subHours(6 - $n)->second(0)
+                : now()->subDays($daysAgo)->setTime(9 + $n, 15);
             // Whole thousands, never more than the driver has.
             $amount = (int) (floor($account->fresh()->balance * 0.6 / 100_000) * 100_000);
 

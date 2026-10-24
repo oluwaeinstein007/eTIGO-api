@@ -51,7 +51,7 @@ class CitySeeder extends Seeder
 
             if ($city === null) {
                 $city = $this->createCity($data, $this->drawable($boundaries, $boundary, $data['name']), $admin);
-            } elseif ($city->boundary == (NigerianCities::legacyBoundaries()[$data['slug']] ?? false)
+            } elseif ($this->hasLegacyBoundary($city, $data['slug'])
                 && ($drawn = $this->drawable($boundaries, $boundary, $data['name'], $city->id)) !== null) {
                 $city->update([
                     'boundary' => $drawn,
@@ -71,6 +71,18 @@ class CitySeeder extends Seeder
         }
 
         app(AppCacheService::class)->invalidateCities();
+    }
+
+    /**
+     * Whether the city still has the circle an earlier seeder drew. Loose
+     * comparison, as JSON turns 40.0 into 40; a city with no legacy circle
+     * (or a boundary an admin cleared) never matches.
+     */
+    private function hasLegacyBoundary(City $city, string $slug): bool
+    {
+        $legacy = NigerianCities::legacyBoundaries()[$slug] ?? null;
+
+        return $legacy !== null && is_array($city->boundary) && $city->boundary == $legacy;
     }
 
     private function seedVehicleClasses(): void

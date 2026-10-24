@@ -182,6 +182,16 @@ class CityActivityDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * phone_verified_at is not mass assignable on User.
+     */
+    private function verifyPhone(User $user, Carbon $at): void
+    {
+        if ($user->phone_verified_at === null) {
+            $user->forceFill(['phone_verified_at' => $at])->saveQuietly();
+        }
+    }
+
     private function joinWaitlist(City $city, User $passenger, Carbon $at): void
     {
         $entry = CityWaitlistEntry::firstOrCreate(['city_id' => $city->id, 'user_id' => $passenger->id]);
@@ -208,10 +218,11 @@ class CityActivityDemoSeeder extends Seeder
                 'phone' => sprintf('+234906%02d%05d', $cityIndex, $n),
                 'type' => UserType::Driver,
                 'password' => $this->password,
-                'phone_verified_at' => $joinedAt,
                 'is_active' => true,
             ],
         );
+
+        $this->verifyPhone($user, $joinedAt);
 
         $isApproved = $status === DriverStatus::Approved;
 
@@ -298,7 +309,7 @@ class CityActivityDemoSeeder extends Seeder
 
             DriverDocument::create([
                 'driver_id' => $driver->id,
-                'vehicle_id' => $driver->vehicle?->id,
+                'vehicle_id' => $type->isVehicleDocument() ? $driver->vehicle?->id : null,
                 'type' => $type,
                 'file_path' => "driver-documents/{$driver->id}/{$type->value}.jpg",
                 'original_filename' => str_replace('_', '-', $type->value).'.jpg',
@@ -332,10 +343,11 @@ class CityActivityDemoSeeder extends Seeder
                 'phone' => sprintf('+234907%02d%05d', $cityIndex, $n),
                 'type' => UserType::Passenger,
                 'password' => $this->password,
-                'phone_verified_at' => $joinedAt,
                 'is_active' => true,
             ],
         );
+
+        $this->verifyPhone($user, $joinedAt);
 
         if (! $withActivity || SavedPlace::where('user_id', $user->id)->exists()) {
             return $user;
@@ -557,6 +569,8 @@ class CityActivityDemoSeeder extends Seeder
 
     private function seedCityPromos(): void
     {
+        // Code, description, type, value, cap, uses per rider, cities, and
+        // days it still runs from today, so every code is usable when seeded.
         $promos = [
             ['ILORIN500', 'Ilorin: ₦500 off your next 3 rides.', 'flat', 500, null, 3, ['ilorin'], 30],
             ['COALCITY20', 'Enugu: 20% off, up to ₦1,000.', 'percentage', 20, 1000, 2, ['enugu'], 21],
@@ -584,7 +598,7 @@ class CityActivityDemoSeeder extends Seeder
                 'total_redemption_limit' => 2000,
                 'per_user_limit' => $perUser,
                 'starts_at' => $startsAt,
-                'expires_at' => Carbon::parse($startsAt)->addDays($days),
+                'expires_at' => now()->addDays($days),
                 'is_active' => true,
                 'peak_only' => false,
                 'off_peak_only' => false,

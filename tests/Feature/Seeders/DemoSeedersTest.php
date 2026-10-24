@@ -2,10 +2,13 @@
 
 use App\Enums\CityLaunchStatus;
 use App\Enums\DisputeStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverShiftStatus;
 use App\Enums\LostItemStatus;
 use App\Enums\MaintenanceItemStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\PayoutStatus;
+use App\Enums\RepairRequestStatus;
 use App\Enums\RideStatus;
 use App\Models\Adjustment;
 use App\Models\City;
@@ -13,9 +16,12 @@ use App\Models\Dispute;
 use App\Models\DisputeRefundRequest;
 use App\Models\Driver;
 use App\Models\DriverAvailabilityPlan;
+use App\Models\DriverDocument;
 use App\Models\DriverRepair;
 use App\Models\DriverShift;
+use App\Models\Journal;
 use App\Models\LostItem;
+use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PromoCode;
 use App\Models\Ride;
@@ -83,12 +89,23 @@ it('seeds consistent data across Nigerian cities', function () {
         ->and(Adjustment::count())->toBe(3)
         ->and(WalletTransaction::where('status', 'abandoned')->count())->toBeGreaterThan(0);
 
+    // Details the screens rely on.
+    expect(User::whereNull('phone_verified_at')->whereIn('type', ['passenger', 'driver'])->count())->toBe(0)
+        ->and(PromoCode::whereHas('cities')->where('expires_at', '<=', now())->count())->toBe(0)
+        ->and(DriverRepair::where('status', RepairRequestStatus::Scheduled)->first()->preferred_date->isFuture())->toBeTrue()
+        ->and(DriverDocument::whereIn('type', [DocumentType::DrivingLicence, DocumentType::GovernmentId])->whereNotNull('vehicle_id')->count())->toBe(0)
+        ->and(Payout::where('requested_at', '>', now())->count())->toBe(0);
+
+    // Every wallet tip moved money in the ledger.
+    Payment::where('tip_method', PaymentMethod::Wallet)->where('tip_amount', '>', 0)->get()
+        ->each(fn (Payment $payment) => expect(Journal::where('idempotency_key', "wallet-tip-{$payment->ride_id}")->exists())->toBeTrue());
+
     // Every balance is backed by ledger entries.
     $this->artisan('ledger:check')->assertSuccessful();
 });
 
 it('adds nothing when run again', function () {
-    $counts = fn () => [City::count(), User::count(), Driver::count(), Vehicle::count(), Ride::count(), Dispute::count(), LostItem::count(), Payout::count(), DriverShift::count()];
+    $counts = fn () => [City::count(), User::count(), Driver::count(), Vehicle::count(), Ride::count(), Dispute::count(), LostItem::count(), Payout::count(), DriverShift::count(), PromoCode::count()];
     $before = $counts();
 
     $this->seed(DatabaseSeeder::class);

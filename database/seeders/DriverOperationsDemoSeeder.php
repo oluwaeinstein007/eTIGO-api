@@ -27,6 +27,7 @@ use App\Services\VehicleMaintenanceService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -77,10 +78,14 @@ class DriverOperationsDemoSeeder extends Seeder
             return;
         }
 
-        $this->availability($lagos, $drivers);
-        $this->fleetShifts($lagos, $admin);
-        $this->maintenance($drivers, $admin, $maintenance);
-        $this->repairs($drivers);
+        // One transaction: a failure leaves nothing behind, so a rerun
+        // seeds every scenario instead of stopping at the guard above.
+        DB::transaction(function () use ($lagos, $admin, $drivers, $maintenance) {
+            $this->availability($lagos, $drivers);
+            $this->fleetShifts($lagos, $admin);
+            $this->maintenance($drivers, $admin, $maintenance);
+            $this->repairs($drivers);
+        });
     }
 
     /**
@@ -136,9 +141,11 @@ class DriverOperationsDemoSeeder extends Seeder
                 'phone' => $phone,
                 'type' => UserType::Driver,
                 'password' => Hash::make('Qwer!234'),
-                'phone_verified_at' => now()->subMonths(2),
                 'is_active' => true,
             ]);
+            // Not mass assignable on User.
+            $user->phone_verified_at ??= now()->subMonths(2);
+            $user->saveQuietly();
 
             $shiftDrivers[] = Driver::firstOrCreate(['user_id' => $user->id], [
                 'city_id' => $city->id,
@@ -266,7 +273,8 @@ class DriverOperationsDemoSeeder extends Seeder
         foreach ($requests as $n => [$type, $status, $title, $details, $daysAgo, $time]) {
             $driver = $drivers[$n];
             $submitted = now()->subDays($daysAgo);
-            $visit = $submitted->copy()->addDays(2);
+            // A booked visit is still to come; the others were two days in.
+            $visit = $status === RepairRequestStatus::Scheduled ? now()->addDays(2) : $submitted->copy()->addDays(2);
 
             $steps = [
                 ['title' => 'Request submitted', 'subtitle' => $submitted->format('j M Y')." · {$type->label()} received", 'state' => 'completed'],

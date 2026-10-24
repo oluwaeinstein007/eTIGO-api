@@ -29,7 +29,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SuperAdmin,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Timonwa',
@@ -39,7 +38,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SuperAdmin,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Pelumi',
@@ -49,7 +47,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SuperAdmin,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Super',
@@ -59,7 +56,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SuperAdmin,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Safety',
@@ -69,7 +65,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SafetyOperator,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Operations',
@@ -79,7 +74,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::Operations,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Support',
@@ -89,7 +83,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::Support,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Support',
@@ -99,7 +92,6 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::SupportLead,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
             [
                 'first_name' => 'Finance',
@@ -109,15 +101,18 @@ class AdminSeeder extends Seeder
                 'type' => UserType::Admin,
                 'admin_role' => AdminRole::Finance,
                 'password' => $password,
-                'phone_verified_at' => now(),
             ],
         ];
 
         foreach ($admins as $admin) {
-            User::firstOrCreate(
+            $user = User::firstOrCreate(
                 ['email' => $admin['email']],
                 $admin,
             );
+
+            // Not mass assignable on User.
+            $user->phone_verified_at ??= now();
+            $user->saveQuietly();
         }
     }
 }

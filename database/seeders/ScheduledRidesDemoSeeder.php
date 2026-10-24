@@ -17,8 +17,10 @@ use App\Services\FareEstimationService;
 use App\Services\PassengerBalanceService;
 use Database\Seeders\Concerns\SeedsDemoActivity;
 use Database\Seeders\Data\NigerianCities;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -30,8 +32,8 @@ use Illuminate\Support\Str;
  * - Emeka: Maitama to the airport in two days, reserved by Segun.
  * - Funmi: yesterday's 07:00 booking, dispatched and completed.
  * - An Abuja rider whose wallet booking could not be dispatched (balance too low).
- * - An Abuja rider who cancelled 15 minutes before pickup and owes the late
- *   cancellation fee (only when the fee is switched on).
+ * - An Abuja rider who cancelled inside the late-cancellation window and
+ *   owes the fee (only when the fee is switched on).
  *
  * Upcoming bookings are dispatched at their time like any other (on staging
  * that means real matching); cancel them first if that is not wanted.
@@ -50,10 +52,6 @@ class ScheduledRidesDemoSeeder extends Seeder
             return;
         }
 
-        if (ScheduledRide::exists()) {
-            return;
-        }
-
         $lagos = City::where('slug', 'lagos')->first();
         $abuja = City::where('slug', 'abuja')->first();
         $users = User::whereIn('email', ['ade@demo.etigo.com', 'ngozi@demo.etigo.com', 'emeka@demo.etigo.com', 'funmi@demo.etigo.com', 'kemi@demo.etigo.com', 'segun@demo.etigo.com', 'bayo@demo.etigo.com'])
@@ -67,6 +65,25 @@ class ScheduledRidesDemoSeeder extends Seeder
             return;
         }
 
+        // Already seeded: a booking by one of these riders. Other bookings on
+        // the database do not count.
+        $riderIds = [...$users->only(['ade', 'ngozi', 'emeka', 'funmi'])->pluck('id'), ...$abujaRiders->take(2)->pluck('id')];
+
+        if (ScheduledRide::whereHas('ride', fn ($q) => $q->whereIn('passenger_id', $riderIds))->exists()) {
+            return;
+        }
+
+        // One transaction: a failure leaves nothing behind, so a rerun starts clean.
+        DB::transaction(fn () => $this->seedBookings($lagos, $abuja, $users, $abujaRiders, $classes));
+    }
+
+    /**
+     * @param  Collection<string, User>  $users
+     * @param  Collection<int, User>  $abujaRiders
+     * @param  Collection<string, VehicleClass>  $classes
+     */
+    private function seedBookings(City $lagos, City $abuja, Collection $users, Collection $abujaRiders, Collection $classes): void
+    {
         $lead = AppSetting::scheduledRides()['dispatch_lead_minutes'];
 
         $this->booking($lagos, $classes['comfort'], $users['ade'], ['lagos', 'Admiralty Way'], ['lagos', 'Murtala Muhammed'],
@@ -152,12 +169,16 @@ class ScheduledRidesDemoSeeder extends Seeder
         $settings = AppSetting::scheduledRides();
         $fee = $settings['late_cancellation_fee'];
 
-        if ($fee <= 0) {
+        // Cancelled halfway through the fee window, so the fee applies
+        // whatever the window is set to.
+        $minutesBefore = intdiv($settings['late_cancellation_window_minutes'], 2);
+
+        if ($fee <= 0 || $minutesBefore < 1) {
             return;
         }
 
         $pickupAt = now()->subDay()->setTime(9, 0);
-        $cancelledAt = $pickupAt->copy()->subMinutes(15);
+        $cancelledAt = $pickupAt->copy()->subMinutes($minutesBefore);
 
         $ride = $this->booking($city, $class, $passenger, ['abuja', 'Area 11'], ['abuja', 'Ceddi Plaza'], $pickupAt, PaymentMethod::Cash,
             bookedAt: $pickupAt->copy()->subDays(2),
@@ -165,7 +186,7 @@ class ScheduledRidesDemoSeeder extends Seeder
                 'cancelled_at' => $cancelledAt,
                 'late_cancellation_fee' => $fee,
                 'late_cancellation_fee_status' => 'balance_due',
-                'late_cancellation_fee_note' => "Cancelled 15 minutes before pickup, inside the {$settings['late_cancellation_window_minutes']}-minute window.",
+                'late_cancellation_fee_note' => "Cancelled {$minutesBefore} minutes before pickup, inside the {$settings['late_cancellation_window_minutes']}-minute window.",
             ]);
 
         $ride->update([

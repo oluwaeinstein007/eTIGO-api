@@ -17,6 +17,7 @@ use Database\Seeders\Concerns\SeedsDemoActivity;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -78,6 +79,15 @@ class DisputesDemoSeeder extends Seeder
             return;
         }
 
+        // One transaction: a failure leaves nothing behind, so a rerun starts clean.
+        DB::transaction(fn () => $this->seedCases($admins));
+    }
+
+    /**
+     * @param  Collection<string, User>  $admins
+     */
+    private function seedCases(Collection $admins): void
+    {
         $support = $admins['support@etigo.com'];
         $lead = $admins['supportlead@etigo.com'];
         $safety = $admins['safety@etigo.com'];
@@ -159,8 +169,12 @@ class DisputesDemoSeeder extends Seeder
     {
         $ride = $this->rides->first(fn (Ride $ride) => (float) $ride->final_fare_amount >= $minFare
             && ($method === null || $ride->payment_method === $method)
-            && $ride->completed_at->lt($at))
-            ?? $this->rides->first();
+            && $ride->completed_at->lt($at));
+
+        if ($ride === null) {
+            throw new \RuntimeException("No demo trip fits the {$category->value} dispute (fare from ₦{$minFare}). Run CityActivityDemoSeeder first.");
+        }
+
         $this->rides = $this->rides->reject(fn (Ride $r) => $r->id === $ride->id)->values();
 
         $reporter = $byDriver ? $ride->driver : $ride->passenger;

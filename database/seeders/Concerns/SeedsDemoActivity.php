@@ -314,9 +314,17 @@ trait SeedsDemoActivity
                 app(DriverEarningsService::class)->creditRideEarnings($ride, $fareKobo);
             }
 
-            // Card tips go to the driver in full; cash tips are handed over.
+            // Card tips go to the driver in full and wallet tips move from the
+            // wallet to the driver, both through the ledger; cash tips are
+            // handed over. A wallet that cannot cover the tip gives none.
             if ($tipKobo > 0 && $method === PaymentMethod::Card) {
                 app(DriverEarningsService::class)->creditTip($ride, $tipKobo);
+            } elseif ($tipKobo > 0 && $method === PaymentMethod::Wallet) {
+                if (app(WalletPaymentService::class)->availableBalance($ride->passenger) >= $tipKobo) {
+                    app(WalletPaymentService::class)->payTip($ride, $tipKobo);
+                } else {
+                    $tipKobo = 0;
+                }
             }
 
             Payment::create([
