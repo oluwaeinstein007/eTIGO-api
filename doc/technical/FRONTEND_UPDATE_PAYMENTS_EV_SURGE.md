@@ -8,6 +8,16 @@ Request and response details are in `API_REFERENCE.md`; every new response has a
 
 ---
 
+## Update, 24 Oct 2026: cash is off
+
+The client prefers card and wallet only, so **new bookings can no longer be paid in cash** (wallet setting `cash_payments_enabled`, off by default; Finance can switch it back on).
+
+- **Passenger app:** offer the methods in `payments.methods` from `GET /config` (`["card", "wallet"]` now) and hide cash while `payments.cash_enabled` is `false`. `GET /payment-methods` no longer lists cash, so with no saved card it is empty: offer the wallet and adding a card. Booking (`POST /rides`) or changing a scheduled booking (`PUT /rides/{ride}/scheduled`) with `payment_method: cash` returns 422 on `payment_method`: "Cash isn't accepted. Pay by card or from your wallet." Bookings for someone else follow the same rule.
+- **Driver app:** nothing changes. Rides already booked in cash finish as before (confirm cash, change to wallet).
+- **Admin dashboard:** Finance has a new `cash_payments_enabled` switch in wallet settings (`GET`/`PUT /admin/settings/wallet`).
+
+---
+
 ## Summary
 
 | App | Must do (breaking) | Should do |

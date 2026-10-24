@@ -29,14 +29,15 @@ class PaymentMethodController extends Controller
 
         $defaultIsCard = $savedCards->contains('is_default', true);
 
-        $methods = collect([
+        // Cash is listed only while cash payments are switched on.
+        $methods = collect(AppSetting::cashPaymentsEnabled() ? [
             [
                 'id' => PaymentMethod::Cash->value,
                 'type' => PaymentMethod::Cash->value,
                 'label' => PaymentMethod::Cash->label(),
                 'is_default' => ! $defaultIsCard,
             ],
-        ]);
+        ] : []);
 
         foreach ($savedCards as $card) {
             $methods->push([

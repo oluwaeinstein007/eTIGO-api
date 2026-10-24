@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Ride;
 
 use App\Enums\PaymentMethod;
+use App\Rules\CashPaymentsAllowed;
 use App\Services\CityDetectionService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,7 @@ class UpdateScheduledRideRequest extends FormRequest
             'destination_lat' => ['required_with:destination_lng,destination_address', 'numeric', 'between:-90,90'],
             'destination_lng' => ['required_with:destination_lat,destination_address', 'numeric', 'between:-180,180'],
             'destination_address' => ['required_with:destination_lat,destination_lng', 'string', 'max:500'],
-            'payment_method' => ['sometimes', Rule::enum(PaymentMethod::class)],
+            'payment_method' => ['sometimes', Rule::enum(PaymentMethod::class), new CashPaymentsAllowed],
         ];
     }
 

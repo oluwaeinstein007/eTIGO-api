@@ -3,6 +3,7 @@
 use App\Contracts\MapsGateway;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\GamificationProfile;
@@ -22,6 +23,9 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake();
 
     $this->passenger = User::factory()->create(['type' => UserType::Passenger]);

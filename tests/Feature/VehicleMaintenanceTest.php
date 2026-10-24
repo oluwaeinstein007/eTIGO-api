@@ -38,6 +38,9 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake();
     Storage::fake(config('filesystems.uploads'));
     // Monday 19 Oct 2026, 08:00 UTC (09:00 in Lagos).

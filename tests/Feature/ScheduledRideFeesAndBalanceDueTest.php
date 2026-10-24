@@ -11,6 +11,7 @@ use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\ChargeScheduledRideCancellationFeeJob;
 use App\Models\Account;
+use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\CommissionConfig;
 use App\Models\Dispute;
@@ -41,6 +42,9 @@ use Illuminate\Support\Facades\Queue;
  */
 
 beforeEach(function () {
+    // These tests book in cash, which is off by default.
+    AppSetting::setValue('wallet.cash_payments_enabled', 1, 'wallet');
+
     Queue::fake()->except([ChargeScheduledRideCancellationFeeJob::class]);
     $this->travelTo(Carbon::parse('2026-10-19 08:00:00', 'UTC'));
 
