@@ -6,6 +6,7 @@ use App\Events\TierUpgraded;
 use App\Models\GamificationProfile;
 use App\Models\TierConfig;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TierEvaluationService
 {
@@ -38,12 +39,16 @@ class TierEvaluationService
                 'tier_upgraded_at' => now(),
             ]);
 
-            TierUpgraded::dispatch(
-                $profile->user_id,
-                $oldTier,
-                $newTierConfig->tier_level,
-                $newTierConfig->tier_name,
-            );
+            // Broadcast once the outermost transaction commits; a WebSocket
+            // outage must not fail the job after the points and tier are saved.
+            DB::afterCommit(fn () => rescue(
+                fn () => TierUpgraded::dispatch($profile->user_id, $oldTier, $newTierConfig->tier_level, $newTierConfig->tier_name),
+                fn (\Throwable $e) => rescue(
+                    fn () => Log::warning('Tier upgrade broadcast failed', ['user_id' => $profile->user_id, 'error' => $e->getMessage()]),
+                    report: false,
+                ),
+                report: false,
+            ));
 
             return [
                 'promoted' => true,

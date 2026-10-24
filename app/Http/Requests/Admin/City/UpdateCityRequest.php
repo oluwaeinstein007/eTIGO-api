@@ -10,6 +10,8 @@ use Illuminate\Validation\Validator;
 
 class UpdateCityRequest extends FormRequest
 {
+    use ValidatesCityBoundary;
+
     public function authorize(): bool
     {
         return true;
@@ -36,13 +38,7 @@ class UpdateCityRequest extends FormRequest
             'vehicle_class_ids.*' => ['uuid', 'distinct', 'exists:vehicle_classes,id'],
         ];
 
-        if ($this->input('boundary.type') === 'Polygon') {
-            $rules['boundary.coordinates.*'] = ['array', 'min:3'];
-            $rules['boundary.coordinates.*.*'] = ['array', 'size:2'];
-            $rules['boundary.coordinates.*.*.*'] = ['numeric'];
-        }
-
-        return $rules;
+        return $this->withBoundaryShapeRules($rules);
     }
 
     /**

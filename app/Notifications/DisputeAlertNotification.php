@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Dispute;
+use App\Notifications\Concerns\ThrottlesMail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -14,7 +15,7 @@ use Illuminate\Notifications\Notification;
  */
 class DisputeAlertNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, ThrottlesMail;
 
     public const NEW_SAFETY_CASE = 'new_safety_case';
 

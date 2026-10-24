@@ -71,6 +71,10 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'max_files' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            // Group-writable: the web, queue and telemetry processes run as
+            // deploy but Reverb runs as www-data, and each day's file is
+            // created by whichever logs first.
+            'permission' => 0664,
         ],
 
         'monthly' => [

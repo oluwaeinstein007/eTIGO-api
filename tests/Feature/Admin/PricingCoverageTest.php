@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\Log;
 beforeEach(function () {
     $this->admin = User::factory()->admin()->create();
     $this->token = $this->admin->createToken('admin-auth', ['admin'])->plainTextToken;
-    $this->city = City::factory()->create(['name' => 'Lekki Test']);
+    $this->city = City::factory()->create([
+        'name' => 'Lekki Test',
+        'state' => 'Lagos',
+        'boundary' => ['type' => 'Polygon', 'coordinates' => [[[3.45, 6.42], [3.60, 6.42], [3.60, 6.48], [3.45, 6.48], [3.45, 6.42]]]],
+    ]);
     $this->economy = VehicleClass::factory()->create(['name' => 'economy', 'display_name' => 'Economy']);
     $this->comfort = VehicleClass::factory()->create(['name' => 'comfort', 'display_name' => 'Comfort']);
 

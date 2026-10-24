@@ -7,6 +7,7 @@ use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Exceptions\CityLaunchException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\City\CheckCityBoundaryRequest;
 use App\Http\Requests\Admin\City\StoreCityRequest;
 use App\Http\Requests\Admin\City\UpdateCityRequest;
 use App\Http\Resources\CityResource;
@@ -143,6 +144,26 @@ class AdminCityController extends Controller
             'city' => new CityResource($city->load('vehicleClasses')),
             'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ], 201);
+    }
+
+    /**
+     * Check a boundary before saving it, for the map editor: the city it
+     * would overlap (saving is then refused), its area and centre, and
+     * warnings about a boundary that saves but is probably wrong.
+     */
+    public function checkBoundary(CheckCityBoundaryRequest $request): JsonResponse
+    {
+        $boundary = $request->validated('boundary');
+        $overlap = $this->boundaries->findOverlappingCity($boundary, $request->validated('city_id'));
+        $description = $this->boundaries->describe($boundary);
+
+        return response()->json([
+            'can_save' => $overlap === null,
+            'overlapping_city' => $overlap ? ['id' => $overlap->id, 'name' => $overlap->name] : null,
+            'area_sq_km' => $description['area_sq_km'] ?? null,
+            'centre' => $description['centre'] ?? null,
+            'warnings' => $this->boundaries->sanityWarnings($boundary, $request->validated('state')),
+        ]);
     }
 
     public function show(City $city): JsonResponse

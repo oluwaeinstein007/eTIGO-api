@@ -47,6 +47,8 @@ php artisan storage:link
 
 echo "==> Ensuring storage permissions..."
 chmod -R 775 "${SHARED_DIR}/storage" 2>/dev/null || true
+# New log files keep group www-data (Reverb runs as www-data).
+chmod g+s "${SHARED_DIR}/storage/logs" 2>/dev/null || true
 
 echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"

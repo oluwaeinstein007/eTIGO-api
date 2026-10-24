@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\City;
+use App\Support\NigerianStates;
 
 /**
  * Overlap checks between city boundaries (Phase 2 multi-city, OQ-22). A
@@ -18,6 +19,13 @@ use App\Models\City;
  */
 class CityBoundaryService
 {
+    /**
+     * Most points in one ring of a polygon (create, update and check
+     * enforce it): keeps the overlap and self-crossing checks fast; a
+     * detailed city outline needs far fewer.
+     */
+    public const MAX_BOUNDARY_POINTS = 500;
+
     private const DEFAULT_RADIUS_KM = 30.0;
 
     private const EDGE_TOLERANCE_KM = 0.01;
@@ -25,6 +33,27 @@ class CityBoundaryService
     private const KM_PER_DEGREE_LAT = 110.574;
 
     private const KM_PER_DEGREE_LNG_AT_EQUATOR = 111.320;
+
+    /**
+     * Nigeria's extent, with a small margin.
+     */
+    private const NIGERIA = ['min_lat' => 4.0, 'max_lat' => 14.0, 'min_lng' => 2.6, 'max_lng' => 14.7];
+
+    /**
+     * Areas outside this range (km²) are almost always a drawing mistake:
+     * the Lagos metropolis outline is about 1,400 km².
+     */
+    private const MIN_AREA_KM2 = 10.0;
+
+    private const MAX_AREA_KM2 = 2500.0;
+
+    /**
+     * A city further than this from its state's capital is probably drawn
+     * in the wrong place (or the state is wrong).
+     */
+    private const MAX_KM_FROM_STATE_CAPITAL = 250.0;
+
+    private const SWAPPED = 'The coordinates look swapped. GeoJSON lists longitude first, then latitude ([lng, lat]); swapped back, this boundary is where the city should be.';
 
     /**
      * The first other city whose boundary overlaps this one, if any.
@@ -77,10 +106,161 @@ class CityBoundaryService
      */
     public function warningsForCity(City $city): array
     {
-        return array_map(
+        $overlaps = array_map(
             fn (City $other) => "{$city->name}'s boundary overlaps {$other->name}. Pickups in the overlap are booked in the smaller of the two cities. Redraw one boundary so they only share a border.",
             $this->overlapsFor([$city])[$city->id],
         );
+
+        if (! is_array($city->boundary) || $city->boundary === []) {
+            return $city->isLive()
+                ? [...$overlaps, "{$city->name} has no map boundary, so pickups are not placed in it by location. Draw its outline."]
+                : $overlaps;
+        }
+
+        return [...$overlaps, ...$this->sanityWarnings($city->boundary, $city->state)];
+    }
+
+    /**
+     * Warnings about a boundary that can be saved but is probably wrong:
+     * outside Nigeria (often latitude and longitude swapped), a circle
+     * instead of an outline, an implausible size, an outline that crosses
+     * itself, or one far from the city's state. They never block a save.
+     *
+     * @param  array<string, mixed>  $boundary
+     * @return list<string>
+     */
+    public function sanityWarnings(array $boundary, ?string $state = null): array
+    {
+        $shape = $this->shape($boundary);
+
+        if ($shape === null) {
+            return [];
+        }
+
+        // [lng, lat] points: the circle's centre or the outline's corners.
+        $points = $shape['type'] === 'circle' ? [$shape['center']] : $shape['ring'];
+
+        if (array_filter($points, fn (array $p) => ! $this->inNigeria($p[1], $p[0])) !== []) {
+            $swapped = array_filter($points, fn (array $p) => $this->inNigeria($p[0], $p[1]));
+
+            // Nothing else can be judged on a boundary in the wrong place.
+            return [count($swapped) === count($points)
+                ? self::SWAPPED
+                : 'Part of this boundary is outside Nigeria. Check each point is [longitude, latitude].'];
+        }
+
+        $warnings = [];
+
+        if ($shape['type'] === 'circle') {
+            $warnings[] = 'This boundary is a circle. Draw an outline around the built-up area instead: a circle takes in water, farmland and neighbouring towns, and is hard to keep clear of other cities.';
+        }
+
+        ['area_sq_km' => $area, 'centre' => $centre] = $this->describe($boundary);
+
+        // A crossing outline's area is meaningless (its parts cancel out).
+        if ($shape['type'] === 'polygon' && $this->crossesItself($shape)) {
+            $warnings[] = 'The outline crosses itself. Redraw it so its edges do not cross.';
+        } elseif ($area < self::MIN_AREA_KM2) {
+            $warnings[] = 'This boundary covers only '.number_format($area, 1).' km², so most pickups in the city would fall outside it.';
+        } elseif ($area > self::MAX_AREA_KM2) {
+            $warnings[] = 'This boundary covers '.number_format($area).' km², more than a city needs (the Lagos metropolis is about 1,400 km²). It will take in neighbouring towns.';
+        }
+
+        $capital = $state !== null ? NigerianStates::capitalOf($state) : null;
+
+        if ($capital !== null) {
+            $km = $this->distanceKm($centre['lat'], $centre['lng'], $capital['lat'], $capital['lng']);
+
+            // Nigeria's latitudes and longitudes overlap, so swapped points
+            // can still land in Nigeria: swapped back, they are near the state.
+            if ($km > self::MAX_KM_FROM_STATE_CAPITAL
+                && $this->distanceKm($centre['lng'], $centre['lat'], $capital['lat'], $capital['lng']) <= self::MAX_KM_FROM_STATE_CAPITAL) {
+                return [self::SWAPPED];
+            }
+
+            if ($km > self::MAX_KM_FROM_STATE_CAPITAL) {
+                $warnings[] = 'This boundary is about '.number_format($km).' km from '.$capital['name'].", {$state}'s capital. Check the state and where the boundary is drawn.";
+            }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Area and centre of a boundary (the centre is the average of the
+     * outline's corners, or the circle's centre).
+     *
+     * @param  array<string, mixed>  $boundary
+     * @return array{area_sq_km: float, centre: array{lat: float, lng: float}}|null
+     */
+    public function describe(array $boundary): ?array
+    {
+        $shape = $this->shape($boundary);
+
+        if ($shape === null) {
+            return null;
+        }
+
+        if ($shape['type'] === 'circle') {
+            return [
+                'area_sq_km' => round(M_PI * $shape['radius'] ** 2, 2),
+                'centre' => ['lat' => $shape['center'][1], 'lng' => $shape['center'][0]],
+            ];
+        }
+
+        return [
+            // All rings, so holes count as when the city is saved.
+            'area_sq_km' => round(City::calculateAreaFromPolygon($boundary['coordinates']), 2),
+            'centre' => [
+                'lat' => round(array_sum(array_column($shape['ring'], 1)) / count($shape['ring']), 6),
+                'lng' => round(array_sum(array_column($shape['ring'], 0)) / count($shape['ring']), 6),
+            ],
+        ];
+    }
+
+    private function inNigeria(float $lat, float $lng): bool
+    {
+        return $lat >= self::NIGERIA['min_lat'] && $lat <= self::NIGERIA['max_lat']
+            && $lng >= self::NIGERIA['min_lng'] && $lng <= self::NIGERIA['max_lng'];
+    }
+
+    /**
+     * Two edges that are not neighbours cross.
+     *
+     * @param  array<string, mixed>  $shape
+     */
+    private function crossesItself(array $shape): bool
+    {
+        // Quadratic in the number of edges: requests cap a ring at
+        // MAX_BOUNDARY_POINTS; an older, larger boundary is not checked.
+        if (count($shape['ring']) > self::MAX_BOUNDARY_POINTS) {
+            return false;
+        }
+
+        $edges = $this->edges($this->project($shape, $this->meanLat($shape))['ring']);
+        $n = count($edges);
+
+        for ($i = 0; $i < $n; $i++) {
+            for ($j = $i + 2; $j < $n; $j++) {
+                if ($i === 0 && $j === $n - 1) {
+                    continue;
+                }
+
+                if ($this->segmentsCross($edges[$i][0], $edges[$i][1], $edges[$j][0], $edges[$j][1])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $a = sin(deg2rad($lat2 - $lat1) / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin(deg2rad($lng2 - $lng1) / 2) ** 2;
+
+        return 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**
