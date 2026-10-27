@@ -149,6 +149,7 @@ The same offer can now arrive by the event, the push and the endpoint, so key it
 - An offer for a new `ride_id` replaces the old one. The backend never offers a driver two rides at once, so a new offer means the old one is gone.
 - Close the sheet when the countdown reaches 0, when the driver declines, or when accept fails:
   - `422` "no longer available": the passenger cancelled or the offer moved on;
+  - `422` "This ride offer has expired.": the countdown ran out (the server allows 2 seconds for a tap already on its way);
   - `403` "not dispatched to you": the offer lapsed and went to another driver.
 
 ---

@@ -20,20 +20,21 @@ class DriverRideOfferController extends Controller
         $driverUserId = $request->user()->id;
         $ride = $matchingService->currentOfferFor($driverUserId);
         $dispatchedAt = $ride ? $matchingService->getDispatchedAt($ride) : null;
+        $expiresAt = $ride ? $matchingService->getOfferExpiresAt($ride) : null;
 
-        if ($ride === null || $dispatchedAt === null) {
+        if ($ride === null || $dispatchedAt === null || $expiresAt === null) {
+            return response()->json(['offer' => null]);
+        }
+
+        $secondsRemaining = (int) floor(now()->diffInSeconds($expiresAt, false));
+
+        // Past the deadline accept refuses the offer, even while the
+        // response-timeout job has yet to move the ride on.
+        if ($secondsRemaining <= 0) {
             return response()->json(['offer' => null]);
         }
 
         $offer = RideRequestDispatched::fromRide($driverUserId, $ride, $dispatchedAt)->broadcastWith();
-        $expiresAt = $dispatchedAt->copy()->addSeconds($offer['response_timeout_seconds']);
-        $secondsRemaining = (int) floor(now()->diffInSeconds($expiresAt, false));
-
-        // The response-timeout job moves the ride on shortly; an offer the
-        // driver can no longer accept in time is not worth showing.
-        if ($secondsRemaining <= 0) {
-            return response()->json(['offer' => null]);
-        }
 
         return response()->json([
             'offer' => [

@@ -155,6 +155,34 @@ it('rejects acceptance if ride is no longer searching', function () {
     $response->assertUnprocessable();
 });
 
+it('takes an accept up to the offer deadline plus the grace for taps in transit', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $this->freezeSecond();
+    app(DriverMatchingService::class)->setDispatchedDriver($ride, $d['user']->id);
+
+    $this->travel(config('matching.driver_response_timeout') + DriverMatchingService::ACCEPT_GRACE_SECONDS)->seconds();
+
+    $this->withToken($d['token'])->postJson("/api/v1/rides/{$ride->id}/accept")->assertOk();
+});
+
+it('refuses an accept once the offer has expired, even before the timeout job runs', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $this->freezeSecond();
+    app(DriverMatchingService::class)->setDispatchedDriver($ride, $d['user']->id);
+
+    $this->travel(config('matching.driver_response_timeout') + DriverMatchingService::ACCEPT_GRACE_SECONDS + 1)->seconds();
+
+    $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer')->assertExactJson(['offer' => null]);
+    $this->withToken($d['token'])->postJson("/api/v1/rides/{$ride->id}/accept")
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This ride offer has expired.']);
+
+    expect($ride->fresh()->status)->toBe(RideStatus::Searching)
+        ->and($ride->fresh()->driver_id)->toBeNull();
+});
+
 // === DRIVER REJECT ===
 
 it('allows a driver to reject a ride and re-dispatches', function () {

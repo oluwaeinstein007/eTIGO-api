@@ -1935,14 +1935,14 @@ Authorization: Bearer {driver_token}
 
 The ride offer the driver has not answered yet. Call it whenever the app opens or comes back to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: an app that was in the background misses the `ride.request.dispatched` event, and the event is not replayed.
 
-`offer` has the same fields as [`ride.request.dispatched`](#matching-engine), plus:
+`offer` has the same fields as [`ride.request.dispatched`](#matching-engine--how-it-works), plus:
 
 | Field | Description |
 |-------|-------------|
 | `expires_at` | When the offer lapses (`dispatched_at` + `response_timeout_seconds`), ISO 8601 |
 | `seconds_remaining` | Whole seconds left to accept, always at least 1. Count down from this rather than from the phone's clock |
 
-Accept with `POST /rides/{ride_id}/accept` or decline with `POST /rides/{ride_id}/reject` as usual.
+Accept with `POST /rides/{ride_id}/accept` or decline with `POST /rides/{ride_id}/reject` as usual. Accept enforces the same deadline: after `expires_at` (plus 2 seconds for a tap already on its way) it returns `422` "This ride offer has expired."
 
 **Response 200:**
 ```json
@@ -6158,7 +6158,7 @@ POST /rides/{ride}/accept
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching`, the ride was dispatched to this specific driver, and the driver is approved and online. Uses row-level locking (`SELECT FOR UPDATE`) on the ride and the driver to prevent concurrent acceptances — first-accept-wins — and a driver can never hold two active rides.
+Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching`, the ride was dispatched to this specific driver, the offer has not expired (`response_timeout_seconds` after `dispatched_at`, plus 2 seconds for a tap already on its way), and the driver is approved and online. Uses row-level locking (`SELECT FOR UPDATE`) on the ride and the driver to prevent concurrent acceptances — first-accept-wins — and a driver can never hold two active rides.
 
 On acceptance, the ride transitions through `matched` → `driver_en_route` atomically. The matching engine cache (rejected drivers, dispatch state) is cleaned up.
 
@@ -6276,6 +6276,13 @@ On acceptance, the ride transitions through `matched` → `driver_en_route` atom
 {
   "message": "This ride is no longer available for acceptance.",
   "current_status": "cancelled"
+}
+```
+
+**Response 422 (offer expired):** the driver's time to answer has run out, though the ride has not moved on to the next driver yet.
+```json
+{
+  "message": "This ride offer has expired."
 }
 ```
 

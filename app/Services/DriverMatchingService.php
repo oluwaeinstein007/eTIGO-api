@@ -28,6 +28,12 @@ class DriverMatchingService
 
     private const DRIVER_OFFER_KEY = 'driver:%s:offered_ride';
 
+    /**
+     * Seconds past an offer's deadline that an accept is still taken, so a
+     * tap sent just before the countdown ended is not lost in transit.
+     */
+    public const ACCEPT_GRACE_SECONDS = 2;
+
     public function __construct(
         private DriverLocationService $locationService,
     ) {}
@@ -274,6 +280,28 @@ class DriverMatchingService
         $dispatchedAt = Cache::get(sprintf(self::DISPATCHED_AT_KEY, $ride->id));
 
         return $dispatchedAt === null ? null : Carbon::parse($dispatchedAt);
+    }
+
+    /**
+     * When the driver's time to answer runs out: the deadline the offer
+     * endpoint counts down to and accept enforces.
+     */
+    public function getOfferExpiresAt(Ride $ride): ?Carbon
+    {
+        return $this->getDispatchedAt($ride)?->addSeconds((int) config('matching.driver_response_timeout', 20));
+    }
+
+    /**
+     * Whether the deadline (plus the grace for taps in transit) has passed.
+     * The response-timeout job can run late, so the ride may still be
+     * dispatched to the driver after that.
+     */
+    public function offerHasExpired(Ride $ride): bool
+    {
+        $expiresAt = $this->getOfferExpiresAt($ride);
+
+        // An offer made before the dispatch time was stored has no deadline to enforce.
+        return $expiresAt !== null && now()->greaterThan($expiresAt->addSeconds(self::ACCEPT_GRACE_SECONDS));
     }
 
     /**

@@ -514,6 +514,12 @@ class RideController extends Controller
             ], 403);
         }
 
+        if ($this->matchingService->offerHasExpired($ride)) {
+            return response()->json([
+                'message' => 'This ride offer has expired.',
+            ], 422);
+        }
+
         $result = $this->rideService->acceptRide($ride, $user);
 
         if (! $result['success']) {
