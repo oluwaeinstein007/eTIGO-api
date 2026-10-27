@@ -155,6 +155,34 @@ it('rejects acceptance if ride is no longer searching', function () {
     $response->assertUnprocessable();
 });
 
+it('takes an accept up to the offer deadline plus the grace for taps in transit', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $this->freezeSecond();
+    app(DriverMatchingService::class)->setDispatchedDriver($ride, $d['user']->id);
+
+    $this->travel(config('matching.driver_response_timeout') + DriverMatchingService::ACCEPT_GRACE_SECONDS)->seconds();
+
+    $this->withToken($d['token'])->postJson("/api/v1/rides/{$ride->id}/accept")->assertOk();
+});
+
+it('refuses an accept once the offer has expired, even before the timeout job runs', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $this->freezeSecond();
+    app(DriverMatchingService::class)->setDispatchedDriver($ride, $d['user']->id);
+
+    $this->travel(config('matching.driver_response_timeout') + DriverMatchingService::ACCEPT_GRACE_SECONDS + 1)->seconds();
+
+    $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer')->assertExactJson(['offer' => null]);
+    $this->withToken($d['token'])->postJson("/api/v1/rides/{$ride->id}/accept")
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This ride offer has expired.']);
+
+    expect($ride->fresh()->status)->toBe(RideStatus::Searching)
+        ->and($ride->fresh()->driver_id)->toBeNull();
+});
+
 // === DRIVER REJECT ===
 
 it('allows a driver to reject a ride and re-dispatches', function () {
@@ -519,4 +547,94 @@ it('includes full ride request payload in push notification when dispatching a r
         'duration_minutes' => 24.0,
     ]);
     expect($capturedPayload['data']['dispatched_at'])->toBeString()->not->toBeEmpty();
+});
+
+// === PENDING OFFER (GET /driver/ride-offer) ===
+
+it('returns the offer a driver has not answered, with the time left', function () {
+    $this->freezeSecond();
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $dispatchedAt = app(DriverMatchingService::class)->setDispatchedDriver($ride, $d['user']->id);
+
+    $this->travel(5)->seconds();
+
+    $response = $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer');
+
+    $timeout = config('matching.driver_response_timeout');
+    $response->assertOk()
+        ->assertJsonPath('offer.ride_id', $ride->id)
+        ->assertJsonPath('offer.pickup_address', '123 Test Street')
+        ->assertJsonPath('offer.response_timeout_seconds', $timeout)
+        ->assertJsonPath('offer.is_third_party', false)
+        ->assertJsonPath('offer.dispatched_at', $dispatchedAt->toIso8601String())
+        ->assertJsonPath('offer.expires_at', $dispatchedAt->copy()->addSeconds($timeout)->toIso8601String())
+        ->assertJsonPath('offer.seconds_remaining', $timeout - 5);
+    expect(array_keys($response->json('offer')))->toEqualCanonicalizing([
+        ...array_keys(RideRequestDispatched::fromRide($d['user']->id, $ride, $dispatchedAt)->broadcastWith()),
+        'expires_at', 'seconds_remaining',
+    ]);
+});
+
+it('gives the endpoint and the push the same offer', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('findNearbyDrivers')
+        ->andReturn([['driver_id' => $d['driver']->id, 'distance_km' => 1.2]]);
+
+    $pushData = null;
+    $pushGateway = Mockery::mock(PushNotificationGateway::class);
+    $pushGateway->shouldReceive('sendToUser')->once()
+        ->withArgs(function (string $userId, array $payload) use (&$pushData) {
+            $pushData = $payload['data'];
+
+            return true;
+        });
+
+    $matchingService = new DriverMatchingService($locationService);
+    $this->app->instance(DriverMatchingService::class, $matchingService);
+    (new DispatchRideRequestJob($ride->id))->handle($matchingService, $pushGateway);
+
+    $offer = $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer')->assertOk()->json('offer');
+
+    expect($offer['ride_id'])->toBe($ride->id)
+        ->and($offer['dispatched_at'])->toBe($pushData['dispatched_at'])
+        ->and(array_diff_key($pushData, ['type' => 1, 'response_timeout' => 1]))
+        ->toEqual(array_filter(
+            array_diff_key($offer, ['expires_at' => 1, 'seconds_remaining' => 1]),
+            static fn (mixed $value): bool => $value !== null,
+        ));
+});
+
+it('returns no offer once it has run out, gone to another driver or been taken', function (string $case) {
+    $d = createOnlineDriver($this);
+    $other = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $matching = app(DriverMatchingService::class);
+    $matching->setDispatchedDriver($ride, $d['user']->id);
+
+    match ($case) {
+        'expired' => $this->travel(config('matching.driver_response_timeout'))->seconds(),
+        'timed out' => $matching->clearDispatchedDriver($ride),
+        'cancelled' => $ride->update(['status' => RideStatus::Cancelled]),
+        'other driver' => $d = $other,
+    };
+
+    $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer')
+        ->assertOk()
+        ->assertExactJson(['offer' => null]);
+})->with(['expired', 'timed out', 'cancelled', 'other driver']);
+
+it('returns no offer to a driver who has none', function () {
+    $d = createOnlineDriver($this);
+
+    $this->withToken($d['token'])->getJson('/api/v1/driver/ride-offer')
+        ->assertOk()
+        ->assertExactJson(['offer' => null]);
+});
+
+it('does not let passengers read ride offers', function () {
+    $this->withToken($this->passengerToken)->getJson('/api/v1/driver/ride-offer')->assertForbidden();
 });

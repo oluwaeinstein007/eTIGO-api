@@ -3274,7 +3274,7 @@
                 },
                 {
                   "name": "422 \u2014 Cash Not Allowed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3286,7 +3286,7 @@
                 },
                 {
                   "name": "422 \u2014 Age Not Confirmed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3298,7 +3298,7 @@
                 },
                 {
                   "name": "422 \u2014 Too Many Active",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3310,7 +3310,7 @@
                 },
                 {
                   "name": "422 \u2014 Too Many Numbers",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3322,7 +3322,7 @@
                 },
                 {
                   "name": "422 \u2014 Feature Off",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3334,7 +3334,7 @@
                 },
                 {
                   "name": "422 \u2014 Invalid share_with",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -4131,7 +4131,7 @@
               "response": [
                 {
                   "name": "422 \u2014 City Not Open",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5250,7 +5250,7 @@
                 },
                 {
                   "name": "422 \u2014 No Fee to Dispute",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5540,7 +5540,7 @@
                 },
                 {
                   "name": "422 \u2014 Case closed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5552,7 +5552,7 @@
                 },
                 {
                   "name": "422 \u2014 Too many files",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5614,7 +5614,7 @@
                 },
                 {
                   "name": "422 \u2014 Already appealed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5626,7 +5626,7 @@
                 },
                 {
                   "name": "422 \u2014 Window passed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5638,7 +5638,7 @@
                 },
                 {
                   "name": "422 \u2014 Final decision",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -8306,7 +8306,7 @@
                 },
                 {
                   "name": "422 \u2014 Car off the road (expired papers)",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -8756,7 +8756,7 @@
                     "accept"
                   ]
                 },
-                "description": "Driver accepts the ride they were offered (the matching engine offers one ride to one driver at a time; an unanswered offer expires after 20 s). The ride moves `searching` \u2192 `matched` \u2192 `driver_en_route`. The ride and the driver are locked, so the first acceptance wins and a driver can never hold two rides.\n\n- 403 \u2014 the ride was not offered to this driver, or the driver's earnings balance is below the allowed negative threshold.\n- 409 \u2014 another driver already accepted, or the driver already has an active ride.\n- 422 \u2014 the ride is no longer open for acceptance."
+                "description": "Driver accepts the ride they were offered (the matching engine offers one ride to one driver at a time; an unanswered offer expires after 20 s). The ride moves `searching` \u2192 `matched` \u2192 `driver_en_route`. The ride and the driver are locked, so the first acceptance wins and a driver can never hold two rides.\n\n- 403 \u2014 the ride was not offered to this driver, or the driver's earnings balance is below the allowed negative threshold.\n- 409 \u2014 another driver already accepted, or the driver already has an active ride.\n- 422 \u2014 the ride is no longer open for acceptance, or the offer expired: past `dispatched_at` + `response_timeout_seconds`, with 2 s allowed for a tap already on its way (\"This ride offer has expired.\"). The ride moves on to the next driver."
               },
               "response": [
                 {
@@ -8806,6 +8806,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Ride is no longer available.\"\n}"
+                },
+                {
+                  "name": "Accept Ride \u2014 Offer Expired (422)",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This ride offer has expired.\"\n}"
                 }
               ]
             },
@@ -9133,6 +9145,59 @@
                     }
                   ],
                   "body": "{\n  \"ride\": {\n    \"id\": \"01a14039-5902-7398-a6db-916e3603dd86\",\n    \"reference_number\": \"TRP-NG-000001\",\n    \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n    \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n    \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"driver_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n    \"pickup\": {\n      \"lat\": \"6.5244000\",\n      \"lng\": \"3.3792000\",\n      \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n    },\n    \"destination\": {\n      \"lat\": \"6.4541000\",\n      \"lng\": \"3.3947000\",\n      \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n    },\n    \"status\": \"driver_en_route\",\n    \"status_label\": \"Driver En Route\",\n    \"is_scheduled\": false,\n    \"scheduled_pickup_at\": null,\n    \"scheduled\": null,\n    \"share_token\": \"DPLeRiHD0vp6WNEPX776vqZ5yDsswxvj\",\n    \"fare_estimate_amount\": \"4088.00\",\n    \"final_fare_amount\": null,\n    \"discount_amount\": null,\n    \"fare_currency\": \"NGN\",\n    \"pricing_snapshot\": {\n      \"version\": 1,\n      \"base_fare\": \"600.00\",\n      \"tier_name\": \"Silver\",\n      \"captured_at\": \"2026-10-15T15:41:02+00:00\",\n      \"distance_km\": 10,\n      \"per_km_rate\": \"250.00\",\n      \"minimum_fare\": \"1500.00\",\n      \"effective_from\": \"2026-10-15T15:41:02+00:00\",\n      \"per_minute_rate\": \"40.00\",\n      \"surge_rule_name\": null,\n      \"duration_minutes\": 25,\n      \"surge_multiplier\": 1,\n      \"pricing_config_id\": \"01a14039-578d-718b-99f8-622e5934aa0a\",\n      \"waiting_time_rate\": \"50.00\",\n      \"free_waiting_minutes\": 5,\n      \"booking_fee_discount_pct\": 2\n    },\n    \"distance_km\": 10,\n    \"duration_minutes\": 25,\n    \"payment_method\": \"cash\",\n    \"payment_status\": \"pending\",\n    \"tip_amount\": null,\n    \"cancellation_reason\": null,\n    \"city\": {\n      \"id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"name\": \"Lagos\",\n      \"slug\": \"lagos\",\n      \"state\": \"Lagos\",\n      \"region\": \"South-West\",\n      \"boundary\": {\n        \"type\": \"Point\",\n        \"radius_km\": 40,\n        \"coordinates\": [\n          3.3792,\n          6.5244\n        ]\n      },\n      \"area_sq_km\": null,\n      \"timezone\": \"Africa/Lagos\",\n      \"currency_code\": \"NGN\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"vehicle_class\": {\n      \"id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"name\": \"economy\",\n      \"display_name\": \"Economy\",\n      \"capacity\": 4,\n      \"icon\": null,\n      \"description\": \"Affordable rides for everyday trips.\",\n      \"is_active\": true,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"passenger\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n      \"reference_number\": null,\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"cancelled_by\": null,\n    \"state_transitions\": [\n      {\n        \"id\": \"01a14039-5912-7055-ae32-ff78f5dcb292\",\n        \"from_state\": \"requested\",\n        \"to_state\": \"searching\",\n        \"triggered_by_type\": \"passenger\",\n        \"triggered_by_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n        \"metadata\": null,\n        \"created_at\": \"2026-10-15T15:41:02.000000Z\"\n      },\n      {\n        \"id\": \"01a14039-596a-73b8-adc1-18a27f8cb9b7\",\n        \"from_state\": \"searching\",\n        \"to_state\": \"matched\",\n        \"triggered_by_type\": \"driver\",\n        \"triggered_by_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n        \"metadata\": null,\n        \"created_at\": \"2026-10-15T15:41:02.000000Z\"\n      },\n      {\n        \"id\": \"01a14039-596f-736f-83a3-3dae0a770af0\",\n        \"from_state\": \"matched\",\n        \"to_state\": \"driver_en_route\",\n        \"triggered_by_type\": \"driver\",\n        \"triggered_by_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n        \"metadata\": null,\n        \"created_at\": \"2026-10-15T15:41:02.000000Z\"\n      }\n    ],\n    \"matched_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T15:41:02.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Pending Ride Offer (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ride-offer",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ride-offer"
+                  ]
+                },
+                "description": "The ride offer the driver has not answered yet. Call it when the app opens or returns to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: a backgrounded app misses `ride.request.dispatched`, and the event is not replayed.\n\n`offer` has the same fields as `ride.request.dispatched`, plus `expires_at` and `seconds_remaining` (whole seconds left, at least 1; count down from this, not the phone clock). `offer` is `null` when there is nothing to answer: no offer, or it lapsed, went to another driver, or the ride was cancelled.\n\nAccept or reject with the usual ride actions. Accept enforces the same deadline: after `expires_at` (plus 2 s for a tap already on its way) it returns 422 \"This ride offer has expired.\""
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Pending Offer",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"offer\": {\n    \"ride_id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n    \"destination_address\": \"456 Broad Street, Lagos Island, Lagos\",\n    \"pickup_lat\": 6.5244,\n    \"pickup_lng\": 3.3792,\n    \"destination_lat\": 6.4541,\n    \"destination_lng\": 3.3947,\n    \"fare_estimate\": 3750.0,\n    \"currency\": \"NGN\",\n    \"vehicle_class\": \"Economy\",\n    \"response_timeout_seconds\": 20,\n    \"payment_method\": \"card\",\n    \"passenger_name\": \"Ade Ogunleye\",\n    \"passenger_rating\": 4.9,\n    \"distance_km\": 8.5,\n    \"duration_minutes\": 15,\n    \"scheduled_pickup_at\": null,\n    \"is_third_party\": false,\n    \"dispatched_at\": \"2026-10-27T16:42:03+00:00\",\n    \"expires_at\": \"2026-10-27T16:42:23+00:00\",\n    \"seconds_remaining\": 14\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 No Offer",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"offer\": null\n}"
                 }
               ]
             },
@@ -10565,7 +10630,7 @@
                 },
                 {
                   "name": "422 \u2014 Lower than the last reading",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -12162,7 +12227,7 @@
                 },
                 {
                   "name": "422 \u2014 Term too short",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -14402,7 +14467,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Has Shifts",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -15313,7 +15378,7 @@
                 },
                 {
                   "name": "422 \u2014 Overlap",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -18929,7 +18994,7 @@
                 },
                 {
                   "name": "422 \u2014 Invalid radius_km",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19021,7 +19086,7 @@
                 },
                 {
                   "name": "422 \u2014 Ride Not Assignable",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19033,7 +19098,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Already On A Ride",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19045,7 +19110,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Not Eligible",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19057,7 +19122,7 @@
                 },
                 {
                   "name": "422 \u2014 Missing driver_id",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19069,7 +19134,7 @@
                 },
                 {
                   "name": "422 \u2014 Passenger Rebooked",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19689,7 +19754,7 @@
                 },
                 {
                   "name": "422 \u2014 Validation Error",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20054,7 +20119,7 @@
                 },
                 {
                   "name": "422 \u2014 Card or Too Much",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20442,7 +20507,7 @@
                 },
                 {
                   "name": "422 \u2014 Cannot work it",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20454,7 +20519,7 @@
                 },
                 {
                   "name": "422 \u2014 Tier 1 agent",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20560,7 +20625,7 @@
                 },
                 {
                   "name": "422 \u2014 Already tier 3",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20572,7 +20637,7 @@
                 },
                 {
                   "name": "422 \u2014 Closed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20686,7 +20751,7 @@
                 },
                 {
                   "name": "422 \u2014 Already tier 1",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20698,7 +20763,7 @@
                 },
                 {
                   "name": "422 \u2014 Appeal below deciding tier",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20924,7 +20989,7 @@
                 },
                 {
                   "name": "422 \u2014 Provider refused card refund",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20936,7 +21001,7 @@
                 },
                 {
                   "name": "422 \u2014 Card refund already sent",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23141,7 +23206,7 @@
                 },
                 {
                   "name": "422 \u2014 Already Reviewed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23186,7 +23251,7 @@
                 },
                 {
                   "name": "422 \u2014 Super Admin Only",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23231,7 +23296,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Still Has Time to Respond",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23456,7 +23521,7 @@
                 },
                 {
                   "name": "422 \u2014 Overturned",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23501,7 +23566,7 @@
                 },
                 {
                   "name": "422 \u2014 Deactivation Confirmed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23630,7 +23695,7 @@
                 },
                 {
                   "name": "422 \u2014 Already Verified",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23759,7 +23824,7 @@
                 },
                 {
                   "name": "422 \u2014 Not L3 Flag",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23804,7 +23869,7 @@
                 },
                 {
                   "name": "422 \u2014 Dispute Pending",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23849,7 +23914,7 @@
                 },
                 {
                   "name": "422 \u2014 Reason Missing",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23894,7 +23959,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Still Has Time to Respond",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {

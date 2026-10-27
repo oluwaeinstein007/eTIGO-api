@@ -67,49 +67,12 @@ class DispatchRideRequestJob implements ShouldQueue
         }
 
         $best = $candidates[0];
-        $matchingService->setDispatchedDriver($ride, $best['user_id']);
-
-        $timeout = config('matching.driver_response_timeout', 30);
-
-        $passengerName = $ride->is_third_party
-            ? (string) $ride->riderFirstName()
-            : trim(($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? ''));
-        $passengerRating = $ride->passenger?->averageRating();
-        $distanceKm = isset($ride->pricing_snapshot['distance_km'])
-            ? (float) $ride->pricing_snapshot['distance_km']
-            : null;
-        $durationMinutes = isset($ride->pricing_snapshot['duration_minutes'])
-            ? (float) $ride->pricing_snapshot['duration_minutes']
-            : null;
-        $scheduledPickupAt = $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String();
-        $vehicleClassName = $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '';
-        $currency = $ride->fare_currency ?? 'NGN';
-        $paymentMethod = $ride->payment_method?->value ?? '';
-        $dispatchedAt = now()->toIso8601String();
+        $dispatchedAt = $matchingService->setDispatchedDriver($ride, $best['user_id']);
+        $timeout = config('matching.driver_response_timeout', 20);
+        $offer = RideRequestDispatched::fromRide($best['user_id'], $ride, $dispatchedAt);
 
         try {
-            RideRequestDispatched::dispatch(
-                driverUserId: $best['user_id'],
-                rideId: $ride->id,
-                pickupAddress: $ride->pickup_address,
-                destinationAddress: $ride->destination_address,
-                pickupLat: (float) $ride->pickup_lat,
-                pickupLng: (float) $ride->pickup_lng,
-                destinationLat: (float) $ride->destination_lat,
-                destinationLng: (float) $ride->destination_lng,
-                fareEstimate: (float) $ride->fare_estimate_amount,
-                currency: $currency,
-                vehicleClassName: $vehicleClassName,
-                responseTimeoutSeconds: $timeout,
-                paymentMethod: $paymentMethod,
-                passengerName: $passengerName,
-                passengerRating: $passengerRating,
-                distanceKm: $distanceKm,
-                durationMinutes: $durationMinutes,
-                scheduledPickupAt: $scheduledPickupAt,
-                isThirdParty: (bool) $ride->is_third_party,
-                dispatchedAt: $dispatchedAt,
-            );
+            event($offer);
         } catch (\Throwable $e) {
             // The push notification below and the response timeout must still
             // go out when the WebSocket server is unavailable.
@@ -121,28 +84,12 @@ class DispatchRideRequestJob implements ShouldQueue
         }
 
         try {
+            // Same fields as the WebSocket event, so the app can show the
+            // offer straight from a notification tap.
             $pushData = array_filter([
                 'type' => 'ride_request',
-                'ride_id' => (string) $ride->id,
-                'pickup_address' => $ride->pickup_address,
-                'destination_address' => $ride->destination_address,
-                'pickup_lat' => (float) $ride->pickup_lat,
-                'pickup_lng' => (float) $ride->pickup_lng,
-                'destination_lat' => (float) $ride->destination_lat,
-                'destination_lng' => (float) $ride->destination_lng,
-                'fare_estimate' => (float) $ride->fare_estimate_amount,
-                'currency' => $currency,
-                'vehicle_class' => $vehicleClassName,
                 'response_timeout' => $timeout,
-                'response_timeout_seconds' => $timeout,
-                'payment_method' => $paymentMethod,
-                'passenger_name' => $passengerName,
-                'passenger_rating' => $passengerRating,
-                'distance_km' => $distanceKm,
-                'duration_minutes' => $durationMinutes,
-                'scheduled_pickup_at' => $scheduledPickupAt,
-                'is_third_party' => (bool) $ride->is_third_party,
-                'dispatched_at' => $dispatchedAt,
+                ...$offer->broadcastWith(),
             ], static fn (mixed $value): bool => $value !== null);
 
             $pushGateway->sendToUser($best['user_id'], [

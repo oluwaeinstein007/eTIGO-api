@@ -1926,6 +1926,62 @@ Returns the driver's current active ride (status: `searching`, `driver_en_route`
 
 ---
 
+### Get Pending Ride Offer (Driver)
+
+```
+GET /driver/ride-offer
+Authorization: Bearer {driver_token}
+```
+
+The ride offer the driver has not answered yet. Call it whenever the app opens or comes back to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: an app that was in the background misses the `ride.request.dispatched` event, and the event is not replayed.
+
+`offer` has the same fields as [`ride.request.dispatched`](#matching-engine--how-it-works), plus:
+
+| Field | Description |
+|-------|-------------|
+| `expires_at` | When the offer lapses (`dispatched_at` + `response_timeout_seconds`), ISO 8601 |
+| `seconds_remaining` | Whole seconds left to accept, always at least 1. Count down from this rather than from the phone's clock |
+
+Accept with `POST /rides/{ride_id}/accept` or decline with `POST /rides/{ride_id}/reject` as usual. Accept enforces the same deadline: after `expires_at` (plus 2 seconds for a tap already on its way) it returns `422` "This ride offer has expired."
+
+**Response 200:**
+```json
+{
+  "offer": {
+    "ride_id": "01a10e6f-45fc-724e-9a7d-83ba9df90e36",
+    "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos",
+    "destination_address": "456 Broad Street, Lagos Island, Lagos",
+    "pickup_lat": 6.5244,
+    "pickup_lng": 3.3792,
+    "destination_lat": 6.4541,
+    "destination_lng": 3.3947,
+    "fare_estimate": 3750.00,
+    "currency": "NGN",
+    "vehicle_class": "Economy",
+    "response_timeout_seconds": 20,
+    "payment_method": "card",
+    "passenger_name": "Ade Ogunleye",
+    "passenger_rating": 4.9,
+    "distance_km": 8.5,
+    "duration_minutes": 15,
+    "scheduled_pickup_at": null,
+    "is_third_party": false,
+    "dispatched_at": "2026-10-27T16:42:03+00:00",
+    "expires_at": "2026-10-27T16:42:23+00:00",
+    "seconds_remaining": 14
+  }
+}
+```
+
+**Response 200 (nothing to answer):** no offer, or it has lapsed, gone to another driver, or the ride was cancelled.
+```json
+{
+  "offer": null
+}
+```
+
+---
+
 ## Driver — KYC Verification
 
 All KYC endpoints require `Authorization: Bearer {token}` from a driver user.
@@ -6102,7 +6158,7 @@ POST /rides/{ride}/accept
 
 **Auth required. Middleware:** `user.type:driver`
 
-Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching`, the ride was dispatched to this specific driver, and the driver is approved and online. Uses row-level locking (`SELECT FOR UPDATE`) on the ride and the driver to prevent concurrent acceptances — first-accept-wins — and a driver can never hold two active rides.
+Driver accepts a ride that was dispatched to them by the matching engine. Only valid when ride status is `searching`, the ride was dispatched to this specific driver, the offer has not expired (`response_timeout_seconds` after `dispatched_at`, plus 2 seconds for a tap already on its way), and the driver is approved and online. Uses row-level locking (`SELECT FOR UPDATE`) on the ride and the driver to prevent concurrent acceptances — first-accept-wins — and a driver can never hold two active rides.
 
 On acceptance, the ride transitions through `matched` → `driver_en_route` atomically. The matching engine cache (rejected drivers, dispatch state) is cleaned up.
 
@@ -6223,6 +6279,13 @@ On acceptance, the ride transitions through `matched` → `driver_en_route` atom
 }
 ```
 
+**Response 422 (offer expired):** the driver's time to answer has run out, though the ride has not moved on to the next driver yet.
+```json
+{
+  "message": "This ride offer has expired."
+}
+```
+
 ---
 
 ### Reject Ride
@@ -6303,13 +6366,18 @@ Admins can also assign a driver manually (`POST /admin/rides/{ride}/assign`), in
   "distance_km": 8.5,
   "duration_minutes": 15,
   "scheduled_pickup_at": null,
-  "is_third_party": false
+  "is_third_party": false,
+  "dispatched_at": "2026-10-27T16:42:03+00:00"
 }
 ```
 
+`dispatched_at` is when the offer was made; the driver has `response_timeout_seconds` from then. An app that missed the event (backgrounded, reconnecting) gets the same offer from [`GET /driver/ride-offer`](#get-pending-ride-offer-driver).
+
+**Push notification** (`New Ride Request`, sent with the event): `data` has `type: "ride_request"`, `response_timeout` (same as `response_timeout_seconds`) and every field above that is not `null`. FCM data values are strings: numbers arrive as `"6.5244"`, booleans as `"true"` / `"false"`.
+
 When `is_third_party` is `true` the ride was booked for someone else and `passenger_name` is the **rider's** first name (the person to pick up); `passenger_rating` is still the booker's.
 
-`scheduled_pickup_at` is the booked pickup time (ISO 8601) when the offer is for a [scheduled ride](#scheduled-rides), otherwise `null`. (A scheduled ride a driver reserved in advance is assigned to them directly, with no offer.) The push notification's `data` carries it too, only for scheduled rides.
+`scheduled_pickup_at` is the booked pickup time (ISO 8601) when the offer is for a [scheduled ride](#scheduled-rides), otherwise `null`. (A scheduled ride a driver reserved in advance is assigned to them directly, with no offer.) The push notification's `data` carries it only for scheduled rides.
 
 **Configuration** (`config/matching.php`, via environment variables):
 

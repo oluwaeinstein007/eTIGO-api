@@ -20,11 +20,19 @@ class DriverMatchingService
 
     private const DISPATCHED_DRIVER_KEY = 'ride:%s:dispatched_to';
 
+    private const DISPATCHED_AT_KEY = 'ride:%s:dispatched_at';
+
     private const RADIUS_STEP_KEY = 'ride:%s:radius_step';
 
     private const AUTO_RETRY_KEY = 'ride:%s:auto_retry_count';
 
     private const DRIVER_OFFER_KEY = 'driver:%s:offered_ride';
+
+    /**
+     * Seconds past an offer's deadline that an accept is still taken, so a
+     * tap sent just before the countdown ended is not lost in transit.
+     */
+    public const ACCEPT_GRACE_SECONDS = 2;
 
     public function __construct(
         private DriverLocationService $locationService,
@@ -212,14 +220,21 @@ class DriverMatchingService
         Cache::put($key, array_unique($rejected), config('matching.matching_timeout', 300));
     }
 
-    public function setDispatchedDriver(Ride $ride, string $driverUserId): void
+    /**
+     * @return Carbon when the offer was made, which starts the driver's countdown
+     */
+    public function setDispatchedDriver(Ride $ride, string $driverUserId): Carbon
     {
         // The response-timeout job clears these keys explicitly; the TTL is only
         // a safety net and must outlive queue lag so the job still sees them.
         $ttl = (int) config('matching.driver_response_timeout', 20) + 60;
+        $dispatchedAt = now();
 
         Cache::put(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id), $driverUserId, $ttl);
+        Cache::put(sprintf(self::DISPATCHED_AT_KEY, $ride->id), $dispatchedAt->toIso8601String(), $ttl);
         Cache::put(sprintf(self::DRIVER_OFFER_KEY, $driverUserId), (string) $ride->id, $ttl);
+
+        return $dispatchedAt;
     }
 
     public function clearDispatchedDriver(Ride $ride): void
@@ -228,6 +243,7 @@ class DriverMatchingService
         $driverUserId = Cache::get($key);
 
         Cache::forget($key);
+        Cache::forget(sprintf(self::DISPATCHED_AT_KEY, $ride->id));
 
         if ($driverUserId) {
             $this->releaseDriverOffer($driverUserId, $ride);
@@ -257,6 +273,59 @@ class DriverMatchingService
     public function getDispatchedDriverId(Ride $ride): ?string
     {
         return Cache::get(sprintf(self::DISPATCHED_DRIVER_KEY, $ride->id));
+    }
+
+    public function getDispatchedAt(Ride $ride): ?Carbon
+    {
+        $dispatchedAt = Cache::get(sprintf(self::DISPATCHED_AT_KEY, $ride->id));
+
+        return $dispatchedAt === null ? null : Carbon::parse($dispatchedAt);
+    }
+
+    /**
+     * When the driver's time to answer runs out: the deadline the offer
+     * endpoint counts down to and accept enforces.
+     */
+    public function getOfferExpiresAt(Ride $ride): ?Carbon
+    {
+        return $this->getDispatchedAt($ride)?->addSeconds((int) config('matching.driver_response_timeout', 20));
+    }
+
+    /**
+     * Whether the deadline (plus the grace for taps in transit) has passed.
+     * The response-timeout job can run late, so the ride may still be
+     * dispatched to the driver after that.
+     */
+    public function offerHasExpired(Ride $ride): bool
+    {
+        $expiresAt = $this->getOfferExpiresAt($ride);
+
+        // An offer made before the dispatch time was stored has no deadline to enforce.
+        return $expiresAt !== null && now()->greaterThan($expiresAt->addSeconds(self::ACCEPT_GRACE_SECONDS));
+    }
+
+    /**
+     * The ride this driver has been offered and not yet answered, if the
+     * offer still stands, so an app that missed the WebSocket event or the
+     * push can show it on open.
+     */
+    public function currentOfferFor(string $driverUserId): ?Ride
+    {
+        $rideId = Cache::get(sprintf(self::DRIVER_OFFER_KEY, $driverUserId));
+
+        if ($rideId === null) {
+            return null;
+        }
+
+        $ride = Ride::with(['vehicleClass', 'passenger', 'scheduledRide'])->find($rideId);
+
+        if (! $ride
+            || $ride->status !== RideStatus::Searching
+            || $this->getDispatchedDriverId($ride) !== $driverUserId) {
+            return null;
+        }
+
+        return $ride;
     }
 
     /**

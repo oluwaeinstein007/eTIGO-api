@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Contracts\PushNotificationGateway;
 use App\Models\DeviceToken;
+use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\AndroidConfig;
 use Kreait\Firebase\Messaging\ApnsConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\MulticastSendReport;
 use Kreait\Firebase\Messaging\Notification;
+use Kreait\Firebase\Messaging\SendReport;
 
 class FirebasePushGateway implements PushNotificationGateway
 {
@@ -28,10 +30,29 @@ class FirebasePushGateway implements PushNotificationGateway
             ->all();
 
         if (empty($tokens)) {
+            Log::info('Push skipped: user has no active device', [
+                'user_id' => $userId,
+                'type' => $notification['data']['type'] ?? null,
+            ]);
+
             return;
         }
 
-        $this->sendToDevices($tokens, $notification);
+        $report = $this->multicast($tokens, $notification);
+
+        if ($report->hasFailures()) {
+            Log::warning('Push not delivered to every device', [
+                'user_id' => $userId,
+                'type' => $notification['data']['type'] ?? null,
+                'success_count' => $report->successes()->count(),
+                'failure_count' => $report->failures()->count(),
+                // Error types only: Firebase's messages quote the full device token.
+                'errors' => array_values(array_unique(array_map(
+                    static fn (SendReport $sendReport): string => class_basename($sendReport->error() ?? 'unknown'),
+                    $report->failures()->getItems(),
+                ))),
+            ]);
+        }
     }
 
     /**
@@ -40,7 +61,7 @@ class FirebasePushGateway implements PushNotificationGateway
     public function sendToDevice(string $token, array $payload): void
     {
         $message = $this->buildMessage($payload)
-            ->withChangedTarget('token', $token);
+            ->toToken($token);
 
         $this->messaging->send($message);
     }
@@ -52,15 +73,25 @@ class FirebasePushGateway implements PushNotificationGateway
      */
     public function sendToDevices(array $tokens, array $payload): array
     {
-        $message = $this->buildMessage($payload);
-        $report = $this->messaging->sendMulticast($message, $tokens);
-
-        $this->deactivateInvalidTokens($report);
+        $report = $this->multicast($tokens, $payload);
 
         return [
             'success_count' => $report->successes()->count(),
             'failure_count' => $report->failures()->count(),
         ];
+    }
+
+    /**
+     * @param  array<string>  $tokens
+     * @param  array{title: string, body: string, data?: array<string, mixed>}  $payload
+     */
+    private function multicast(array $tokens, array $payload): MulticastSendReport
+    {
+        $report = $this->messaging->sendMulticast($this->buildMessage($payload), $tokens);
+
+        $this->deactivateInvalidTokens($report);
+
+        return $report;
     }
 
     /**
@@ -92,7 +123,12 @@ class FirebasePushGateway implements PushNotificationGateway
         if (! empty($payload['data'])) {
             $stringData = [];
             foreach ($payload['data'] as $key => $value) {
-                $stringData[(string) $key] = is_array($value) ? json_encode($value) : (string) $value;
+                $stringData[(string) $key] = match (true) {
+                    is_array($value) => json_encode($value),
+                    // (string) false is "", which apps can't parse as a bool.
+                    is_bool($value) => $value ? 'true' : 'false',
+                    default => (string) $value,
+                };
             }
             $message = $message->withData($stringData);
         }
