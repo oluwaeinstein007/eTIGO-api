@@ -386,12 +386,12 @@ Not built: telematics (odometer and charge level are entered), workshop booking 
 
 1. **Search** the Redis GEO index (`GEOSEARCH` on `driver_locations`) within the current radius tier: **3 → 7 → 15 km** (`MATCHING_RADIUS_TIER_*_KM`), reading up to `MATCHING_MAX_CANDIDATES` (20).
 2. **Filter** to eligible drivers: online and approved; location reported within **120 s** (`DriverLocationService::STALE_LOCATION_SECONDS`; stale drivers are pruned from the index); vehicle of the requested class; no active ride; no unanswered offer for another ride; not already rejected or ignored for this ride.
-3. **Offer**: `ride.request.dispatched` on `driver.{userId}` plus a push. A failed broadcast does not stop the push or the timeout.
+3. **Offer**: `ride.request.dispatched` on `driver.{userId}` plus a push with the same fields (both built by `RideRequestDispatched::fromRide()`). A failed broadcast does not stop the push or the timeout. An app that missed both reads the offer from `GET /driver/ride-offer`.
 4. **Timeout**: `DriverResponseTimeoutJob` after `MATCHING_DRIVER_RESPONSE_TIMEOUT` (20 s) treats silence as a rejection and moves on, even if the queue runs late.
 5. **Expand** to the next tier when the current one is exhausted. After the last tier, wait `MATCHING_AUTO_RETRY_DELAY` (10 s) and start a new wave, up to `MATCHING_MAX_AUTO_RETRIES` (1) times.
 6. **Give up**: `MatchingTimeoutJob` moves the ride to `no_driver_found` after `MATCHING_TIMEOUT` (300 s) from the start of the **current** search. Timers from an earlier search are ignored, so a retry gets a full window.
 
-Per-ride matching state lives in the cache with the matching timeout as TTL: `ride:{id}:rejected_drivers`, `ride:{id}:dispatched_to`, `ride:{id}:radius_step`, `ride:{id}:auto_retry_count`, plus `driver:{userId}:offered_ride` (the double-offer guard).
+Per-ride matching state lives in the cache with the matching timeout as TTL: `ride:{id}:rejected_drivers`, `ride:{id}:dispatched_to`, `ride:{id}:radius_step`, `ride:{id}:auto_retry_count`, `ride:{id}:dispatched_at` (starts the driver's countdown), plus `driver:{userId}:offered_ride` (the double-offer guard, also read by `GET /driver/ride-offer`).
 
 **Priority matching** (Gold, Platinum, Diamond passengers; locked in at booking as `pricing_snapshot.priority_matching`) never trades distance — industry practice for loyalty priority is to speed matching up, not to send a farther car:
 - Every ride, priority or not, is offered its **nearest** eligible driver first.
@@ -621,6 +621,7 @@ Drivers can dispute a flag; operations upholds or overturns it. An upheld flag c
 
 - `NotificationService` writes in-app notifications (`notifications` table) and sends push via the push gateway. It respects per-category preferences (`notification_preferences`); safety and other critical categories bypass them.
 - Laravel notification classes (wallet, payouts, refunds, tier upgrades) deliver through `AppNotificationChannel`, which stores them in-app and pushes them, using the same `NotificationType` values.
+- `FirebasePushGateway` sends `data` values as strings (FCM requires it): booleans as `"true"` / `"false"`, arrays as JSON. Tokens FCM reports as unknown or invalid are deactivated. A push some device did not get is logged as `Push not delivered to every device` (counts and error types only, since Firebase's messages quote the token), and one skipped because the user has no active device as `Push skipped: user has no active device`.
 - In-app notifications older than **90 days** are pruned daily (`NOTIFICATION_RETENTION_DAYS`).
 - **Email** (Resend) covers admin invitations, password resets, welcome and ride receipts. Every queued mail notification uses `ThrottlesMail`: the `mail` rate limiter (`MAIL_RATE_LIMIT_PER_SECOND`, default 8; Resend allows 10) holds a burst back instead of letting Resend refuse it, and a failed send is retried for an hour (backoff 5 s, 30 s, 2 min). A test fails if a queued mail notification lacks it. Templates live in `resources/views/vendor/mail/`; `php artisan mail:test` sends samples.
 

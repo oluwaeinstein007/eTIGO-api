@@ -9137,6 +9137,59 @@
               ]
             },
             {
+              "name": "Get Pending Ride Offer (Driver)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/ride-offer",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "ride-offer"
+                  ]
+                },
+                "description": "The ride offer the driver has not answered yet. Call it when the app opens or returns to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: a backgrounded app misses `ride.request.dispatched`, and the event is not replayed.\n\n`offer` has the same fields as `ride.request.dispatched`, plus `expires_at` and `seconds_remaining` (whole seconds left, at least 1; count down from this, not the phone clock). `offer` is `null` when there is nothing to answer: no offer, or it lapsed, went to another driver, or the ride was cancelled.\n\nAccept or reject with the usual ride actions."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Pending Offer",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"offer\": {\n    \"ride_id\": \"01a10e6f-45fc-724e-9a7d-83ba9df90e36\",\n    \"pickup_address\": \"123 Herbert Macaulay Way, Yaba, Lagos\",\n    \"destination_address\": \"456 Broad Street, Lagos Island, Lagos\",\n    \"pickup_lat\": 6.5244,\n    \"pickup_lng\": 3.3792,\n    \"destination_lat\": 6.4541,\n    \"destination_lng\": 3.3947,\n    \"fare_estimate\": 3750.0,\n    \"currency\": \"NGN\",\n    \"vehicle_class\": \"Economy\",\n    \"response_timeout_seconds\": 20,\n    \"payment_method\": \"card\",\n    \"passenger_name\": \"Ade Ogunleye\",\n    \"passenger_rating\": 4.9,\n    \"distance_km\": 8.5,\n    \"duration_minutes\": 15,\n    \"scheduled_pickup_at\": null,\n    \"is_third_party\": false,\n    \"dispatched_at\": \"2026-10-27T16:42:03+00:00\",\n    \"expires_at\": \"2026-10-27T16:42:23+00:00\",\n    \"seconds_remaining\": 14\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 No Offer",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"offer\": null\n}"
+                }
+              ]
+            },
+            {
               "name": "Nearby Rides",
               "request": {
                 "method": "GET",

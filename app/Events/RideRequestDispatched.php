@@ -2,6 +2,8 @@
 
 namespace App\Events;
 
+use App\Models\Ride;
+use Carbon\CarbonInterface;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -39,6 +41,43 @@ class RideRequestDispatched implements ShouldBroadcastNow
         public bool $isThirdParty = false,
         public ?string $dispatchedAt = null,
     ) {}
+
+    /**
+     * The offer as the driver sees it. The WebSocket event, the push and
+     * GET /driver/ride-offer all build it here so they never drift apart.
+     * Expects vehicleClass, passenger and scheduledRide to be loaded.
+     */
+    public static function fromRide(string $driverUserId, Ride $ride, CarbonInterface $dispatchedAt): self
+    {
+        return new self(
+            driverUserId: $driverUserId,
+            rideId: $ride->id,
+            pickupAddress: $ride->pickup_address,
+            destinationAddress: $ride->destination_address,
+            pickupLat: (float) $ride->pickup_lat,
+            pickupLng: (float) $ride->pickup_lng,
+            destinationLat: (float) $ride->destination_lat,
+            destinationLng: (float) $ride->destination_lng,
+            fareEstimate: (float) $ride->fare_estimate_amount,
+            currency: $ride->fare_currency ?? 'NGN',
+            vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
+            responseTimeoutSeconds: (int) config('matching.driver_response_timeout', 20),
+            paymentMethod: $ride->payment_method?->value ?? '',
+            passengerName: $ride->is_third_party
+                ? (string) $ride->riderFirstName()
+                : trim(($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')),
+            passengerRating: $ride->passenger?->averageRating(),
+            distanceKm: isset($ride->pricing_snapshot['distance_km'])
+                ? (float) $ride->pricing_snapshot['distance_km']
+                : null,
+            durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
+                ? (float) $ride->pricing_snapshot['duration_minutes']
+                : null,
+            scheduledPickupAt: $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String(),
+            isThirdParty: (bool) $ride->is_third_party,
+            dispatchedAt: $dispatchedAt->toIso8601String(),
+        );
+    }
 
     /**
      * @return array<int, Channel>

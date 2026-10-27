@@ -68,6 +68,7 @@ use App\Http\Controllers\Api\V1\Driver\DriverLedgerController;
 use App\Http\Controllers\Api\V1\Driver\DriverLocationController;
 use App\Http\Controllers\Api\V1\Driver\DriverRemittanceController;
 use App\Http\Controllers\Api\V1\Driver\DriverRepairController;
+use App\Http\Controllers\Api\V1\Driver\DriverRideOfferController;
 use App\Http\Controllers\Api\V1\Driver\DriverScheduledRideController;
 use App\Http\Controllers\Api\V1\Driver\DriverShiftController;
 use App\Http\Controllers\Api\V1\Driver\DriverStatsController;
@@ -384,6 +385,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
     Route::get('/nearby-drivers', NearbyDriversController::class);
     Route::get('/nearby-rides', NearbyRidesController::class);
     Route::get('/active-ride', [DriverActiveRideController::class, 'show']);
+    Route::get('/ride-offer', [DriverRideOfferController::class, 'show']);
     Route::prefix('scheduled-rides')->group(function () {
         Route::get('/', [DriverScheduledRideController::class, 'index']);
         Route::get('/available', [DriverScheduledRideController::class, 'available']);
