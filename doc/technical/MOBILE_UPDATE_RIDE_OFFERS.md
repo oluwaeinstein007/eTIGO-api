@@ -1,7 +1,7 @@
 # Ride Offers: Driver App Updates
 
 **Date:** October 27, 2026  
-**Backend:** branch `ride-offer-recovery`; live on staging once merged  
+**Backend:** PR #133 (`ride-offer-recovery`); live on staging once merged  
 **Prepared for:** Driver app team. **Passenger app: no changes.**
 
 On 27 October, staging sent 14 ride offers to a test driver between 3:54 and 4:07 PM, and none of them showed up in the driver app. The backend sent every one: the WebSocket event went through Reverb, Firebase accepted the push, and both of the driver's push tokens were valid. The test used one phone for both apps, so the driver app sat in the background while the passenger app booked. Android pauses a background app's WebSocket, so only the push could reach it. Opening the app from that push showed nothing, because at that time the push carried only the ride ID and the app had no way to fetch the offer.
@@ -63,7 +63,7 @@ Call it:
 
 If `offer` is not null, show the request sheet and **count down from `seconds_remaining`**. Use that rather than working the time out from `expires_at` with the phone's clock, which can be off by minutes. If it is null, close any request sheet still showing.
 
-Accepting and declining work as before: `POST /rides/{ride_id}/accept` and `POST /rides/{ride_id}/reject`.
+Accepting and declining work as before: `POST /rides/{ride_id}/accept` and `POST /rides/{ride_id}/reject`. Accept now enforces the same deadline: after `expires_at` (plus 2 seconds for a tap already on its way) it returns `422` "This ride offer has expired." (see section 6).
 
 ---
 

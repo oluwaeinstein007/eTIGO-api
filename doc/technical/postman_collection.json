@@ -3274,7 +3274,7 @@
                 },
                 {
                   "name": "422 \u2014 Cash Not Allowed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3286,7 +3286,7 @@
                 },
                 {
                   "name": "422 \u2014 Age Not Confirmed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3298,7 +3298,7 @@
                 },
                 {
                   "name": "422 \u2014 Too Many Active",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3310,7 +3310,7 @@
                 },
                 {
                   "name": "422 \u2014 Too Many Numbers",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3322,7 +3322,7 @@
                 },
                 {
                   "name": "422 \u2014 Feature Off",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -3334,7 +3334,7 @@
                 },
                 {
                   "name": "422 \u2014 Invalid share_with",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -4131,7 +4131,7 @@
               "response": [
                 {
                   "name": "422 \u2014 City Not Open",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5250,7 +5250,7 @@
                 },
                 {
                   "name": "422 \u2014 No Fee to Dispute",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5540,7 +5540,7 @@
                 },
                 {
                   "name": "422 \u2014 Case closed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5552,7 +5552,7 @@
                 },
                 {
                   "name": "422 \u2014 Too many files",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5614,7 +5614,7 @@
                 },
                 {
                   "name": "422 \u2014 Already appealed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5626,7 +5626,7 @@
                 },
                 {
                   "name": "422 \u2014 Window passed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -5638,7 +5638,7 @@
                 },
                 {
                   "name": "422 \u2014 Final decision",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -8306,7 +8306,7 @@
                 },
                 {
                   "name": "422 \u2014 Car off the road (expired papers)",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -8756,7 +8756,7 @@
                     "accept"
                   ]
                 },
-                "description": "Driver accepts the ride they were offered (the matching engine offers one ride to one driver at a time; an unanswered offer expires after 20 s). The ride moves `searching` \u2192 `matched` \u2192 `driver_en_route`. The ride and the driver are locked, so the first acceptance wins and a driver can never hold two rides.\n\n- 403 \u2014 the ride was not offered to this driver, or the driver's earnings balance is below the allowed negative threshold.\n- 409 \u2014 another driver already accepted, or the driver already has an active ride.\n- 422 \u2014 the ride is no longer open for acceptance."
+                "description": "Driver accepts the ride they were offered (the matching engine offers one ride to one driver at a time; an unanswered offer expires after 20 s). The ride moves `searching` \u2192 `matched` \u2192 `driver_en_route`. The ride and the driver are locked, so the first acceptance wins and a driver can never hold two rides.\n\n- 403 \u2014 the ride was not offered to this driver, or the driver's earnings balance is below the allowed negative threshold.\n- 409 \u2014 another driver already accepted, or the driver already has an active ride.\n- 422 \u2014 the ride is no longer open for acceptance, or the offer expired: past `dispatched_at` + `response_timeout_seconds`, with 2 s allowed for a tap already on its way (\"This ride offer has expired.\"). The ride moves on to the next driver."
               },
               "response": [
                 {
@@ -8806,6 +8806,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Ride is no longer available.\"\n}"
+                },
+                {
+                  "name": "Accept Ride \u2014 Offer Expired (422)",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This ride offer has expired.\"\n}"
                 }
               ]
             },
@@ -9160,7 +9172,7 @@
                     "ride-offer"
                   ]
                 },
-                "description": "The ride offer the driver has not answered yet. Call it when the app opens or returns to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: a backgrounded app misses `ride.request.dispatched`, and the event is not replayed.\n\n`offer` has the same fields as `ride.request.dispatched`, plus `expires_at` and `seconds_remaining` (whole seconds left, at least 1; count down from this, not the phone clock). `offer` is `null` when there is nothing to answer: no offer, or it lapsed, went to another driver, or the ride was cancelled.\n\nAccept or reject with the usual ride actions."
+                "description": "The ride offer the driver has not answered yet. Call it when the app opens or returns to the foreground, after a ride-request notification is tapped, and after the WebSocket reconnects: a backgrounded app misses `ride.request.dispatched`, and the event is not replayed.\n\n`offer` has the same fields as `ride.request.dispatched`, plus `expires_at` and `seconds_remaining` (whole seconds left, at least 1; count down from this, not the phone clock). `offer` is `null` when there is nothing to answer: no offer, or it lapsed, went to another driver, or the ride was cancelled.\n\nAccept or reject with the usual ride actions. Accept enforces the same deadline: after `expires_at` (plus 2 s for a tap already on its way) it returns 422 \"This ride offer has expired.\""
               },
               "response": [
                 {
@@ -10618,7 +10630,7 @@
                 },
                 {
                   "name": "422 \u2014 Lower than the last reading",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -12215,7 +12227,7 @@
                 },
                 {
                   "name": "422 \u2014 Term too short",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -14455,7 +14467,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Has Shifts",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -15366,7 +15378,7 @@
                 },
                 {
                   "name": "422 \u2014 Overlap",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -18982,7 +18994,7 @@
                 },
                 {
                   "name": "422 \u2014 Invalid radius_km",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19074,7 +19086,7 @@
                 },
                 {
                   "name": "422 \u2014 Ride Not Assignable",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19086,7 +19098,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Already On A Ride",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19098,7 +19110,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Not Eligible",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19110,7 +19122,7 @@
                 },
                 {
                   "name": "422 \u2014 Missing driver_id",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19122,7 +19134,7 @@
                 },
                 {
                   "name": "422 \u2014 Passenger Rebooked",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -19742,7 +19754,7 @@
                 },
                 {
                   "name": "422 \u2014 Validation Error",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20107,7 +20119,7 @@
                 },
                 {
                   "name": "422 \u2014 Card or Too Much",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20495,7 +20507,7 @@
                 },
                 {
                   "name": "422 \u2014 Cannot work it",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20507,7 +20519,7 @@
                 },
                 {
                   "name": "422 \u2014 Tier 1 agent",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20613,7 +20625,7 @@
                 },
                 {
                   "name": "422 \u2014 Already tier 3",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20625,7 +20637,7 @@
                 },
                 {
                   "name": "422 \u2014 Closed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20739,7 +20751,7 @@
                 },
                 {
                   "name": "422 \u2014 Already tier 1",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20751,7 +20763,7 @@
                 },
                 {
                   "name": "422 \u2014 Appeal below deciding tier",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20977,7 +20989,7 @@
                 },
                 {
                   "name": "422 \u2014 Provider refused card refund",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -20989,7 +21001,7 @@
                 },
                 {
                   "name": "422 \u2014 Card refund already sent",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23194,7 +23206,7 @@
                 },
                 {
                   "name": "422 \u2014 Already Reviewed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23239,7 +23251,7 @@
                 },
                 {
                   "name": "422 \u2014 Super Admin Only",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23284,7 +23296,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Still Has Time to Respond",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23509,7 +23521,7 @@
                 },
                 {
                   "name": "422 \u2014 Overturned",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23554,7 +23566,7 @@
                 },
                 {
                   "name": "422 \u2014 Deactivation Confirmed",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23683,7 +23695,7 @@
                 },
                 {
                   "name": "422 \u2014 Already Verified",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23812,7 +23824,7 @@
                 },
                 {
                   "name": "422 \u2014 Not L3 Flag",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23857,7 +23869,7 @@
                 },
                 {
                   "name": "422 \u2014 Dispute Pending",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23902,7 +23914,7 @@
                 },
                 {
                   "name": "422 \u2014 Reason Missing",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
@@ -23947,7 +23959,7 @@
                 },
                 {
                   "name": "422 \u2014 Driver Still Has Time to Respond",
-                  "status": "Unprocessable Content",
+                  "status": "Unprocessable Entity",
                   "code": 422,
                   "header": [
                     {
