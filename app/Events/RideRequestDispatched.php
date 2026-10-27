@@ -37,6 +37,7 @@ class RideRequestDispatched implements ShouldBroadcastNow
         // Set for a scheduled ride: the pickup time the passenger booked.
         public ?string $scheduledPickupAt = null,
         public bool $isThirdParty = false,
+        public ?string $dispatchedAt = null,
     ) {}
 
     /**
@@ -78,6 +79,7 @@ class RideRequestDispatched implements ShouldBroadcastNow
             'duration_minutes' => $this->durationMinutes,
             'scheduled_pickup_at' => $this->scheduledPickupAt,
             'is_third_party' => $this->isThirdParty,
+            'dispatched_at' => $this->dispatchedAt,
         ];
     }
 }

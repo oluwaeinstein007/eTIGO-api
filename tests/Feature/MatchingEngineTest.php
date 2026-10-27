@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\MapsGateway;
+use App\Contracts\PushNotificationGateway;
 use App\Enums\DriverStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
@@ -466,4 +467,56 @@ it('never offers rides to demo drivers automatically', function () {
     $eligibleDrivers = (new DriverMatchingService($locationService))->findEligibleDrivers($ride, 15.0);
 
     expect(array_column($eligibleDrivers, 'driver_id'))->toBe([$realDriver->id]);
+});
+
+it('includes full ride request payload in push notification when dispatching a ride', function () {
+    $d = createOnlineDriver($this);
+    $ride = createSearchingRide($this);
+    $ride->update([
+        'pricing_snapshot' => [
+            'distance_km' => 11.4,
+            'duration_minutes' => 24.0,
+        ],
+    ]);
+
+    $locationService = Mockery::mock(DriverLocationService::class);
+    $locationService->shouldReceive('findNearbyDrivers')
+        ->once()
+        ->andReturn([
+            ['driver_id' => $d['driver']->id, 'distance_km' => 1.2],
+        ]);
+
+    $capturedUserId = null;
+    $capturedPayload = null;
+    $pushGateway = Mockery::mock(PushNotificationGateway::class);
+    $pushGateway->shouldReceive('sendToUser')
+        ->once()
+        ->withArgs(function (string $userId, array $payload) use (&$capturedUserId, &$capturedPayload) {
+            $capturedUserId = $userId;
+            $capturedPayload = $payload;
+
+            return true;
+        });
+
+    $job = new DispatchRideRequestJob($ride->id);
+    $job->handle(new DriverMatchingService($locationService), $pushGateway);
+
+    expect($capturedUserId)->toBe($d['user']->id);
+    expect($capturedPayload['data'])->toMatchArray([
+        'type' => 'ride_request',
+        'ride_id' => (string) $ride->id,
+        'pickup_address' => '123 Test Street',
+        'destination_address' => '456 Dest Street',
+        'pickup_lat' => 6.5244,
+        'pickup_lng' => 3.3792,
+        'destination_lat' => 6.4541,
+        'destination_lng' => 3.3947,
+        'fare_estimate' => 3650.0,
+        'currency' => 'NGN',
+        'response_timeout_seconds' => config('matching.driver_response_timeout', 30),
+        'payment_method' => 'cash',
+        'distance_km' => 11.4,
+        'duration_minutes' => 24.0,
+    ]);
+    expect($capturedPayload['data']['dispatched_at'])->toBeString()->not->toBeEmpty();
 });

@@ -71,6 +71,22 @@ class DispatchRideRequestJob implements ShouldQueue
 
         $timeout = config('matching.driver_response_timeout', 30);
 
+        $passengerName = $ride->is_third_party
+            ? (string) $ride->riderFirstName()
+            : trim(($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? ''));
+        $passengerRating = $ride->passenger?->averageRating();
+        $distanceKm = isset($ride->pricing_snapshot['distance_km'])
+            ? (float) $ride->pricing_snapshot['distance_km']
+            : null;
+        $durationMinutes = isset($ride->pricing_snapshot['duration_minutes'])
+            ? (float) $ride->pricing_snapshot['duration_minutes']
+            : null;
+        $scheduledPickupAt = $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String();
+        $vehicleClassName = $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '';
+        $currency = $ride->fare_currency ?? 'NGN';
+        $paymentMethod = $ride->payment_method?->value ?? '';
+        $dispatchedAt = now()->toIso8601String();
+
         try {
             RideRequestDispatched::dispatch(
                 driverUserId: $best['user_id'],
@@ -82,22 +98,17 @@ class DispatchRideRequestJob implements ShouldQueue
                 destinationLat: (float) $ride->destination_lat,
                 destinationLng: (float) $ride->destination_lng,
                 fareEstimate: (float) $ride->fare_estimate_amount,
-                currency: $ride->fare_currency ?? 'NGN',
-                vehicleClassName: $ride->vehicleClass?->display_name ?? $ride->vehicleClass?->name ?? '',
+                currency: $currency,
+                vehicleClassName: $vehicleClassName,
                 responseTimeoutSeconds: $timeout,
-                paymentMethod: $ride->payment_method?->value ?? '',
-                passengerName: $ride->is_third_party
-                    ? (string) $ride->riderFirstName()
-                    : trim(($ride->passenger?->first_name ?? '').' '.($ride->passenger?->last_name ?? '')),
-                passengerRating: $ride->passenger?->averageRating(),
-                distanceKm: isset($ride->pricing_snapshot['distance_km'])
-                    ? (float) $ride->pricing_snapshot['distance_km']
-                    : null,
-                durationMinutes: isset($ride->pricing_snapshot['duration_minutes'])
-                    ? (float) $ride->pricing_snapshot['duration_minutes']
-                    : null,
-                scheduledPickupAt: $ride->scheduledRide?->scheduled_pickup_at?->toIso8601String(),
+                paymentMethod: $paymentMethod,
+                passengerName: $passengerName,
+                passengerRating: $passengerRating,
+                distanceKm: $distanceKm,
+                durationMinutes: $durationMinutes,
+                scheduledPickupAt: $scheduledPickupAt,
                 isThirdParty: (bool) $ride->is_third_party,
+                dispatchedAt: $dispatchedAt,
             );
         } catch (\Throwable $e) {
             // The push notification below and the response timeout must still
@@ -110,15 +121,34 @@ class DispatchRideRequestJob implements ShouldQueue
         }
 
         try {
+            $pushData = array_filter([
+                'type' => 'ride_request',
+                'ride_id' => (string) $ride->id,
+                'pickup_address' => $ride->pickup_address,
+                'destination_address' => $ride->destination_address,
+                'pickup_lat' => (float) $ride->pickup_lat,
+                'pickup_lng' => (float) $ride->pickup_lng,
+                'destination_lat' => (float) $ride->destination_lat,
+                'destination_lng' => (float) $ride->destination_lng,
+                'fare_estimate' => (float) $ride->fare_estimate_amount,
+                'currency' => $currency,
+                'vehicle_class' => $vehicleClassName,
+                'response_timeout' => $timeout,
+                'response_timeout_seconds' => $timeout,
+                'payment_method' => $paymentMethod,
+                'passenger_name' => $passengerName,
+                'passenger_rating' => $passengerRating,
+                'distance_km' => $distanceKm,
+                'duration_minutes' => $durationMinutes,
+                'scheduled_pickup_at' => $scheduledPickupAt,
+                'is_third_party' => (bool) $ride->is_third_party,
+                'dispatched_at' => $dispatchedAt,
+            ], static fn (mixed $value): bool => $value !== null);
+
             $pushGateway->sendToUser($best['user_id'], [
                 'title' => 'New Ride Request',
                 'body' => "Pickup at {$ride->pickup_address}",
-                'data' => [
-                    'type' => 'ride_request',
-                    'ride_id' => (string) $ride->id,
-                    'response_timeout' => $timeout,
-                    ...($ride->scheduledRide ? ['scheduled_pickup_at' => $ride->scheduledRide->scheduled_pickup_at->toIso8601String()] : []),
-                ],
+                'data' => $pushData,
             ]);
         } catch (\Throwable $e) {
             Log::warning('Push notification failed for ride dispatch', [
