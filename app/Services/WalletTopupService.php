@@ -49,15 +49,17 @@ class WalletTopupService
 
         $maxBalance = AppSetting::wallet('max_balance');
         if (($account->balance + $amountKobo) > $maxBalance) {
-            $maxNaira = $maxBalance / 100;
+            $room = self::naira(max(0, $maxBalance - $account->balance));
 
-            throw new TopupRefusedException("Top-up would exceed maximum wallet balance of ₦{$maxNaira}.");
+            throw new TopupRefusedException('Top-up would exceed maximum wallet balance of '.self::naira($maxBalance).". You can add up to {$room} more.");
         }
 
         $dailyCap = AppSetting::wallet('daily_topup_cap');
         $todayTopups = Cache::get("topup_daily:{$user->id}:".now()->toDateString(), 0);
         if (($todayTopups + $amountKobo) > $dailyCap) {
-            throw new TopupRefusedException('Daily top-up limit exceeded.');
+            $left = self::naira(max(0, $dailyCap - $todayTopups));
+
+            throw new TopupRefusedException('Daily top-up limit exceeded. The limit is '.self::naira($dailyCap)." a day; you can top up {$left} more today.");
         }
 
         $hourlyKey = "topup_hourly:{$user->id}:".now()->format('Y-m-d-H');
@@ -136,5 +138,10 @@ class WalletTopupService
         }
 
         return $result;
+    }
+
+    private static function naira(int $kobo): string
+    {
+        return '₦'.number_format($kobo / 100, $kobo % 100 === 0 ? 0 : 2);
     }
 }
