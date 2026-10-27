@@ -26,13 +26,18 @@ return new class extends Migration
 
     public function up(): void
     {
-        // Only a database carrying the old seed: both of its tell-tale values.
-        $oldSeed = DB::table('app_settings')
-            ->where(fn ($q) => $q->where('key', 'wallet.min_topup')->where('value', '500'))
-            ->orWhere(fn ($q) => $q->where('key', 'wallet.max_balance')->where('value', '500000'))
-            ->count() === 2;
+        // Only a database carrying the old seed: at least three rows still hold
+        // their old value, so an admin having changed one or two of them since
+        // does not hide it, and one value that happens to match does not count.
+        $oldRows = DB::table('app_settings')
+            ->where(function ($q) {
+                foreach (self::FIXES as $key => [$old]) {
+                    $q->orWhere(fn ($q) => $q->where('key', $key)->where('value', $old));
+                }
+            })
+            ->count();
 
-        if (! $oldSeed) {
+        if ($oldRows < 3) {
             return;
         }
 

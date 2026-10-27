@@ -62,12 +62,31 @@ it('keeps wallet settings an admin changed after the old seed', function () {
     ]);
 });
 
+it('still corrects the old seed when an admin changed the minimum top-up or the maximum balance', function (string $key, string $value) {
+    seedOldNairaWalletSettings();
+    AppSetting::setValue($key, $value, 'wallet');
+
+    runNairaWalletSettingsFix();
+
+    expect(AppSetting::getWalletSettings())->toMatchArray([
+        'daily_topup_cap' => 10000000,
+        'min_payout' => 100000,
+        'hold_expiry_hours' => 4,
+    ]);
+    expect(DB::table('app_settings')->where('key', $key)->value('value'))->toBe($value);
+})->with([
+    'minimum top-up' => ['wallet.min_topup', '100000'],
+    'maximum balance' => ['wallet.max_balance', '100000000'],
+]);
+
 it('leaves a database without the old seed alone', function () {
     AppSetting::setValue('wallet.max_balance', '500000', 'wallet');
+    AppSetting::setValue('wallet.max_negative_balance', '0', 'wallet');
 
     runNairaWalletSettingsFix();
 
     expect(DB::table('app_settings')->where('key', 'wallet.max_balance')->value('value'))->toBe('500000');
+    expect(DB::table('app_settings')->where('key', 'wallet.max_negative_balance')->value('value'))->toBe('0');
 });
 
 it('lets a passenger top up more than ₦1,000 once the settings are fixed', function () {
