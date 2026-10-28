@@ -33,6 +33,11 @@ class DriverRepair extends Model
         'cancelled_by',
         'progress_steps',
         'attachments',
+        'scheduled_at',
+        'completed_at',
+        'cancelled_at',
+        'completion_summary',
+        'handled_by_admin_id',
     ];
 
     protected function casts(): array
@@ -45,6 +50,9 @@ class DriverRepair extends Model
             'appointment' => 'array',
             'progress_steps' => 'array',
             'attachments' => 'array',
+            'scheduled_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -58,6 +66,18 @@ class DriverRepair extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class, 'vehicle_id');
+    }
+
+    /** The operations staff member who last scheduled, completed or cancelled it. */
+    public function handledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'handled_by_admin_id');
+    }
+
+    /** Still waiting on E-tiGo: received or booked, not finished or cancelled. */
+    public function isOpen(): bool
+    {
+        return in_array($this->status, [RepairRequestStatus::InProgress, RepairRequestStatus::Scheduled], true);
     }
 
     public function scopeForDriver(Builder $query, string $driverId): Builder

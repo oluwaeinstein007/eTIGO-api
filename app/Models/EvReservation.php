@@ -35,12 +35,16 @@ class EvReservation extends Model
         'reviewed_by_admin_id',
         'reviewed_at',
         'decline_reason',
+        'ended_by_admin_id',
+        'ended_at',
+        'end_reason',
         'queue_position',
         'queue_ahead_count',
         'queue_ahead_description',
         'estimated_available_at',
         'fee_amount',
         'fee_waived',
+        'fee_waiver_reason',
         'fee_charged_at',
         'fee_refunded_at',
         'estimated_charge_minutes',
@@ -66,6 +70,7 @@ class EvReservation extends Model
             'requested_date' => 'date',
             'confirmed_slot_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'ended_at' => 'datetime',
             'reserved_at' => 'datetime',
             'activated_at' => 'datetime',
             'completed_at' => 'datetime',
@@ -92,6 +97,21 @@ class EvReservation extends Model
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by_admin_id');
+    }
+
+    /** The operations staff member who cancelled or ended the reservation. */
+    public function endedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ended_by_admin_id');
+    }
+
+    /**
+     * A charge request (reviewed by operations) or a stall reserved
+     * straight from the station list.
+     */
+    public function kind(): string
+    {
+        return $this->requested_date !== null ? 'request' : 'instant';
     }
 
     public function scopeActive(Builder $query): Builder

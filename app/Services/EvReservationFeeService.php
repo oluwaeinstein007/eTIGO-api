@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AccountType;
+use App\Enums\FleetAgreementStatus;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\AppSetting;
@@ -22,7 +23,44 @@ use Carbon\CarbonInterface;
  */
 class EvReservationFeeService
 {
-    public function __construct(private LedgerService $ledgerService) {}
+    public const WAIVED_HIRE_PURCHASE = 'hire_purchase';
+
+    public const WAIVED_TIER = 'tier';
+
+    public function __construct(
+        private LedgerService $ledgerService,
+        private TierGateService $tierGate,
+    ) {}
+
+    /**
+     * The fee a driver pays for a stall, as reservation attributes. Drivers
+     * still paying off an E-tiGo car on a hire-purchase (fleet) agreement,
+     * active or paused, charge free; so do tiers that waive the fee. Drivers
+     * who have paid off their car, and drivers with their own car, pay it.
+     *
+     * @return array{fee_amount: float, fee_waived: bool, fee_waiver_reason: ?string}
+     */
+    public function termsFor(string $driverUserId): array
+    {
+        $settings = AppSetting::evCharging();
+        $paying = $settings['waive_fee_while_agreement_paused']
+            ? [FleetAgreementStatus::Active, FleetAgreementStatus::Paused]
+            : [FleetAgreementStatus::Active];
+
+        $reason = match (true) {
+            $settings['hire_purchase_fee_waiver'] && Driver::where('user_id', $driverUserId)
+                ->whereHas('fleetAgreements', fn ($q) => $q->whereIn('status', $paying))
+                ->exists() => self::WAIVED_HIRE_PURCHASE,
+            $this->tierGate->isEvReservationFeeWaived($driverUserId) => self::WAIVED_TIER,
+            default => null,
+        };
+
+        return [
+            'fee_amount' => $reason !== null ? 0.00 : $settings['reservation_fee'],
+            'fee_waived' => $reason !== null,
+            'fee_waiver_reason' => $reason,
+        ];
+    }
 
     public function feeKobo(EvReservation $reservation): int
     {
@@ -85,6 +123,21 @@ class EvReservationFeeService
             return false;
         }
 
+        return $this->refund($reservation);
+    }
+
+    /**
+     * Give the fee back, whatever the timing (operations ending a
+     * reservation that was not the driver's fault).
+     *
+     * @return bool Whether the fee was refunded (false: none was taken, or already refunded)
+     */
+    public function refund(EvReservation $reservation): bool
+    {
+        if ($reservation->fee_charged_at === null || $reservation->fee_refunded_at !== null) {
+            return false;
+        }
+
         $journal = Journal::where('idempotency_key', $this->feeKey($reservation))->first();
 
         if (! $journal) {
@@ -106,7 +159,7 @@ class EvReservationFeeService
             return null;
         }
 
-        return $reservation->fee_charged_at->copy()->addMinutes((int) config('ev_charging.free_cancellation_minutes', 2));
+        return $reservation->fee_charged_at->copy()->addMinutes(AppSetting::forRequest('ev_charging', fn () => AppSetting::evCharging())['free_cancellation_minutes']);
     }
 
     /**

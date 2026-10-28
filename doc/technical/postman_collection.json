@@ -263,6 +263,10 @@
     {
       "key": "maintenance_record_id",
       "value": ""
+    },
+    {
+      "key": "repair_attachment_id",
+      "value": ""
     }
   ],
   "item": [
@@ -345,7 +349,7 @@
                 "config"
               ]
             },
-            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false. `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off) and `late_cancellation_window_minutes` let the app explain fees; `driver_reservations_enabled` tells the driver app whether to show the reservations screen.\n\n`third_party_bookings` drives \"Book for someone else\": offer `payment_methods`, and for \"Who gets the PIN?\" show `share_with_options` (each has `value`, `label` and `description`; show the label and description as given, they are worded from the current tracking setting) with `default_share_with` pre-selected, and send the chosen `value` as `share_with` on the booking. Hide the question when `share_with_options` is empty.\n\n`payments`: `methods` lists how passengers may pay (`card`, `wallet`, and `cash` only while `cash_enabled`). Cash is off by default; hide it when `cash_enabled` is false."
+            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false. `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off) and `late_cancellation_window_minutes` let the app explain fees; `driver_reservations_enabled` tells the driver app whether to show the reservations screen.\n\n`third_party_bookings` drives \"Book for someone else\": offer `payment_methods`, and for \"Who gets the PIN?\" show `share_with_options` (each has `value`, `label` and `description`; show the label and description as given, they are worded from the current tracking setting) with `default_share_with` pre-selected, and send the chosen `value` as `share_with` on the booking. Hide the question when `share_with_options` is empty.\n\n`payments`: `methods` lists how passengers may pay (`card`, `wallet`, and `cash` only while `cash_enabled`). Cash is off by default; hide it when `cash_enabled` is false. `ev_charging` and `vehicle_maintenance` carry the numbers the driver app shows in copy (fee, check-in and free-cancellation minutes, grace days); Operations can change them, so never hard-code them."
           },
           "response": [
             {
@@ -358,7 +362,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"payments\": {\n    \"cash_enabled\": false,\n    \"methods\": [\n      \"card\",\n      \"wallet\"\n    ]\n  },\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  },\n  \"third_party_bookings\": {\n    \"enabled\": true,\n    \"payment_methods\": [\n      \"wallet\",\n      \"card\"\n    ],\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"share_with_options\": [\n      {\n        \"value\": \"rider\",\n        \"label\": \"Rider only\",\n        \"description\": \"The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app.\"\n      },\n      {\n        \"value\": \"both\",\n        \"label\": \"Both of us\",\n        \"description\": \"You and the rider both get the PIN and live tracking.\"\n      }\n    ],\n    \"default_share_with\": \"both\",\n    \"max_active_per_booker\": 2\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"payments\": {\n    \"cash_enabled\": false,\n    \"methods\": [\n      \"card\",\n      \"wallet\"\n    ]\n  },\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  },\n  \"third_party_bookings\": {\n    \"enabled\": true,\n    \"payment_methods\": [\n      \"wallet\",\n      \"card\"\n    ],\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"share_with_options\": [\n      {\n        \"value\": \"rider\",\n        \"label\": \"Rider only\",\n        \"description\": \"The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app.\"\n      },\n      {\n        \"value\": \"both\",\n        \"label\": \"Both of us\",\n        \"description\": \"You and the rider both get the PIN and live tracking.\"\n      }\n    ],\n    \"default_share_with\": \"both\",\n    \"max_active_per_booker\": 2\n  },\n  \"ev_charging\": {\n    \"reservation_fee\": 500,\n    \"reservation_fee_kobo\": 50000,\n    \"check_in_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"retry_delay_minutes\": 15,\n    \"hire_purchase_fee_waiver\": true\n  },\n  \"vehicle_maintenance\": {\n    \"enabled\": true,\n    \"due_soon_days\": 14,\n    \"due_soon_km\": 500,\n    \"legal_grace_days\": 7,\n    \"block_on_expired_papers\": true\n  }\n}"
             }
           ]
         },
@@ -10041,6 +10045,18 @@
                     }
                   ],
                   "body": "{\n  \"reservation\": {\n    \"id\": \"01a14039-6045-7083-b33e-7861a9cff763\",\n    \"type\": \"charging\",\n    \"station_id\": \"01a14039-571f-70eb-9d46-67fc16acf3f8\",\n    \"stall_id\": \"01a14039-5724-7323-8810-84b98ffce834\",\n    \"status\": {\n      \"value\": \"reserved\",\n      \"label\": \"Reserved\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"0.00\",\n    \"fee_waived\": true,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"reserved_at\": \"2026-10-15T15:41:04.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"Toyota Corolla\",\n    \"vehicle_plate\": \"LAG-001AB\",\n    \"vehicle_color\": \"White\",\n    \"station_name\": \"Ikeja EV Hub\",\n    \"station_address\": \"22 Allen Avenue, Ikeja, Lagos\",\n    \"assigned_bay\": \"Bay 2 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a14039-571f-70eb-9d46-67fc16acf3f8\",\n      \"name\": \"Ikeja EV Hub\",\n      \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"lat\": \"6.6018000\",\n      \"lng\": \"3.3515000\",\n      \"address\": \"22 Allen Avenue, Ikeja, Lagos\",\n      \"total_stalls\": 6,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-15T15:41:02.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:02.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a14039-5724-7323-8810-84b98ffce834\",\n      \"stall_number\": 2,\n      \"status\": {\n        \"value\": \"reserved\",\n        \"label\": \"Reserved\"\n      },\n      \"occupied_since\": null,\n      \"estimated_departure_at\": null,\n      \"updated_at\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n      \"reference_number\": null,\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Akinola\",\n      \"phone\": \"+2348200000001\",\n      \"email\": \"bayo@demo.etigo.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a14039-5590-706e-90d5-909bf86d94f3\",\n        \"driver_id\": \"01a14039-5588-73c7-8e1b-087baddea04e\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"plate_number\": \"LAG-001AB\",\n        \"year\": 2022,\n        \"fuel_type\": \"petrol\",\n        \"can_charge\": false,\n        \"is_fleet\": false,\n        \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n        \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n      },\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-15T16:41:02.000000Z\",\n    \"updated_at\": \"2026-10-15T16:41:02.000000Z\",\n    \"created_at\": \"2026-10-15T16:41:02.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Queued (drivers ahead)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reservation\": {\n    \"id\": \"01a18319-6389-73bd-ba34-c9d6498ffc9c\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"queued\",\n      \"label\": \"Queued\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": 3,\n    \"queue_ahead_count\": 2,\n    \"queue_ahead_description\": \"2 drivers ahead of you\",\n    \"estimated_available_at\": \"2026-10-28T09:00:00.000000Z\",\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": null,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"Nissan Corolla\",\n    \"vehicle_plate\": \"KJA-118-EV\",\n    \"vehicle_color\": \"blue\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-628e-7234-a650-b53601fc552e\",\n      \"reference_number\": null,\n      \"first_name\": \"Kemi\",\n      \"last_name\": \"Ade\",\n      \"phone\": \"+18137900750\",\n      \"email\": \"bergstrom.margarette@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-6291-73a5-93f0-9e2d73e3ce8c\",\n        \"driver_id\": \"01a18319-628f-711a-8969-70749b8af326\",\n        \"make\": \"Nissan\",\n        \"model\": \"Corolla\",\n        \"colour\": \"blue\",\n        \"plate_number\": \"KJA-118-EV\",\n        \"year\": 2019,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-6291-73a5-93f0-9e2d737937b3\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
                 }
               ]
             },
@@ -10051,6 +10067,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   },
                   {
@@ -10070,9 +10090,25 @@
                     "activate"
                   ]
                 },
-                "description": "Driver plugs in: `reserved` \u2192 `active`, the stall becomes occupied with an estimated departure time. Only `reserved` reservations (not expired ones) can be activated (422)."
+                "description": "Driver plugs in: `reserved` \u2192 `active`, the stall becomes occupied with an estimated departure time. Only `reserved` reservations (not expired ones) can be activated (422). Optional body `estimated_charge_minutes` (5\u2013480) replaces the estimate given when reserving or requesting.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estimated_charge_minutes\": 50\n}"
+                }
               },
               "response": [
+                {
+                  "name": "200 \u2014 Started with an estimate",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Reservation activated. Charging session started.\",\n  \"reservation\": {\n    \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"active\",\n      \"label\": \"Active\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": \"2026-10-28T08:02:00.000000Z\",\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 50,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"completed_at\": null,\n    \"vehicle_name\": \"Hyundai Kona Electric\",\n    \"vehicle_plate\": \"APP-552-EV\",\n    \"vehicle_color\": \"fuchsia\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"occupied\",\n        \"label\": \"Occupied\"\n      },\n      \"occupied_since\": \"2026-10-28T08:00:00.000000Z\",\n      \"estimated_departure_at\": \"2026-10-28T08:50:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n      \"reference_number\": null,\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Ibrahim\",\n      \"phone\": \"+15643906542\",\n      \"email\": \"antonio.harris@example.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n        \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"colour\": \"fuchsia\",\n        \"plate_number\": \"APP-552-EV\",\n        \"year\": 2021,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                },
                 {
                   "name": "200 \u2014 Activated",
                   "status": "OK",
@@ -10225,15 +10261,15 @@
                     "ev-reservations"
                   ]
                 },
-                "description": "Submit an EV charging request for review (no stall is held and no fee is charged). **Electric and plug-in hybrid vehicles only** (422 otherwise). System assigns nearest active station if `station_id` omitted. Only drivers can submit.",
+                "description": "Submit an EV charging request for review (no stall is held and no fee is charged). **Electric and plug-in hybrid vehicles only** (422 otherwise). System assigns nearest active station if `station_id` omitted. Only drivers can submit. Optional `estimated_charge_minutes` (5\u2013480): how long the driver expects to charge; it sets the stall's expected departure when they start, so drivers at a full station can queue instead of being told to retry. The fee is waived (`fee_waiver_reason: hire_purchase`) while the driver is still paying off an E-tiGo car on a hire-purchase agreement (active or paused).",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"battery_level\": 25,\n  \"requested_date\": \"2026-10-15\",\n  \"requested_time\": \"2:00 PM\",\n  \"notes\": \"Battery draining faster than usual\"\n}"
+                  "raw": "{\n  \"battery_level\": 18,\n  \"requested_date\": \"2026-10-28\",\n  \"requested_time\": \"02:30 pm\",\n  \"notes\": \"Need about an hour\",\n  \"station_id\": \"{{ev_station_id}}\",\n  \"estimated_charge_minutes\": 60\n}"
                 }
               },
               "response": [
                 {
-                  "name": "201 \u2014 Created",
+                  "name": "201 \u2014 Request submitted",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -10242,7 +10278,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Charge request submitted successfully.\",\n  \"reservation\": {\n    \"id\": \"9e1f2a3b-4c5d-6e7f-8901-abcdef123456\",\n    \"status\": \"pending_review\",\n    \"type\": \"charging\",\n    \"battery_level\": 25,\n    \"requested_date\": \"2026-10-15\",\n    \"requested_time\": \"2:00 PM\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Charge request submitted successfully.\",\n  \"reservation\": {\n    \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"pending_review\",\n      \"label\": \"Pending Review\"\n    },\n    \"battery_level\": 18,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"02:30 pm\",\n    \"notes\": \"Need about an hour\",\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": null,\n    \"fee_amount_kobo\": null,\n    \"fee_waived\": null,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 60,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"reference_number\": null,\n      \"first_name\": \"Tunde\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348012345678\",\n      \"email\": \"fkunze@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n        \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n        \"make\": \"BYD\",\n        \"model\": \"Atto 3\",\n        \"colour\": \"White\",\n        \"plate_number\": \"LND-482-KJ\",\n        \"year\": 2018,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": null,\n    \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"created_at\": null\n  }\n}"
                 }
               ]
             }
@@ -10380,6 +10416,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Vehicle service request submitted successfully.\",\n  \"repair\": {\n    \"id\": \"01a14222-4b16-718c-a64b-36c11f173a8f\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"in_progress\",\n      \"label\": \"In progress\"\n    },\n    \"title\": \"Brake pads squeaking\",\n    \"details\": \"Front brakes squeak when stopping at low speed.\",\n    \"preferred_date\": \"2026-10-18\",\n    \"preferred_time\": \"Morning (9am - 12pm)\",\n    \"requested_date\": \"2026-10-18\",\n    \"requested_time\": \"Morning (9am - 12pm)\",\n    \"summary_note\": \"Request received \u00b7 Workshop visit to be scheduled for Morning (9am - 12pm)\",\n    \"vehicle_name\": \"Toyota Corolla\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"Silver\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Morning (9am - 12pm)\",\n      \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"appointment\": null,\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"16 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Your request is being coordinated\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Scheduled for Morning (9am - 12pm)\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [],\n    \"submitted_at\": \"2026-10-16T00:35:06.000000Z\",\n    \"created_at\": \"2026-10-16T00:35:06.000000Z\",\n    \"updated_at\": \"2026-10-16T00:35:06.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "201 \u2014 With a photo (multipart)",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Vehicle service request submitted successfully.\",\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"in_progress\",\n      \"label\": \"In progress\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Request received \u00b7 Workshop visit to be scheduled for 10:00 am\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"10:00 am\",\n      \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"appointment\": null,\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": null,\n    \"completed_at\": null,\n    \"cancelled_at\": null,\n    \"completion_summary\": null,\n    \"can_cancel\": true,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Your request is being coordinated\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Scheduled for 10:00 am\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n        \"title\": \"brakes.jpg\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
                 }
               ],
               "event": [
@@ -10397,6 +10445,172 @@
                       "try { remember('repair_id', data.repair.id); } catch (e) {}"
                     ]
                   }
+                }
+              ]
+            },
+            {
+              "name": "Add Repair Attachment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs/{{repair_id}}/attachments",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs",
+                    "{{repair_id}}",
+                    "attachments"
+                  ]
+                },
+                "description": "Add a photo or document to the driver's request (multipart). `attachment` (or `photo`): jpg, jpeg, png, webp or pdf up to 10 MB; optional `title`. 403 for another driver's request.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "attachment",
+                      "type": "file",
+                      "src": [],
+                      "description": "JPG, PNG, WEBP or PDF, max 10 MB"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Dashboard warning light",
+                      "type": "text"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Attachment added successfully.\",\n  \"repair\": {\n    \"id\": \"01a18319-641f-703a-aa09-605fd963e47e\",\n    \"reference_number\": \"REP-1042\",\n    \"type\": {\n      \"value\": \"maintenance\",\n      \"label\": \"Maintenance\"\n    },\n    \"status\": {\n      \"value\": \"in_progress\",\n      \"label\": \"In progress\"\n    },\n    \"title\": \"Annual service\",\n    \"details\": \"Due for the 12-month service.\",\n    \"preferred_date\": \"2026-11-02\",\n    \"preferred_time\": \"Morning\",\n    \"requested_date\": \"2026-11-02\",\n    \"requested_time\": \"Morning\",\n    \"summary_note\": \"Request received \u00b7 Workshop visit to be scheduled for Morning\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Morning\",\n      \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"appointment\": null,\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": null,\n    \"completed_at\": null,\n    \"cancelled_at\": null,\n    \"completion_summary\": null,\n    \"can_cancel\": true,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Maintenance received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Your request is being coordinated\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Scheduled for Morning\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"ec68a943-b2cb-4cff-ad26-dd0e405b931c\",\n        \"title\": \"Dashboard warning light\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  },\n  \"attachment\": {\n    \"id\": \"ec68a943-b2cb-4cff-ad26-dd0e405b931c\",\n    \"title\": \"Dashboard warning light\",\n    \"file_type\": \"JPG\",\n    \"subtitle\": \"JPG \u00b7 Image attached\",\n    \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg\",\n    \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg?expiration=1793178600\",\n    \"uploaded_by\": \"driver\",\n    \"created_at\": \"2026-10-28T08:40:00+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Remove Repair Attachment",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs/{{repair_id}}/attachments/{{repair_attachment_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs",
+                    "{{repair_id}}",
+                    "attachments",
+                    "{{repair_attachment_id}}"
+                  ]
+                },
+                "description": "Remove one of the driver's own files. Files E-tiGo added (`uploaded_by: operations`, e.g. a workshop report) cannot be removed: 403."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Removed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Attachment removed successfully.\",\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Completed on 28 Oct 2026\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Thu 29 Oct, 10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"instructions\": \"Ask for Emeka at the front desk.\",\n      \"support_phone\": \"0803 555 0101\"\n    },\n    \"appointment\": {\n      \"scheduled_at\": \"2026-10-29T09:00:00+00:00\",\n      \"date\": \"2026-10-29\",\n      \"time\": \"10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"technician_name\": \"Emeka Obi\",\n      \"contact_phone\": \"0803 555 0101\",\n      \"instructions\": \"Ask for Emeka at the front desk.\"\n    },\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"completed_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"cancelled_at\": null,\n    \"completion_summary\": \"Replaced the front brake pads. Discs are within limits; next check in 6 months.\",\n    \"can_cancel\": false,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Emeka Obi\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Thu 29 Oct, 10:00 am \u00b7 E-tiGo Fleet Workshop\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report available below\",\n        \"state\": \"completed\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"7c9c4aa0-b027-4b0a-8ea1-9765ef2e55c6\",\n        \"title\": \"Workshop quote\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      },\n      {\n        \"id\": \"2d6c2960-5f1e-4584-99ed-32cada8a482c\",\n        \"title\": \"Workshop report\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/KQPLkFg2EC7bT1uKJdX1XUSN1XFPNFUA92z4dkZA.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/KQPLkFg2EC7bT1uKJdX1XUSN1XFPNFUA92z4dkZA.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "403 \u2014 Added by E-tiGo",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Files added by E-tiGo cannot be removed.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Repair Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/driver/repairs/{{repair_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "driver",
+                    "repairs",
+                    "{{repair_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "The driver cancels their own open request (`in_progress` or `scheduled`). Optional `reason` (max 500). 422 once it is completed or cancelled.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Booked at the dealer instead\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Cancelled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Service request cancelled.\",\n  \"repair\": {\n    \"id\": \"01a18319-641f-703a-aa09-605fd963e47e\",\n    \"reference_number\": \"REP-1042\",\n    \"type\": {\n      \"value\": \"maintenance\",\n      \"label\": \"Maintenance\"\n    },\n    \"status\": {\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    },\n    \"title\": \"Annual service\",\n    \"details\": \"Due for the 12-month service.\",\n    \"preferred_date\": \"2026-11-02\",\n    \"preferred_time\": \"Morning\",\n    \"requested_date\": \"2026-11-02\",\n    \"requested_time\": \"Morning\",\n    \"summary_note\": \"Cancelled by you on 28 Oct 2026\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Morning\",\n      \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"appointment\": null,\n    \"cancellation_reason\": \"Booked at the dealer instead\",\n    \"cancelled_by\": \"driver\",\n    \"scheduled_at\": null,\n    \"completed_at\": null,\n    \"cancelled_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"completion_summary\": null,\n    \"can_cancel\": false,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Maintenance received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Your request is being coordinated\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Scheduled for Morning\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"ec68a943-b2cb-4cff-ad26-dd0e405b931c\",\n        \"title\": \"Dashboard warning light\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/D6Qxuoc2qjDa12AeG2Idni8nDTxHcRtYtiMx5T5u.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
                 }
               ]
             }
@@ -10431,7 +10645,7 @@
                     "status"
                   ]
                 },
-                "description": "The car's maintenance items (each with a ready-to-show `message`), whether it can be driven (`can_drive`, `block_reason`), odometer and estimate, who records work (`records_managed_by`), pending records, and for plug-in cars the charge level and any active charging reservation."
+                "description": "The car's maintenance items (each with a ready-to-show `message`), whether it can be driven (`can_drive`, `block_reason`), odometer and estimate, who records work (`records_managed_by`), pending records, and for plug-in cars the charge level and any active charging reservation. For plug-in cars, `charging.reservation_fee` says what reserving a stall would cost this driver now: `{amount_kobo, waived, waiver_reason}` (`hire_purchase` while still paying off an E-tiGo car, or `tier`)."
               },
               "response": [
                 {
@@ -10445,6 +10659,18 @@
                     }
                   ],
                   "body": "{\n  \"vehicle\": {\n    \"id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n    \"plate_number\": \"ABC-123XY\",\n    \"make\": \"Hyundai\",\n    \"model\": \"Kona Electric\",\n    \"fuel_type\": \"electric\",\n    \"is_fleet\": false,\n    \"shift_mode\": false,\n    \"odometer_km\": 43150,\n    \"odometer_read_at\": \"2026-10-19T08:00:00+00:00\",\n    \"estimated_odometer_km\": 43150\n  },\n  \"can_drive\": true,\n  \"block_reason\": null,\n  \"records_managed_by\": \"driver\",\n  \"items\": [\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd157ad44\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd23c0a3b\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last tyres & brakes check.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd28981fd\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"expired\",\n      \"status_label\": \"Expired\",\n      \"due_at\": \"2026-10-13\",\n      \"days_until_due\": -6,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": \"2025-10-19\",\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": \"2026-10-21\",\n      \"message\": \"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd3161ae4\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your roadworthiness certificate with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd37e9af7\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    },\n    {\n      \"id\": \"01a14d75-e1e0-7239-8309-763bd3806752\",\n      \"type\": \"battery_health\",\n      \"label\": \"Battery health check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last battery health check.\"\n    }\n  ],\n  \"charging\": {\n    \"battery_level_percent\": 64,\n    \"battery_level_at\": \"2026-10-19T08:00:00+00:00\",\n    \"active_reservation\": null\n  },\n  \"pending_records\": [\n    {\n      \"id\": \"01a14d75-e203-710a-be93-211fb11eb44a\",\n      \"vehicle_id\": \"01a14d75-e1df-7122-a53b-4fd67e6519cc\",\n      \"item_type\": \"service\",\n      \"item_label\": \"Routine service\",\n      \"performed_at\": \"2026-09-01\",\n      \"odometer_km\": 42000,\n      \"workshop\": \"Mainland Motors\",\n      \"notes\": null,\n      \"proof_url\": \"http://localhost:8000/vehicle-maintenance/01a14d75-e1df-7122-a53b-4fd67e6519cc/PA3DryFNBFXBep0L2eDCWy2YL9GHel4JhrInlB4m.pdf?expiration=1792398600\",\n      \"driver_repair_id\": null,\n      \"status\": \"pending\",\n      \"status_label\": \"Awaiting review\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                },
+                {
+                  "name": "200 \u2014 Plug-in car, fee due",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicle\": {\n    \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"plate_number\": \"LND-482-KJ\",\n    \"make\": \"BYD\",\n    \"model\": \"Atto 3\",\n    \"fuel_type\": \"electric\",\n    \"is_fleet\": false,\n    \"shift_mode\": false,\n    \"odometer_km\": null,\n    \"odometer_read_at\": null,\n    \"estimated_odometer_km\": null\n  },\n  \"can_drive\": true,\n  \"block_reason\": null,\n  \"records_managed_by\": \"driver\",\n  \"items\": [\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483d0f9aeb\",\n      \"type\": \"service\",\n      \"label\": \"Routine service\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last routine service.\"\n    },\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483d8378e8\",\n      \"type\": \"tyres_brakes\",\n      \"label\": \"Tyres & brakes check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last tyres & brakes check.\"\n    },\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483e795b20\",\n      \"type\": \"insurance\",\n      \"label\": \"Insurance\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your insurance with its expiry date.\"\n    },\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483ed8465c\",\n      \"type\": \"roadworthiness\",\n      \"label\": \"Roadworthiness certificate\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your roadworthiness certificate with its expiry date.\"\n    },\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483f6bf998\",\n      \"type\": \"vehicle_licence\",\n      \"label\": \"Vehicle licence\",\n      \"is_legal_paper\": true,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Upload your vehicle licence with its expiry date.\"\n    },\n    {\n      \"id\": \"01a18319-6203-7060-b4e8-39483f9b2b03\",\n      \"type\": \"battery_health\",\n      \"label\": \"Battery health check\",\n      \"is_legal_paper\": false,\n      \"status\": \"unknown\",\n      \"status_label\": \"No record yet\",\n      \"due_at\": null,\n      \"days_until_due\": null,\n      \"due_odometer_km\": null,\n      \"km_until_due\": null,\n      \"last_done_at\": null,\n      \"last_odometer_km\": null,\n      \"blocks_driving\": false,\n      \"blocks_driving_from\": null,\n      \"message\": \"Add the date of your last battery health check.\"\n    }\n  ],\n  \"charging\": {\n    \"battery_level_percent\": null,\n    \"battery_level_at\": null,\n    \"active_reservation\": {\n      \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n      \"status\": \"reserved\",\n      \"station\": {\n        \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n        \"name\": \"Lekki Phase 1 Hub\"\n      },\n      \"confirmed_slot\": \"02:30 pm\"\n    },\n    \"reservation_fee\": {\n      \"amount_kobo\": 50000,\n      \"waived\": false,\n      \"waiver_reason\": null\n    }\n  },\n  \"pending_records\": []\n}"
                 }
               ]
             },
@@ -24368,6 +24594,849 @@
                 "description": "Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations."
               },
               "response": []
+            },
+            {
+              "name": "Get EV Charging Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/ev-charging",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "ev-charging"
+                  ]
+                },
+                "description": "Operations. The fee, who is spared it (hire purchase), the stall hold, free cancellation and queue limits. Defaults come from config/ev_charging.php."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Defaults",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"reservation_fee\": 500,\n    \"reservation_expiry_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"imminent_departure_minutes\": 15,\n    \"retry_delay_minutes\": 15,\n    \"max_active_reservations_per_driver\": 1,\n    \"hire_purchase_fee_waiver\": true,\n    \"waive_fee_while_agreement_paused\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update EV Charging Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/ev-charging",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "ev-charging"
+                  ]
+                },
+                "description": "Send only the fields to change: `reservation_fee` (naira, 0\u2013100,000), `reservation_expiry_minutes` (5\u2013240), `free_cancellation_minutes` (0\u201360), `max_queue_size` (0\u2013100), `imminent_departure_minutes` (0\u2013240), `retry_delay_minutes` (1\u2013240), `max_active_reservations_per_driver` (1\u20135), `hire_purchase_fee_waiver`, `waive_fee_while_agreement_paused`. Applies to reservations made or confirmed afterwards. The app copy values follow in GET /config.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reservation_fee\": 500,\n  \"waive_fee_while_agreement_paused\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"EV charging settings updated.\",\n  \"settings\": {\n    \"reservation_fee\": 500,\n    \"reservation_expiry_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"imminent_departure_minutes\": 15,\n    \"retry_delay_minutes\": 15,\n    \"max_active_reservations_per_driver\": 1,\n    \"hire_purchase_fee_waiver\": true,\n    \"waive_fee_while_agreement_paused\": true\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 EV Charge Requests",
+          "description": "Operations. Drivers' charging requests to confirm for a slot or decline. A confirmed request holds a stall when its slot starts (fee taken then, unless waived; check in within 30 minutes; queued when the station is full). Responses carry the reservation object under both `charge_request` and `reservation`.",
+          "item": [
+            {
+              "name": "List Charge Requests",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-charge-requests?status=pending_review,confirmed&station_id=&city_id=&search=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-charge-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending_review,confirmed"
+                    },
+                    {
+                      "key": "station_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "city_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "`status`: comma list, default `pending_review,confirmed` (unknown \u2192 422). `station_id`, `city_id`, `search` (driver name or phone). Pending first (oldest first), then confirmed (soonest slot first). `summary` counts pending and confirmed requests."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Awaiting review",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"charge_requests\": [\n    {\n      \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n      \"type\": \"charging\",\n      \"kind\": \"request\",\n      \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"stall_id\": null,\n      \"status\": {\n        \"value\": \"pending_review\",\n        \"label\": \"Pending Review\"\n      },\n      \"battery_level\": 18,\n      \"requested_date\": \"2026-10-28\",\n      \"requested_time\": \"02:30 pm\",\n      \"notes\": \"Need about an hour\",\n      \"approver_name\": null,\n      \"confirmed_slot\": null,\n      \"check_in_time\": null,\n      \"confirmed_slot_at\": null,\n      \"reviewed_at\": null,\n      \"decline_reason\": null,\n      \"queue_position\": null,\n      \"queue_ahead_count\": null,\n      \"queue_ahead_description\": null,\n      \"estimated_available_at\": null,\n      \"fee_amount\": \"0.00\",\n      \"fee_amount_kobo\": 0,\n      \"fee_waived\": false,\n      \"fee_waiver_reason\": null,\n      \"fee_charged_at\": null,\n      \"fee_refunded_at\": null,\n      \"free_cancellation_until\": null,\n      \"check_in_deadline\": null,\n      \"estimated_charge_minutes\": 60,\n      \"ended_by_operations\": false,\n      \"end_reason\": null,\n      \"ended_at\": null,\n      \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"activated_at\": null,\n      \"completed_at\": null,\n      \"vehicle_name\": \"BYD Atto 3\",\n      \"vehicle_plate\": \"LND-482-KJ\",\n      \"vehicle_color\": \"White\",\n      \"station_name\": \"Lekki Phase 1 Hub\",\n      \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"assigned_bay\": null,\n      \"station\": {\n        \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n        \"name\": \"Lekki Phase 1 Hub\",\n        \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n        \"lat\": \"7.6106530\",\n        \"lng\": \"3.3767180\",\n        \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n        \"total_stalls\": 2,\n        \"connector_types\": [],\n        \"power_output_kw\": null,\n        \"pricing_per_kwh\": null,\n        \"operating_hours\": null,\n        \"status\": {\n          \"value\": \"active\",\n          \"label\": \"Active\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"stall\": null,\n      \"driver\": {\n        \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n        \"reference_number\": null,\n        \"first_name\": \"Tunde\",\n        \"last_name\": \"Bello\",\n        \"phone\": \"+2348012345678\",\n        \"email\": \"fkunze@example.net\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n          \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n          \"make\": \"BYD\",\n          \"model\": \"Atto 3\",\n          \"colour\": \"White\",\n          \"plate_number\": \"LND-482-KJ\",\n          \"year\": 2018,\n          \"fuel_type\": \"electric\",\n          \"can_charge\": true,\n          \"is_fleet\": false,\n          \"shift_mode\": false,\n          \"odometer_km\": null,\n          \"estimated_odometer_km\": null,\n          \"battery_level_percent\": null,\n          \"is_blocked\": false,\n          \"block_reason\": null,\n          \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n          \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n    }\n  ],\n  \"summary\": {\n    \"pending_review\": 1,\n    \"confirmed\": 0\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Confirm Charge Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-charge-requests/{{ev_reservation_id}}/confirm",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-charge-requests",
+                    "{{ev_reservation_id}}",
+                    "confirm"
+                  ]
+                },
+                "description": "`confirmed_slot_at` (ISO 8601 with offset; not more than 5 minutes in the past, at most 7 days ahead). Optional `station_id` to move it to another active station. The driver gets `ev_charge_request_confirmed`. A slot already started is held at once.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"confirmed_slot_at\": \"2026-10-28T14:30:00+01:00\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Confirmed",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Charge request confirmed. The driver has been told.\",\n  \"charge_request\": {\n    \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"confirmed\",\n      \"label\": \"Confirmed\"\n    },\n    \"battery_level\": 18,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"02:30 pm\",\n    \"notes\": \"Need about an hour\",\n    \"approver_name\": \"E-tiGo Operations\",\n    \"confirmed_slot\": \"02:30 pm\",\n    \"check_in_time\": \"03:00 pm\",\n    \"confirmed_slot_at\": \"2026-10-28T13:30:00.000000Z\",\n    \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"decline_reason\": null,\n    \"reviewed_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": \"2026-10-28T14:00:00.000000Z\",\n    \"estimated_charge_minutes\": 60,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"reference_number\": null,\n      \"first_name\": \"Tunde\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348012345678\",\n      \"email\": \"fkunze@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n        \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n        \"make\": \"BYD\",\n        \"model\": \"Atto 3\",\n        \"colour\": \"White\",\n        \"plate_number\": \"LND-482-KJ\",\n        \"year\": 2018,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  },\n  \"reservation\": {\n    \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"confirmed\",\n      \"label\": \"Confirmed\"\n    },\n    \"battery_level\": 18,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"02:30 pm\",\n    \"notes\": \"Need about an hour\",\n    \"approver_name\": \"E-tiGo Operations\",\n    \"confirmed_slot\": \"02:30 pm\",\n    \"check_in_time\": \"03:00 pm\",\n    \"confirmed_slot_at\": \"2026-10-28T13:30:00.000000Z\",\n    \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"decline_reason\": null,\n    \"reviewed_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": \"2026-10-28T14:00:00.000000Z\",\n    \"estimated_charge_minutes\": 60,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"reference_number\": null,\n      \"first_name\": \"Tunde\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348012345678\",\n      \"email\": \"fkunze@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n        \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n        \"make\": \"BYD\",\n        \"model\": \"Atto 3\",\n        \"colour\": \"White\",\n        \"plate_number\": \"LND-482-KJ\",\n        \"year\": 2018,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Decline Charge Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-charge-requests/{{ev_reservation_id}}/decline",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-charge-requests",
+                    "{{ev_reservation_id}}",
+                    "decline"
+                  ]
+                },
+                "description": "`reason` (5\u2013500, shown to the driver). Works while `pending_review`, or `confirmed` before the slot starts. The driver gets `ev_charge_request_declined`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"No stalls free this afternoon\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Declined",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Charge request declined. The driver has been told.\",\n  \"charge_request\": {\n    \"id\": \"01a18319-6295-722a-8859-b76134185b75\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    },\n    \"battery_level\": 22,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"10:00 am\",\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"decline_reason\": \"No stalls free this afternoon\",\n    \"reviewed_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": null,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"Nissan Corolla\",\n    \"vehicle_plate\": \"KJA-118-EV\",\n    \"vehicle_color\": \"blue\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-628e-7234-a650-b53601fc552e\",\n      \"reference_number\": null,\n      \"first_name\": \"Kemi\",\n      \"last_name\": \"Ade\",\n      \"phone\": \"+18137900750\",\n      \"email\": \"bergstrom.margarette@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-6291-73a5-93f0-9e2d73e3ce8c\",\n        \"driver_id\": \"01a18319-628f-711a-8969-70749b8af326\",\n        \"make\": \"Nissan\",\n        \"model\": \"Corolla\",\n        \"colour\": \"blue\",\n        \"plate_number\": \"KJA-118-EV\",\n        \"year\": 2019,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-6291-73a5-93f0-9e2d737937b3\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n  },\n  \"reservation\": {\n    \"id\": \"01a18319-6295-722a-8859-b76134185b75\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": null,\n    \"status\": {\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    },\n    \"battery_level\": 22,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"10:00 am\",\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"decline_reason\": \"No stalls free this afternoon\",\n    \"reviewed_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": null,\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": null,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"Nissan Corolla\",\n    \"vehicle_plate\": \"KJA-118-EV\",\n    \"vehicle_color\": \"blue\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": null,\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": null,\n    \"driver\": {\n      \"id\": \"01a18319-628e-7234-a650-b53601fc552e\",\n      \"reference_number\": null,\n      \"first_name\": \"Kemi\",\n      \"last_name\": \"Ade\",\n      \"phone\": \"+18137900750\",\n      \"email\": \"bergstrom.margarette@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-6291-73a5-93f0-9e2d73e3ce8c\",\n        \"driver_id\": \"01a18319-628f-711a-8969-70749b8af326\",\n        \"make\": \"Nissan\",\n        \"model\": \"Corolla\",\n        \"colour\": \"blue\",\n        \"plate_number\": \"KJA-118-EV\",\n        \"year\": 2019,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-6291-73a5-93f0-9e2d737937b3\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 EV Reservations",
+          "description": "Operations. Every charging request and reservation (`kind`: `request` or `instant`), with the actions to cancel a reservation or end a session the driver did not finish.",
+          "item": [
+            {
+              "name": "List EV Reservations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-reservations?status=&kind=&station_id=&city_id=&driver_id=&search=&from=&to=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-reservations"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": ""
+                    },
+                    {
+                      "key": "kind",
+                      "value": ""
+                    },
+                    {
+                      "key": "station_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "city_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "driver_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "from",
+                      "value": ""
+                    },
+                    {
+                      "key": "to",
+                      "value": ""
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Filters: `status` (comma list; unknown \u2192 422), `kind` (`request`/`instant`), `station_id`, `city_id`, `driver_id` (user id), `search` (driver name, phone or plate), `from`/`to` (Lagos dates on `reserved_at`). Newest first. `summary` counts open reservations by status across every station."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 All reservations",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reservations\": [\n    {\n      \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n      \"type\": \"charging\",\n      \"kind\": \"request\",\n      \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"stall_id\": null,\n      \"status\": {\n        \"value\": \"confirmed\",\n        \"label\": \"Confirmed\"\n      },\n      \"battery_level\": 18,\n      \"requested_date\": \"2026-10-28\",\n      \"requested_time\": \"02:30 pm\",\n      \"notes\": \"Need about an hour\",\n      \"approver_name\": \"E-tiGo Operations\",\n      \"confirmed_slot\": \"02:30 pm\",\n      \"check_in_time\": \"03:00 pm\",\n      \"confirmed_slot_at\": \"2026-10-28T13:30:00.000000Z\",\n      \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"decline_reason\": null,\n      \"reviewed_by\": {\n        \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n        \"name\": \"Ada Okafor\"\n      },\n      \"queue_position\": null,\n      \"queue_ahead_count\": null,\n      \"queue_ahead_description\": null,\n      \"estimated_available_at\": null,\n      \"fee_amount\": \"500.00\",\n      \"fee_amount_kobo\": 50000,\n      \"fee_waived\": false,\n      \"fee_waiver_reason\": null,\n      \"fee_charged_at\": null,\n      \"fee_refunded_at\": null,\n      \"free_cancellation_until\": null,\n      \"check_in_deadline\": \"2026-10-28T14:00:00.000000Z\",\n      \"estimated_charge_minutes\": 60,\n      \"ended_by_operations\": false,\n      \"end_reason\": null,\n      \"ended_at\": null,\n      \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"activated_at\": null,\n      \"completed_at\": null,\n      \"vehicle_name\": \"BYD Atto 3\",\n      \"vehicle_plate\": \"LND-482-KJ\",\n      \"vehicle_color\": \"White\",\n      \"station_name\": \"Lekki Phase 1 Hub\",\n      \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"assigned_bay\": null,\n      \"station\": {\n        \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n        \"name\": \"Lekki Phase 1 Hub\",\n        \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n        \"lat\": \"7.6106530\",\n        \"lng\": \"3.3767180\",\n        \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n        \"total_stalls\": 2,\n        \"connector_types\": [],\n        \"power_output_kw\": null,\n        \"pricing_per_kwh\": null,\n        \"operating_hours\": null,\n        \"status\": {\n          \"value\": \"active\",\n          \"label\": \"Active\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"stall\": null,\n      \"driver\": {\n        \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n        \"reference_number\": null,\n        \"first_name\": \"Tunde\",\n        \"last_name\": \"Bello\",\n        \"phone\": \"+2348012345678\",\n        \"email\": \"fkunze@example.net\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n          \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n          \"make\": \"BYD\",\n          \"model\": \"Atto 3\",\n          \"colour\": \"White\",\n          \"plate_number\": \"LND-482-KJ\",\n          \"year\": 2018,\n          \"fuel_type\": \"electric\",\n          \"can_charge\": true,\n          \"is_fleet\": false,\n          \"shift_mode\": false,\n          \"odometer_km\": null,\n          \"estimated_odometer_km\": null,\n          \"battery_level_percent\": null,\n          \"is_blocked\": false,\n          \"block_reason\": null,\n          \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n          \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n    },\n    {\n      \"id\": \"01a18319-6295-722a-8859-b76134185b75\",\n      \"type\": \"charging\",\n      \"kind\": \"request\",\n      \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"stall_id\": null,\n      \"status\": {\n        \"value\": \"cancelled\",\n        \"label\": \"Cancelled\"\n      },\n      \"battery_level\": 22,\n      \"requested_date\": \"2026-10-28\",\n      \"requested_time\": \"10:00 am\",\n      \"notes\": null,\n      \"approver_name\": null,\n      \"confirmed_slot\": null,\n      \"check_in_time\": null,\n      \"confirmed_slot_at\": null,\n      \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"decline_reason\": \"No stalls free this afternoon\",\n      \"reviewed_by\": {\n        \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n        \"name\": \"Ada Okafor\"\n      },\n      \"queue_position\": null,\n      \"queue_ahead_count\": null,\n      \"queue_ahead_description\": null,\n      \"estimated_available_at\": null,\n      \"fee_amount\": \"500.00\",\n      \"fee_amount_kobo\": 50000,\n      \"fee_waived\": false,\n      \"fee_waiver_reason\": null,\n      \"fee_charged_at\": null,\n      \"fee_refunded_at\": null,\n      \"free_cancellation_until\": null,\n      \"check_in_deadline\": null,\n      \"estimated_charge_minutes\": null,\n      \"ended_by_operations\": false,\n      \"end_reason\": null,\n      \"ended_at\": null,\n      \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"activated_at\": null,\n      \"completed_at\": null,\n      \"vehicle_name\": \"Nissan Corolla\",\n      \"vehicle_plate\": \"KJA-118-EV\",\n      \"vehicle_color\": \"blue\",\n      \"station_name\": \"Lekki Phase 1 Hub\",\n      \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"assigned_bay\": null,\n      \"station\": {\n        \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n        \"name\": \"Lekki Phase 1 Hub\",\n        \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n        \"lat\": \"7.6106530\",\n        \"lng\": \"3.3767180\",\n        \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n        \"total_stalls\": 2,\n        \"connector_types\": [],\n        \"power_output_kw\": null,\n        \"pricing_per_kwh\": null,\n        \"operating_hours\": null,\n        \"status\": {\n          \"value\": \"active\",\n          \"label\": \"Active\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"stall\": null,\n      \"driver\": {\n        \"id\": \"01a18319-628e-7234-a650-b53601fc552e\",\n        \"reference_number\": null,\n        \"first_name\": \"Kemi\",\n        \"last_name\": \"Ade\",\n        \"phone\": \"+18137900750\",\n        \"email\": \"bergstrom.margarette@example.net\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"id\": \"01a18319-6291-73a5-93f0-9e2d73e3ce8c\",\n          \"driver_id\": \"01a18319-628f-711a-8969-70749b8af326\",\n          \"make\": \"Nissan\",\n          \"model\": \"Corolla\",\n          \"colour\": \"blue\",\n          \"plate_number\": \"KJA-118-EV\",\n          \"year\": 2019,\n          \"fuel_type\": \"electric\",\n          \"can_charge\": true,\n          \"is_fleet\": false,\n          \"shift_mode\": false,\n          \"odometer_km\": null,\n          \"estimated_odometer_km\": null,\n          \"battery_level_percent\": null,\n          \"is_blocked\": false,\n          \"block_reason\": null,\n          \"vehicle_class_id\": \"01a18319-6291-73a5-93f0-9e2d737937b3\",\n          \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"submitted_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    {\n      \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n      \"type\": \"charging\",\n      \"kind\": \"instant\",\n      \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"battery_level\": null,\n      \"requested_date\": null,\n      \"requested_time\": null,\n      \"notes\": null,\n      \"approver_name\": null,\n      \"confirmed_slot\": null,\n      \"check_in_time\": null,\n      \"confirmed_slot_at\": null,\n      \"reviewed_at\": null,\n      \"decline_reason\": null,\n      \"queue_position\": null,\n      \"queue_ahead_count\": null,\n      \"queue_ahead_description\": null,\n      \"estimated_available_at\": null,\n      \"fee_amount\": \"500.00\",\n      \"fee_amount_kobo\": 50000,\n      \"fee_waived\": false,\n      \"fee_waiver_reason\": null,\n      \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"fee_refunded_at\": null,\n      \"free_cancellation_until\": \"2026-10-28T08:02:00.000000Z\",\n      \"check_in_deadline\": null,\n      \"estimated_charge_minutes\": 50,\n      \"ended_by_operations\": false,\n      \"end_reason\": null,\n      \"ended_at\": null,\n      \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"completed_at\": null,\n      \"vehicle_name\": \"Hyundai Kona Electric\",\n      \"vehicle_plate\": \"APP-552-EV\",\n      \"vehicle_color\": \"fuchsia\",\n      \"station_name\": \"Lekki Phase 1 Hub\",\n      \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n      \"station\": {\n        \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n        \"name\": \"Lekki Phase 1 Hub\",\n        \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n        \"lat\": \"7.6106530\",\n        \"lng\": \"3.3767180\",\n        \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n        \"total_stalls\": 2,\n        \"connector_types\": [],\n        \"power_output_kw\": null,\n        \"pricing_per_kwh\": null,\n        \"operating_hours\": null,\n        \"status\": {\n          \"value\": \"active\",\n          \"label\": \"Active\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"stall\": {\n        \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n        \"stall_number\": 1,\n        \"status\": {\n          \"value\": \"occupied\",\n          \"label\": \"Occupied\"\n        },\n        \"occupied_since\": \"2026-10-28T08:00:00.000000Z\",\n        \"estimated_departure_at\": \"2026-10-28T08:50:00.000000Z\",\n        \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"driver\": {\n        \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n        \"reference_number\": null,\n        \"first_name\": \"Musa\",\n        \"last_name\": \"Ibrahim\",\n        \"phone\": \"+15643906542\",\n        \"email\": \"antonio.harris@example.com\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"vehicle\": {\n          \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n          \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n          \"make\": \"Hyundai\",\n          \"model\": \"Kona Electric\",\n          \"colour\": \"fuchsia\",\n          \"plate_number\": \"APP-552-EV\",\n          \"year\": 2021,\n          \"fuel_type\": \"electric\",\n          \"can_charge\": true,\n          \"is_fleet\": false,\n          \"shift_mode\": false,\n          \"odometer_km\": null,\n          \"estimated_odometer_km\": null,\n          \"battery_level_percent\": null,\n          \"is_blocked\": false,\n          \"block_reason\": null,\n          \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n          \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n        },\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n      \"updated_at\": \"2026-10-28T16:20:41.000000Z\",\n      \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n    }\n  ],\n  \"summary\": {\n    \"pending_review\": 0,\n    \"confirmed\": 1,\n    \"reserved\": 0,\n    \"queued\": 0,\n    \"active\": 1\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 5,\n    \"total\": 3\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show EV Reservation",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-reservations/{{ev_reservation_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}"
+                  ]
+                },
+                "description": "One reservation with driver, station, stall, reviewer and who ended it."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Charging",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"reservation\": {\n    \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"active\",\n      \"label\": \"Active\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": \"2026-10-28T08:02:00.000000Z\",\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 50,\n    \"ended_by_operations\": false,\n    \"end_reason\": null,\n    \"ended_at\": null,\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"completed_at\": null,\n    \"vehicle_name\": \"Hyundai Kona Electric\",\n    \"vehicle_plate\": \"APP-552-EV\",\n    \"vehicle_color\": \"fuchsia\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"occupied\",\n        \"label\": \"Occupied\"\n      },\n      \"occupied_since\": \"2026-10-28T08:00:00.000000Z\",\n      \"estimated_departure_at\": \"2026-10-28T08:50:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n      \"reference_number\": null,\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Ibrahim\",\n      \"phone\": \"+15643906542\",\n      \"email\": \"antonio.harris@example.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n        \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"colour\": \"fuchsia\",\n        \"plate_number\": \"APP-552-EV\",\n        \"year\": 2021,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel EV Reservation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-reservations/{{ev_reservation_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Any open reservation. `reason` (5\u2013500, shown to the driver); `refund_fee` (boolean, default false) gives the fee back. A held stall goes to the next in line; a queued driver leaves the line. The driver gets `ev_reservation_cancelled`. 422 when it has already ended.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Charger 1 is faulty\",\n  \"refund_fee\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Cancelled and refunded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Reservation cancelled. The driver has been told.\",\n  \"fee_refunded\": true,\n  \"reservation\": {\n    \"id\": \"01a18319-623b-73a9-939c-14f4b4cda4e4\",\n    \"type\": \"charging\",\n    \"kind\": \"request\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    },\n    \"battery_level\": 18,\n    \"requested_date\": \"2026-10-28\",\n    \"requested_time\": \"02:30 pm\",\n    \"notes\": \"Need about an hour\",\n    \"approver_name\": \"E-tiGo Operations\",\n    \"confirmed_slot\": \"02:30 pm\",\n    \"check_in_time\": \"03:00 pm\",\n    \"confirmed_slot_at\": \"2026-10-28T13:30:00.000000Z\",\n    \"reviewed_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"decline_reason\": null,\n    \"reviewed_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T13:30:00.000000Z\",\n    \"fee_refunded_at\": \"2026-10-28T13:45:00.000000Z\",\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 60,\n    \"ended_by_operations\": true,\n    \"end_reason\": \"Charger 1 is faulty\",\n    \"ended_at\": \"2026-10-28T13:45:00.000000Z\",\n    \"ended_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"reserved_at\": \"2026-10-28T13:30:00.000000Z\",\n    \"activated_at\": null,\n    \"completed_at\": null,\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"available\",\n        \"label\": \"Available\"\n      },\n      \"occupied_since\": null,\n      \"estimated_departure_at\": null,\n      \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"reference_number\": null,\n      \"first_name\": \"Tunde\",\n      \"last_name\": \"Bello\",\n      \"phone\": \"+2348012345678\",\n      \"email\": \"fkunze@example.net\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n        \"driver_id\": \"01a18319-61f3-7046-a009-5bd9b5bef72a\",\n        \"make\": \"BYD\",\n        \"model\": \"Atto 3\",\n        \"colour\": \"White\",\n        \"plate_number\": \"LND-482-KJ\",\n        \"year\": 2018,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-61fa-72ba-b78a-e8afea39c146\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already ended",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This reservation has already ended.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"current_status\": \"cancelled\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "End Charging Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/ev-reservations/{{ev_reservation_id}}/end",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "ev-reservations",
+                    "{{ev_reservation_id}}",
+                    "end"
+                  ]
+                },
+                "description": "For `reserved` or `active` only: the driver left without tapping Finish. It becomes `completed`, the stall is released to the queue, the fee is kept unless `refund_fee` is true, and the driver gets `ev_reservation_ended`. Optional `reason` (max 500, shown to the driver).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Car left the bay without finishing in the app\",\n  \"refund_fee\": false\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Ended",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Charging session ended and the stall released. The driver has been told.\",\n  \"fee_refunded\": false,\n  \"reservation\": {\n    \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 50,\n    \"ended_by_operations\": true,\n    \"end_reason\": \"Car left the bay without finishing in the app\",\n    \"ended_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"ended_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"completed_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"vehicle_name\": \"Hyundai Kona Electric\",\n    \"vehicle_plate\": \"APP-552-EV\",\n    \"vehicle_color\": \"fuchsia\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"available\",\n        \"label\": \"Available\"\n      },\n      \"occupied_since\": null,\n      \"estimated_departure_at\": null,\n      \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n      \"reference_number\": null,\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Ibrahim\",\n      \"phone\": \"+15643906542\",\n      \"email\": \"antonio.harris@example.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n        \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"colour\": \"fuchsia\",\n        \"plate_number\": \"APP-552-EV\",\n        \"year\": 2021,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin \u2014 Repair Requests",
+          "description": "Operations. Repair and service requests drivers send from the app: book the workshop visit, complete with a summary and report, or cancel. Each step updates `status`, `appointment`, `progress_steps` and tells the driver.",
+          "item": [
+            {
+              "name": "List Repair Requests (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests?status=in_progress,scheduled&type=&search=&from=&to=&vehicle_id=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "in_progress,scheduled"
+                    },
+                    {
+                      "key": "type",
+                      "value": ""
+                    },
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "from",
+                      "value": ""
+                    },
+                    {
+                      "key": "to",
+                      "value": ""
+                    },
+                    {
+                      "key": "vehicle_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "`status`: comma list of `in_progress`, `scheduled`, `completed`, `cancelled` (default the open two; unknown \u2192 422). `type` (`repair`/`maintenance`), `search` (reference, title, plate, driver name or phone), `from`/`to` (submitted, Lagos dates), `vehicle_id`. New requests first, then booked visits by date. `summary` counts every request by status."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Open requests",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"repairs\": [\n    {\n      \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n      \"reference_number\": \"REP-1041\",\n      \"type\": {\n        \"value\": \"repair\",\n        \"label\": \"Repair\"\n      },\n      \"status\": {\n        \"value\": \"in_progress\",\n        \"label\": \"In progress\"\n      },\n      \"title\": \"Brake noise\",\n      \"details\": \"Squeal from the front wheels when braking at low speed.\",\n      \"preferred_date\": \"2026-10-29\",\n      \"preferred_time\": \"10:00 am\",\n      \"requested_date\": \"2026-10-29\",\n      \"requested_time\": \"10:00 am\",\n      \"summary_note\": \"Request received \u00b7 Workshop visit to be scheduled for 10:00 am\",\n      \"vehicle_name\": \"BYD Atto 3\",\n      \"vehicle_plate\": \"LND-482-KJ\",\n      \"vehicle_color\": \"White\",\n      \"workshop_visit\": {\n        \"scheduled_time\": \"10:00 am\",\n        \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n        \"support_phone\": \"0812 5690 6790\"\n      },\n      \"appointment\": null,\n      \"cancellation_reason\": null,\n      \"cancelled_by\": null,\n      \"scheduled_at\": null,\n      \"completed_at\": null,\n      \"cancelled_at\": null,\n      \"completion_summary\": null,\n      \"can_cancel\": true,\n      \"progress_steps\": [\n        {\n          \"title\": \"Request submitted\",\n          \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n          \"state\": \"completed\"\n        },\n        {\n          \"title\": \"Technician assigned\",\n          \"subtitle\": \"Your request is being coordinated\",\n          \"state\": \"in_progress\"\n        },\n        {\n          \"title\": \"Workshop visit\",\n          \"subtitle\": \"Scheduled for 10:00 am\",\n          \"state\": \"upcoming\"\n        },\n        {\n          \"title\": \"Inspection complete\",\n          \"subtitle\": \"Report will be available once completed\",\n          \"state\": \"upcoming\"\n        }\n      ],\n      \"attachments\": [\n        {\n          \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n          \"title\": \"brakes.jpg\",\n          \"file_type\": \"JPG\",\n          \"subtitle\": \"JPG \u00b7 Image attached\",\n          \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n          \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n          \"uploaded_by\": \"driver\",\n          \"created_at\": \"2026-10-28T08:40:00+00:00\"\n        }\n      ],\n      \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n      \"driver\": {\n        \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n        \"name\": \"Tunde Bello\",\n        \"phone\": \"+2348012345678\"\n      },\n      \"handled_by\": null,\n      \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n      \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n    }\n  ],\n  \"summary\": {\n    \"in_progress\": 1,\n    \"scheduled\": 0,\n    \"completed\": 0,\n    \"cancelled\": 0\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Show Repair Request (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests/{{repair_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests",
+                    "{{repair_id}}"
+                  ]
+                },
+                "description": "One request with the driver and who last handled it."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Booked",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"scheduled\",\n      \"label\": \"Scheduled\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Workshop visit booked for Thu 29 Oct, 10:00 am at E-tiGo Fleet Workshop\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Thu 29 Oct, 10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"instructions\": \"Ask for Emeka at the front desk.\",\n      \"support_phone\": \"0803 555 0101\"\n    },\n    \"appointment\": {\n      \"scheduled_at\": \"2026-10-29T09:00:00+00:00\",\n      \"date\": \"2026-10-29\",\n      \"time\": \"10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"technician_name\": \"Emeka Obi\",\n      \"contact_phone\": \"0803 555 0101\",\n      \"instructions\": \"Ask for Emeka at the front desk.\"\n    },\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"completed_at\": null,\n    \"cancelled_at\": null,\n    \"completion_summary\": null,\n    \"can_cancel\": true,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Emeka Obi\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Thu 29 Oct, 10:00 am \u00b7 E-tiGo Fleet Workshop\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n        \"title\": \"brakes.jpg\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      },\n      {\n        \"id\": \"7c9c4aa0-b027-4b0a-8ea1-9765ef2e55c6\",\n        \"title\": \"Workshop quote\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"name\": \"Tunde Bello\",\n      \"phone\": \"+2348012345678\"\n    },\n    \"handled_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Book Workshop Visit",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests/{{repair_id}}/schedule",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests",
+                    "{{repair_id}}",
+                    "schedule"
+                  ]
+                },
+                "description": "`scheduled_at` (ISO 8601, not in the past), `workshop_name`, `workshop_address`; optional `technician_name`, `contact_phone`, `instructions`. Works while `in_progress` or `scheduled` (rebook). The driver gets `repair_request_scheduled`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheduled_at\": \"2026-10-29T10:00:00+01:00\",\n  \"workshop_name\": \"E-tiGo Fleet Workshop\",\n  \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n  \"technician_name\": \"Emeka Obi\",\n  \"contact_phone\": \"0803 555 0101\",\n  \"instructions\": \"Ask for Emeka at the front desk.\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Booked",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Workshop visit booked. The driver has been told.\",\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"scheduled\",\n      \"label\": \"Scheduled\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Workshop visit booked for Thu 29 Oct, 10:00 am at E-tiGo Fleet Workshop\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Thu 29 Oct, 10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"instructions\": \"Ask for Emeka at the front desk.\",\n      \"support_phone\": \"0803 555 0101\"\n    },\n    \"appointment\": {\n      \"scheduled_at\": \"2026-10-29T09:00:00+00:00\",\n      \"date\": \"2026-10-29\",\n      \"time\": \"10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"technician_name\": \"Emeka Obi\",\n      \"contact_phone\": \"0803 555 0101\",\n      \"instructions\": \"Ask for Emeka at the front desk.\"\n    },\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"completed_at\": null,\n    \"cancelled_at\": null,\n    \"completion_summary\": null,\n    \"can_cancel\": true,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Emeka Obi\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Thu 29 Oct, 10:00 am \u00b7 E-tiGo Fleet Workshop\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n        \"title\": \"brakes.jpg\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"name\": \"Tunde Bello\",\n      \"phone\": \"+2348012345678\"\n    },\n    \"handled_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Complete Repair Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests/{{repair_id}}/complete",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests",
+                    "{{repair_id}}",
+                    "complete"
+                  ]
+                },
+                "description": "Multipart. `summary` (5\u20132000, shown to the driver); optional `report` (jpg/png/webp/pdf, 10 MB) added as \"Workshop report\". Every step becomes completed; the driver gets `repair_request_completed`. Log the work on the car with Record Maintenance on a Car (`driver_repair_id`).",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "summary",
+                      "value": "Replaced the front brake pads. Discs are within limits; next check in 6 months.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "report",
+                      "type": "file",
+                      "src": [],
+                      "description": "JPG, PNG, WEBP or PDF, max 10 MB"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Completed with a report",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Request completed. The driver has been told.\",\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Completed on 28 Oct 2026\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Thu 29 Oct, 10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"instructions\": \"Ask for Emeka at the front desk.\",\n      \"support_phone\": \"0803 555 0101\"\n    },\n    \"appointment\": {\n      \"scheduled_at\": \"2026-10-29T09:00:00+00:00\",\n      \"date\": \"2026-10-29\",\n      \"time\": \"10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"technician_name\": \"Emeka Obi\",\n      \"contact_phone\": \"0803 555 0101\",\n      \"instructions\": \"Ask for Emeka at the front desk.\"\n    },\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"completed_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"cancelled_at\": null,\n    \"completion_summary\": \"Replaced the front brake pads. Discs are within limits; next check in 6 months.\",\n    \"can_cancel\": false,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Emeka Obi\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Thu 29 Oct, 10:00 am \u00b7 E-tiGo Fleet Workshop\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report available below\",\n        \"state\": \"completed\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n        \"title\": \"brakes.jpg\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      },\n      {\n        \"id\": \"7c9c4aa0-b027-4b0a-8ea1-9765ef2e55c6\",\n        \"title\": \"Workshop quote\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      },\n      {\n        \"id\": \"2d6c2960-5f1e-4584-99ed-32cada8a482c\",\n        \"title\": \"Workshop report\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/KQPLkFg2EC7bT1uKJdX1XUSN1XFPNFUA92z4dkZA.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/KQPLkFg2EC7bT1uKJdX1XUSN1XFPNFUA92z4dkZA.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"name\": \"Tunde Bello\",\n      \"phone\": \"+2348012345678\"\n    },\n    \"handled_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Repair Request (Admin)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests/{{repair_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests",
+                    "{{repair_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "`reason` (5\u2013500, shown to the driver). Works while `in_progress` or `scheduled`. The driver gets `repair_request_cancelled`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Covered by the dealer warranty; book with the dealer\"\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Cancelled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Request cancelled. The driver has been told.\",\n  \"repair\": {\n    \"id\": \"01a18319-6460-73ea-b95d-c2f5f1031aaa\",\n    \"reference_number\": \"REP-1043\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"cancelled\",\n      \"label\": \"Cancelled\"\n    },\n    \"title\": \"AC not cooling\",\n    \"details\": \"Air conditioning blows warm air.\",\n    \"preferred_date\": \"2026-11-03\",\n    \"preferred_time\": \"Afternoon\",\n    \"requested_date\": \"2026-11-03\",\n    \"requested_time\": \"Afternoon\",\n    \"summary_note\": \"Cancelled by E-tiGo on 28 Oct 2026\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Afternoon\",\n      \"instructions\": \"A technician is being assigned for your vehicle. Contact fleet support for workshop details.\",\n      \"support_phone\": \"0812 5690 6790\"\n    },\n    \"appointment\": null,\n    \"cancellation_reason\": \"Covered by the dealer warranty; book with the dealer\",\n    \"cancelled_by\": \"operations\",\n    \"scheduled_at\": null,\n    \"completed_at\": null,\n    \"cancelled_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"completion_summary\": null,\n    \"can_cancel\": false,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Your request is being coordinated\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Scheduled for Afternoon\",\n        \"state\": \"upcoming\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"name\": \"Tunde Bello\",\n      \"phone\": \"+2348012345678\"\n    },\n    \"handled_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Repair Attachment (Admin)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/repair-requests/{{repair_id}}/attachments",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "repair-requests",
+                    "{{repair_id}}",
+                    "attachments"
+                  ]
+                },
+                "description": "Multipart. `attachment` (jpg/png/webp/pdf, 10 MB), optional `title`. Any status. Marked `uploaded_by: operations`, so the driver cannot remove it.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "attachment",
+                      "type": "file",
+                      "src": [],
+                      "description": "JPG, PNG, WEBP or PDF, max 10 MB"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Workshop quote",
+                      "type": "text"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "201 \u2014 Added",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Attachment added.\",\n  \"repair\": {\n    \"id\": \"01a18319-63a6-726c-bcb5-af1d1930e3e6\",\n    \"reference_number\": \"REP-1041\",\n    \"type\": {\n      \"value\": \"repair\",\n      \"label\": \"Repair\"\n    },\n    \"status\": {\n      \"value\": \"scheduled\",\n      \"label\": \"Scheduled\"\n    },\n    \"title\": \"Brake noise\",\n    \"details\": \"Squeal from the front wheels when braking at low speed.\",\n    \"preferred_date\": \"2026-10-29\",\n    \"preferred_time\": \"10:00 am\",\n    \"requested_date\": \"2026-10-29\",\n    \"requested_time\": \"10:00 am\",\n    \"summary_note\": \"Workshop visit booked for Thu 29 Oct, 10:00 am at E-tiGo Fleet Workshop\",\n    \"vehicle_name\": \"BYD Atto 3\",\n    \"vehicle_plate\": \"LND-482-KJ\",\n    \"vehicle_color\": \"White\",\n    \"workshop_visit\": {\n      \"scheduled_time\": \"Thu 29 Oct, 10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"instructions\": \"Ask for Emeka at the front desk.\",\n      \"support_phone\": \"0803 555 0101\"\n    },\n    \"appointment\": {\n      \"scheduled_at\": \"2026-10-29T09:00:00+00:00\",\n      \"date\": \"2026-10-29\",\n      \"time\": \"10:00 am\",\n      \"workshop_name\": \"E-tiGo Fleet Workshop\",\n      \"workshop_address\": \"4 Akin Adesola St, Victoria Island, Lagos\",\n      \"technician_name\": \"Emeka Obi\",\n      \"contact_phone\": \"0803 555 0101\",\n      \"instructions\": \"Ask for Emeka at the front desk.\"\n    },\n    \"cancellation_reason\": null,\n    \"cancelled_by\": null,\n    \"scheduled_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"completed_at\": null,\n    \"cancelled_at\": null,\n    \"completion_summary\": null,\n    \"can_cancel\": true,\n    \"progress_steps\": [\n      {\n        \"title\": \"Request submitted\",\n        \"subtitle\": \"28 Oct 2026 \u00b7 Repair received\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Technician assigned\",\n        \"subtitle\": \"Emeka Obi\",\n        \"state\": \"completed\"\n      },\n      {\n        \"title\": \"Workshop visit\",\n        \"subtitle\": \"Thu 29 Oct, 10:00 am \u00b7 E-tiGo Fleet Workshop\",\n        \"state\": \"in_progress\"\n      },\n      {\n        \"title\": \"Inspection complete\",\n        \"subtitle\": \"Report will be available once completed\",\n        \"state\": \"upcoming\"\n      }\n    ],\n    \"attachments\": [\n      {\n        \"id\": \"b6e2eb50-196a-4846-93dc-070a1bfae2fb\",\n        \"title\": \"brakes.jpg\",\n        \"file_type\": \"JPG\",\n        \"subtitle\": \"JPG \u00b7 Image attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/SMV8udRQMwqfCBmKXH9mjEQ1RjmuOXzEfBXNn137.jpg?expiration=1793178600\",\n        \"uploaded_by\": \"driver\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      },\n      {\n        \"id\": \"7c9c4aa0-b027-4b0a-8ea1-9765ef2e55c6\",\n        \"title\": \"Workshop quote\",\n        \"file_type\": \"PDF\",\n        \"subtitle\": \"PDF \u00b7 Document attached\",\n        \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf\",\n        \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf?expiration=1793178600\",\n        \"uploaded_by\": \"operations\",\n        \"created_at\": \"2026-10-28T08:40:00+00:00\"\n      }\n    ],\n    \"vehicle_id\": \"01a18319-61fc-706d-80e2-59595157b313\",\n    \"driver\": {\n      \"id\": \"01a18319-61ef-7066-a676-f35ddc9ea46a\",\n      \"name\": \"Tunde Bello\",\n      \"phone\": \"+2348012345678\"\n    },\n    \"handled_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"submitted_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n  },\n  \"attachment\": {\n    \"id\": \"7c9c4aa0-b027-4b0a-8ea1-9765ef2e55c6\",\n    \"title\": \"Workshop quote\",\n    \"file_type\": \"PDF\",\n    \"subtitle\": \"PDF \u00b7 Document attached\",\n    \"path\": \"repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf\",\n    \"file_url\": \"http://localhost:8000/repairs/01a18319-61ef-7066-a676-f35ddc9ea46a/r6KaCUUee9DadXqI5pxhhEjOP6JMPSF78RbP2IAh.pdf?expiration=1793178600\",\n    \"uploaded_by\": \"operations\",\n    \"created_at\": \"2026-10-28T08:40:00+00:00\"\n  }\n}"
+                }
+              ]
             }
           ]
         },

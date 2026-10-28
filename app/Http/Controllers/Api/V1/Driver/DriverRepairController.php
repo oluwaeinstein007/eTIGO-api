@@ -2,23 +2,21 @@
 
 namespace App\Http\Controllers\Api\V1\Driver;
 
-use App\Enums\RepairRequestStatus;
-use App\Enums\RepairServiceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreDriverRepairAttachmentRequest;
 use App\Http\Requests\Driver\StoreDriverRepairFormRequest;
-use App\Http\Resources\Concerns\ResolvesUploadUrls;
 use App\Http\Resources\DriverRepairResource;
 use App\Models\DriverRepair;
+use App\Services\DriverRepairService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class DriverRepairController extends Controller
 {
-    use ResolvesUploadUrls;
+    public function __construct(
+        private readonly DriverRepairService $repairs,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -37,60 +35,11 @@ class DriverRepairController extends Controller
 
     public function store(StoreDriverRepairFormRequest $request): JsonResponse
     {
-        $user = $request->user();
-        $validated = $request->validated();
-        $vehicle = $user->driver?->vehicle;
-
-        $type = RepairServiceType::from($validated['type']);
-        $preferredTime = $validated['preferred_time'];
-        $preferredDate = $validated['preferred_date'];
-
-        $attachments = [];
-        $file = $request->file('attachment') ?? $request->file('photo');
-        if ($file instanceof UploadedFile) {
-            $attachments[] = $this->processAttachmentUpload($file, $user->id);
-        }
-
-        $repair = DriverRepair::create([
-            'driver_id' => $user->id,
-            'vehicle_id' => $vehicle?->id,
-            'reference_number' => DriverRepair::generateReferenceNumber(),
-            'type' => $type,
-            'status' => RepairRequestStatus::InProgress,
-            'title' => $validated['title'],
-            'details' => $validated['details'],
-            'preferred_date' => $preferredDate,
-            'preferred_time' => $preferredTime,
-            'summary_note' => "Request received · Workshop visit to be scheduled for {$preferredTime}",
-            'workshop_visit' => [
-                'scheduled_time' => $preferredTime,
-                'instructions' => 'A technician is being assigned for your vehicle. Contact fleet support for workshop details.',
-                'support_phone' => '0812 5690 6790',
-            ],
-            'progress_steps' => [
-                [
-                    'title' => 'Request submitted',
-                    'subtitle' => now()->format('j M Y')." · {$type->label()} received",
-                    'state' => 'completed',
-                ],
-                [
-                    'title' => 'Technician assigned',
-                    'subtitle' => 'Your request is being coordinated',
-                    'state' => 'in_progress',
-                ],
-                [
-                    'title' => 'Workshop visit',
-                    'subtitle' => "Scheduled for {$preferredTime}",
-                    'state' => 'upcoming',
-                ],
-                [
-                    'title' => 'Inspection complete',
-                    'subtitle' => 'Report will be available once completed',
-                    'state' => 'upcoming',
-                ],
-            ],
-            'attachments' => $attachments,
-        ]);
+        $repair = $this->repairs->submit(
+            $request->user(),
+            $request->validated(),
+            $request->file('attachment') ?? $request->file('photo'),
+        );
 
         $repair->load(['vehicle', 'driver.driver.vehicle']);
 
@@ -117,6 +66,33 @@ class DriverRepairController extends Controller
         ]);
     }
 
+    /**
+     * The driver no longer needs the visit (fixed elsewhere, sold the car).
+     */
+    public function cancel(DriverRepair $repair, Request $request): JsonResponse
+    {
+        if ($repair->driver_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $repair = $this->repairs->cancel($repair, $request->user(), $validated['reason'] ?? null);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $repair->load(['vehicle', 'driver.driver.vehicle']);
+
+        return response()->json([
+            'message' => 'Service request cancelled.',
+            'repair' => new DriverRepairResource($repair),
+        ]);
+    }
+
     public function storeAttachment(DriverRepair $repair, StoreDriverRepairAttachmentRequest $request): JsonResponse
     {
         $user = $request->user();
@@ -128,12 +104,9 @@ class DriverRepairController extends Controller
         }
 
         $file = $request->file('attachment') ?? $request->file('photo');
-        $customTitle = $request->input('title');
 
-        $newAttachment = $this->processAttachmentUpload($file, $user->id, $customTitle);
-        $attachments = $repair->attachments ?? [];
-        $attachments[] = $newAttachment;
-        $repair->attachments = $attachments;
+        $newAttachment = $this->repairs->storeAttachment($file, $user->id, $request->input('title'));
+        $repair->attachments = [...($repair->attachments ?? []), $newAttachment];
         $repair->save();
 
         $repair->load(['vehicle', 'driver.driver.vehicle']);
@@ -173,6 +146,13 @@ class DriverRepairController extends Controller
             ], 404);
         }
 
+        // A workshop report E-tiGo attached stays on the request.
+        if (($foundAttachment['uploaded_by'] ?? 'driver') === 'operations') {
+            return response()->json([
+                'message' => 'Files added by E-tiGo cannot be removed.',
+            ], 403);
+        }
+
         if (! empty($foundAttachment['path'])) {
             try {
                 Storage::disk(config('filesystems.uploads'))->delete($foundAttachment['path']);
@@ -191,51 +171,5 @@ class DriverRepairController extends Controller
             'message' => 'Attachment removed successfully.',
             'repair' => new DriverRepairResource($repair),
         ]);
-    }
-
-    private function processAttachmentUpload(UploadedFile $file, string $driverId, ?string $customTitle = null): array
-    {
-        $path = $file->store("repairs/{$driverId}", config('filesystems.uploads'));
-        $extension = strtolower($file->getClientOriginalExtension());
-        $isPdf = $extension === 'pdf';
-        $fileType = strtoupper($extension ?: ($isPdf ? 'PDF' : 'JPG'));
-        $originalName = $file->getClientOriginalName();
-        $rawTitle = $isPdf ? (pathinfo($originalName, PATHINFO_FILENAME) ?: 'Document') : ($originalName ?: 'Photo attachment');
-        $title = $customTitle ?: $this->shortenFileName($rawTitle);
-        $subtitle = $isPdf ? 'PDF · Document attached' : "{$fileType} · Image attached";
-
-        return [
-            'id' => (string) Str::uuid(),
-            'title' => $title,
-            'file_type' => $fileType,
-            'subtitle' => $subtitle,
-            'path' => $path,
-            'file_url' => $this->resolveUploadUrl($path),
-            'created_at' => now()->toIso8601String(),
-        ];
-    }
-
-    private function shortenFileName(string $name, int $maxLength = 24): string
-    {
-        if (mb_strlen($name) <= $maxLength) {
-            return $name;
-        }
-
-        $extension = pathinfo($name, PATHINFO_EXTENSION);
-        $dotExt = $extension ? '.' . $extension : '';
-        $baseName = pathinfo($name, PATHINFO_FILENAME);
-
-        if ($dotExt && mb_strlen($dotExt) < $maxLength - 3) {
-            $available = $maxLength - mb_strlen($dotExt) - 3;
-            $prefixLen = (int) ceil($available * 0.6);
-            $suffixLen = $available - $prefixLen;
-
-            $prefix = mb_substr($baseName, 0, $prefixLen);
-            $suffix = $suffixLen > 0 ? mb_substr($baseName, -$suffixLen) : '';
-
-            return "{$prefix}...{$suffix}{$dotExt}";
-        }
-
-        return mb_substr($name, 0, $maxLength - 3) . '...';
     }
 }

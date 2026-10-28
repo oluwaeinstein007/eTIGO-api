@@ -20,6 +20,9 @@ class StoreChargeRequestFormRequest extends FormRequest
             'requested_time' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'station_id' => ['nullable', 'uuid', 'exists:ev_charging_stations,id'],
+            // How long the driver expects to charge: tells drivers queueing
+            // behind them when the stall should free up.
+            'estimated_charge_minutes' => ['nullable', 'integer', 'min:5', 'max:480'],
         ];
     }
 

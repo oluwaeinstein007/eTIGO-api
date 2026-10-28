@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\EvStation\StoreChargeRequestFormRequest;
 use App\Http\Requests\EvStation\StoreReservationFormRequest;
 use App\Http\Resources\EvReservationResource;
+use App\Models\AppSetting;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Services\ReservationService;
@@ -31,7 +32,7 @@ class EvReservationController extends Controller
         }
 
         // Same rule as a stall reservation: one open request or reservation at a time.
-        if (EvReservation::forDriver($user->id)->active()->count() >= (int) config('ev_charging.max_active_reservations_per_driver', 1)) {
+        if (EvReservation::forDriver($user->id)->active()->count() >= AppSetting::evCharging()['max_active_reservations_per_driver']) {
             return response()->json(['message' => 'You already have an active reservation.'], 422);
         }
 
@@ -53,6 +54,7 @@ class EvReservationController extends Controller
             'requested_date' => $validated['requested_date'] ?? now('Africa/Lagos')->toDateString(),
             'requested_time' => $validated['requested_time'] ?? now('Africa/Lagos')->format('h:i a'),
             'notes' => $validated['notes'] ?? null,
+            'estimated_charge_minutes' => $validated['estimated_charge_minutes'] ?? null,
             'reserved_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -138,14 +140,19 @@ class EvReservationController extends Controller
         ]);
     }
 
-    public function activate(EvReservation $reservation): JsonResponse
+    public function activate(Request $request, EvReservation $reservation): JsonResponse
     {
-        if ($reservation->driver_id !== request()->user()->id) {
+        if ($reservation->driver_id !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        $validated = $request->validate([
+            // Optional at the stall: replaces the estimate given when reserving.
+            'estimated_charge_minutes' => ['nullable', 'integer', 'min:5', 'max:480'],
+        ]);
+
         try {
-            $reservation = $this->reservationService->activate($reservation, $reservation->estimated_charge_minutes);
+            $reservation = $this->reservationService->activate($reservation, $validated['estimated_charge_minutes'] ?? $reservation->estimated_charge_minutes);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

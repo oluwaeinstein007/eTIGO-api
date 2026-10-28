@@ -50,7 +50,7 @@ class AdminEvChargeRequestController extends Controller
 
         $requests = EvReservation::query()
             ->chargeRequests()
-            ->with(['station', 'stall', 'driver.driver.vehicle', 'reviewedBy'])
+            ->with(['station', 'stall', 'driver.driver.vehicle', 'reviewedBy', 'endedBy'])
             ->whereIn('status', $statuses)
             ->when($request->query('station_id'), fn ($q, $id) => $q->where('station_id', $id))
             ->when($request->query('city_id'), fn ($q, $id) => $q->whereHas('station', fn ($s) => $s->where('city_id', $id)))
@@ -101,7 +101,7 @@ class AdminEvChargeRequestController extends Controller
 
         return response()->json([
             'message' => 'Charge request confirmed. The driver has been told.',
-            'charge_request' => new EvReservationResource($reservation->load(['station', 'stall', 'driver.driver.vehicle', 'reviewedBy'])),
+            ...$this->body($reservation),
         ]);
     }
 
@@ -115,8 +115,21 @@ class AdminEvChargeRequestController extends Controller
 
         return response()->json([
             'message' => 'Charge request declined. The driver has been told.',
-            'charge_request' => new EvReservationResource($reservation->load(['station', 'stall', 'driver.driver.vehicle', 'reviewedBy'])),
+            ...$this->body($reservation),
         ]);
+    }
+
+    /**
+     * The same object under both keys: `reservation` matches every other EV
+     * endpoint; `charge_request` is kept for screens already built on it.
+     *
+     * @return array<string, EvReservationResource>
+     */
+    private function body(EvReservation $reservation): array
+    {
+        $resource = new EvReservationResource($reservation->load(['station', 'stall', 'driver.driver.vehicle', 'reviewedBy', 'endedBy']));
+
+        return ['charge_request' => $resource, 'reservation' => $resource];
     }
 
     private function refused(\RuntimeException $e, EvReservation $reservation): JsonResponse

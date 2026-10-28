@@ -238,6 +238,30 @@ class AppSetting extends Model
      *
      * @return array{enabled: bool, intervals: array<string, array{km: ?int, months: ?int}>, fuel_type_intervals: array<string, array<string, array{km: ?int, months: ?int}>>, due_soon_days: int, due_soon_km: int, legal_grace_days: int, block_on_expired_papers: bool}
      */
+    /**
+     * EV charging settings: the admin's runtime overrides
+     * (PUT /admin/settings/ev-charging) over config/ev_charging.php.
+     *
+     * @return array{reservation_fee: float, reservation_expiry_minutes: int, free_cancellation_minutes: int, max_queue_size: int, imminent_departure_minutes: int, retry_delay_minutes: int, max_active_reservations_per_driver: int, hire_purchase_fee_waiver: bool, waive_fee_while_agreement_paused: bool}
+     */
+    public static function evCharging(): array
+    {
+        $settings = static::where('group', 'ev_charging')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["ev_charging.{$key}"] ?? config("ev_charging.{$key}");
+
+        return [
+            'reservation_fee' => round(max(0.0, (float) $value('reservation_fee')), 2),
+            'reservation_expiry_minutes' => (int) $value('reservation_expiry_minutes'),
+            'free_cancellation_minutes' => (int) $value('free_cancellation_minutes'),
+            'max_queue_size' => (int) $value('max_queue_size'),
+            'imminent_departure_minutes' => (int) $value('imminent_departure_minutes'),
+            'retry_delay_minutes' => (int) $value('retry_delay_minutes'),
+            'max_active_reservations_per_driver' => (int) $value('max_active_reservations_per_driver'),
+            'hire_purchase_fee_waiver' => filter_var($value('hire_purchase_fee_waiver'), FILTER_VALIDATE_BOOLEAN),
+            'waive_fee_while_agreement_paused' => filter_var($value('waive_fee_while_agreement_paused'), FILTER_VALIDATE_BOOLEAN),
+        ];
+    }
+
     public static function vehicleMaintenance(): array
     {
         $settings = static::where('group', 'vehicle_maintenance')->pluck('value', 'key');

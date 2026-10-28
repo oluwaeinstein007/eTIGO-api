@@ -77,7 +77,7 @@ class EvChargingStall extends Model
             return false;
         }
 
-        $threshold = config('ev_charging.imminent_departure_minutes', 15);
+        $threshold = AppSetting::evCharging()['imminent_departure_minutes'];
 
         return $this->estimated_departure_at->diffInMinutes(now(), absolute: true) <= $threshold
             && $this->estimated_departure_at->isFuture();
