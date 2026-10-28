@@ -349,7 +349,7 @@
                 "config"
               ]
             },
-            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false. `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off) and `late_cancellation_window_minutes` let the app explain fees; `driver_reservations_enabled` tells the driver app whether to show the reservations screen.\n\n`third_party_bookings` drives \"Book for someone else\": offer `payment_methods`, and for \"Who gets the PIN?\" show `share_with_options` (each has `value`, `label` and `description`; show the label and description as given, they are worded from the current tracking setting) with `default_share_with` pre-selected, and send the chosen `value` as `share_with` on the booking. Hide the question when `share_with_options` is empty.\n\n`payments`: `methods` lists how passengers may pay (`card`, `wallet`, and `cash` only while `cash_enabled`). Cash is off by default; hide it when `cash_enabled` is false."
+            "description": "Returns app configuration including minimum version requirements for force-update enforcement. No authentication required.\n\n`scheduled_rides` gives the booking screen its limits for scheduled rides: offer pickup times from `min_lead_minutes` after now up to `max_advance_days` ahead; hide the option when `enabled` is false. `reservation_fee` and `late_cancellation_fee` (NGN, 0 = off) and `late_cancellation_window_minutes` let the app explain fees; `driver_reservations_enabled` tells the driver app whether to show the reservations screen.\n\n`third_party_bookings` drives \"Book for someone else\": offer `payment_methods`, and for \"Who gets the PIN?\" show `share_with_options` (each has `value`, `label` and `description`; show the label and description as given, they are worded from the current tracking setting) with `default_share_with` pre-selected, and send the chosen `value` as `share_with` on the booking. Hide the question when `share_with_options` is empty.\n\n`payments`: `methods` lists how passengers may pay (`card`, `wallet`, and `cash` only while `cash_enabled`). Cash is off by default; hide it when `cash_enabled` is false. `ev_charging` and `vehicle_maintenance` carry the numbers the driver app shows in copy (fee, check-in and free-cancellation minutes, grace days); Operations can change them, so never hard-code them."
           },
           "response": [
             {
@@ -362,7 +362,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"payments\": {\n    \"cash_enabled\": false,\n    \"methods\": [\n      \"card\",\n      \"wallet\"\n    ]\n  },\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  },\n  \"third_party_bookings\": {\n    \"enabled\": true,\n    \"payment_methods\": [\n      \"wallet\",\n      \"card\"\n    ],\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"share_with_options\": [\n      {\n        \"value\": \"rider\",\n        \"label\": \"Rider only\",\n        \"description\": \"The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app.\"\n      },\n      {\n        \"value\": \"both\",\n        \"label\": \"Both of us\",\n        \"description\": \"You and the rider both get the PIN and live tracking.\"\n      }\n    ],\n    \"default_share_with\": \"both\",\n    \"max_active_per_booker\": 2\n  }\n}"
+              "body": "{\n  \"min_app_version\": {\n    \"ios\": \"1.0.0\",\n    \"android\": \"1.0.0\"\n  },\n  \"force_update\": false,\n  \"emergency_number\": \"112\",\n  \"support_phone\": null,\n  \"support_email\": null,\n  \"payments\": {\n    \"cash_enabled\": false,\n    \"methods\": [\n      \"card\",\n      \"wallet\"\n    ]\n  },\n  \"scheduled_rides\": {\n    \"enabled\": true,\n    \"min_lead_minutes\": 30,\n    \"max_advance_days\": 3,\n    \"dispatch_lead_minutes\": 15,\n    \"reservation_fee\": 0,\n    \"late_cancellation_fee_basis\": \"economy_base_fare\",\n    \"late_cancellation_fee\": 0,\n    \"late_cancellation_window_minutes\": 30,\n    \"driver_reservations_enabled\": true\n  },\n  \"third_party_bookings\": {\n    \"enabled\": true,\n    \"payment_methods\": [\n      \"wallet\",\n      \"card\"\n    ],\n    \"pin_recipient\": \"both\",\n    \"tracking_recipient\": \"both\",\n    \"share_with_options\": [\n      {\n        \"value\": \"rider\",\n        \"label\": \"Rider only\",\n        \"description\": \"The rider gets the PIN and a tracking link by WhatsApp or SMS. You can still follow the trip in the app.\"\n      },\n      {\n        \"value\": \"both\",\n        \"label\": \"Both of us\",\n        \"description\": \"You and the rider both get the PIN and live tracking.\"\n      }\n    ],\n    \"default_share_with\": \"both\",\n    \"max_active_per_booker\": 2\n  },\n  \"ev_charging\": {\n    \"reservation_fee\": 500,\n    \"reservation_fee_kobo\": 50000,\n    \"check_in_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"retry_delay_minutes\": 15,\n    \"hire_purchase_fee_waiver\": true\n  },\n  \"vehicle_maintenance\": {\n    \"enabled\": true,\n    \"due_soon_days\": 14,\n    \"due_soon_km\": 500,\n    \"legal_grace_days\": 7,\n    \"block_on_expired_papers\": true\n  }\n}"
             }
           ]
         },
@@ -24594,6 +24594,98 @@
                 "description": "Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations."
               },
               "response": []
+            },
+            {
+              "name": "Get EV Charging Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/ev-charging",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "ev-charging"
+                  ]
+                },
+                "description": "Operations. The fee, who is spared it (hire purchase), the stall hold, free cancellation and queue limits. Defaults come from config/ev_charging.php."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Defaults",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"reservation_fee\": 500,\n    \"reservation_expiry_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"imminent_departure_minutes\": 15,\n    \"retry_delay_minutes\": 15,\n    \"max_active_reservations_per_driver\": 1,\n    \"hire_purchase_fee_waiver\": true,\n    \"waive_fee_while_agreement_paused\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update EV Charging Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/ev-charging",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "ev-charging"
+                  ]
+                },
+                "description": "Send only the fields to change: `reservation_fee` (naira, 0\u2013100,000), `reservation_expiry_minutes` (5\u2013240), `free_cancellation_minutes` (0\u201360), `max_queue_size` (0\u2013100), `imminent_departure_minutes` (0\u2013240), `retry_delay_minutes` (1\u2013240), `max_active_reservations_per_driver` (1\u20135), `hire_purchase_fee_waiver`, `waive_fee_while_agreement_paused`. Applies to reservations made or confirmed afterwards. The app copy values follow in GET /config.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reservation_fee\": 500,\n  \"waive_fee_while_agreement_paused\": true\n}"
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"EV charging settings updated.\",\n  \"settings\": {\n    \"reservation_fee\": 500,\n    \"reservation_expiry_minutes\": 30,\n    \"free_cancellation_minutes\": 2,\n    \"max_queue_size\": 10,\n    \"imminent_departure_minutes\": 15,\n    \"retry_delay_minutes\": 15,\n    \"max_active_reservations_per_driver\": 1,\n    \"hire_purchase_fee_waiver\": true,\n    \"waive_fee_while_agreement_paused\": true\n  }\n}"
+                }
+              ]
             }
           ]
         },
@@ -24986,10 +25078,10 @@
                     "end"
                   ]
                 },
-                "description": "For `reserved` or `active` only: the driver left without tapping Finish. It becomes `completed`, the stall is released to the queue, the fee is kept, and the driver gets `ev_reservation_ended`. Optional `reason` (max 500, shown to the driver).",
+                "description": "For `reserved` or `active` only: the driver left without tapping Finish. It becomes `completed`, the stall is released to the queue, the fee is kept unless `refund_fee` is true, and the driver gets `ev_reservation_ended`. Optional `reason` (max 500, shown to the driver).",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"reason\": \"Car left the bay without finishing in the app\"\n}"
+                  "raw": "{\n  \"reason\": \"Car left the bay without finishing in the app\",\n  \"refund_fee\": false\n}"
                 }
               },
               "response": [
@@ -25003,7 +25095,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Charging session ended and the stall released. The driver has been told.\",\n  \"reservation\": {\n    \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 50,\n    \"ended_by_operations\": true,\n    \"end_reason\": \"Car left the bay without finishing in the app\",\n    \"ended_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"ended_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"completed_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"vehicle_name\": \"Hyundai Kona Electric\",\n    \"vehicle_plate\": \"APP-552-EV\",\n    \"vehicle_color\": \"fuchsia\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"available\",\n        \"label\": \"Available\"\n      },\n      \"occupied_since\": null,\n      \"estimated_departure_at\": null,\n      \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n      \"reference_number\": null,\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Ibrahim\",\n      \"phone\": \"+15643906542\",\n      \"email\": \"antonio.harris@example.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n        \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"colour\": \"fuchsia\",\n        \"plate_number\": \"APP-552-EV\",\n        \"year\": 2021,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Charging session ended and the stall released. The driver has been told.\",\n  \"fee_refunded\": false,\n  \"reservation\": {\n    \"id\": \"01a18319-62c4-73b5-a010-51164257358e\",\n    \"type\": \"charging\",\n    \"kind\": \"instant\",\n    \"station_id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n    \"stall_id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n    \"status\": {\n      \"value\": \"completed\",\n      \"label\": \"Completed\"\n    },\n    \"battery_level\": null,\n    \"requested_date\": null,\n    \"requested_time\": null,\n    \"notes\": null,\n    \"approver_name\": null,\n    \"confirmed_slot\": null,\n    \"check_in_time\": null,\n    \"confirmed_slot_at\": null,\n    \"reviewed_at\": null,\n    \"decline_reason\": null,\n    \"queue_position\": null,\n    \"queue_ahead_count\": null,\n    \"queue_ahead_description\": null,\n    \"estimated_available_at\": null,\n    \"fee_amount\": \"500.00\",\n    \"fee_amount_kobo\": 50000,\n    \"fee_waived\": false,\n    \"fee_waiver_reason\": null,\n    \"fee_charged_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"fee_refunded_at\": null,\n    \"free_cancellation_until\": null,\n    \"check_in_deadline\": null,\n    \"estimated_charge_minutes\": 50,\n    \"ended_by_operations\": true,\n    \"end_reason\": \"Car left the bay without finishing in the app\",\n    \"ended_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"ended_by\": {\n      \"id\": \"01a18319-620b-7120-bb7c-ef90d28bad76\",\n      \"name\": \"Ada Okafor\"\n    },\n    \"reserved_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"activated_at\": \"2026-10-28T08:00:00.000000Z\",\n    \"completed_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"vehicle_name\": \"Hyundai Kona Electric\",\n    \"vehicle_plate\": \"APP-552-EV\",\n    \"vehicle_color\": \"fuchsia\",\n    \"station_name\": \"Lekki Phase 1 Hub\",\n    \"station_address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n    \"assigned_bay\": \"Bay 1 \u00b7 DC fast charger\",\n    \"station\": {\n      \"id\": \"01a18319-620e-71be-a84f-51f0ef2de740\",\n      \"name\": \"Lekki Phase 1 Hub\",\n      \"city_id\": \"01a18319-61e0-7296-b85c-a8558c20cb8d\",\n      \"lat\": \"7.6106530\",\n      \"lng\": \"3.3767180\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"total_stalls\": 2,\n      \"connector_types\": [],\n      \"power_output_kw\": null,\n      \"pricing_per_kwh\": null,\n      \"operating_hours\": null,\n      \"status\": {\n        \"value\": \"active\",\n        \"label\": \"Active\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"updated_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"stall\": {\n      \"id\": \"01a18319-621a-7136-8582-4d877bd63117\",\n      \"stall_number\": 1,\n      \"status\": {\n        \"value\": \"available\",\n        \"label\": \"Available\"\n      },\n      \"occupied_since\": null,\n      \"estimated_departure_at\": null,\n      \"updated_at\": \"2026-10-28T08:40:00.000000Z\"\n    },\n    \"driver\": {\n      \"id\": \"01a18319-62b5-7323-8dfe-1ba97aff45c5\",\n      \"reference_number\": null,\n      \"first_name\": \"Musa\",\n      \"last_name\": \"Ibrahim\",\n      \"phone\": \"+15643906542\",\n      \"email\": \"antonio.harris@example.com\",\n      \"type\": \"driver\",\n      \"phone_verified_at\": \"2026-10-28T08:00:00.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"rating\": null,\n      \"vehicle\": {\n        \"id\": \"01a18319-62b8-72bc-8fcd-711653b21813\",\n        \"driver_id\": \"01a18319-62b6-71f0-ac4f-7219b1b8cfdf\",\n        \"make\": \"Hyundai\",\n        \"model\": \"Kona Electric\",\n        \"colour\": \"fuchsia\",\n        \"plate_number\": \"APP-552-EV\",\n        \"year\": 2021,\n        \"fuel_type\": \"electric\",\n        \"can_charge\": true,\n        \"is_fleet\": false,\n        \"shift_mode\": false,\n        \"odometer_km\": null,\n        \"estimated_odometer_km\": null,\n        \"battery_level_percent\": null,\n        \"is_blocked\": false,\n        \"block_reason\": null,\n        \"vehicle_class_id\": \"01a18319-62b8-72bc-8fcd-711653065c8b\",\n        \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-10-28T08:00:00.000000Z\"\n    },\n    \"submitted_at\": \"2026-10-28T16:20:41.000000Z\",\n    \"updated_at\": \"2026-10-28T08:40:00.000000Z\",\n    \"created_at\": \"2026-10-28T16:20:41.000000Z\"\n  }\n}"
                 }
               ]
             }

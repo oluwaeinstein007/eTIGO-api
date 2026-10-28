@@ -811,6 +811,22 @@ No authentication required. Returns app configuration including minimum version 
       { "value": "jewellery", "label": "Jewellery or watch" },
       { "value": "other", "label": "Something else" }
     ]
+  },
+  "ev_charging": {
+    "reservation_fee": 500,
+    "reservation_fee_kobo": 50000,
+    "check_in_minutes": 30,
+    "free_cancellation_minutes": 2,
+    "max_queue_size": 10,
+    "retry_delay_minutes": 15,
+    "hire_purchase_fee_waiver": true
+  },
+  "vehicle_maintenance": {
+    "enabled": true,
+    "due_soon_days": 14,
+    "due_soon_km": 500,
+    "legal_grace_days": 7,
+    "block_on_expired_papers": true
   }
 }
 ```
@@ -822,6 +838,8 @@ No authentication required. Returns app configuration including minimum version 
 `third_party_bookings` drives "Book for someone else": hide it when `enabled` is `false`, and offer only `payment_methods` for such a booking. For "Who gets the PIN?", show `share_with_options` with each option's `label` and `description` as given, pre-select `default_share_with`, and send the chosen `value` as `share_with` on `POST /rides`. The descriptions are worded from the current tracking setting, so they never promise the booker a live map they won't get. When `share_with_options` is empty (operations send PINs to bookers only), hide the question. `pin_recipient` and `tracking_recipient` are the admin settings: the PIN default when no choice is sent, and who gets live tracking. Sending `default_share_with` always gives the same result as sending nothing. The ride saves what applied at booking. See [Third-Party Bookings](#third-party-bookings).
 
 `lost_and_found` drives "Report a lost item" on a completed trip: show it while `enabled` is `true` and the trip ended less than `report_window_days` ago, and offer `categories`. When `return_fee` is above 0, tell the passenger it is charged when the item comes back. See [Lost & Found](#lost--found).
+
+`ev_charging` and `vehicle_maintenance` hold the numbers the driver app puts in copy ("₦500 reservation fee", "check in within 30 minutes", "cancel free for 2 minutes", "7 days to upload a renewal"). Operations can change them (**EV Charging Settings**, **Vehicle Maintenance Settings**), so read them here instead of hard-coding. A driver's own fee, with any hire-purchase or tier waiver, is `charging.reservation_fee` in **Vehicle Status (Driver)**.
 
 ---
 
@@ -12544,10 +12562,10 @@ Three possible outcomes:
 
 **Who can reserve:** only drivers whose vehicle has a charging port — `fuel_type` `electric` or `plug_in_hybrid` (set on the vehicle; see **Register/Update Vehicle**). Other drivers get 422 `"EV charging is only available for electric and plug-in hybrid vehicles. Set your vehicle's fuel type if it is one."`.
 
-**Reservation fee** (`EV_RESERVATION_FEE`, default ₦500):
+**Reservation fee** (`reservation_fee` in **EV Charging Settings**, default ₦500 from `EV_RESERVATION_FEE`):
 - Charged to the driver's **available earnings** when a stall is actually held for them — immediately for `reserved`, or when a `queued` driver is promoted. Nothing is charged while waiting in the queue. `fee_charged_at` records it.
 - Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`). A driver whose earnings account is frozen gets 422 `"Your earnings account is on hold, so the reservation fee cannot be paid. Contact support."`. A queued driver who can no longer pay when a stall frees up is skipped: their reservation is cancelled (the reason is in `notes`) and they get an `ev_reservation_cancelled` push.
-- **Not charged to drivers still paying off an E-tiGo car:** a driver whose hire-purchase (fleet) agreement is `active` or `paused` reserves for free (`fee_waived: true`, `fee_waiver_reason: "hire_purchase"`). Once the agreement is `completed` (car paid off) or `terminated`, and for drivers with their own car, the fee applies. Client rule, 28 Oct 2026; counting a paused agreement is an engineering pick.
+- **Not charged to drivers still paying off an E-tiGo car:** a driver whose hire-purchase (fleet) agreement is `active` or `paused` reserves for free (`fee_waived: true`, `fee_waiver_reason: "hire_purchase"`). Once the agreement is `completed` (car paid off) or `terminated`, and for drivers with their own car, the fee applies. Client rule, 28 Oct 2026; counting a paused agreement is an engineering pick. Both are **EV Charging Settings** (`hire_purchase_fee_waiver`, `waive_fee_while_agreement_paused`).
 - Waived for Platinum and Diamond drivers (`fee_waived: true`, `fee_waiver_reason: "tier"`).
 - The waiver is decided when the stall is reserved or the charge request confirmed, and saved on the reservation. To show the fee before reserving, read `charging.reservation_fee` from **Vehicle Status (Driver)**.
 - Refunded in full if the driver cancels within `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) of the stall being held (`fee_refunded_at`). Kept after that, and on a no-show (expiry) or a completed session.
@@ -13303,12 +13321,37 @@ Content-Type: application/json
 | Field | Type | Required | Rules |
 |---|---|---|---|
 | `reason` | string | No | Max 500. Shown to the driver |
+| `refund_fee` | boolean | No | Give the fee back (default `false`: kept), e.g. the charger failed mid-session |
 
-For a driver who drove off without tapping Finish, or whose phone died: works on `reserved` and `active`. It becomes `completed` (`completed_at` set), the stall is released and offered to the queue, and the driver gets `ev_reservation_ended` ("Your charging session at {station} was ended by E-tiGo Operations: {reason}."). The fee is kept.
+For a driver who drove off without tapping Finish, or whose phone died: works on `reserved` and `active`. It becomes `completed` (`completed_at` set), the stall is released and offered to the queue, and the driver gets `ev_reservation_ended` ("Your charging session at {station} was ended by E-tiGo Operations: {reason}. [Your ₦500.00 reservation fee has been refunded.]").
 
-**Response 200:** `{ "message": "Charging session ended and the stall released. The driver has been told.", "reservation": { … } }`
+**Response 200:** `{ "message": "Charging session ended and the stall released. The driver has been told.", "fee_refunded": false, "reservation": { … } }`
 
 **Response 422:** `"Only a reserved stall or a charging session can be ended. Cancel requests and queued drivers instead."` with `current_status`.
+
+### EV Charging Settings
+```
+GET /admin/settings/ev-charging
+PUT /admin/settings/ev-charging
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+Operations' runtime overrides of `config/ev_charging.php` (the `EV_*` environment values become the defaults). Send only the fields to change. They apply to reservations made or confirmed afterwards; a reservation keeps the fee it was given. The driver app reads the copy values from `GET /config` (`ev_charging`). Every change is audited (`ev_charging_settings.updated`).
+
+| Field | Type | Default | Rules |
+|---|---|---|---|
+| `reservation_fee` | number (naira) | 500 | 0–100,000 |
+| `reservation_expiry_minutes` | integer | 30 | 5–240. How long a held stall waits for the driver to start charging |
+| `free_cancellation_minutes` | integer | 2 | 0–60 |
+| `max_queue_size` | integer | 10 | 0–100 per station |
+| `imminent_departure_minutes` | integer | 15 | 0–240. A full station takes a queue only when a stall frees within this time |
+| `retry_delay_minutes` | integer | 15 | 1–240. "Try again in" for the `retry` outcome |
+| `max_active_reservations_per_driver` | integer | 1 | 1–5 |
+| `hire_purchase_fee_waiver` | boolean | true | Drivers still paying off an E-tiGo car reserve for free (client rule, 28 Oct 2026) |
+| `waive_fee_while_agreement_paused` | boolean | true | A paused hire-purchase agreement still counts as paying |
+
+**Response 200:** `{ "message": "EV charging settings updated.", "settings": { "reservation_fee": 500, "reservation_expiry_minutes": 30, "free_cancellation_minutes": 2, "max_queue_size": 10, "imminent_departure_minutes": 15, "retry_delay_minutes": 15, "max_active_reservations_per_driver": 1, "hire_purchase_fee_waiver": true, "waive_fee_while_agreement_paused": true } }` (GET returns `settings` only).
 
 ---
 

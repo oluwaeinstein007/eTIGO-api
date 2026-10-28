@@ -416,6 +416,9 @@ story += table([
                + c("403") + " for someone else's record; " + c("404") + " when not found. Show " + c("message") +
                " to the user as-is: the backend writes it in plain, user-facing language."],
     ["File uploads", "Use " + c("multipart/form-data") + ". Accepted: jpg, jpeg, png, pdf (repairs also accept webp), up to 10 MB."],
+    ["Numbers in copy", "Never hard-code the fee, minutes or days in app text. " + c("GET /config") + " returns " + c("ev_charging") + " ("
+                        + c("reservation_fee_kobo, check_in_minutes, free_cancellation_minutes, max_queue_size, retry_delay_minutes") + ") and "
+                        + c("vehicle_maintenance") + " (" + c("due_soon_days, legal_grace_days, block_on_expired_papers") + "). Operations can change them."],
 ], [18, 82], first_col_bold=True)
 
 # ================================================================ PART A
@@ -785,10 +788,28 @@ story += endpoint("POST", "/admin/ev-reservations/{id}/cancel", "body {reason, r
 story.append(P(c("reason") + " is required (5\u2013500) and shown to the driver. " + c("refund_fee") + " (checkbox, default off) gives the fee back: tick it when it wasn't the driver's fault, e.g. a broken charger. "
                "The stall goes to the next driver in line. The response adds " + c("fee_refunded") + " (true or false)."))
 story += h3("Action: End session (reserved or active)")
-story += endpoint("POST", "/admin/ev-reservations/{id}/end", "body {reason?}")
-story.append(P("For a driver who drove off without tapping Finish. Marks it completed, keeps the fee and frees the stall. Offer it on the station's stall tile too "
+story += endpoint("POST", "/admin/ev-reservations/{id}/end", "body {reason?, refund_fee?}")
+story.append(P("For a driver who drove off without tapping Finish. Marks it completed and frees the stall. The fee is kept unless " + c("refund_fee") + " is ticked (e.g. the charger failed mid-session). Offer it on the station's stall tile too "
                "(the tile's " + c("current_driver") + " links to the reservation through this list, filtered by " + c("station_id") + " and " + c("status=active,reserved") + ")."))
 story.append(P("<b>Refused (422):</b> " + c("{message, error_code, current_status}") + ", e.g. \u201cThis reservation has already ended.\u201d Refresh the row."))
+
+story += h2("Screen G \u2014 EV charging settings")
+story += endpoint("GET", "/admin/settings/ev-charging", "Operations")
+story += endpoint("PUT", "/admin/settings/ev-charging", "send only changed fields")
+story += table([
+    ["Setting", "Default", "Control"],
+    [c("reservation_fee"), "500 (naira)", "Currency input, 0\u2013100,000"],
+    [c("reservation_expiry_minutes"), "30", "Minutes a held stall waits for the driver (5\u2013240)"],
+    [c("free_cancellation_minutes"), "2", "0\u201360"],
+    [c("max_queue_size"), "10", "Drivers per station (0\u2013100)"],
+    [c("imminent_departure_minutes"), "15", "A full station queues only if a stall frees within this (0\u2013240)"],
+    [c("retry_delay_minutes"), "15", "\u201cTry again in\u201d (1\u2013240)"],
+    [c("max_active_reservations_per_driver"), "1", "1\u20135"],
+    [c("hire_purchase_fee_waiver"), "on", "Toggle: drivers still paying off an E-tiGo car reserve for free"],
+    [c("waive_fee_while_agreement_paused"), "on", "Toggle: a paused agreement still counts as paying"],
+], [36, 16, 48])
+story.append(P("Changes apply to reservations made or confirmed afterwards; a reservation keeps the fee it was given. "
+               "The maintenance settings already have their own screen (Part B, Screen E)."))
 
 story += h2("Live updates (admin web)")
 story.append(P("Subscribe to the private channel " + c("admin.ev-stations") + " (Operations and Super Admin) and listen for "
@@ -1274,14 +1295,25 @@ story += table([
     ["8", "Display-only times", "Added " + c("check_in_deadline") + " (timestamp)."],
     ["9", "No live updates in the driver app", "Added " + c("ev.reservation.updated") + " on " + c("driver.{userId}") + "."],
     ["10", "\u2014 (new client rule)", "Drivers still paying off an E-tiGo car charge free: " + c("fee_waiver_reason: hire_purchase") + "; " + c("charging.reservation_fee") + " on vehicle status."],
+    ["11", "Values only in server config", "EV settings screen (Screen G); " + c("ev_charging") + " and " + c("vehicle_maintenance") + " in " + c("GET /config") + "; refund option on End."],
 ], [5, 30, 65])
-story += h2("Still open")
-story += bullets([
-    "<b>Values not client-confirmed:</b> the 30-minute check-in, the 2-minute free cancellation, the queue limits, the maintenance intervals, "
-    "the 14-day / 500 km reminder lead and the 7-day grace period. Treat them as configurable and avoid hard-coding them in copy.",
-    "<b>Engineering picks in revision 2:</b> a paused hire-purchase agreement still counts as paying; an Operations refund is optional (off by default); "
-    "ending a session keeps the fee; repair requests can be rebooked while open; repair notifications sit in the Account category.",
-])
+story += h2("Values awaiting client confirmation")
+story.append(P("These are engineering defaults. Every one is now a setting Operations can change without a release (EV: Screen G; maintenance: Part B, Screen E), "
+               "and the apps read them from " + c("GET /config") + ", so a client decision needs no app or backend change. They have gone to the client in "
+               + c("doc/client/EV_MAINTENANCE_REPAIRS_DECISIONS.pdf") + " (EV-1 to EV-7, VM-1 to VM-3, RP-1)."))
+story += table([
+    ["Value", "Default", "Where it changes"],
+    ["Reservation fee", "\u20a6500", "EV settings " + c("reservation_fee")],
+    ["Paused hire-purchase agreement counts as paying", "yes", "EV settings " + c("waive_fee_while_agreement_paused")],
+    ["Stall hold / check-in", "30 min", "EV settings " + c("reservation_expiry_minutes")],
+    ["Free cancellation", "2 min", "EV settings " + c("free_cancellation_minutes")],
+    ["Queue size, queue window, retry wait", "10 / 15 min / 15 min", "EV settings"],
+    ["Refund when Operations cancel or end", "Operations' choice each time (off by default)", c("refund_fee") + " on Cancel and End"],
+    ["Service intervals", "5,000 km or 3 mo; 6 mo; 12 mo", "Maintenance settings " + c("intervals")],
+    ["Reminder lead", "14 days / 500 km", "Maintenance settings"],
+    ["Grace before blocking", "7 days", "Maintenance settings " + c("legal_grace_days")],
+    ["Rebook a workshop visit", "allowed while open", "\u2014 (product rule)"],
+], [38, 27, 35])
 
 doc = DocTemplate(OUT, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=18 * mm,
                   title="EV Charging & Vehicle Maintenance — Design and Frontend Guide",
