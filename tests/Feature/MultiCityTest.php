@@ -10,6 +10,7 @@ use App\Enums\UserType;
 use App\Jobs\CityLaunchStatusChangedJob;
 use App\Jobs\NotifyCityDriversJob;
 use App\Models\AppSetting;
+use App\Models\AuditLog;
 use App\Models\City;
 use App\Models\CityWaitlistEntry;
 use App\Models\Driver;
@@ -26,6 +27,7 @@ use App\Services\CityBoundaryService;
 use App\Services\ScheduledRideService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 
 /*
 | Phase 2 multi-city support (OQ-22): onboarding / live / paused, the
@@ -995,4 +997,102 @@ it('tells drivers once from their own job, separate from the retried follow-up',
     Queue::assertPushed(NotifyCityDriversJob::class, fn ($job) => $job->cityId === $abuja->id && $job->status === 'live');
     Queue::assertPushed(CityLaunchStatusChangedJob::class, 1);
     expect((new NotifyCityDriversJob($abuja->id, 'live'))->tries)->toBe(1);
+});
+
+// === LIFECYCLE DETAILS FOR THE ADMIN SCREENS ===
+
+it('names the admin who confirmed a readiness gate', function () {
+    $abuja = ($this->readyCity)(['manual']);
+    $name = trim($this->admin->first_name.' '.$this->admin->last_name);
+
+    $gate = fn ($response) => collect($response->json('readiness.gates'))->firstWhere('gate', 'support_cover');
+
+    $response = ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/readiness/support_cover", ['note' => 'Night shift staffed'])->assertOk();
+
+    expect($gate($response)['confirmation'])->toMatchArray([
+        'confirmed_by_admin_id' => $this->admin->id,
+        'confirmed_by' => ['id' => $this->admin->id, 'name' => $name],
+        'note' => 'Night shift staffed',
+    ]);
+
+    // Not stored: the name is looked up when shown.
+    expect($abuja->fresh()->readiness_confirmations['support_cover'])->not->toHaveKey('confirmed_by');
+
+    expect($gate(($this->asAdmin)()->getJson("/api/v1/admin/cities/{$abuja->id}/readiness"))['confirmation']['confirmed_by'])
+        ->toBe(['id' => $this->admin->id, 'name' => $name]);
+});
+
+it('shows who closed a city and when, and keeps its first launch date through a close and relaunch', function () {
+    Queue::fake();
+    $abuja = ($this->readyCity)();
+    $closer = User::factory()->admin(AdminRole::Operations)->create(['first_name' => 'Ada', 'last_name' => 'Obi']);
+    $closerToken = $closer->createToken('auth', ['admin'])->plainTextToken;
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])->assertOk();
+    $launchedAt = $abuja->fresh()->launched_at;
+
+    $this->travel(1)->hour();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'paused', 'reason' => 'Closing'])->assertOk();
+
+    $this->travel(1)->hour();
+    $closedAt = now()->toIso8601ZuluString('microsecond');
+    ($this->as)($closerToken)->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'onboarding'])
+        ->assertOk()
+        ->assertJsonPath('city.launch_status', 'onboarding')
+        ->assertJsonPath('city.launch_status_changed_by', ['id' => $closer->id, 'name' => 'Ada Obi'])
+        ->assertJsonPath('city.launch_status_changed_at', $closedAt)
+        ->assertJsonPath('city.launched_at', $launchedAt->toIso8601ZuluString('microsecond'));
+
+    ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$abuja->id}")
+        ->assertJsonPath('city.launch_status_changed_by.name', 'Ada Obi')
+        ->assertJsonPath('city.launch_status_changed_at', $closedAt);
+
+    $listed = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->json('cities'))->firstWhere('id', $abuja->id);
+    expect($listed['launch_status_changed_by'])->toBe(['id' => $closer->id, 'name' => 'Ada Obi']);
+
+    // Relaunching goes through the checklist again but keeps the first launch date.
+    $this->travel(1)->hour();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])
+        ->assertOk()
+        ->assertJsonPath('message', 'Abuja is live.')
+        ->assertJsonPath('city.launch_status_changed_by.id', $this->admin->id);
+
+    expect($abuja->fresh()->launched_at->equalTo($launchedAt))->toBeTrue();
+});
+
+it('shows each onboarding city\'s readiness in the admin city list', function () {
+    $abuja = ($this->readyCity)();
+    $kano = ($this->readyCity)(['drivers']);
+    $kano->update(['name' => 'Kano', 'boundary' => ['type' => 'Point', 'coordinates' => [8.5167, 12.0000], 'radius_km' => 30]]);
+
+    $cities = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->assertOk()->json('cities'))->keyBy('id');
+
+    expect($cities[$abuja->id]['readiness'])->toBe(['ready' => true, 'missing' => []])
+        ->and($cities[$kano->id]['readiness'])->toBe(['ready' => false, 'missing' => ['drivers']])
+        // Live (and paused) cities need no checklist.
+        ->and($cities[$this->lagos->id])->toHaveKey('readiness')
+        ->and($cities[$this->lagos->id]['readiness'])->toBeNull()
+        // Never changed since it was created.
+        ->and($cities[$this->lagos->id]['launch_status_changed_at'])->toBeNull()
+        ->and($cities[$this->lagos->id]['launch_status_changed_by'])->toBeNull();
+});
+
+it('fills in who last changed each city\'s status from the audit log', function () {
+    $other = User::factory()->admin(AdminRole::Operations)->create();
+    AuditLog::record($this->lagos, 'city_paused', $this->admin);
+    $this->travel(1)->hour();
+    $latest = AuditLog::record($this->lagos, 'city_resumed', $other);
+    $this->travel(1)->hour();
+    AuditLog::record($this->lagos, 'city_updated', $this->admin);
+
+    Schema::table('cities', function ($table) {
+        $table->dropConstrainedForeignId('launch_status_changed_by_admin_id');
+        $table->dropColumn('launch_status_changed_at');
+    });
+    (require database_path('migrations/2026_10_28_100000_add_launch_status_changed_to_cities_table.php'))->up();
+
+    $lagos = $this->lagos->fresh();
+    expect($lagos->launch_status_changed_by_admin_id)->toBe($other->id)
+        ->and($lagos->launch_status_changed_at->equalTo($latest->created_at))->toBeTrue()
+        ->and(City::whereKeyNot($this->lagos->id)->whereNotNull('launch_status_changed_at')->exists())->toBeFalse();
 });

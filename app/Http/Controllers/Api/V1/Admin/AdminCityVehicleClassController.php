@@ -44,7 +44,7 @@ class AdminCityVehicleClassController extends Controller
 
         return response()->json([
             'message' => 'City vehicle classes updated successfully.',
-            'city' => new CityResource($city->fresh()->load('vehicleClasses')),
+            'city' => new CityResource($city->fresh()->load('vehicleClasses', 'launchStatusChangedBy')),
             'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
