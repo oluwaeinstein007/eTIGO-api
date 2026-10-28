@@ -145,9 +145,13 @@ it('shows reviews with the document and reason, and fills in values older entrie
 it('returns at most the latest 50 entries', function () {
     $driver = Driver::factory()->approved()->create(['city_id' => $this->lagos->id]);
 
+    $ids = [];
     foreach (range(1, DriverHistoryService::LIMIT + 1) as $i) {
-        AuditLog::record($driver, $i % 2 ? 'driver_suspended' : 'driver_reactivated', $this->operations);
+        $ids[] = AuditLog::record($driver, $i % 2 ? 'driver_suspended' : 'driver_reactivated', $this->operations)->id;
+        $this->travel(1)->second();
     }
 
-    expect(app(DriverHistoryService::class)->for($driver))->toHaveCount(DriverHistoryService::LIMIT);
+    // The oldest one is left out.
+    expect(array_column(app(DriverHistoryService::class)->for($driver), 'id'))
+        ->toBe(array_reverse(array_slice($ids, 1)));
 });
