@@ -22,7 +22,37 @@ use Carbon\CarbonInterface;
  */
 class EvReservationFeeService
 {
-    public function __construct(private LedgerService $ledgerService) {}
+    public const WAIVED_HIRE_PURCHASE = 'hire_purchase';
+
+    public const WAIVED_TIER = 'tier';
+
+    public function __construct(
+        private LedgerService $ledgerService,
+        private TierGateService $tierGate,
+    ) {}
+
+    /**
+     * The fee a driver pays for a stall, as reservation attributes. Drivers
+     * still paying off an E-tiGo car on a hire-purchase (fleet) agreement,
+     * active or paused, charge free; so do tiers that waive the fee. Drivers
+     * who have paid off their car, and drivers with their own car, pay it.
+     *
+     * @return array{fee_amount: float, fee_waived: bool, fee_waiver_reason: ?string}
+     */
+    public function termsFor(string $driverUserId): array
+    {
+        $reason = match (true) {
+            Driver::where('user_id', $driverUserId)->whereHas('currentFleetAgreement')->exists() => self::WAIVED_HIRE_PURCHASE,
+            $this->tierGate->isEvReservationFeeWaived($driverUserId) => self::WAIVED_TIER,
+            default => null,
+        };
+
+        return [
+            'fee_amount' => $reason !== null ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
+            'fee_waived' => $reason !== null,
+            'fee_waiver_reason' => $reason,
+        ];
+    }
 
     public function feeKobo(EvReservation $reservation): int
     {
@@ -82,6 +112,21 @@ class EvReservationFeeService
         $freeUntil = self::freeCancellationUntil($reservation);
 
         if ($freeUntil === null || now()->gt($freeUntil)) {
+            return false;
+        }
+
+        return $this->refund($reservation);
+    }
+
+    /**
+     * Give the fee back, whatever the timing (operations ending a
+     * reservation that was not the driver's fault).
+     *
+     * @return bool Whether the fee was refunded (false: none was taken, or already refunded)
+     */
+    public function refund(EvReservation $reservation): bool
+    {
+        if ($reservation->fee_charged_at === null || $reservation->fee_refunded_at !== null) {
             return false;
         }
 

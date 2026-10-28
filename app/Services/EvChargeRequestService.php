@@ -28,7 +28,6 @@ class EvChargeRequestService
 
     public function __construct(
         private readonly StallAvailabilityService $stallService,
-        private readonly TierGateService $tierGate,
         private readonly EvReservationFeeService $fees,
         private readonly NotificationService $notifications,
     ) {}
@@ -59,7 +58,6 @@ class EvChargeRequestService
                 throw new \RuntimeException('This station is not taking reservations.');
             }
 
-            $feeWaived = $this->tierGate->isEvReservationFeeWaived($request->driver_id);
             $local = $slotAt->copy()->setTimezone(self::TIMEZONE);
 
             $request->update([
@@ -71,8 +69,7 @@ class EvChargeRequestService
                 'approver_name' => self::APPROVER_NAME,
                 'reviewed_by_admin_id' => $admin->id,
                 'reviewed_at' => now(),
-                'fee_amount' => $feeWaived ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
-                'fee_waived' => $feeWaived,
+                ...$this->fees->termsFor($request->driver_id),
                 'updated_at' => now(),
             ]);
 

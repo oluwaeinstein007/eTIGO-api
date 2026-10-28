@@ -34,6 +34,7 @@ enum NotificationType: string
     case EvReservationCancelled = 'ev_reservation_cancelled';
     case EvChargeRequestConfirmed = 'ev_charge_request_confirmed';
     case EvChargeRequestDeclined = 'ev_charge_request_declined';
+    case EvReservationEnded = 'ev_reservation_ended';
     case FleetAgreementPaused = 'fleet_agreement_paused';
     case FleetAgreementResumed = 'fleet_agreement_resumed';
     case VehicleFuelTypeRequired = 'vehicle_fuel_type_required';
@@ -72,6 +73,11 @@ enum NotificationType: string
     case VehicleBlocked = 'vehicle_blocked';
     case VehicleUnblocked = 'vehicle_unblocked';
     case MaintenanceRecordReviewed = 'maintenance_record_reviewed';
+
+    // Repair and service requests
+    case RepairRequestScheduled = 'repair_request_scheduled';
+    case RepairRequestCompleted = 'repair_request_completed';
+    case RepairRequestCancelled = 'repair_request_cancelled';
 
     // City events (multi-city)
     case CityLaunched = 'city_launched';
@@ -114,6 +120,7 @@ enum NotificationType: string
             self::EvReservationCancelled => 'EV Reservation Cancelled',
             self::EvChargeRequestConfirmed => 'Charging Request Confirmed',
             self::EvChargeRequestDeclined => 'Charging Request Declined',
+            self::EvReservationEnded => 'Charging Session Ended',
             self::FleetAgreementPaused => 'Fleet Agreement Paused',
             self::FleetAgreementResumed => 'Fleet Agreement Resumed',
             self::VehicleFuelTypeRequired => 'Add Your Vehicle\'s Fuel Type',
@@ -138,6 +145,9 @@ enum NotificationType: string
             self::VehicleBlocked => 'You Can\'t Go Online',
             self::VehicleUnblocked => 'You Can Go Online Again',
             self::MaintenanceRecordReviewed => 'Maintenance Record Checked',
+            self::RepairRequestScheduled => 'Workshop Visit Booked',
+            self::RepairRequestCompleted => 'Vehicle Service Complete',
+            self::RepairRequestCancelled => 'Service Request Cancelled',
             self::CityLaunched => 'Now In Your City',
             self::CityStatusChanged => 'City Update',
             self::DriverCityChanged => 'Your City Changed',
@@ -204,7 +214,8 @@ enum NotificationType: string
             self::EvReservationReady,
             self::EvReservationCancelled,
             self::EvChargeRequestConfirmed,
-            self::EvChargeRequestDeclined => NotificationCategory::EvCharging,
+            self::EvChargeRequestDeclined,
+            self::EvReservationEnded => NotificationCategory::EvCharging,
 
             self::DisputeUpdate,
             self::KycStatusChanged,
@@ -223,7 +234,10 @@ enum NotificationType: string
             self::DriverShiftEnded,
             self::ShiftHandoverDelayed,
             self::FleetAgreementPaused,
-            self::FleetAgreementResumed => NotificationCategory::Account,
+            self::FleetAgreementResumed,
+            self::RepairRequestScheduled,
+            self::RepairRequestCompleted,
+            self::RepairRequestCancelled => NotificationCategory::Account,
         };
     }
 }

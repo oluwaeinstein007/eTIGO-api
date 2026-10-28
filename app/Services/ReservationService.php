@@ -6,6 +6,7 @@ use App\Contracts\PushNotificationGateway;
 use App\Enums\EvReservationStatus;
 use App\Enums\NotificationType;
 use App\Jobs\TransferReservationJob;
+use App\Models\AuditLog;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
@@ -17,9 +18,9 @@ class ReservationService
 {
     public function __construct(
         private readonly StallAvailabilityService $stallService,
-        private readonly TierGateService $tierGate,
         private readonly EvReservationFeeService $fees,
         private readonly PushNotificationGateway $pushGateway,
+        private readonly NotificationService $notifications,
     ) {}
 
     public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
@@ -58,6 +59,7 @@ class ReservationService
             $reservation->update([
                 'status' => EvReservationStatus::Active,
                 'activated_at' => now(),
+                'estimated_charge_minutes' => $estimatedChargeMinutes ?? $reservation->estimated_charge_minutes,
             ]);
 
             if ($reservation->stall) {
@@ -130,6 +132,100 @@ class ReservationService
 
             return $reservation->fresh();
         });
+    }
+
+    /**
+     * Operations cancel a driver's open request or reservation (a broken
+     * charger, a closed site, a driver who will not show up). The stall goes
+     * to the next driver in line; the fee is refunded only when asked.
+     *
+     * @return array{reservation: EvReservation, fee_refunded: bool}
+     */
+    public function cancelByOperations(EvReservation $reservation, User $admin, string $reason, bool $refundFee): array
+    {
+        $refunded = false;
+
+        $reservation = DB::transaction(function () use ($reservation, $admin, $reason, $refundFee, &$refunded) {
+            $reservation = EvReservation::lockForUpdate()->findOrFail($reservation->id);
+
+            if ($reservation->status->isTerminal()) {
+                throw new \RuntimeException('This reservation has already ended.');
+            }
+
+            $wasQueued = $reservation->status === EvReservationStatus::Queued;
+
+            $reservation->update([
+                'status' => EvReservationStatus::Cancelled,
+                'queue_position' => null,
+                'ended_by_admin_id' => $admin->id,
+                'ended_at' => now(),
+                'end_reason' => $reason,
+                'updated_at' => now(),
+            ]);
+
+            $refunded = $refundFee && $this->fees->refund($reservation);
+            $this->releaseHeldStall($reservation);
+
+            if ($wasQueued) {
+                $this->reorderQueue($reservation->station_id);
+            }
+
+            AuditLog::record($reservation, 'ev_reservation.cancelled_by_operations', $admin, null, [
+                'reason' => $reason,
+                'fee_refunded' => $refunded,
+            ]);
+
+            return $reservation->fresh(['station', 'stall']);
+        });
+
+        $fee = $refunded ? ' Your ₦'.number_format((float) $reservation->fee_amount, 2).' reservation fee has been refunded.' : '';
+
+        $this->notifyDriver(
+            $reservation,
+            NotificationType::EvReservationCancelled,
+            'Your charging reservation at '.($reservation->station?->name ?? 'the station').' was cancelled by E-tiGo Operations: '.rtrim($reason, '. ').'.'.$fee,
+        );
+
+        return ['reservation' => $reservation, 'fee_refunded' => $refunded];
+    }
+
+    /**
+     * Operations end a session the driver did not finish in the app (they
+     * drove off, or their phone died). The stall goes to the next in line.
+     */
+    public function endByOperations(EvReservation $reservation, User $admin, ?string $reason): EvReservation
+    {
+        $reservation = DB::transaction(function () use ($reservation, $admin, $reason) {
+            $reservation = EvReservation::lockForUpdate()->findOrFail($reservation->id);
+
+            if (! in_array($reservation->status, [EvReservationStatus::Active, EvReservationStatus::Reserved], true)) {
+                throw new \RuntimeException('Only a reserved stall or a charging session can be ended. Cancel requests and queued drivers instead.');
+            }
+
+            $reservation->update([
+                'status' => EvReservationStatus::Completed,
+                'completed_at' => now(),
+                'ended_by_admin_id' => $admin->id,
+                'ended_at' => now(),
+                'end_reason' => $reason,
+                'updated_at' => now(),
+            ]);
+
+            $this->releaseHeldStall($reservation);
+
+            AuditLog::record($reservation, 'ev_reservation.ended_by_operations', $admin, null, ['reason' => $reason]);
+
+            return $reservation->fresh(['station', 'stall']);
+        });
+
+        $this->notifyDriver(
+            $reservation,
+            NotificationType::EvReservationEnded,
+            'Your charging session at '.($reservation->station?->name ?? 'the station').' was ended by E-tiGo Operations'
+                .($reason ? ': '.rtrim($reason, '. ').'.' : '.'),
+        );
+
+        return $reservation;
     }
 
     /**
@@ -240,15 +336,12 @@ class ReservationService
     ): array {
         $this->stallService->reserveStall($stall);
 
-        $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
-
         $reservation = EvReservation::create([
             'stall_id' => $stall->id,
             'station_id' => $station->id,
             'driver_id' => $driver->id,
             'status' => EvReservationStatus::Reserved,
-            'fee_amount' => $feeWaived ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
-            'fee_waived' => $feeWaived,
+            ...$this->fees->termsFor($driver->id),
             'estimated_charge_minutes' => $estimatedChargeMinutes,
             'reserved_at' => now(),
         ]);
@@ -281,8 +374,8 @@ class ReservationService
         }
 
         $queuePosition = $currentQueueSize + 1;
-        $feeWaived = $this->tierGate->isEvReservationFeeWaived($driver->id);
-        $this->fees->assertCanPay($driver, $feeWaived ? 0 : (int) round((float) config('ev_charging.reservation_fee', 500.00) * 100));
+        $terms = $this->fees->termsFor($driver->id);
+        $this->fees->assertCanPay($driver, (int) round($terms['fee_amount'] * 100));
 
         $reservation = EvReservation::create([
             'station_id' => $station->id,
@@ -290,8 +383,7 @@ class ReservationService
             'status' => EvReservationStatus::Queued,
             'queue_position' => $queuePosition,
             'estimated_available_at' => $imminentStall->estimated_departure_at,
-            'fee_amount' => $feeWaived ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
-            'fee_waived' => $feeWaived,
+            ...$terms,
             'reserved_at' => now(),
         ]);
 
@@ -366,6 +458,32 @@ class ReservationService
         if (! $driver->driver?->vehicle?->fuel_type?->canCharge()) {
             throw new \RuntimeException("EV charging is only available for electric and plug-in hybrid vehicles. Set your vehicle's fuel type if it is one.");
         }
+    }
+
+    /**
+     * Free the stall a reservation was holding and offer it to the queue.
+     * Must run inside the reservation's transaction.
+     */
+    private function releaseHeldStall(EvReservation $reservation): void
+    {
+        if ($reservation->stall_id && $reservation->stall) {
+            $this->stallService->releaseStall($reservation->stall);
+            TransferReservationJob::dispatch($reservation->station_id)->afterCommit();
+        }
+    }
+
+    private function notifyDriver(EvReservation $reservation, NotificationType $type, string $body): void
+    {
+        rescue(fn () => $this->notifications->send(
+            userId: $reservation->driver_id,
+            type: $type,
+            title: $type->label(),
+            body: $body,
+            data: [
+                'reservation_id' => (string) $reservation->id,
+                'station_name' => (string) ($reservation->station?->name ?? ''),
+            ],
+        ));
     }
 
     private function reorderQueue(string $stationId): void

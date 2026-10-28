@@ -260,3 +260,59 @@ it('dates a charge request by the Lagos day just after midnight', function () {
 
     expect(app(EvChargeRequestService::class)->processDue()['expired'])->toBe(0);
 });
+
+it('keeps the expected charging time from the request and uses it at the stall', function () {
+    $this->request->delete();
+
+    $id = $this->withToken($this->driverToken)
+        ->postJson('/api/v1/driver/ev-reservations', ['battery_level' => 20, 'estimated_charge_minutes' => 45])
+        ->assertCreated()
+        ->assertJsonPath('reservation.kind', 'request')
+        ->assertJsonPath('reservation.estimated_charge_minutes', 45)
+        ->json('reservation.id');
+    $this->request = EvReservation::findOrFail($id);
+    app('auth')->forgetGuards();
+
+    confirmChargeRequest($this, now()->toIso8601String())
+        ->assertOk()
+        ->assertJsonPath('reservation.status.value', 'reserved')
+        ->assertJsonPath('charge_request.status.value', 'reserved')
+        ->assertJsonPath('reservation.fee_amount_kobo', 50000)
+        ->assertJsonPath('reservation.check_in_deadline', now()->addMinutes(30)->toISOString());
+    app('auth')->forgetGuards();
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/driver/ev-reservations/{$id}/activate")
+        ->assertOk();
+
+    expect($this->request->fresh()->stall->estimated_departure_at->toISOString())->toBe(now()->addMinutes(45)->toISOString());
+});
+
+it('lets the driver give the charging time when starting at the stall', function () {
+    $reservation = EvReservation::factory()->create([
+        'driver_id' => $this->driverUser->id,
+        'station_id' => $this->station->id,
+        'stall_id' => $this->station->stalls()->first()->id,
+    ]);
+    $this->request->delete();
+
+    $this->withToken($this->driverToken)
+        ->postJson("/api/v1/driver/ev-reservations/{$reservation->id}/activate", ['estimated_charge_minutes' => 90])
+        ->assertOk()
+        ->assertJsonPath('reservation.estimated_charge_minutes', 90);
+
+    expect($reservation->fresh()->stall->estimated_departure_at->toISOString())->toBe(now()->addMinutes(90)->toISOString());
+});
+
+it('tells a queued driver how many are ahead of them', function (int $position, int $ahead, string $description) {
+    $this->request->update(['status' => EvReservationStatus::Queued, 'queue_position' => $position]);
+
+    $this->withToken($this->driverToken)
+        ->getJson("/api/v1/driver/ev-reservations/{$this->request->id}")
+        ->assertJsonPath('reservation.queue_ahead_count', $ahead)
+        ->assertJsonPath('reservation.queue_ahead_description', $description);
+})->with([
+    [1, 0, "You're next in line"],
+    [2, 1, '1 driver ahead of you'],
+    [4, 3, '3 drivers ahead of you'],
+]);

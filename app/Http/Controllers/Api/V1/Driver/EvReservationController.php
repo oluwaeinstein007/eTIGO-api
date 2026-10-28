@@ -53,6 +53,7 @@ class EvReservationController extends Controller
             'requested_date' => $validated['requested_date'] ?? now('Africa/Lagos')->toDateString(),
             'requested_time' => $validated['requested_time'] ?? now('Africa/Lagos')->format('h:i a'),
             'notes' => $validated['notes'] ?? null,
+            'estimated_charge_minutes' => $validated['estimated_charge_minutes'] ?? null,
             'reserved_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -138,14 +139,19 @@ class EvReservationController extends Controller
         ]);
     }
 
-    public function activate(EvReservation $reservation): JsonResponse
+    public function activate(Request $request, EvReservation $reservation): JsonResponse
     {
-        if ($reservation->driver_id !== request()->user()->id) {
+        if ($reservation->driver_id !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        $validated = $request->validate([
+            // Optional at the stall: replaces the estimate given when reserving.
+            'estimated_charge_minutes' => ['nullable', 'integer', 'min:5', 'max:480'],
+        ]);
+
         try {
-            $reservation = $this->reservationService->activate($reservation, $reservation->estimated_charge_minutes);
+            $reservation = $this->reservationService->activate($reservation, $validated['estimated_charge_minutes'] ?? $reservation->estimated_charge_minutes);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

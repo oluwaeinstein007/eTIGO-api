@@ -13,9 +13,11 @@ use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeRefundRequestController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverRepairController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverSchedulingSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverShiftController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvChargeRequestController;
+use App\Http\Controllers\Api\V1\Admin\AdminEvReservationController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetVehicleController;
@@ -478,6 +480,7 @@ Route::middleware(['auth:sanctum', 'user.type:driver'])->prefix('driver')->group
         Route::get('/', [DriverRepairController::class, 'index']);
         Route::post('/', [DriverRepairController::class, 'store']);
         Route::get('/{repair}', [DriverRepairController::class, 'show']);
+        Route::post('/{repair}/cancel', [DriverRepairController::class, 'cancel']);
         Route::post('/{repair}/attachments', [DriverRepairController::class, 'storeAttachment']);
         Route::delete('/{repair}/attachments/{attachmentId}', [DriverRepairController::class, 'destroyAttachment']);
     });
@@ -668,6 +671,24 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/', [AdminEvChargeRequestController::class, 'index']);
         Route::post('/{reservation}/confirm', [AdminEvChargeRequestController::class, 'confirm']);
         Route::post('/{reservation}/decline', [AdminEvChargeRequestController::class, 'decline']);
+    });
+
+    // Every charging request and reservation, with operations' cancel and end actions.
+    Route::middleware('admin.role:operations')->prefix('ev-reservations')->group(function () {
+        Route::get('/', [AdminEvReservationController::class, 'index']);
+        Route::get('/{reservation}', [AdminEvReservationController::class, 'show']);
+        Route::post('/{reservation}/cancel', [AdminEvReservationController::class, 'cancel']);
+        Route::post('/{reservation}/end', [AdminEvReservationController::class, 'end']);
+    });
+
+    // Repair and service requests drivers send from the app.
+    Route::middleware('admin.role:operations')->prefix('repair-requests')->group(function () {
+        Route::get('/', [AdminDriverRepairController::class, 'index']);
+        Route::get('/{repair}', [AdminDriverRepairController::class, 'show']);
+        Route::post('/{repair}/schedule', [AdminDriverRepairController::class, 'schedule']);
+        Route::post('/{repair}/complete', [AdminDriverRepairController::class, 'complete']);
+        Route::post('/{repair}/cancel', [AdminDriverRepairController::class, 'cancel']);
+        Route::post('/{repair}/attachments', [AdminDriverRepairController::class, 'storeAttachment']);
     });
 
     Route::middleware('admin.role:operations,safety_operator')->prefix('offline-flags')->group(function () {

@@ -9,6 +9,7 @@ use App\Http\Resources\VehicleMaintenanceItemResource;
 use App\Http\Resources\VehicleMaintenanceRecordResource;
 use App\Models\EvReservation;
 use App\Models\VehicleMaintenanceRecord;
+use App\Services\EvReservationFeeService;
 use App\Services\VehicleMaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class DriverVehicleStatusController extends Controller
 {
     public function __construct(
         private VehicleMaintenanceService $maintenance,
+        private EvReservationFeeService $evFees,
     ) {}
 
     public function show(Request $request): JsonResponse
@@ -47,6 +49,7 @@ class DriverVehicleStatusController extends Controller
                 ->latest('reserved_at')
                 ->first()
             : null;
+        $fee = $canCharge ? $this->evFees->termsFor($request->user()->id) : null;
 
         return response()->json([
             'vehicle' => [
@@ -75,6 +78,12 @@ class DriverVehicleStatusController extends Controller
                     'station' => $reservation->station ? ['id' => $reservation->station->id, 'name' => $reservation->station->name] : null,
                     'confirmed_slot' => $reservation->confirmed_slot,
                 ] : null,
+                // What reserving a stall would cost this driver right now.
+                'reservation_fee' => [
+                    'amount_kobo' => (int) round($fee['fee_amount'] * 100),
+                    'waived' => $fee['fee_waived'],
+                    'waiver_reason' => $fee['fee_waiver_reason'],
+                ],
             ] : null,
             'pending_records' => VehicleMaintenanceRecordResource::collection(
                 VehicleMaintenanceRecord::where('vehicle_id', $vehicle->id)->pending()->latest()->get(),

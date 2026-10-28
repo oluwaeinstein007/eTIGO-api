@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Events\EvReservationUpdated;
 use App\Events\EvStationAvailabilityChanged;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
@@ -31,11 +32,27 @@ class EvAvailabilityObserver
         if ($created || (! $model->wasRecentlyCreated && $model->wasChanged($watched))) {
             $this->notify($model);
         }
+
+        if ($model instanceof EvReservation && ($model->wasRecentlyCreated || $model->wasChanged(['status', 'queue_position', 'stall_id', 'confirmed_slot_at', 'station_id']))) {
+            $this->notifyDriver($model);
+        }
     }
 
     public function deleted(Model $model): void
     {
         $this->notify($model);
+    }
+
+    /**
+     * The driver's app listens on its own channel for its reservations.
+     */
+    private function notifyDriver(EvReservation $reservation): void
+    {
+        try {
+            EvReservationUpdated::dispatch((string) $reservation->getKey(), (string) $reservation->driver_id);
+        } catch (\Throwable $e) {
+            Log::warning('EV reservation broadcast failed', ['reservation_id' => $reservation->getKey(), 'error' => $e->getMessage()]);
+        }
     }
 
     private function notify(Model $model): void
