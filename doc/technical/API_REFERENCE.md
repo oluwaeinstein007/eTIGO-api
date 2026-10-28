@@ -7,7 +7,7 @@
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance.  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen.  
 
 ---
 
@@ -7866,13 +7866,14 @@ GET /driver/vehicle/status
   "charging": {
     "battery_level_percent": 64,
     "battery_level_at": "2026-10-19T08:00:00+00:00",
-    "active_reservation": { "id": "…", "status": "reserved", "station": { "id": "…", "name": "Lekki Hub" }, "confirmed_slot": "09:30" }
+    "active_reservation": { "id": "…", "status": "reserved", "station": { "id": "…", "name": "Lekki Hub" }, "confirmed_slot": "09:30" },
+    "reservation_fee": { "amount_kobo": 0, "waived": true, "waiver_reason": "hire_purchase" }
   },
   "pending_records": [ { "...": "maintenance record object" } ]
 }
 ```
 
-`charging` is `null` for cars without a charging port. `records_managed_by` is `operations` for fleet cars.
+`charging` is `null` for cars without a charging port. `charging.reservation_fee` is what reserving a stall would cost this driver now: `amount_kobo`, `waived`, and `waiver_reason` (`hire_purchase` while still paying off an E-tiGo car on a hire-purchase agreement, `tier`, or `null`). `records_managed_by` is `operations` for fleet cars.
 
 ### Maintenance Records (Driver)
 ```
@@ -12471,7 +12472,8 @@ Submit a general EV charging request. If no `station_id` is provided, the system
   "requested_date": "2026-10-15",
   "requested_time": "morning",
   "notes": "Battery draining fast, need urgent charge",
-  "station_id": "uuid (optional)"
+  "station_id": "uuid (optional)",
+  "estimated_charge_minutes": 60
 }
 ```
 
@@ -12482,22 +12484,25 @@ Submit a general EV charging request. If no `station_id` is provided, the system
 | requested_time | string  | No       | Preferred time slot (max 50 chars)        |
 | notes          | string  | No       | Additional notes (max 1000 chars)         |
 | station_id     | uuid    | No       | Specific station; auto-selected if omitted |
+| estimated_charge_minutes | integer | No | 5–480. How long the driver expects to charge. Sets the stall's expected departure when they start, so drivers arriving at a full station can queue instead of being told to retry |
 
 **Response 201:**
 ```json
 {
-  "message": "Charge request submitted.",
+  "message": "Charge request submitted successfully.",
   "reservation": {
     "id": "uuid",
-    "station_id": "uuid",
-    "driver_id": "uuid",
-    "status": "pending_review",
     "type": "charging",
+    "kind": "request",
+    "station_id": "uuid",
+    "status": { "value": "pending_review", "label": "Pending Review" },
     "battery_level": 25,
     "requested_date": "2026-10-15",
     "requested_time": "morning",
     "notes": "Battery draining fast, need urgent charge",
-    "created_at": "2026-10-13T10:00:00.000000Z"
+    "estimated_charge_minutes": 60,
+    "check_in_deadline": null,
+    "...": "the full reservation object, see Reservation object below"
   }
 }
 ```
@@ -12542,7 +12547,9 @@ Three possible outcomes:
 **Reservation fee** (`EV_RESERVATION_FEE`, default ₦500):
 - Charged to the driver's **available earnings** when a stall is actually held for them — immediately for `reserved`, or when a `queued` driver is promoted. Nothing is charged while waiting in the queue. `fee_charged_at` records it.
 - Like cash-ride commission, it may take the balance below zero, down to the wallet's `max_negative_balance` (default −₦5,000). Beyond that the reservation is refused (422 `"Your earnings balance cannot cover the ₦500.00 reservation fee."`). A driver whose earnings account is frozen gets 422 `"Your earnings account is on hold, so the reservation fee cannot be paid. Contact support."`. A queued driver who can no longer pay when a stall frees up is skipped: their reservation is cancelled (the reason is in `notes`) and they get an `ev_reservation_cancelled` push.
-- Waived for Platinum and Diamond drivers (`fee_waived: true`).
+- **Not charged to drivers still paying off an E-tiGo car:** a driver whose hire-purchase (fleet) agreement is `active` or `paused` reserves for free (`fee_waived: true`, `fee_waiver_reason: "hire_purchase"`). Once the agreement is `completed` (car paid off) or `terminated`, and for drivers with their own car, the fee applies. Client rule, 28 Oct 2026; counting a paused agreement is an engineering pick.
+- Waived for Platinum and Diamond drivers (`fee_waived: true`, `fee_waiver_reason: "tier"`).
+- The waiver is decided when the stall is reserved or the charge request confirmed, and saved on the reservation. To show the fee before reserving, read `charging.reservation_fee` from **Vehicle Status (Driver)**.
 - Refunded in full if the driver cancels within `EV_RESERVATION_FREE_CANCEL_MINUTES` (default 2) of the stall being held (`fee_refunded_at`). Kept after that, and on a no-show (expiry) or a completed session.
 - `free_cancellation_until` is the time until which cancelling refunds the fee; use it for a countdown instead of hard-coding the window. It is `null` when there is nothing to refund (fee waived, not charged yet, already refunded, or the reservation is closed).
 
@@ -12659,6 +12666,13 @@ Authorization: Bearer {driver_token}
 
 Transitions `reserved` → `active`. Marks the stall as occupied with estimated departure time.
 
+**Request Body (optional):**
+```json
+{ "estimated_charge_minutes": 50 }
+```
+
+`estimated_charge_minutes` (5–480) replaces the estimate given when reserving or requesting. Without it the earlier estimate is used; with neither, the stall has no expected departure.
+
 **Response 200:**
 ```json
 {
@@ -12715,6 +12729,28 @@ Cancels any non-terminal reservation. Releases the stall and triggers queue tran
 ```
 
 **Response 422:** `"Cannot cancel a terminal reservation."` (already completed, expired or cancelled).
+
+### Reservation object
+
+Every EV reservation response (driver and admin) uses one object. Fields added on 28 Oct 2026:
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | string | `request` (charge request reviewed by operations) or `instant` (reserved from the station list) |
+| `estimated_charge_minutes` | integer\|null | The driver's estimate of how long they will charge |
+| `queue_ahead_count` | integer\|null | While `queued`: drivers ahead of this one (`queue_position − 1`). Null otherwise |
+| `queue_ahead_description` | string\|null | While `queued`: `"You're next in line"`, `"1 driver ahead of you"`, `"3 drivers ahead of you"` |
+| `fee_amount_kobo` | integer\|null | The fee in kobo. `fee_amount` stays naira as a string (`"500.00"`) |
+| `fee_waiver_reason` | string\|null | Why no fee is due: `hire_purchase` (still paying off an E-tiGo car) or `tier`. Null when the fee applies |
+| `check_in_deadline` | ISO 8601\|null | When the stall stops being held if charging has not started: slot + hold minutes while `confirmed`, `reserved_at` + hold minutes while `reserved`. The timestamp behind the display string `check_in_time` |
+| `ended_by_operations` | boolean | Operations cancelled or ended it from the dashboard |
+| `end_reason` | string\|null | The reason operations gave (shown to the driver) |
+| `ended_at` | ISO 8601\|null | When operations cancelled or ended it |
+| `ended_by` | object | Admins only: `{ id, name }` of the staff member |
+
+`requested_time`, `confirmed_slot` and `check_in_time` are display strings (`"02:30 pm"`); use `confirmed_slot_at` and `check_in_deadline` for logic.
+
+**Live updates for the driver app:** the driver's own private channel `driver.{userId}` receives `ev.reservation.updated` whenever one of their reservations is created or changes status, queue position, stall, station or confirmed slot. Payload: `reservation_id`, `deleted`, and `reservation` (this object, as the driver sees it). Push notifications are still sent for the events that need the driver's attention.
 
 ---
 
@@ -13134,6 +13170,8 @@ The request becomes `confirmed` and the driver gets `ev_charge_request_confirmed
 }
 ```
 
+The same object is also returned under `reservation` (the key every other EV endpoint uses); `charge_request` is kept for screens already built on it.
+
 **Response 422:** `"Only charge requests awaiting review can be confirmed."` or `"This station is not taking reservations."`, with `current_status`; `errors.confirmed_slot_at` for a slot out of range.
 
 ### Decline Charge Request
@@ -13149,7 +13187,7 @@ Content-Type: application/json
 
 Works on a request awaiting review or a confirmed slot that has not started. The request becomes `cancelled` and the driver gets `ev_charge_request_declined` ("We couldn't book your charging request: {reason}. You can reserve a stall from the station list.").
 
-**Response 200:** `{ "message": "Charge request declined. The driver has been told.", "charge_request": { "status": { "value": "cancelled" }, "decline_reason": "…", "...": "..." } }`
+**Response 200:** `{ "message": "Charge request declined. The driver has been told.", "charge_request": { "status": { "value": "cancelled" }, "decline_reason": "…", "...": "..." }, "reservation": { "...": "same object" } }`
 
 **Response 422:** `"Only charge requests awaiting review or a confirmed slot that has not started can be declined."` with `current_status`.
 
@@ -13162,6 +13200,115 @@ Works on a request awaiting review or a confirmed slot that has not started. The
 | Earnings cannot cover the fee | `cancelled`; reason in `notes` | `ev_reservation_cancelled` |
 | Station no longer `active` | `cancelled` | `ev_reservation_cancelled` |
 | Slot found more than the hold time late (scheduler outage) | `expired` | `ev_reservation_cancelled` ("…We could not hold a stall before your check-in time passed.…") |
+
+---
+
+## Admin — EV Reservations
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+Every charging request and reservation, whether reviewed (`kind: request`) or reserved straight from the station list (`kind: instant`): search and history, plus the operations actions that cancel a reservation or end a session the driver did not finish. Responses use the [reservation object](#reservation-object) with `driver`, `station`, `stall`, `reviewed_by` and `ended_by`.
+
+### List Reservations
+```
+GET /admin/ev-reservations?status=reserved,active&kind=instant&station_id={id}&city_id={id}&driver_id={id}&search=bello&from=2026-10-01&to=2026-10-31&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+| Param | Type | Description |
+|---|---|---|
+| `status` | string | Comma list of reservation statuses. Default: all. Unknown value → 422 |
+| `kind` | string | `request` or `instant` |
+| `station_id` / `city_id` / `driver_id` | uuid | Narrow to one station, city or driver (`driver_id` is the driver's user id) |
+| `search` | string | Driver first name, last name, phone or vehicle plate |
+| `from` / `to` | date | `reserved_at` between these Lagos dates (a request's submit time, then when its stall was held) |
+| `per_page` | integer | 1–100, default 20 |
+
+Newest first by `reserved_at`.
+
+**Response 200:**
+```json
+{
+  "reservations": [
+    {
+      "id": "…",
+      "kind": "instant",
+      "status": { "value": "active", "label": "Active" },
+      "station_name": "Lekki Phase 1 Hub",
+      "assigned_bay": "Bay 2 · DC fast charger",
+      "vehicle_plate": "LND-482-KJ",
+      "estimated_charge_minutes": 45,
+      "activated_at": "2026-10-28T12:40:00.000000Z",
+      "driver": { "id": "…", "first_name": "Tunde", "last_name": "Bello", "phone": "+2348012345678", "...": "..." },
+      "...": "..."
+    }
+  ],
+  "summary": { "pending_review": 3, "confirmed": 1, "reserved": 2, "queued": 1, "active": 4 },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1 }
+}
+```
+
+`summary` counts the open reservations right now across every station (it ignores the filters).
+
+### Show Reservation
+```
+GET /admin/ev-reservations/{reservation}
+Authorization: Bearer {admin_token}
+```
+
+**Response 200:** `{ "reservation": { … } }`
+
+### Cancel Reservation (Operations)
+```
+POST /admin/ev-reservations/{reservation}/cancel
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `reason` | string | Yes | 5–500 characters. Shown to the driver |
+| `refund_fee` | boolean | No | Give the reservation fee back to the driver's earnings (default `false`). Use when it was not the driver's fault |
+
+Works on any open reservation (`pending_review`, `confirmed`, `reserved`, `queued`, `active`). It becomes `cancelled`; a held stall is released and offered to the next queued driver; a queued driver leaves the line and the others move up. The driver gets `ev_reservation_cancelled`: "Your charging reservation at {station} was cancelled by E-tiGo Operations: {reason}. [Your ₦500.00 reservation fee has been refunded.]"
+
+**Response 200:**
+```json
+{
+  "message": "Reservation cancelled. The driver has been told.",
+  "fee_refunded": true,
+  "reservation": {
+    "status": { "value": "cancelled", "label": "Cancelled" },
+    "ended_by_operations": true,
+    "end_reason": "Charger 1 is faulty",
+    "ended_at": "2026-10-28T13:10:00.000000Z",
+    "ended_by": { "id": "…", "name": "Ada Okafor" },
+    "fee_refunded_at": "2026-10-28T13:10:00.000000Z",
+    "...": "..."
+  }
+}
+```
+
+`fee_refunded` is `false` when no fee was taken (requests before their slot, queued drivers, waived fees) or it was already refunded.
+
+**Response 422:** `"This reservation has already ended."` with `current_status`.
+
+### End Charging Session (Operations)
+```
+POST /admin/ev-reservations/{reservation}/end
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `reason` | string | No | Max 500. Shown to the driver |
+
+For a driver who drove off without tapping Finish, or whose phone died: works on `reserved` and `active`. It becomes `completed` (`completed_at` set), the stall is released and offered to the queue, and the driver gets `ev_reservation_ended` ("Your charging session at {station} was ended by E-tiGo Operations: {reason}."). The fee is kept.
+
+**Response 200:** `{ "message": "Charging session ended and the stall released. The driver has been told.", "reservation": { … } }`
+
+**Response 422:** `"Only a reserved stall or a charging session can be ended. Cancel requests and queued drivers instead."` with `current_status`.
 
 ---
 
@@ -14021,6 +14168,198 @@ Submits a new vehicle repair or maintenance request. The vehicle is automaticall
   }
 }
 ```
+
+The form may also carry one file as `attachment` (or `photo`): jpg, jpeg, png, webp or pdf, up to 10 MB (send as `multipart/form-data`).
+
+### Repair request object (fields added 28 Oct 2026)
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | object | `in_progress` (received, not booked yet), `scheduled` (workshop visit booked), `completed`, `cancelled` |
+| `appointment` | object\|null | Once booked: `{ scheduled_at, date, time, workshop_name, workshop_address, technician_name, contact_phone, instructions }` |
+| `workshop_visit` | object | `{ scheduled_time, instructions, support_phone }`, plus `workshop_name` and `address` once booked |
+| `scheduled_at` / `completed_at` / `cancelled_at` | ISO 8601\|null | When the visit is, when it was finished, when it was cancelled |
+| `completion_summary` | string\|null | What the workshop did, written by operations when completing |
+| `cancellation_reason` / `cancelled_by` | string\|null | `cancelled_by`: `driver` or `operations` |
+| `can_cancel` | boolean | The request is still open (`in_progress` or `scheduled`) |
+| `progress_steps[]` | array | `{ title, subtitle, state }`, `state` one of `completed`, `in_progress`, `upcoming`. Updated when operations book, complete or cancel |
+| `attachments[]` | array | `{ id, title, file_type, subtitle, file_url, uploaded_by, created_at }`. `uploaded_by`: `driver` or `operations` (a workshop report, a quote) |
+| `vehicle_id` | uuid\|null | |
+| `driver` | object | Admins only: `{ id, name, phone }` |
+| `handled_by` | object\|null | Admins only: `{ id, name }` of the staff member who last booked, completed or cancelled it |
+
+### Add Repair Attachment
+
+```
+POST /driver/repairs/{repair}/attachments
+Authorization: Bearer {driver_token}
+Content-Type: multipart/form-data
+```
+
+Fields: `attachment` (or `photo`) file, jpg/jpeg/png/webp/pdf up to 10 MB; `title` optional. **Response 201:** `{ "message": "Attachment added successfully.", "repair": { … }, "attachment": { … } }`. 403 for another driver's request.
+
+### Remove Repair Attachment
+
+```
+DELETE /driver/repairs/{repair}/attachments/{attachmentId}
+Authorization: Bearer {driver_token}
+```
+
+**Response 200:** `{ "message": "Attachment removed successfully.", "repair": { … } }`. 404 when the attachment is not on the request; 403 `"Files added by E-tiGo cannot be removed."` for an operations file.
+
+### Cancel Repair Request
+
+```
+POST /driver/repairs/{repair}/cancel
+Authorization: Bearer {driver_token}
+Content-Type: application/json
+```
+
+Body (optional): `{ "reason": "Fixed at a roadside mechanic" }` (max 500). Works while the request is `in_progress` or `scheduled`; it becomes `cancelled` with `cancelled_by: "driver"`.
+
+**Response 200:** `{ "message": "Service request cancelled.", "repair": { … } }`
+
+**Response 422:** `"This request is already completed, so it cannot be cancelled."` (or `cancelled`). 403 for another driver's request.
+
+---
+
+## Admin — Repair Requests
+
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+
+The repair and service requests drivers send with **Create Repair Request**. Operations book the workshop visit, finish the request with a summary (and optionally a report), or cancel it. Each step updates `status`, `appointment`, `workshop_visit`, `summary_note` and `progress_steps`, and tells the driver. Responses use the [repair request object](#repair-request-object-fields-added-28-oct-2026) with the admin-only `driver` and `handled_by`.
+
+### List Repair Requests (Admin)
+```
+GET /admin/repair-requests?status=in_progress,scheduled&type=repair&search=KJA&from=2026-10-01&to=2026-10-31&vehicle_id={id}&per_page=20
+Authorization: Bearer {admin_token}
+```
+
+| Param | Type | Description |
+|---|---|---|
+| `status` | string | Comma list: `in_progress`, `scheduled`, `completed`, `cancelled`. Default `in_progress,scheduled`. Unknown value → 422 |
+| `type` | string | `repair` or `maintenance` |
+| `search` | string | Reference number, title, vehicle plate, driver name or phone |
+| `from` / `to` | date | Submitted between these Lagos dates |
+| `vehicle_id` | uuid | One vehicle |
+| `per_page` | integer | 1–100, default 20 |
+
+New requests first (oldest first), then booked visits (soonest first), then finished ones (most recently changed first).
+
+**Response 200:**
+```json
+{
+  "repairs": [
+    {
+      "id": "…",
+      "reference_number": "REP-1042",
+      "type": { "value": "repair", "label": "Repair" },
+      "status": { "value": "in_progress", "label": "In progress" },
+      "title": "Brake noise",
+      "preferred_date": "2026-10-29",
+      "preferred_time": "10:00 am",
+      "vehicle_plate": "KJA-210-XY",
+      "driver": { "id": "…", "name": "Musa Ibrahim", "phone": "+2348098765432" },
+      "handled_by": null,
+      "can_cancel": true,
+      "...": "..."
+    }
+  ],
+  "summary": { "in_progress": 4, "scheduled": 2, "completed": 31, "cancelled": 3 },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 6 }
+}
+```
+
+`summary` counts every request by status (it ignores the filters).
+
+### Show Repair Request (Admin)
+```
+GET /admin/repair-requests/{repair}
+Authorization: Bearer {admin_token}
+```
+
+**Response 200:** `{ "repair": { … } }`
+
+### Book Workshop Visit
+```
+POST /admin/repair-requests/{repair}/schedule
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `scheduled_at` | datetime | Yes | ISO 8601 with offset; not more than 5 minutes in the past |
+| `workshop_name` | string | Yes | Max 150 |
+| `workshop_address` | string | Yes | Max 300 |
+| `technician_name` | string | No | Max 100 |
+| `contact_phone` | string | No | Max 30. Shown to the driver instead of the fleet support number |
+| `instructions` | string | No | Max 1000 |
+
+Works while `in_progress` or `scheduled` (to rebook). The request becomes `scheduled`; steps 1–2 are `completed`, step 3 "Workshop visit" is `in_progress` with the time and workshop. The driver gets `repair_request_scheduled`: "Your repair request REP-1042 is booked for Thu 29 Oct, 10:00 am at E-tiGo Fleet Workshop, 4 Akin Adesola St, Victoria Island."
+
+**Response 200:**
+```json
+{
+  "message": "Workshop visit booked. The driver has been told.",
+  "repair": {
+    "status": { "value": "scheduled", "label": "Scheduled" },
+    "scheduled_at": "2026-10-29T09:00:00.000000Z",
+    "appointment": {
+      "scheduled_at": "2026-10-29T09:00:00+00:00",
+      "date": "2026-10-29",
+      "time": "10:00 am",
+      "workshop_name": "E-tiGo Fleet Workshop",
+      "workshop_address": "4 Akin Adesola St, Victoria Island",
+      "technician_name": "Emeka",
+      "contact_phone": null,
+      "instructions": null
+    },
+    "summary_note": "Workshop visit booked for Thu 29 Oct, 10:00 am at E-tiGo Fleet Workshop",
+    "...": "..."
+  }
+}
+```
+
+**Response 422:** `errors.scheduled_at` for a past time; `"This request is already completed, so it cannot be scheduled."` with `current_status`.
+
+### Complete Repair Request
+```
+POST /admin/repair-requests/{repair}/complete
+Authorization: Bearer {admin_token}
+Content-Type: multipart/form-data
+```
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `summary` | string | Yes | 5–2000. What was done; shown to the driver |
+| `report` | file | No | jpg/jpeg/png/webp/pdf up to 10 MB. Added to `attachments` as "Workshop report" with `uploaded_by: operations` |
+
+Works while `in_progress` or `scheduled`. Every step becomes `completed`; the driver gets `repair_request_completed`. To log the work against the car's maintenance checklist too, use **Record Maintenance on a Car** with `driver_repair_id`.
+
+**Response 200:** `{ "message": "Request completed. The driver has been told.", "repair": { "status": { "value": "completed" }, "completion_summary": "…", "completed_at": "…", "...": "..." } }`
+
+### Cancel Repair Request (Admin)
+```
+POST /admin/repair-requests/{repair}/cancel
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+Body: `{ "reason": "Covered by the dealer warranty" }` (required, 5–500, shown to the driver). Works while `in_progress` or `scheduled`; `cancelled_by` becomes `operations` and the driver gets `repair_request_cancelled`.
+
+**Response 200:** `{ "message": "Request cancelled. The driver has been told.", "repair": { … } }`
+
+### Add Attachment (Admin)
+```
+POST /admin/repair-requests/{repair}/attachments
+Authorization: Bearer {admin_token}
+Content-Type: multipart/form-data
+```
+
+Fields: `attachment` (required, jpg/jpeg/png/webp/pdf up to 10 MB), `title` (optional, max 100). Any status. The file has `uploaded_by: operations`, so the driver cannot remove it.
+
+**Response 201:** `{ "message": "Attachment added.", "repair": { … }, "attachment": { … } }`
 
 ---
 
@@ -16149,6 +16488,11 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | EV reservation cancelled | Driver | `ev_reservation_cancelled` | A stall freed up but the reservation fee could not be taken, so the queued reservation was cancelled; also a confirmed charge request cancelled at its slot (fee unpaid, station closed, or check-in time already passed) |
 | Charging request confirmed | Driver | `ev_charge_request_confirmed` | Operations confirmed a charge request for a slot (data: `reservation_id`, `station_name`). See [Admin — EV Charge Requests](#admin--ev-charge-requests) |
 | Charging request declined | Driver | `ev_charge_request_declined` | Operations declined a charge request (the reason is in the body and `decline_reason`), or nobody reviewed it before its day ended |
+| EV reservation cancelled by operations | Driver | `ev_reservation_cancelled` | Operations cancelled the reservation from the dashboard; the reason (and any fee refund) is in the body and `end_reason`. See [Admin — EV Reservations](#admin--ev-reservations) |
+| Charging session ended | Driver | `ev_reservation_ended` | Operations ended a reserved stall or a charging session the driver did not finish (data: `reservation_id`, `station_name`) |
+| Workshop visit booked | Driver | `repair_request_scheduled` | Operations booked (or rebooked) the visit for a repair or service request (data: `repair_id`, `reference_number`). See [Admin — Repair Requests](#admin--repair-requests) |
+| Vehicle service complete | Driver | `repair_request_completed` | Operations completed the request; the body has the summary |
+| Service request cancelled | Driver | `repair_request_cancelled` | Operations cancelled the request; the reason is in the body and `cancellation_reason` |
 | Fleet agreement paused / resumed | Driver | `fleet_agreement_paused` / `fleet_agreement_resumed` | Operations or Finance paused or resumed the driver's fleet agreement (data: `fleet_agreement_id`); no remittance is due while paused |
 | Fuel type needed | Driver | `vehicle_fuel_type_required` | The driver's vehicle has no fuel type; open the vehicle screen so they can set it (sent by `php artisan vehicles:request-fuel-types`) |
 | Location missing | Driver | `driver_location_missing` | The driver's app sent no location for 5 minutes (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`), so they get no ride requests (or, with `on_trip: true`, their passenger can't see them). Once per silent spell; the driver stays online. Restart location updates and show a banner |
@@ -16242,7 +16586,7 @@ Private channels require authentication. The client must send an authorization r
 | Channel | Auth | Subscribers | Events |
 |---------|------|-------------|--------|
 | `private-ride.{rideId}` | Passenger or assigned driver | Ride participants | `ride.status.updated`, `driver.location.updated` (left off for the booker of a third-party ride whose tracking excludes them), `payment.updated`, `ride.no-driver-found` |
-| `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers) |
+| `private-driver.{userId}` | That driver | Driver app | `ride.request.dispatched` (ride offers), `ev.reservation.updated` (the driver's EV requests and reservations) |
 | `private-user.{userId}` | Authenticated user (self) | User apps | `sos.check_in.requested`, `tier.upgraded`, `ride.rider_notification.updated` |
 | `private-admin.rides` | Admin users | Admin dashboard | `ride.status.updated`, `driver.location.updated` |
 | `private-admin.sos` | Safety operators, super admins | SOS console | `sos.incident.triggered`, `sos.incident.escalated`, `sos.incident.updated` |
