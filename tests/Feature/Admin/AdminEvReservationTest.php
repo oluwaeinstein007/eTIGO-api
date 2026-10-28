@@ -16,6 +16,7 @@ use App\Models\FleetAgreement;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 beforeEach(function () {
@@ -296,4 +297,16 @@ it('validates the EV settings and keeps them for operations', function () {
     evAs($this, $finance->createToken('auth', ['admin', 'finance'])->plainTextToken)
         ->getJson('/api/v1/admin/settings/ev-charging')
         ->assertForbidden();
+});
+
+it('marks fees waived before the hire-purchase rule as tier waivers when migrating', function () {
+    $waived = EvReservation::factory()->feeWaived()->create(['station_id' => $this->station->id]);
+    $paid = EvReservation::factory()->create(['station_id' => $this->station->id]);
+
+    $migration = require database_path('migrations/2026_10_28_100000_add_operations_actions_to_ev_reservations_and_driver_repairs.php');
+    $migration->down();
+    $migration->up();
+
+    expect(DB::table('ev_reservations')->where('id', $waived->id)->value('fee_waiver_reason'))->toBe('tier')
+        ->and(DB::table('ev_reservations')->where('id', $paid->id)->value('fee_waiver_reason'))->toBeNull();
 });

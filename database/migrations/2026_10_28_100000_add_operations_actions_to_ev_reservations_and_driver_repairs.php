@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -19,6 +20,9 @@ return new class extends Migration
             // Why no fee was due: hire_purchase (still paying off an E-tiGo car) or tier.
             $table->string('fee_waiver_reason', 30)->nullable();
         });
+
+        // Before hire-purchase waivers, a tier was the only reason a fee was waived.
+        DB::table('ev_reservations')->where('fee_waived', true)->update(['fee_waiver_reason' => 'tier']);
 
         Schema::table('driver_repairs', function (Blueprint $table) {
             $table->timestamp('scheduled_at')->nullable();
