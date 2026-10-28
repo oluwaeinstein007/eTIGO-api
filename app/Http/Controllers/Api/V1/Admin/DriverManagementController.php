@@ -27,6 +27,7 @@ use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Services\DriverHistoryService;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
 use App\Services\NotificationService;
@@ -97,7 +98,7 @@ class DriverManagementController extends Controller
         ]);
     }
 
-    public function show(Driver $driver): JsonResponse
+    public function show(Driver $driver, DriverHistoryService $history): JsonResponse
     {
         $driver->load(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications', 'primaryBankAccount']);
 
@@ -132,6 +133,7 @@ class DriverManagementController extends Controller
         return response()->json([
             'driver' => new DriverResource($driver),
             'performance' => $performance,
+            'history' => $history->for($driver),
         ]);
     }
 
@@ -228,7 +230,13 @@ class DriverManagementController extends Controller
             ]);
 
             $action = $validated['action'] === 'approve' ? 'document_approved' : 'document_rejected';
-            AuditLog::record($document, $action, $admin);
+            AuditLog::record($document, $action, $admin, ['status' => DocumentStatus::Pending->value], [
+                'status' => $newStatus->value,
+                'rejection_reason' => $validated['rejection_reason'] ?? null,
+                'type' => $document->type->value,
+                // The driver too, since an approved renewal deletes the paper it replaces.
+                'driver_id' => $driver->id,
+            ]);
 
             // An approved renewal replaces the car's earlier paper of that type.
             if ($newStatus === DocumentStatus::Approved && $document->vehicle_id !== null) {
@@ -254,12 +262,17 @@ class DriverManagementController extends Controller
                     ->exists();
 
                 if ($allReviewed) {
+                    $reason = 'One or more documents were rejected. Please re-upload and resubmit.';
+
                     $lockedDriver->update([
                         'status' => DriverStatus::Rejected,
-                        'rejection_reason' => 'One or more documents were rejected. Please re-upload and resubmit.',
+                        'rejection_reason' => $reason,
                     ]);
 
-                    AuditLog::record($lockedDriver, 'driver_rejected', $admin);
+                    AuditLog::record($lockedDriver, 'driver_rejected', $admin, ['status' => DriverStatus::PendingReview->value], [
+                        'status' => DriverStatus::Rejected->value,
+                        'rejection_reason' => $reason,
+                    ]);
                 }
             }
         });
@@ -360,10 +373,13 @@ class DriverManagementController extends Controller
         DB::transaction(function () use ($driver, $vehicle, $wasFleet, $request, $kycService) {
             $vehicle->update(['is_fleet' => ! $wasFleet]);
 
+            // The driver too, since shared fleet cars pass between drivers.
             AuditLog::record(
                 $vehicle,
                 $wasFleet ? 'vehicle_unmarked_fleet' : 'vehicle_marked_fleet',
                 $request->user(),
+                ['is_fleet' => $wasFleet],
+                ['is_fleet' => ! $wasFleet, 'driver_id' => $driver->id],
             );
 
             $kycService->recalculateDriverKycStatus($driver);
@@ -410,16 +426,17 @@ class DriverManagementController extends Controller
             'fuel_type' => $validated['fuel_type'] ?? null,
         ]);
 
-        DB::transaction(function () use ($vehicle, $changes, $request) {
+        DB::transaction(function () use ($vehicle, $changes, $request, $driver) {
             $old = ['vehicle_class_id' => $vehicle->vehicle_class_id, 'fuel_type' => $vehicle->fuel_type?->value];
             $vehicle->update($changes);
 
+            // The driver too, since shared fleet cars pass between drivers.
             AuditLog::record(
                 $vehicle,
                 isset($changes['vehicle_class_id']) ? 'vehicle_class_changed' : 'vehicle_fuel_type_changed',
                 $request->user(),
                 array_intersect_key($old, $changes),
-                $changes,
+                [...$changes, 'driver_id' => $driver->id],
             );
         });
 

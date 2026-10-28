@@ -2488,13 +2488,79 @@ GET /admin/drivers/{driver_id}
     "cancellation_rate": 4.9,
     "acceptance_rate": 92.5,
     "total_earnings": 285000.00
-  }
+  },
+  "history": [
+    {
+      "id": "9f3a7c2e-6d1a-4c3b-9e2f-1a2b3c4d5e6f",
+      "event": "vehicle_marked_fleet",
+      "description": "Marked as a company car",
+      "old": { "is_fleet": false },
+      "new": { "is_fleet": true },
+      "reason": null,
+      "document": null,
+      "actor": { "id": "9f3a7c2e-0a1b-4c2d-8e3f-4a5b6c7d8e9f", "name": "Ada Obi", "role": "operations" },
+      "created_at": "2026-10-27T14:20:00+00:00"
+    },
+    {
+      "id": "9f3a7c2e-5c0f-4b2a-8d1e-0f1a2b3c4d5e",
+      "event": "vehicle_class_changed",
+      "description": "Vehicle class changed from Standard to Premium",
+      "old": { "vehicle_class": { "id": "9f3a7c2e-1111-4a2b-8c3d-4e5f6a7b8c9d", "name": "Standard" } },
+      "new": { "vehicle_class": { "id": "9f3a7c2e-2222-4a2b-8c3d-4e5f6a7b8c9d", "name": "Premium" } },
+      "reason": null,
+      "document": null,
+      "actor": { "id": "9f3a7c2e-0a1b-4c2d-8e3f-4a5b6c7d8e9f", "name": "Ada Obi", "role": "operations" },
+      "created_at": "2026-10-27T14:10:00+00:00"
+    },
+    {
+      "id": "9f3a7c2e-4b9e-4a19-8c0d-9e0f1a2b3c4d",
+      "event": "driver_city_changed",
+      "description": "City changed from Lagos to Abuja",
+      "old": { "city": { "id": "9f3a7c2e-3333-4a2b-8c3d-4e5f6a7b8c9d", "name": "Lagos" } },
+      "new": { "city": { "id": "9f3a7c2e-4444-4a2b-8c3d-4e5f6a7b8c9d", "name": "Abuja" } },
+      "reason": "Relocated",
+      "document": null,
+      "actor": { "id": "9f3a7c2e-0a1b-4c2d-8e3f-4a5b6c7d8e9f", "name": "Ada Obi", "role": "operations" },
+      "created_at": "2026-10-27T14:00:00+00:00"
+    },
+    {
+      "id": "9f3a7c2e-3a8d-4f08-8b9c-8d9e0f1a2b3c",
+      "event": "document_rejected",
+      "description": "Driving licence rejected",
+      "old": { "status": "pending" },
+      "new": { "status": "rejected" },
+      "reason": "Photo is blurry",
+      "document": { "id": "9f3a7c2e-5555-4a2b-8c3d-4e5f6a7b8c9d", "type": "driving_licence", "type_label": "Driving licence" },
+      "actor": { "id": "9f3a7c2e-0a1b-4c2d-8e3f-4a5b6c7d8e9f", "name": "Ada Obi", "role": "operations" },
+      "created_at": "2026-10-05T09:30:00+00:00"
+    }
+  ]
 }
 ```
 
 **Field Notes:**
 - `driver.is_profile_complete` (boolean) — `true` when the driver has: user details, city, vehicle, KYC verified, bank account, and documents uploaded.
-- `performance.acceptance_rate` (float, 0–100) — Calculated from AuditLog records of `ride_accepted` and `ride_rejected` events. Defaults to `100.0` if no offers have been recorded.
+- `performance.acceptance_rate` (float, 0–100, or `null`) — Calculated from AuditLog records of `ride_accepted` and `ride_rejected` events. `null` if no offers have been recorded.
+- `history` (array) — The driver's approval history, newest first, at most the latest 50 entries. Empty when nothing has been recorded. Each entry:
+  - `event` — one of the events below. `description` is a ready-to-show sentence and names the cities, vehicle classes, fuel types or document where it can.
+  - `old` / `new` — the value before and after, or `null` when there is none (for example `old` on `application_submitted`). Only these keys appear: `status`, `kyc_status`, `city` (`{ id, name }`), `vehicle_class` (`{ id, name }`), `fuel_type`, `is_fleet`. A key can be present with `null` (for example a vehicle that had no class yet). A city or class `name` is `null` if that record no longer exists.
+  - `reason` — the city move reason, the rejection reason (driver or document), the suspension reason, or the notes on an admin-completed onboarding; otherwise `null`.
+  - `document` — `{ id, type, type_label }` on document events, otherwise `null`. It still shows after a renewal deletes the paper.
+  - `actor` — `{ id, name, role }` of whoever made the change (`role` is the admin role, or `driver` for the driver's own submission); `null` when the system made it.
+  - `created_at` — when it happened (ISO 8601).
+
+| `event` | `old` → `new` |
+|---------|---------------|
+| `application_submitted` | `null` → `status` |
+| `driver_approved`, `driver_rejected`, `driver_suspended`, `driver_reactivated` | `status` → `status` |
+| `driver_onboarding_and_kyc_completed_by_admin` | `status`, `kyc_status` → `status`, `kyc_status` (testing/QA endpoint) |
+| `driver_city_changed` | `city` → `city` |
+| `vehicle_class_changed` | `vehicle_class` → `vehicle_class` |
+| `vehicle_fuel_type_changed` | `fuel_type` → `fuel_type` |
+| `vehicle_marked_fleet`, `vehicle_unmarked_fleet` | `is_fleet` → `is_fleet` (the company car toggle) |
+| `document_approved`, `document_rejected` | `status` → `status` |
+
+Vehicle changes follow the driver they were made for: when a shared fleet car passes to another driver, its earlier class or company car changes stay in the first driver's history.
 
 ---
 
