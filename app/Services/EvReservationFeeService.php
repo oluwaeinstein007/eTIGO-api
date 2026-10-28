@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AccountType;
+use App\Enums\FleetAgreementStatus;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\AppSetting;
@@ -41,14 +42,21 @@ class EvReservationFeeService
      */
     public function termsFor(string $driverUserId): array
     {
+        $settings = AppSetting::evCharging();
+        $paying = $settings['waive_fee_while_agreement_paused']
+            ? [FleetAgreementStatus::Active, FleetAgreementStatus::Paused]
+            : [FleetAgreementStatus::Active];
+
         $reason = match (true) {
-            Driver::where('user_id', $driverUserId)->whereHas('currentFleetAgreement')->exists() => self::WAIVED_HIRE_PURCHASE,
+            $settings['hire_purchase_fee_waiver'] && Driver::where('user_id', $driverUserId)
+                ->whereHas('fleetAgreements', fn ($q) => $q->whereIn('status', $paying))
+                ->exists() => self::WAIVED_HIRE_PURCHASE,
             $this->tierGate->isEvReservationFeeWaived($driverUserId) => self::WAIVED_TIER,
             default => null,
         };
 
         return [
-            'fee_amount' => $reason !== null ? 0.00 : (float) config('ev_charging.reservation_fee', 500.00),
+            'fee_amount' => $reason !== null ? 0.00 : $settings['reservation_fee'],
             'fee_waived' => $reason !== null,
             'fee_waiver_reason' => $reason,
         ];
@@ -151,7 +159,7 @@ class EvReservationFeeService
             return null;
         }
 
-        return $reservation->fee_charged_at->copy()->addMinutes((int) config('ev_charging.free_cancellation_minutes', 2));
+        return $reservation->fee_charged_at->copy()->addMinutes(AppSetting::forRequest('ev_charging', fn () => AppSetting::evCharging())['free_cancellation_minutes']);
     }
 
     /**

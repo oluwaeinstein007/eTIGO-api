@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\EvStation\StoreChargeRequestFormRequest;
 use App\Http\Requests\EvStation\StoreReservationFormRequest;
 use App\Http\Resources\EvReservationResource;
+use App\Models\AppSetting;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
 use App\Services\ReservationService;
@@ -31,7 +32,7 @@ class EvReservationController extends Controller
         }
 
         // Same rule as a stall reservation: one open request or reservation at a time.
-        if (EvReservation::forDriver($user->id)->active()->count() >= (int) config('ev_charging.max_active_reservations_per_driver', 1)) {
+        if (EvReservation::forDriver($user->id)->active()->count() >= AppSetting::evCharging()['max_active_reservations_per_driver']) {
             return response()->json(['message' => 'You already have an active reservation.'], 422);
         }
 

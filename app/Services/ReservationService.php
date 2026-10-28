@@ -6,6 +6,7 @@ use App\Contracts\PushNotificationGateway;
 use App\Enums\EvReservationStatus;
 use App\Enums\NotificationType;
 use App\Jobs\TransferReservationJob;
+use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
@@ -192,10 +193,13 @@ class ReservationService
     /**
      * Operations end a session the driver did not finish in the app (they
      * drove off, or their phone died). The stall goes to the next in line.
+     * The fee is kept unless operations choose to refund it.
      */
-    public function endByOperations(EvReservation $reservation, User $admin, ?string $reason): EvReservation
+    public function endByOperations(EvReservation $reservation, User $admin, ?string $reason, bool $refundFee = false): EvReservation
     {
-        $reservation = DB::transaction(function () use ($reservation, $admin, $reason) {
+        $refunded = false;
+
+        $reservation = DB::transaction(function () use ($reservation, $admin, $reason, $refundFee, &$refunded) {
             $reservation = EvReservation::lockForUpdate()->findOrFail($reservation->id);
 
             if (! in_array($reservation->status, [EvReservationStatus::Active, EvReservationStatus::Reserved], true)) {
@@ -211,9 +215,10 @@ class ReservationService
                 'updated_at' => now(),
             ]);
 
+            $refunded = $refundFee && $this->fees->refund($reservation);
             $this->releaseHeldStall($reservation);
 
-            AuditLog::record($reservation, 'ev_reservation.ended_by_operations', $admin, null, ['reason' => $reason]);
+            AuditLog::record($reservation, 'ev_reservation.ended_by_operations', $admin, null, ['reason' => $reason, 'fee_refunded' => $refunded]);
 
             return $reservation->fresh(['station', 'stall']);
         });
@@ -222,7 +227,8 @@ class ReservationService
             $reservation,
             NotificationType::EvReservationEnded,
             'Your charging session at '.($reservation->station?->name ?? 'the station').' was ended by E-tiGo Operations'
-                .($reason ? ': '.rtrim($reason, '. ').'.' : '.'),
+                .($reason ? ': '.rtrim($reason, '. ').'.' : '.')
+                .($refunded ? ' Your ₦'.number_format((float) $reservation->fee_amount, 2).' reservation fee has been refunded.' : ''),
         );
 
         return $reservation;
@@ -236,7 +242,7 @@ class ReservationService
     public function expireOverdueReservations(): int
     {
         $overdue = EvReservation::where('status', EvReservationStatus::Reserved)
-            ->where('reserved_at', '<=', now()->subMinutes((int) config('ev_charging.reservation_expiry_minutes', 30)))
+            ->where('reserved_at', '<=', now()->subMinutes(AppSetting::evCharging()['reservation_expiry_minutes']))
             ->get();
 
         foreach ($overdue as $reservation) {
@@ -366,7 +372,7 @@ class ReservationService
         EvChargingStall $imminentStall,
         User $driver,
     ): array {
-        $maxQueue = config('ev_charging.max_queue_size', 10);
+        $maxQueue = AppSetting::evCharging()['max_queue_size'];
         $currentQueueSize = EvReservation::forStation($station->id)->queued()->count();
 
         if ($currentQueueSize >= $maxQueue) {
@@ -404,7 +410,7 @@ class ReservationService
     private function retryLater(EvChargingStation $station): array
     {
         $estimatedWait = $this->stallService->getEstimatedWaitMinutes($station);
-        $retryDelay = config('ev_charging.retry_delay_minutes', 15);
+        $retryDelay = AppSetting::evCharging()['retry_delay_minutes'];
 
         return [
             'outcome' => 'retry',
@@ -422,7 +428,7 @@ class ReservationService
 
         $this->assertCanCharge($driver);
 
-        $maxActive = config('ev_charging.max_active_reservations_per_driver', 1);
+        $maxActive = AppSetting::evCharging()['max_active_reservations_per_driver'];
 
         $activeCount = EvReservation::forDriver($driver->id)
             ->active()

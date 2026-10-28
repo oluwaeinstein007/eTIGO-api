@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EvReservationStatus;
 use App\Enums\EvStationStatus;
 use App\Enums\NotificationType;
+use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\EvChargingStation;
 use App\Models\EvReservation;
@@ -306,7 +307,7 @@ class EvChargeRequestService
 
     private function holdMinutes(): int
     {
-        return (int) config('ev_charging.reservation_expiry_minutes', 30);
+        return AppSetting::evCharging()['reservation_expiry_minutes'];
     }
 
     private function describeSlot(CarbonInterface $slotAt): string

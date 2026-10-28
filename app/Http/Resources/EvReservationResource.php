@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\EvReservationStatus;
+use App\Models\AppSetting;
 use App\Models\EvReservation;
 use App\Services\EvReservationFeeService;
 use Carbon\CarbonInterface;
@@ -105,7 +106,7 @@ class EvReservationResource extends JsonResource
 
     private function checkInDeadline(): ?CarbonInterface
     {
-        $minutes = (int) config('ev_charging.reservation_expiry_minutes', 30);
+        $minutes = AppSetting::forRequest('ev_charging', fn () => AppSetting::evCharging())['reservation_expiry_minutes'];
 
         return match ($this->status) {
             EvReservationStatus::Confirmed => $this->confirmed_slot_at?->copy()->addMinutes($minutes),

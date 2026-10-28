@@ -134,16 +134,19 @@ class AdminEvReservationController extends Controller
     {
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:500'],
+            // Give the fee back, e.g. the charger failed mid-session. Default: kept.
+            'refund_fee' => ['sometimes', 'boolean'],
         ]);
 
         try {
-            $reservation = $this->reservations->endByOperations($reservation, $request->user(), $validated['reason'] ?? null);
+            $reservation = $this->reservations->endByOperations($reservation, $request->user(), $validated['reason'] ?? null, $request->boolean('refund_fee'));
         } catch (\RuntimeException $e) {
             return $this->refused($e, $reservation);
         }
 
         return response()->json([
             'message' => 'Charging session ended and the stall released. The driver has been told.',
+            'fee_refunded' => $reservation->fee_refunded_at !== null,
             'reservation' => new EvReservationResource($reservation->load(self::RELATIONS)),
         ]);
     }

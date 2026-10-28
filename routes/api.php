@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminDriverRepairController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverSchedulingSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverShiftController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvChargeRequestController;
+use App\Http\Controllers\Api\V1\Admin\AdminEvChargingSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvReservationController;
 use App\Http\Controllers\Api\V1\Admin\AdminEvStationController;
 use App\Http\Controllers\Api\V1\Admin\AdminFleetAgreementController;
@@ -610,6 +611,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/settings/driver-scheduling', [AdminDriverSchedulingSettingsController::class, 'update']);
         Route::get('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'show']);
         Route::put('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'update']);
+        Route::get('/settings/ev-charging', [AdminEvChargingSettingsController::class, 'show']);
+        Route::put('/settings/ev-charging', [AdminEvChargingSettingsController::class, 'update']);
     });
 
     Route::middleware('admin.role:operations,finance')->prefix('fleet-agreements')->group(function () {

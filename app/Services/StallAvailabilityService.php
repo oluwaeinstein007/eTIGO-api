@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\EvReservationStatus;
 use App\Enums\EvStallStatus;
+use App\Models\AppSetting;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
 
@@ -39,7 +40,7 @@ class StallAvailabilityService
 
     public function findImminentDepartureStall(EvChargingStation $station): ?EvChargingStall
     {
-        $threshold = config('ev_charging.imminent_departure_minutes', 15);
+        $threshold = AppSetting::evCharging()['imminent_departure_minutes'];
 
         return $station->stalls()
             ->where('status', EvStallStatus::Occupied)

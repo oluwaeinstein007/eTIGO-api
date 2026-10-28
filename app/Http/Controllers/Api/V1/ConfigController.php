@@ -37,7 +37,52 @@ class ConfigController extends Controller
             'scheduled_rides' => self::scheduledRideBookingRules(),
             'third_party_bookings' => self::thirdPartyBookingRules(),
             'lost_and_found' => self::lostAndFoundRules(),
+            'ev_charging' => self::evChargingRules(),
+            'vehicle_maintenance' => self::vehicleMaintenanceRules(),
         ]);
+    }
+
+    /**
+     * The EV charging numbers the driver app shows in copy ("₦500 reservation
+     * fee", "check in within 30 minutes", "cancel free for 2 minutes"), so
+     * they are never hard-coded. A driver's own fee (waived or not) is in
+     * GET /driver/vehicle/status as charging.reservation_fee.
+     *
+     * @return array{reservation_fee: float, reservation_fee_kobo: int, check_in_minutes: int, free_cancellation_minutes: int, max_queue_size: int, retry_delay_minutes: int, hire_purchase_fee_waiver: bool}
+     */
+    private static function evChargingRules(): array
+    {
+        $settings = AppSetting::evCharging();
+
+        return [
+            'reservation_fee' => $settings['reservation_fee'],
+            'reservation_fee_kobo' => (int) round($settings['reservation_fee'] * 100),
+            'check_in_minutes' => $settings['reservation_expiry_minutes'],
+            'free_cancellation_minutes' => $settings['free_cancellation_minutes'],
+            'max_queue_size' => $settings['max_queue_size'],
+            'retry_delay_minutes' => $settings['retry_delay_minutes'],
+            'hire_purchase_fee_waiver' => $settings['hire_purchase_fee_waiver'],
+        ];
+    }
+
+    /**
+     * The vehicle maintenance numbers for copy ("papers expiring within 14
+     * days", "7 days to upload a renewal"). Each item also carries a ready
+     * message from GET /driver/vehicle/status.
+     *
+     * @return array{enabled: bool, due_soon_days: int, due_soon_km: int, legal_grace_days: int, block_on_expired_papers: bool}
+     */
+    private static function vehicleMaintenanceRules(): array
+    {
+        $settings = AppSetting::vehicleMaintenance();
+
+        return [
+            'enabled' => $settings['enabled'],
+            'due_soon_days' => $settings['due_soon_days'],
+            'due_soon_km' => $settings['due_soon_km'],
+            'legal_grace_days' => $settings['legal_grace_days'],
+            'block_on_expired_papers' => $settings['block_on_expired_papers'],
+        ];
     }
 
     /**
