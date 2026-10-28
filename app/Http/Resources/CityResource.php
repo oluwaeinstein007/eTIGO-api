@@ -31,8 +31,20 @@ class CityResource extends JsonResource
                 'paused_at' => $this->paused_at,
                 'pause_reason' => $this->pause_reason,
                 'pause_scheduled_rides' => $this->pause_scheduled_rides,
+                // Who last moved the city between onboarding, live and paused.
+                'launch_status_changed_at' => $this->launch_status_changed_at,
+                'launch_status_changed_by' => $this->when(
+                    $this->resource->relationLoaded('launchStatusChangedBy'),
+                    fn () => $this->launchStatusChangedBy ? [
+                        'id' => $this->launchStatusChangedBy->id,
+                        'name' => trim($this->launchStatusChangedBy->first_name.' '.$this->launchStatusChangedBy->last_name),
+                    ] : null,
+                ),
                 'readiness_confirmations' => $this->readiness_confirmations,
             ]),
+            // Admin city list: onboarding cities only, since only a launch
+            // from onboarding needs the checklist.
+            'readiness' => $this->when(array_key_exists('readiness_summary', $this->resource->getAttributes()), fn () => $this->readiness_summary),
             'waitlist_count' => $this->whenCounted('waitlistEntries'),
             'vehicle_classes_count' => $this->whenCounted('vehicleClasses'),
             'drivers_count' => $this->whenCounted('drivers'),

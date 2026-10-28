@@ -82,6 +82,8 @@ class CityLaunchService
                 'paused_at' => $to === CityLaunchStatus::Paused ? now() : null,
                 'pause_reason' => $to === CityLaunchStatus::Paused ? $reason : null,
                 'pause_scheduled_rides' => $scheduledRides,
+                'launch_status_changed_at' => now(),
+                'launch_status_changed_by_admin_id' => $admin->id,
             ]);
 
             $event = match (true) {

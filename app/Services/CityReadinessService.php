@@ -242,6 +242,13 @@ class CityReadinessService
             default => 'Confirmed.',
         };
 
+        // Named when shown, so a renamed admin shows their current name.
+        $admin = isset($confirmation['confirmed_by_admin_id']) ? User::find($confirmation['confirmed_by_admin_id']) : null;
+        $confirmation['confirmed_by'] = $admin ? [
+            'id' => $admin->id,
+            'name' => trim($admin->first_name.' '.$admin->last_name),
+        ] : null;
+
         return $this->gate($gate, 'passed', $detail, ['confirmation' => $confirmation]);
     }
 

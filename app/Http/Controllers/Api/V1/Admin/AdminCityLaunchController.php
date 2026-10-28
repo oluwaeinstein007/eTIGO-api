@@ -32,7 +32,7 @@ class AdminCityLaunchController extends Controller
     public function readiness(City $city): JsonResponse
     {
         return response()->json([
-            'city' => new CityResource($city),
+            'city' => new CityResource($city->load('launchStatusChangedBy')),
             'readiness' => $this->readiness->report($city),
         ]);
     }
@@ -105,7 +105,7 @@ class AdminCityLaunchController extends Controller
             ]), 422);
         }
 
-        $city = $result['city'];
+        $city = $result['city']->load('launchStatusChangedBy');
 
         return response()->json([
             'message' => match ($city->launch_status) {

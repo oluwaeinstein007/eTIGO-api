@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -30,6 +31,8 @@ class City extends Model
         'paused_at',
         'pause_reason',
         'pause_scheduled_rides',
+        'launch_status_changed_at',
+        'launch_status_changed_by_admin_id',
         'readiness_confirmations',
     ];
 
@@ -67,6 +70,7 @@ class City extends Model
             'launch_date' => 'date',
             'launched_at' => 'datetime',
             'paused_at' => 'datetime',
+            'launch_status_changed_at' => 'datetime',
             'readiness_confirmations' => 'array',
         ];
     }
@@ -170,5 +174,13 @@ class City extends Model
     public function waitlistEntries(): HasMany
     {
         return $this->hasMany(CityWaitlistEntry::class);
+    }
+
+    /**
+     * The admin who last changed the launch status.
+     */
+    public function launchStatusChangedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'launch_status_changed_by_admin_id');
     }
 }

@@ -4881,7 +4881,10 @@ For the map editor: checks a boundary before it is saved. Saves nothing.
 
 New cities start in `onboarding`. Moves: onboarding → live (first launch, needs every required [readiness gate](#get-city-readiness)), live → paused, paused → live (resume, no checklist), paused → onboarding (cancels upcoming bookings). `is_active` stays and is always `launch_status == live`, for older clients.
 
-Admin city responses add `launch_date` (the client's target date, a readiness gate), `launched_at` (first launch), `paused_at`, `pause_reason`, `pause_scheduled_rides` (`honour` or `cancel`) and `readiness_confirmations` (the manual gates); public responses only carry `launch_status`/`launch_status_label`.
+Admin city responses add `launch_date` (the client's target date, a readiness gate), `launched_at` (first launch), `paused_at`, `pause_reason`, `pause_scheduled_rides` (`honour` or `cancel`), `launch_status_changed_at` and `launch_status_changed_by` (who last changed the launch status and when) and `readiness_confirmations` (the manual gates); public responses only carry `launch_status`/`launch_status_label`.
+
+- **`launched_at`** is the city's **first** launch and is never cleared. A city closed back to `onboarding` keeps it, and relaunching does not change it. To tell a closed city from a new one: `launch_status` `onboarding` with `launched_at` set was closed; with `launched_at` `null` it has never launched.
+- **`launch_status_changed_at` / `launch_status_changed_by`** (`{ "id", "name" }`) are set by every launch, pause, resume and close, so a closed city shows "Closed by {launch_status_changed_by.name} · {launch_status_changed_at}". Both are `null` for a city whose status has not changed since it was created; `launch_status_changed_by` is also `null` if that admin was deleted. `launch_status_changed_by` is on the admin city endpoints (list, get, create, update, status, vehicle classes, readiness), not on cities nested in other responses.
 
 **Boundaries cannot overlap.** Create and update return 422 on `boundary` (`This boundary overlaps Lagos. …`) when the boundary overlaps another city's (any status), so a pickup always maps to one city. An update only checks a boundary that changed, so a form that sends the whole city back still saves other edits. Cities may share a border: points within 10 m of the other city's edge count as on the edge. **Time zone and currency:** `timezone` must be `Africa/Lagos` and `currency_code` `NGN` (`config/cities.php`), because payout days, promo peaks and fleet business days still run on Lagos time. An update also accepts the city's current value unchanged.
 
@@ -4920,7 +4923,10 @@ GET /admin/cities
       "paused_at": null,
       "pause_reason": null,
       "pause_scheduled_rides": null,
+      "launch_status_changed_at": "2026-10-01T10:00:00.000000Z",
+      "launch_status_changed_by": { "id": "0b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e", "name": "Ada Obi" },
       "readiness_confirmations": null,
+      "readiness": null,
       "waitlist_count": 0,
       "vehicle_classes_count": 3,
       "drivers_count": 12,
@@ -4938,6 +4944,8 @@ GET /admin/cities
   }
 }
 ```
+
+`readiness` is `{ "ready": true|false, "missing": ["drivers", …] }` for each `onboarding` city: the same `ready` and `missing` as [Get City Readiness](#get-city-readiness), for a Ready / Readiness required badge. It is `null` for `live` and `paused` cities, since only a launch from onboarding needs the checklist (a resume does not).
 
 ---
 
@@ -5184,7 +5192,7 @@ The city readiness checklist (OQ-22). A first launch needs every **required** ga
       { "gate": "drivers", "label": "Enough approved, KYC-verified drivers", "kind": "computed", "required": true, "status": "failed", "detail": "12 of 30 approved, KYC-verified drivers.", "approved": 12, "minimum": 30 },
       { "gate": "ev_charging", "label": "Charging stations live for plug-in drivers", "kind": "computed", "required": true, "status": "not_applicable", "detail": "No approved drivers with plug-in vehicles.", "plug_in_drivers": 0, "active_stations": 0 },
       { "gate": "support_cover", "label": "Support and Safety cover for the city", "kind": "manual", "required": true, "status": "failed", "detail": "Not confirmed yet.", "confirmation": null },
-      { "gate": "permits", "label": "State transport permits or registrations", "kind": "manual", "required": true, "status": "passed", "detail": "Confirmed: permits obtained.", "confirmation": { "confirmed_at": "2026-10-18T10:00:00+00:00", "confirmed_by_admin_id": "uuid", "note": "Oyo permit ref 123", "value": "obtained" } },
+      { "gate": "permits", "label": "State transport permits or registrations", "kind": "manual", "required": true, "status": "passed", "detail": "Confirmed: permits obtained.", "confirmation": { "confirmed_at": "2026-10-18T10:00:00+00:00", "confirmed_by_admin_id": "uuid", "confirmed_by": { "id": "uuid", "name": "Ada Obi" }, "note": "Oyo permit ref 123", "value": "obtained" } },
       { "gate": "launch_date", "label": "Launch date agreed with the client", "kind": "computed", "required": true, "status": "passed", "detail": "Target launch date: 2026-12-01.", "launch_date": "2026-12-01" },
       { "gate": "launch_promos", "label": "Launch promo codes limited to the city", "kind": "computed", "required": false, "status": "failed", "detail": "No promo codes limited to the city (optional).", "promo_codes": 0 }
     ],
@@ -5192,7 +5200,7 @@ The city readiness checklist (OQ-22). A first launch needs every **required** ga
   }
 }
 ```
-`status` is `passed`, `failed` or `not_applicable`. `counts` shows what a pause would affect (`active_rides`, `upcoming_scheduled_rides`) and the passengers waiting.
+`status` is `passed`, `failed` or `not_applicable`. A confirmed manual gate's `confirmation.confirmed_by` (`{ "id", "name" }`) names the admin who confirmed it, for "Confirmed by …" (`null` if that admin was deleted). `counts` shows what a pause would affect (`active_rides`, `upcoming_scheduled_rides`) and the passengers waiting.
 
 ---
 
@@ -5227,7 +5235,9 @@ What happens:
 - **onboarding → live:** every required readiness gate must pass, else 422 with `readiness`. The waitlist gets `city_launched`; approved drivers in the city get `city_status_changed`.
 - **live → paused:** trips in progress are never touched. New estimates and bookings are refused. Drivers get `city_status_changed`. A booking that reaches dispatch in a city paused with `cancel` fails with `dispatch_failure_reason` `city_paused`.
 - **paused → live:** a resume; no checklist (the city already launched). Clears the pause fields. The waitlist is told.
-- **paused → onboarding:** closes the city again and cancels upcoming bookings.
+- **paused → onboarding:** closes the city again and cancels upcoming bookings. `launched_at` is kept. Launching it again is a first launch as far as the checklist goes (every required gate must pass) but keeps the original `launched_at`.
+
+Every move sets `city.launch_status_changed_at` and `city.launch_status_changed_by` to now and the admin who made it.
 
 Cancelling bookings and the notifications run on the queue after the response (driver notices in their own job that is never retried, so nobody is told twice). Audit events: `city_launched`, `city_resumed`, `city_paused`, `city_returned_to_onboarding`.
 

@@ -62,7 +62,7 @@ class AdminCityController extends Controller
             $query->where('region', $request->input('region'));
         }
 
-        $query->withCount([
+        $query->with('launchStatusChangedBy')->withCount([
             'vehicleClasses',
             'drivers',
             'waitlistEntries' => fn ($q) => $q->whereNull('notified_at'),
@@ -78,6 +78,13 @@ class AdminCityController extends Controller
             fn (City $other) => ['id' => $other->id, 'name' => $other->name],
             $overlaps[$city->id],
         ));
+
+        // Only a launch from onboarding needs the checklist, so live and
+        // paused cities get null.
+        $cities->getCollection()->each(function (City $city) {
+            $report = $city->launch_status === CityLaunchStatus::Onboarding ? $this->readiness->report($city) : null;
+            $city->readiness_summary = $report === null ? null : ['ready' => $report['ready'], 'missing' => $report['missing']];
+        });
 
         return response()->json([
             'cities' => CityResource::collection($cities),
@@ -141,7 +148,7 @@ class AdminCityController extends Controller
 
         return response()->json([
             'message' => 'City created successfully.',
-            'city' => new CityResource($city->load('vehicleClasses')),
+            'city' => new CityResource($city->load('vehicleClasses', 'launchStatusChangedBy')),
             'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ], 201);
     }
@@ -168,7 +175,7 @@ class AdminCityController extends Controller
 
     public function show(City $city): JsonResponse
     {
-        $city->load('vehicleClasses')
+        $city->load('vehicleClasses', 'launchStatusChangedBy')
             ->loadCount([
                 'vehicleClasses',
                 'drivers',
@@ -249,7 +256,7 @@ class AdminCityController extends Controller
 
         return response()->json([
             'message' => 'City updated successfully.',
-            'city' => new CityResource($city->fresh()->load('vehicleClasses')),
+            'city' => new CityResource($city->fresh()->load('vehicleClasses', 'launchStatusChangedBy')),
             'warnings' => [...$this->coverage->warningsForCity($city), ...$this->boundaries->warningsForCity($city)],
         ]);
     }
@@ -273,7 +280,7 @@ class AdminCityController extends Controller
             ]), 422);
         }
 
-        $city = $result['city'];
+        $city = $result['city']->load('launchStatusChangedBy');
 
         return response()->json([
             'message' => $city->isLive() ? 'City activated successfully.' : 'City deactivated successfully.',
