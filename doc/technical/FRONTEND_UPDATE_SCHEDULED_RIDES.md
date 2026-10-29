@@ -112,7 +112,8 @@ A passenger can now **owe money**: a late-cancellation fee that could not be cha
 
 ## Admin Dashboard
 
-- **Scheduled rides page:** `GET /admin/scheduled-rides` (filters `city_id`, `vehicle_class_id`, `from`, `to`, `reserved=true|false`). Each row has `scheduled.reserved_driver`.
+- **Scheduled rides page:** `GET /admin/scheduled-rides` (filters `search`, `city_id`, `vehicle_class_id`, `from`, `to`, `reserved=true|false`). Each row has `scheduled.reserved_driver`, with `last_name` for admins so the list, panel and dialogs can name the driver in full.
+- **Search** (added 29 Oct 2026): `search` matches the trip reference, the pickup or destination address, and the name or phone of the passenger, the rider of a booking made for someone else, or the reserved driver. Phones match as typed, local or international (`0803 123 4567`, `+234 803 123`), from 4 digits. Debounce the box (about 300 ms), send it with the other filters, and go back to page 1 when it changes. Over 100 characters answers `422` `errors.search`.
 - **Assign a driver** before dispatch: `POST /admin/scheduled-rides/{ride}/assign` `{ "driver_id": "<user id>" }`. Posting again with another driver moves it. **Remove:** `DELETE /admin/scheduled-rides/{ride}/assign`. The driver and passenger are notified.
 - **Settings page** (operations): `GET`/`PUT /admin/settings/scheduled-rides`, 18 settings (see API reference), including `late_cancellation_fee_basis` (`economy_base_fare`, `flat`, `off`) and `late_cancellation_fee_vehicle_class`. Client decisions: no reservation fee; late-cancellation fee = economy base fare within 30 minutes (see `doc/client/SCHEDULED_RIDES_DECISIONS.md`).
 - **Balances due page** (finance and support can view; finance can waive): `GET /admin/balances-due` (filters `status`, `reason`, `passenger_id`; `summary.outstanding_total`), `POST /admin/balances-due/{id}/waive` with a `reason`.

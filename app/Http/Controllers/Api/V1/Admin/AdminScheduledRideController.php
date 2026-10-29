@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\ScheduledRideReservationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -39,6 +40,7 @@ class AdminScheduledRideController extends Controller
             'to' => ['sometimes', 'nullable', 'date'],
             'per_page' => ['sometimes', 'integer'],
             'reserved' => ['sometimes', 'boolean'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
         $rides = Ride::query()
@@ -49,7 +51,10 @@ class AdminScheduledRideController extends Controller
             // Pickup times are stored in UTC; an offset in the filter must count.
             ->when($request->input('from'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '>=', Carbon::parse($v)->utc()))
             ->when($request->input('to'), fn ($q, $v) => $q->where('scheduled_rides.scheduled_pickup_at', '<=', Carbon::parse($v)->utc()))
+            ->when($request->filled('search'), fn ($q) => $this->search($q, trim($request->string('search')->value())))
             ->orderBy('scheduled_rides.scheduled_pickup_at')
+            // Bookings at the same minute must not swap between pages.
+            ->orderBy('rides.id')
             ->select('rides.*')
             ->when($request->has('reserved'), fn ($q) => $request->boolean('reserved')
                 ? $q->whereNotNull('scheduled_rides.reserved_driver_id')
@@ -66,6 +71,51 @@ class AdminScheduledRideController extends Controller
                 'total' => $rides->total(),
             ],
         ]);
+    }
+
+    /**
+     * Match the trip reference, the addresses, or the name or phone of the
+     * passenger (the booker), the rider of a booking made for someone else
+     * or the reserved driver. Phones are stored as +234…; a local number
+     * (0803 123 4567) or part of one matches too.
+     */
+    private function search(Builder $query, string $term): void
+    {
+        $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term).'%';
+        $phone = $this->phoneDigits($term);
+
+        $person = fn (Builder $q) => $q->where(fn (Builder $q) => $q
+            ->whereRaw("CONCAT(first_name, ' ', last_name) ILIKE ?", [$like])
+            ->when($phone, fn (Builder $q) => $q->orWhere('phone', 'like', "%{$phone}%")));
+
+        $query->where(fn (Builder $q) => $q
+            ->where('rides.reference_number', 'ilike', $like)
+            ->orWhere('rides.pickup_address', 'ilike', $like)
+            ->orWhere('rides.destination_address', 'ilike', $like)
+            ->orWhere('rides.rider_name', 'ilike', $like)
+            ->when($phone, fn (Builder $q) => $q->orWhere('rides.rider_phone', 'like', "%{$phone}%"))
+            ->orWhereHas('passenger', $person)
+            ->orWhereHas('scheduledRide.reservedDriver', $person));
+    }
+
+    /**
+     * The digits to look for in a stored phone, or null when the term is not
+     * a phone number. A leading 0 (local format) is dropped so it matches the
+     * +234 form.
+     */
+    private function phoneDigits(string $term): ?string
+    {
+        if (preg_match('/^\+?[\d\s\-().]+$/', $term) !== 1) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D/', '', $term);
+
+        if (strlen($digits) < 4) {
+            return null;
+        }
+
+        return str_starts_with($digits, '0') ? substr($digits, 1) : $digits;
     }
 
     /**
