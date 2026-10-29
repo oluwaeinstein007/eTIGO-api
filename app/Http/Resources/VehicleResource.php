@@ -43,6 +43,15 @@ class VehicleResource extends JsonResource
             // Expired papers keep the car off the road after the grace period.
             'is_blocked' => $this->when($internal, fn () => $this->blocked_at !== null),
             'block_reason' => $this->when($internal, fn () => $this->block_reason),
+            // available, assigned, maintenance or blocked (fleet cars, admins only).
+            'fleet_status' => $this->when($this->is_fleet && $request->user()?->isAdmin(), fn () => $this->resource->fleetStatus()),
+            'maintenance' => $this->when(
+                $this->is_fleet && $request->user()?->isAdmin() && $this->maintenance_started_at !== null,
+                fn () => [
+                    'started_at' => $this->maintenance_started_at?->toIso8601String(),
+                    'reason' => $this->maintenance_reason,
+                ],
+            ),
             'vehicle_class_id' => $this->vehicle_class_id,
             'vehicle_class' => new VehicleClassResource($this->whenLoaded('vehicleClass')),
             'created_at' => $this->created_at,

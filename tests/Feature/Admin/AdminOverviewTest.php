@@ -361,6 +361,26 @@ it('returns an empty panel when nothing is moving', function () {
         ->assertJsonPath('summary.active_rides', 0);
 });
 
+it('names the person being picked up on a ride booked for someone else', function () {
+    $booker = User::factory()->passenger()->create(['first_name' => 'Ada', 'last_name' => 'Eze']);
+    $booked = overviewRide($this->lagos, [
+        'passenger_id' => $booker->id,
+        'is_third_party' => true,
+        'rider_name' => 'Mama Eze',
+        'rider_phone' => '+2348000000001',
+    ], 'searching');
+    $this->locations->shouldReceive('getDriverLocations')->andReturn([]);
+
+    $this->actingAs(overviewAdmin(AdminRole::Operations))
+        ->getJson("/api/v1/admin/overview/live-operations?city_id={$this->lagos->id}")
+        ->assertOk()
+        ->assertJsonPath('rides.0.id', $booked->id)
+        ->assertJsonPath('rides.0.is_third_party', true)
+        ->assertJsonPath('rides.0.rider.name', 'Mama Eze')
+        ->assertJsonPath('rides.0.rider.user_id', null)
+        ->assertJsonPath('rides.0.passenger.name', 'Ada Eze');
+});
+
 it('keeps live operations to operations', function () {
     $this->actingAs(overviewAdmin(AdminRole::Finance))
         ->getJson('/api/v1/admin/overview/live-operations')

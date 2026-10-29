@@ -10,27 +10,81 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Wallet\RejectAdjustmentRequest;
 use App\Http\Requests\Admin\Wallet\StoreAdjustmentRequest;
 use App\Http\Resources\AdjustmentResource;
+use App\Models\Account;
 use App\Models\Adjustment;
 use App\Models\AuditLog;
+use App\Models\Driver;
+use App\Models\User;
 use App\Services\LedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AdminAdjustmentController extends Controller
 {
+    /**
+     * The account and the admins involved. Owners are set with
+     * Account::loadOwners (the account may be one of E-tiGo's own).
+     */
+    private const RELATIONS = ['account', 'createdBy', 'approvedBy', 'rejectedBy'];
+
+    /**
+     * @param  Adjustment|iterable<Adjustment>  $adjustments
+     */
+    private function withOwners(Adjustment|iterable $adjustments): Adjustment|iterable
+    {
+        $list = $adjustments instanceof Adjustment ? [$adjustments] : $adjustments;
+        Account::loadOwners(collect($list)->pluck('account'));
+
+        return $adjustments;
+    }
+
     public function __construct(private LedgerService $ledgerService) {}
 
     public function index(Request $request): JsonResponse
     {
-        $query = Adjustment::with(['account', 'createdBy', 'approvedBy'])
-            ->orderByDesc('created_at');
+        $request->validate([
+            'status' => ['nullable', Rule::enum(AdjustmentStatus::class)],
+            'type' => ['nullable', Rule::enum(AdjustmentType::class)],
+            // passenger (wallets) or driver (earnings accounts).
+            'owner_type' => ['nullable', 'in:passenger,driver'],
+            'account_id' => ['nullable', 'uuid'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
+        $query = Adjustment::with(self::RELATIONS)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->when($request->input('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->input('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($request->input('account_id'), fn ($q, $accountId) => $q->where('account_id', $accountId))
+            ->when($request->input('owner_type'), fn ($q, $ownerType) => $q->whereHas('account', fn ($a) => $a->whereIn(
+                'type',
+                $ownerType === 'driver'
+                    ? [AccountType::DriverEarningsAvailable->value, AccountType::DriverEarningsPending->value]
+                    : [AccountType::PassengerWallet->value],
+            )))
+            ->when($request->input('search'), function ($q, $search) {
+                // Adjustment reference, reason, or the account owner's name, phone or reference.
+                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+                $person = fn ($u) => $u->where('first_name', 'ilike', $like)
+                    ->orWhere('last_name', 'ilike', $like)
+                    ->orWhereRaw("concat(first_name, ' ', last_name) ilike ?", [$like])
+                    ->orWhere('phone', 'ilike', $like)
+                    ->orWhere('reference_number', 'ilike', $like);
 
-        $adjustments = $query->paginate(20);
+                $q->where(fn ($q) => $q->where('reference_number', 'ilike', $like)
+                    ->orWhere('reason', 'ilike', $like)
+                    ->orWhereHas('account', fn ($a) => $a->whereHasMorph('owner', [User::class, Driver::class], function ($owner, string $type) use ($person, $like) {
+                        $type === Driver::class
+                            ? $owner->where('reference_number', 'ilike', $like)->orWhereHas('user', $person)
+                            : $person($owner);
+                    })));
+            });
+
+        $adjustments = $query->paginate($this->perPage($request));
+        $this->withOwners($adjustments->getCollection());
 
         return response()->json([
             'adjustments' => AdjustmentResource::collection($adjustments),
@@ -40,6 +94,13 @@ class AdminAdjustmentController extends Controller
                 'per_page' => $adjustments->perPage(),
                 'total' => $adjustments->total(),
             ],
+        ]);
+    }
+
+    public function show(Adjustment $adjustment): JsonResponse
+    {
+        return response()->json([
+            'adjustment' => new AdjustmentResource($this->withOwners($adjustment->load(self::RELATIONS))),
         ]);
     }
 
@@ -62,7 +123,7 @@ class AdminAdjustmentController extends Controller
 
         return response()->json([
             'message' => 'Adjustment created and pending approval.',
-            'adjustment' => new AdjustmentResource($adjustment->load(['createdBy', 'account'])),
+            'adjustment' => new AdjustmentResource($this->withOwners($adjustment->load(self::RELATIONS))),
         ], 201);
     }
 
@@ -127,24 +188,38 @@ class AdminAdjustmentController extends Controller
 
         return response()->json([
             'message' => 'Adjustment approved and posted.',
-            'adjustment' => new AdjustmentResource($adjustment->fresh()->load(['createdBy', 'approvedBy', 'account'])),
+            'adjustment' => new AdjustmentResource($this->withOwners($adjustment->fresh()->load(self::RELATIONS))),
         ]);
     }
 
     public function reject(RejectAdjustmentRequest $request, Adjustment $adjustment): JsonResponse
     {
-        $updated = Adjustment::whereKey($adjustment->id)
-            ->where('status', AdjustmentStatus::Pending)
-            ->update(['status' => AdjustmentStatus::Rejected]);
+        $updated = DB::transaction(function () use ($request, $adjustment) {
+            $updated = Adjustment::whereKey($adjustment->id)
+                ->where('status', AdjustmentStatus::Pending)
+                ->update([
+                    'status' => AdjustmentStatus::Rejected,
+                    'rejected_by_admin_id' => $request->user()->id,
+                    'rejected_at' => now(),
+                    'rejection_reason' => $request->validated('reason'),
+                ]);
+
+            if ($updated > 0) {
+                AuditLog::record($adjustment, 'adjustment.rejected', $request->user(), null, [
+                    'reason' => $request->validated('reason'),
+                ]);
+            }
+
+            return $updated;
+        });
 
         if ($updated === 0) {
             return response()->json(['message' => 'Adjustment is not pending.'], 422);
         }
 
-        AuditLog::record($adjustment, 'adjustment.rejected', $request->user(), null, [
-            'reason' => $request->validated('reason'),
+        return response()->json([
+            'message' => 'Adjustment rejected.',
+            'adjustment' => new AdjustmentResource($this->withOwners($adjustment->fresh()->load(self::RELATIONS))),
         ]);
-
-        return response()->json(['message' => 'Adjustment rejected.']);
     }
 }

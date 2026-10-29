@@ -499,8 +499,10 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::get('/overview/live-operations', [AdminOverviewController::class, 'liveOperations'])->middleware('admin.role:operations');
     Route::get('/search', AdminSearchController::class)->middleware('throttle:60,1');
 
+    // Finance can look drivers up (read only) to set a driver's own commission rate.
+    Route::get('/drivers', [DriverManagementController::class, 'index'])->middleware('admin.role:operations,safety_operator,finance');
+
     Route::middleware('admin.role:operations,safety_operator')->prefix('drivers')->group(function () {
-        Route::get('/', [DriverManagementController::class, 'index']);
         Route::get('/pending', [DriverManagementController::class, 'pendingReview']);
         Route::get('/{driver}', [DriverManagementController::class, 'show']);
         Route::post('/{driver}/review', [DriverManagementController::class, 'review']);
@@ -528,11 +530,12 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{city}/vehicle-classes', [AdminCityVehicleClassController::class, 'update']);
     });
 
-    Route::middleware('admin.role:operations')->prefix('vehicle-classes')->group(function () {
+    // Finance reads the classes to register fleet cars; only Operations changes them.
+    Route::middleware('admin.role:operations,finance')->prefix('vehicle-classes')->group(function () {
         Route::get('/', [AdminVehicleClassController::class, 'index']);
-        Route::post('/', [AdminVehicleClassController::class, 'store']);
+        Route::post('/', [AdminVehicleClassController::class, 'store'])->middleware('admin.role:operations');
         Route::get('/{vehicleClass}', [AdminVehicleClassController::class, 'show']);
-        Route::put('/{vehicleClass}', [AdminVehicleClassController::class, 'update']);
+        Route::put('/{vehicleClass}', [AdminVehicleClassController::class, 'update'])->middleware('admin.role:operations');
     });
 
     Route::middleware('admin.role:operations,finance')->prefix('pricing')->group(function () {
@@ -586,6 +589,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{vehicle}', [AdminFleetVehicleController::class, 'update']);
         Route::post('/{vehicle}/assign', [AdminFleetVehicleController::class, 'assign']);
         Route::post('/{vehicle}/unassign', [AdminFleetVehicleController::class, 'unassign']);
+        Route::put('/{vehicle}/maintenance', [AdminFleetVehicleController::class, 'maintenance']);
         Route::put('/{vehicle}/shift-mode', [AdminDriverShiftController::class, 'shiftMode'])->middleware('admin.role:operations');
     });
 
@@ -619,6 +623,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::get('/', [AdminFleetAgreementController::class, 'index']);
         Route::post('/', [AdminFleetAgreementController::class, 'store']);
         Route::get('/{fleetAgreement}', [AdminFleetAgreementController::class, 'show']);
+        Route::get('/{fleetAgreement}/history', [AdminFleetAgreementController::class, 'history']);
         Route::put('/{fleetAgreement}', [AdminFleetAgreementController::class, 'update']);
         Route::post('/{fleetAgreement}/terminate', [AdminFleetAgreementController::class, 'terminate']);
         Route::post('/{fleetAgreement}/terminate-settle', [AdminFleetAgreementController::class, 'terminateWithSettlement']);
@@ -626,6 +631,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{fleetAgreement}/resume', [AdminFleetAgreementController::class, 'resume']);
         Route::post('/{fleetAgreement}/swap', [AdminFleetAgreementController::class, 'swap']);
         Route::post('/{fleetAgreement}/remittances/{remittance}/excuse', [AdminFleetAgreementController::class, 'excuseDay']);
+        Route::post('/{fleetAgreement}/remittances/{remittance}/withdraw-excuse', [AdminFleetAgreementController::class, 'withdrawExcuse']);
     });
 
     Route::middleware('admin.role:operations')->prefix('gamification')->group(function () {
@@ -774,6 +780,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance,support,support_lead')->prefix('driver-ledgers')->group(function () {
         Route::get('/', [AdminDriverLedgerController::class, 'index']);
         Route::get('/{account}', [AdminDriverLedgerController::class, 'show']);
+        Route::get('/{account}/entries', [AdminDriverLedgerController::class, 'entries']);
+        Route::get('/{account}/payouts', [AdminDriverLedgerController::class, 'payouts']);
     });
 
     Route::middleware('admin.role:finance')->prefix('ledger')->group(function () {
@@ -784,6 +792,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance')->prefix('adjustments')->group(function () {
         Route::get('/', [AdminAdjustmentController::class, 'index']);
         Route::post('/', [AdminAdjustmentController::class, 'store']);
+        Route::get('/{adjustment}', [AdminAdjustmentController::class, 'show']);
         Route::post('/{adjustment}/approve', [AdminAdjustmentController::class, 'approve']);
         Route::post('/{adjustment}/reject', [AdminAdjustmentController::class, 'reject']);
     });
@@ -795,6 +804,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{payout}/retry', [AdminPayoutController::class, 'retry']);
         Route::post('/{payout}/verify', [AdminPayoutController::class, 'verify']);
         Route::get('/export', [AdminPayoutController::class, 'export']);
+        Route::get('/{payout}', [AdminPayoutController::class, 'show']);
     });
 
     // Driver payout bank accounts: name-check review queue and payout holds.
@@ -818,6 +828,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:finance')->prefix('settings')->group(function () {
         Route::get('/commission', [AdminCommissionController::class, 'show']);
         Route::put('/commission', [AdminCommissionController::class, 'update']);
+        Route::delete('/commission/drivers/{driver}', [AdminCommissionController::class, 'destroyDriverRate']);
         Route::get('/wallet', [AdminWalletSettingsController::class, 'show']);
         Route::put('/wallet', [AdminWalletSettingsController::class, 'update']);
         Route::get('/tips', [AdminTipSettingsController::class, 'show']);

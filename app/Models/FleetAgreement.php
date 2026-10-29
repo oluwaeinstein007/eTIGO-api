@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FleetAgreementStatus;
+use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,9 +13,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FleetAgreement extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
 
     protected $fillable = [
+        'reference_number',
         'driver_id',
         'vehicle_id',
         'daily_remittance_target',
@@ -34,6 +36,7 @@ class FleetAgreement extends Model
         'terminated_at',
         'completed_at',
         'paused_at',
+        'paused_reason',
         'created_by_admin_id',
     ];
 
@@ -71,6 +74,11 @@ class FleetAgreement extends Model
         return $this->belongsTo(User::class, 'created_by_admin_id');
     }
 
+    protected static function referencePrefix(): string
+    {
+        return 'FA-';
+    }
+
     public function dailyRemittances(): HasMany
     {
         return $this->hasMany(DailyRemittance::class, 'agreement_id');
@@ -99,6 +107,11 @@ class FleetAgreement extends Model
     public function isTerminated(): bool
     {
         return $this->status === FleetAgreementStatus::Terminated;
+    }
+
+    public function isPaused(): bool
+    {
+        return $this->status === FleetAgreementStatus::Paused;
     }
 
     public function progressPercentage(): float

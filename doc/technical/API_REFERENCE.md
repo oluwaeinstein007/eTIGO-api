@@ -7,7 +7,7 @@
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen.  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them.  
 
 ---
 
@@ -2329,7 +2329,7 @@ Handled events: `verification_completed`, `step_verification_completed`, `identi
 
 **Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,safety_operator`
 
-**Allowed Roles:** Operations, Safety (Super Admin always has access)
+**Allowed Roles:** Operations, Safety (Super Admin always has access). Finance can also call `GET /admin/drivers` (the list only, read only) to find a driver for their own commission rate.
 
 ### List All Drivers
 ```
@@ -2969,9 +2969,13 @@ GET /admin/fleet-vehicles
 
 | Parameter       | Type    | Required | Description                                      |
 |-----------------|---------|----------|--------------------------------------------------|
-| unassigned_only | boolean | No       | `true` to show only unassigned (available) vehicles |
+| unassigned_only | boolean | No       | `true` to show only cars with no driver (including cars in for maintenance). To list cars you can give out, use `status=available` |
+| status          | string  | No       | `available` (no driver, not in maintenance, papers fine), `assigned`, `maintenance` or `blocked` (papers expired past the grace period). Matches `fleet_status` |
+| vehicle_class_id | uuid   | No       | Only cars of this class |
 | fuel_type       | string  | No       | Filter by fuel type; `none` lists vehicles with no fuel type yet |
 | search          | string  | No       | Search by make, model, or plate number           |
+
+Each fleet car has `fleet_status` (one of the `status` values above; the first that applies in the order blocked → maintenance → assigned → available) and, while in maintenance, `maintenance: { started_at, reason }`.
 
 **Response 200:**
 ```json
@@ -2987,6 +2991,7 @@ GET /admin/fleet-vehicles
       "year": 2024,
       "is_fleet": true,
       "is_assigned": false,
+      "fleet_status": "available",
       "vehicle_class_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "vehicle_class": {
         "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
@@ -3133,6 +3138,7 @@ Assigns an unassigned fleet vehicle to an approved driver. This also creates a f
 - Vehicle must be a fleet vehicle (`is_fleet: true`) and unassigned (`driver_id: null`).
 - Driver must be approved and not already have a vehicle assigned.
 - The car is not in shift mode, and the driver has no upcoming shifts on a shared fleet car (Phase 2: one car per driver on E-tiGo).
+- The car is not in for maintenance (`422`: "This car is in for maintenance. Mark it back in service before giving it to a driver.").
 
 | Field                   | Type          | Required | Validation                     | Description                        |
 |-------------------------|---------------|----------|--------------------------------|------------------------------------|
@@ -3235,12 +3241,47 @@ Removes the driver assignment from a fleet vehicle. Cannot unassign if there is 
 
 ---
 
+### Mark a Fleet Car In or Out of Maintenance
+```
+PUT /admin/fleet-vehicles/{vehicle_id}/maintenance
+```
+
+Takes a fleet car off the road for servicing, or puts it back in service. A car in maintenance can't be given to a driver, put on a new agreement or swapped in; it shows `fleet_status: "maintenance"`. A car that has a driver keeps them (the driver usually brings it in). Recorded in the audit log as `fleet_vehicle_maintenance_started` / `fleet_vehicle_maintenance_ended`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| in_maintenance | boolean | Yes | `true` to take the car in, `false` to put it back in service |
+| reason | string (max 500) | When `in_maintenance` is `true` | e.g. "Brake pads and service" |
+
+**Response 200:**
+```json
+{
+  "message": "Car marked as in for maintenance.",
+  "vehicle": {
+    "id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
+    "fleet_status": "maintenance",
+    "maintenance": { "started_at": "2026-10-29T09:00:00+00:00", "reason": "Brake pads and service" },
+    "...": "..."
+  }
+}
+```
+
+**Response 422:** `This car is already in for maintenance.` / `This car is not in for maintenance.`, or a validation error on `reason`.
+
+---
+
 ### Drivers Awaiting Vehicle Assignment
 ```
 GET /admin/fleet-vehicles/drivers-awaiting
 ```
 
 Lists approved fleet drivers who do not yet have a vehicle assigned. Useful for admins to find which fleet drivers need a vehicle.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| search | string | No | Driver name (first, last or full), phone, email or driver reference |
+| city_id | uuid | No | Only drivers in this city |
+| page | integer | No | Page (20 per page) |
 
 **Response 200:**
 ```json
@@ -3292,6 +3333,10 @@ GET /admin/fleet-agreements
 |-----------|--------|----------|--------------------------------------|
 | status    | string | No       | Filter by status: `active`, `paused`, `completed`, `terminated` |
 | driver_id | string (UUID) | No | Filter by driver |
+| vehicle_class_id | string (UUID) | No | Only agreements whose car is of this class |
+| search | string | No | Agreement reference (`FA-000123`), driver name (first, last or full), phone or driver reference, or the car's plate |
+
+Each agreement has a `reference_number` (`FA-` + 6 digits) for staff, finance and the driver to name it by, and `vehicle.vehicle_class` is loaded on lists and detail. While paused, admins also get `paused_reason`.
 
 **Response 200:**
 ```json
@@ -3299,6 +3344,7 @@ GET /admin/fleet-agreements
   "agreements": [
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+      "reference_number": "FA-002208",
       "driver_id": "8e2b6d1a-0c3f-4a5e-9b7d-1e4f5a6b7c8d",
       "vehicle_id": "7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a",
       "daily_remittance_target": "40000.00",
@@ -3429,11 +3475,14 @@ Returns agreement detail with the 30 most recent daily remittance records.
 PUT /admin/fleet-agreements/{fleet_agreement_id}
 ```
 
-Only active agreements can be updated.
+Corrects an active or paused agreement. Every change is in the agreement's history with the old and new values.
 
 | Field                   | Type   | Required | Validation | Description                   |
 |-------------------------|--------|----------|------------|-------------------------------|
 | daily_remittance_target | number | No       | min: 1000  | Updated daily target amount   |
+| total_vehicle_cost      | number | No       | min: 100000; must be **more** than `total_remitted` | Corrected total. To end the agreement, terminate or settle it instead |
+| agreement_start_date    | date (Y-m-d) | No | not before the day the agreement was entered (Lagos), not after the first day the driver paid | Corrected start date |
+| reason                  | string | With `total_vehicle_cost` or `agreement_start_date` | max: 500 | Why it changed; shown in the history |
 
 **Response 200:**
 ```json
@@ -3443,12 +3492,62 @@ Only active agreements can be updated.
 }
 ```
 
-**Response 422:**
+**Response 422** — limits that depend on the agreement come back as validation errors on the field:
 ```json
 {
-  "message": "Only active agreements can be updated."
+  "message": "The total vehicle cost must be more than the driver has already paid (₦1,250,000.00).",
+  "errors": {
+    "total_vehicle_cost": ["The total vehicle cost must be more than the driver has already paid (₦1,250,000.00)."]
+  }
 }
 ```
+```json
+{
+  "message": "Only active or paused agreements can be changed."
+}
+```
+
+---
+
+### Fleet Agreement History
+```
+GET /admin/fleet-agreements/{fleet_agreement_id}/history
+```
+
+Everything done to the agreement, newest first, with who did it: created, changed, paused (with the reason), resumed, days excused and excuses withdrawn, terminated, swapped, paid off, and the car being handed over or taken back. Paginated (`per_page`, default 20, max 100).
+
+**Response 200:**
+```json
+{
+  "history": [
+    {
+      "id": "0b5e...",
+      "event": "fleet_agreement.updated",
+      "description": "Agreement changed",
+      "reason": "Cost was typed without the last zero",
+      "changes": {
+        "total_vehicle_cost": { "from": "500000.00", "to": 5000000 }
+      },
+      "details": { "total_vehicle_cost": 5000000 },
+      "actor": { "id": "3c1d...", "name": "Ope Ops", "role": "operations" },
+      "created_at": "2026-10-29T09:15:00+00:00"
+    },
+    {
+      "id": "0b5d...",
+      "event": "fleet_agreement.paused",
+      "description": "Agreement paused",
+      "reason": "Car in for an engine repair",
+      "changes": null,
+      "details": null,
+      "actor": { "id": "3c1d...", "name": "Ope Ops", "role": "operations" },
+      "created_at": "2026-10-20T08:00:00+00:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 2 }
+}
+```
+
+`event` is one of `fleet_agreement.created`, `fleet_agreement.updated`, `fleet_agreement.paused`, `fleet_agreement.resumed`, `fleet_agreement.terminated`, `fleet_agreement.terminated_with_settlement`, `fleet_agreement.completed` (no actor), `fleet_vehicle_swapped`, `remittance_day_excused`, `remittance_day_excuse_withdrawn`, `fleet_vehicle_assigned`, `fleet_vehicle_unassigned`. `changes` is set only on `fleet_agreement.updated`; `details` carries the event's other values (e.g. the excused date).
 
 ---
 
@@ -3457,7 +3556,7 @@ Only active agreements can be updated.
 POST /admin/fleet-agreements/{fleet_agreement_id}/terminate
 ```
 
-Permanently terminates an agreement. Cannot terminate already completed or terminated agreements.
+Permanently terminates an agreement and, in the same transaction, takes the car back from the driver (`driver_id` → null, logged as `fleet_vehicle_unassigned`) and takes the driver offline. The car can then go to another driver and the driver can be given another car; no separate unassign call is needed. Cannot terminate already completed or terminated agreements, or while the driver is on a trip.
 
 | Field  | Type   | Required | Validation | Description               |
 |--------|--------|----------|------------|---------------------------|
@@ -3483,6 +3582,11 @@ Permanently terminates an agreement. Cannot terminate already completed or termi
   "message": "Agreement is already terminated."
 }
 ```
+```json
+{
+  "message": "The driver is on a trip in this car. End the agreement once the trip is over."
+}
+```
 
 ---
 
@@ -3491,7 +3595,12 @@ Permanently terminates an agreement. Cannot terminate already completed or termi
 POST /admin/fleet-agreements/{fleet_agreement_id}/pause
 ```
 
-Pauses an active agreement (e.g., during vehicle maintenance or driver leave). Only active agreements can be paused. While paused no daily target is created and the day never counts towards the shortfall streak. The driver still sees the agreement and gets a `fleet_agreement_paused` notification (`fleet_agreement_resumed` on resume). A new agreement for the same driver is refused while one is paused.
+Pauses an active agreement (e.g., during vehicle maintenance or driver leave). Only active agreements can be paused. The reason is required, shown as `paused_reason` while paused, and kept in the history; it is cleared on resume.
+
+| Field  | Type   | Required | Validation | Description |
+|--------|--------|----------|------------|-------------|
+| reason | string | Yes      | max: 500   | e.g. "Vehicle maintenance", "Driver on approved leave" |
+ While paused no daily target is created and the day never counts towards the shortfall streak. The driver still sees the agreement and gets a `fleet_agreement_paused` notification (`fleet_agreement_resumed` on resume). A new agreement for the same driver is refused while one is paused.
 
 **Response 200:**
 ```json
@@ -3500,6 +3609,7 @@ Pauses an active agreement (e.g., during vehicle maintenance or driver leave). O
   "agreement": {
     "status": "paused",
     "paused_at": "2026-10-09T14:30:00.000000Z",
+    "paused_reason": "Vehicle maintenance",
     "...": "..."
   }
 }
@@ -3532,7 +3642,7 @@ Resumes a paused agreement. Only paused agreements can be resumed.
 POST /admin/fleet-agreements/{fleet_agreement_id}/swap
 ```
 
-Swaps the vehicle on an active agreement. This terminates the current agreement and creates a new one with the replacement vehicle. Optionally carries over the total remitted amount from the old agreement.
+Swaps the vehicle on an active agreement. This terminates the current agreement and creates a new one with the replacement vehicle. Optionally carries over the total remitted amount from the old agreement. Refused while the driver is on a trip, or when the replacement car is in for maintenance.
 
 | Field                   | Type           | Required | Validation                      | Description                                        |
 |-------------------------|----------------|----------|---------------------------------|----------------------------------------------------|
@@ -3586,7 +3696,7 @@ Swaps the vehicle on an active agreement. This terminates the current agreement 
 POST /admin/fleet-agreements/{fleet_agreement_id}/terminate-settle
 ```
 
-Terminates an agreement with full settlement details including vehicle return status and financial reconciliation. Use this instead of the basic terminate endpoint when you need to record settlement information.
+Terminates an agreement with full settlement details including vehicle return status and financial reconciliation. Use this instead of the basic terminate endpoint when you need to record settlement information. Like terminate, it takes the car off the driver's account and takes them offline in the same transaction, whatever `vehicle_return_status` says (that field tracks the physical handover), and is refused while the driver is on a trip.
 
 | Field                | Type   | Required | Validation                                              | Description                                              |
 |----------------------|--------|----------|---------------------------------------------------------|----------------------------------------------------------|
@@ -3664,6 +3774,11 @@ Marks a settled remittance day as excused. This decrements the driver's shortfal
   "message": "Remittance does not belong to this agreement."
 }
 ```
+```json
+{
+  "message": "This remittance day is already excused."
+}
+```
 
 **Excused day categories:**
 
@@ -3674,6 +3789,29 @@ Marks a settled remittance day as excused. This decrements the driver's shortfal
 | `low_demand`       | Low ride demand day (admin discretion)                |
 | `payment_failure`  | Payment system issue preventing ride completions      |
 | `other`            | Other reason (requires notes)                         |
+
+---
+
+### Withdraw an Excuse
+```
+POST /admin/fleet-agreements/{fleet_agreement_id}/remittances/{remittance_id}/withdraw-excuse
+```
+
+Takes back an excuse given by mistake. The day counts towards the target again: a settled day that fell short adds 1 back to the shortfall streak (on an active agreement). Logged as `remittance_day_excuse_withdrawn` with the old excuse.
+
+| Field  | Type   | Required | Validation | Description |
+|--------|--------|----------|------------|-------------|
+| reason | string | Yes      | max: 500   | Why the excuse is withdrawn |
+
+**Response 200:**
+```json
+{
+  "message": "Excuse withdrawn. The day counts towards the target again.",
+  "remittance": { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "date": "2026-10-08", "settled": true, "...": "..." }
+}
+```
+
+**Response 422:** `This remittance day is not excused.` or `Remittance does not belong to this agreement.`
 
 ---
 
@@ -5297,9 +5435,9 @@ PUT /admin/settings/cities
 
 ## Admin — Vehicle Class Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance` (create and update: `operations`)
 
-**Allowed Roles:** Operations (Super Admin always has access)
+**Allowed Roles:** Operations; Finance can list and view classes (to register fleet cars) but not create or change them (Super Admin always has access)
 
 Single-class responses (show, create, update) include a `warnings` array that flags cities where the class has no pricing in effect, or cities left with nothing bookable when the class is turned off. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
@@ -8130,6 +8268,7 @@ Map markers and the latest trips for one city. Operations and Super Admin only (
 - `markers` holds up to 300 active rides, newest first. `markers_truncated` is `true` when there are more (`summary.active_rides` is still the full count). The position is the driver's live location when they have one (`position_source: "driver"`), otherwise the pickup point (`"pickup"`).
 - `needs_attention` (red pin) is set when the ride has an active SOS (`"sos"`) or the driver is assigned but their app has sent no location for 5+ minutes (`"driver_location_missing"`). `summary.needs_attention` counts these among the markers.
 - `city` is `null` and every list is empty when nothing is moving and no `city_id` was given.
+- Each trip in `rides` has `rider` — the person being picked up — and `is_third_party`. Show `rider.name` as the trip's passenger, as the other ride pages do. `passenger` stays the account that booked the ride (same as `passenger` on every ride payload). On a ride booked for someone else, `rider.name` is the name the booker gave and `rider.user_id` is `null`; on an own ride, `rider` is the booker.
 
 **Response 200:**
 ```json
@@ -8170,6 +8309,8 @@ Map markers and the latest trips for one city. Operations and Super Admin only (
       "pickup_address": "Bodija Market, Ibadan Road, Yaba",
       "destination_address": "Ring Road, Surulere",
       "passenger": { "id": "01a16011-6433-70cb-a7fb-8eb698001ee8", "name": "Kemi Balogun" },
+      "is_third_party": true,
+      "rider": { "user_id": null, "name": "Mama Balogun" },
       "driver": { "id": "01a16011-6438-71f7-aa44-0818c53512dc", "name": "Seyi Adeyemi" },
       "needs_attention": false,
       "attention_reasons": [],
@@ -8183,6 +8324,8 @@ Map markers and the latest trips for one city. Operations and Super Admin only (
       "pickup_address": "Admiralty Way, Lekki Phase 1",
       "destination_address": "Victoria Island",
       "passenger": { "id": "01a16011-6433-70cb-a7fb-8eb698001ee8", "name": "Kemi Balogun" },
+      "is_third_party": false,
+      "rider": { "user_id": "01a16011-6433-70cb-a7fb-8eb698001ee8", "name": "Kemi Balogun" },
       "driver": null,
       "needs_attention": true,
       "attention_reasons": ["sos"],
@@ -10876,7 +11019,9 @@ Authorization: Bearer {admin_token}
 
 Lists **passengers only** — only passengers earn points and tiers.
 
-**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `city_id` (uuid — passengers who have taken a ride in that city), `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at), `sort_dir` (asc/desc), `per_page` (default 15, max 100), `page`
+**Filters:** `tier` (1-5), `search` (name/email), `min_points`, `city_id` (uuid — passengers who have taken a ride in that city), `from` / `to` (Y-m-d, Lagos days — see below), `sort_by` (total_ranking_points/total_carbon_score/current_tier/created_at, plus period_points/period_co2_saved_kg with a range), `sort_dir` (asc/desc), `per_page` (default 15, max 100), `page`
+
+**Date range.** Pass the page's range as `from`/`to` (the same values sent to `/aggregate`) and the table covers that period: only passengers who earned points in it are listed, each with `period: { points, co2_saved_kg, trips }` for the range, ranked by `period.points` unless `sort_by` says otherwise. The response's `period` echoes the range. Without `from`/`to`, `period` is `null`, there is no per-profile `period`, and the standings are all-time as before. Tier and `total_*` values are always lifetime.
 
 **Response `200`:**
 
@@ -10907,9 +11052,12 @@ Lists **passengers only** — only passengers earn points and tiers.
       "updated_at": "..."
     }
   ],
+  "period": null,
   "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 6 }
 }
 ```
+
+With `?from=2026-10-20&to=2026-10-26` each profile also has `"period": { "points": 80, "co2_saved_kg": 1.34, "trips": 6 }` and the response has `"period": { "from": "2026-10-20", "to": "2026-10-26" }`.
 
 - `city_id` / `city_name` — the passenger's city, taken from their most recent ride. `null` for a passenger with no rides yet.
 
@@ -10924,8 +11072,8 @@ Authorization: Bearer {admin_token}
 
 | Param     | Type | Description                                           |
 |-----------|------|-------------------------------------------------------|
-| `from`    | date (`Y-m-d`) | Start of the date range (inclusive)             |
-| `to`      | date (`Y-m-d`) | End of the date range (inclusive)               |
+| `from`    | date (`Y-m-d`) | Start of the date range (inclusive, Lagos day)  |
+| `to`      | date (`Y-m-d`) | End of the date range (inclusive, Lagos day)    |
 | `city_id` | uuid | Passengers who have taken a ride in this city             |
 
 Covers passengers only. **The date range applies to the whole response:**
@@ -11382,7 +11530,8 @@ Returns the authenticated passenger's promo code redemption history, paginated.
 
 **Query parameters:**
 - `status`: `active`, `scheduled`, `paused`, `expired`, `cancelled`. Matches the `status` field above. `inactive`, the old name for `paused`, is still accepted.
-- `city_id`: promos targeted at this city (promos that run in every city are not included)
+- `city_id`: promos that run in this city — those limited to it **and** those that run in every city (no cities)
+- `include_all_cities`: with `city_id`, `false` leaves out promos that run in every city (only promos limited to the city). Default `true`
 - `search`: search by code or description
 - `per_page`: pagination size (default 20, max 100)
 
@@ -11824,9 +11973,23 @@ Returns all incidents (open and closed), newest first, each with the ride's pass
 
 `POST /api/v1/admin/sos/{incident}/assign`
 
-The operator takes the incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`); its `queue_status` becomes `acknowledged`. Calling it on an incident another operator already holds reassigns it to the caller (logged as `operator_reassigned`). Uses row locking to prevent concurrent assignment conflicts. This is the dashboard's "Acknowledge" action.
+The operator takes the incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`); its `queue_status` becomes `acknowledged`. Uses row locking to prevent concurrent assignment conflicts. This is the dashboard's "Acknowledge" action. Taking an incident you already hold changes nothing.
 
-**Errors:** `422` `"This incident cannot be assigned in its current state."` (already resolved or cancelled).
+**Request (optional):**
+```json
+{ "expected_operator_id": null }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `expected_operator_id` | uuid or null | No | The holder the console showed when the operator clicked: `null` for "nobody has it", or the current holder's id for a take-over. If someone else holds it by the time the request arrives, the take is refused with `409` and the alert stays with them. **Send it on every take.** Without the field the take always goes ahead (an explicit take-over, logged as `operator_reassigned`) |
+
+**Errors:**
+- `409` — another operator took it first. The response carries the incident as it is now; show who has it and offer a take-over:
+  ```json
+  { "message": "Another operator has taken this incident.", "error_code": "SOS_INCIDENT_TAKEN", "incident": { "operator_id": "uuid", "operator": { "...": "..." }, "...": "..." } }
+  ```
+- `422` `"This incident cannot be assigned in its current state."` (already resolved or cancelled).
 
 **Response (200):**
 ```json
@@ -11881,6 +12044,8 @@ Resolves an SOS incident with operator notes. Allowed at any open stage: an oper
 `POST /api/v1/admin/sos/{incident}/calls`
 
 Adds a call the operator made about the incident to its audit trail. The call itself is placed from the operator's own phone (the passenger's and driver's numbers are on the incident's ride); the API does not place or record calls.
+
+If nobody has taken the alert yet, logging the call takes it for the caller in the same request and under the same lock (like dispatch); both steps appear in the audit trail. **Don't send a separate `/assign` after logging a call.** An alert another operator holds stays with them; the call is still logged under the caller's name.
 
 **Request:**
 ```json
@@ -14819,7 +14984,21 @@ Changes staff made to the wallet, newest first: freezes, unfreezes and manual ad
 }
 ```
 
-`event` is `wallet.frozen`, `wallet.unfrozen`, `adjustment.created`, `adjustment.approved` or `adjustment.rejected`; `amount` (kobo) is set for adjustments.
+`event` is `wallet.frozen`, `wallet.unfrozen`, `adjustment.created`, `adjustment.approved` or `adjustment.rejected`. For adjustments, `amount` (kobo) is set, `direction` says whether it added money to the wallet (`credit`) or took it (`debit`), and `adjustment` is `{ id, reference_number, type, status }` (status is the adjustment's current status, e.g. `pending`). Both are `null` for freezes and unfreezes.
+
+```json
+{
+  "id": "uuid",
+  "event": "adjustment.created",
+  "description": "Manual adjustment requested",
+  "reason": "Reverse a top-up credited twice",
+  "amount": 150000,
+  "direction": "debit",
+  "adjustment": { "id": "uuid", "reference_number": "AD-000007", "type": "debit", "status": "pending" },
+  "actor": { "id": "uuid", "name": "Kemi Ade", "role": "finance" },
+  "created_at": "2026-10-29T09:00:00+00:00"
+}
+```
 
 ### Freeze Wallet
 
@@ -14878,12 +15057,18 @@ Authorization: Bearer {admin_token}
 ```
 GET /admin/driver-ledgers?search=tunde&page=1
 GET /admin/driver-ledgers/{account}
+GET /admin/driver-ledgers/{account}/entries?page=2&per_page=50&from=2026-10-01&to=2026-10-31&type=credit
+GET /admin/driver-ledgers/{account}/payouts?page=2&per_page=20
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance, Support
 
-The list returns drivers' available-earnings accounts, newest first, 20 per page (fixed). `search` matches the driver's first name, last name or email.
+The list returns drivers' available-earnings accounts, newest first, 20 per page (fixed). `search` matches the driver's first name, last name, full name, email, phone or driver reference.
+
+Every ledger has `owner_type: "driver"` and `owner`: the driver, with `id` (the driver profile id, as in `/admin/drivers/{id}`), `user_id`, `reference_number` (the driver's), `name`, `first_name`, `last_name`, `phone` and `email`. (Before 2026-10-29 `owner` was always `null` on driver ledgers.)
+
+`/entries` pages through every entry on the account, newest first (`per_page` default 20, max 100; `from`/`to` are Lagos days; `type` is `debit` or `credit`). `/payouts` pages through every payout the driver asked for, newest first, with `approved_by` and `rejected_by`. Both answer `404` for an account that is not a driver's.
 
 **Response 200 (list):**
 ```json
@@ -14899,6 +15084,17 @@ The list returns drivers' available-earnings accounts, newest first, 20 per page
       "balance": 320000,
       "available_balance": 320000,
       "held": 0,
+      "owner_type": "driver",
+      "owner": {
+        "id": "01a1421a-1f00-7000-8000-000000000001",
+        "user_id": "01a1421a-1f00-7000-8000-000000000002",
+        "reference_number": "DRV-000014",
+        "name": "Tunde Bello",
+        "first_name": "Tunde",
+        "last_name": "Bello",
+        "phone": "+2348200000003",
+        "email": "tunde@demo.etigo.com"
+      },
       "created_at": "2026-10-16T00:26:13+00:00"
     }
   ],
@@ -14991,9 +15187,14 @@ Authorization: Bearer {admin_token}
 | Query | Required | Description |
 |---|---|---|
 | `reference` | No | Journal reference, partial and case-insensitive (references look like `JRN-B25RAULM5HB3-261016`) |
-| `from` | No | Journals posted on or after this date |
-| `to` | No | Journals posted up to the end of this date |
+| `from` | No | Journals posted on or after this **Lagos** day (Y-m-d) |
+| `to` | No | Journals posted up to the end of this **Lagos** day (Y-m-d) |
+| `account_id` | No | Only journals with an entry on this account (e.g. one driver's earnings) |
 | `page` | No | Page number |
+
+Dates are Lagos calendar days: `from=2026-10-21` starts at 00:00 Lagos (23:00 UTC on the 20th). The list and the CSV export use the same bounds, so a day's CSV matches that day's list.
+
+Each entry has `account`: the account it posts to and whose it is — `{ id, type, type_label, owner_type, owner }`. `owner_type` is `passenger`, `driver` or `system` (E-tiGo's own accounts: PSP clearing, commission, refunds, fees), and `owner` is the person (`{ id, user_id, reference_number, name, first_name, last_name, phone, email }`; for a driver `id` is the driver profile id) or `null` for system accounts.
 
 **Response 200:**
 ```json
@@ -15015,6 +15216,7 @@ Authorization: Bearer {admin_token}
           "created_at": "2026-10-16T00:26:30+00:00",
           "source_type": null,
           "source_id": null,
+          "account": { "id": "01a1421a-2a41-73c5-856e-064baa04724b", "type": "psp_clearing", "type_label": "PSP Clearing", "owner_type": "system", "owner": null },
           "journal": { "id": "01a1421a-6c66-7103-b8dd-4c4e7313f430", "reference": "JRN-B25RAULM5HB3-261016", "...": "..." }
         },
         {
@@ -15026,6 +15228,13 @@ Authorization: Bearer {admin_token}
           "created_at": "2026-10-16T00:26:30+00:00",
           "source_type": null,
           "source_id": null,
+          "account": {
+            "id": "01a1421a-2a78-73a4-b9f4-bfde68c5d57f",
+            "type": "passenger_wallet",
+            "type_label": "Passenger Wallet",
+            "owner_type": "passenger",
+            "owner": { "id": "01a1421a-1a00-7000-8000-000000000009", "user_id": "01a1421a-1a00-7000-8000-000000000009", "reference_number": "PAS-000021", "name": "Ade Ogunleye", "first_name": "Ade", "last_name": "Ogunleye", "phone": "+2348100000001", "email": "ade@demo.etigo.com" }
+          },
           "journal": { "id": "01a1421a-6c66-7103-b8dd-4c4e7313f430", "reference": "JRN-B25RAULM5HB3-261016", "...": "..." }
         }
       ]
@@ -15040,18 +15249,19 @@ Authorization: Bearer {admin_token}
 }
 ```
 
-**Export:** a CSV download (`ledger-export-YYYY-MM-DD.csv`) of every entry posted between `from` and `to`, both **required** (`422` without them). One row per entry, including the account it hit:
+**Export:** a CSV download (`ledger-export-YYYY-MM-DD.csv`) of every entry posted between `from` and `to` (Lagos days, Y-m-d), both **required** (`422` without them). One row per entry, including the account it hit and its owner's name (empty for system accounts):
 
 ```csv
-Reference,Description,"Account ID","Account Type","Entry Type","Amount (kobo)","Running Balance","Posted At"
-JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a41-73c5-856e-064baa04724b,psp_clearing,debit,500000,-500000,2026-10-16T00:26:13+00:00
-JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a78-73a4-b9f4-bfde68c5d57f,passenger_wallet,credit,500000,500000,2026-10-16T00:26:13+00:00
+Reference,Description,"Account ID","Account Type","Account Owner","Entry Type","Amount (kobo)","Running Balance","Posted At"
+JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a41-73c5-856e-064baa04724b,psp_clearing,,debit,500000,-500000,2026-10-16T00:26:13+00:00
+JRN-OF9URBRSSFAR-261016,"Wallet top-up via Paystack",01a1421a-2a78-73a4-b9f4-bfde68c5d57f,passenger_wallet,"Ade Ogunleye",credit,500000,500000,2026-10-16T00:26:13+00:00
 ```
 
 ### Adjustments
 
 ```
 GET /admin/adjustments
+GET /admin/adjustments/{adjustment}
 POST /admin/adjustments
 POST /admin/adjustments/{adjustment}/approve
 POST /admin/adjustments/{adjustment}/reject
@@ -15060,20 +15270,20 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Manual credits or debits to any ledger account, with maker–checker approval: the admin who creates an adjustment cannot approve it. Nothing is posted to the ledger until approval.
+Manual credits or debits to a passenger's wallet or a driver's available earnings, with maker–checker approval: the admin who creates an adjustment cannot approve it. Nothing is posted to the ledger until approval.
 
 **Create — request body:**
 
 | Field | Type | Required | Rules |
 |-------|------|----------|-------|
-| `account_id` | string (UUID) | Yes | Existing ledger account |
+| `account_id` | string (UUID) | Yes | A passenger wallet (`/admin/wallets`) or a driver ledger (`/admin/driver-ledgers`, the `id` of the ledger). E-tiGo's own accounts are refused (`422` on `account_id`) |
 | `type` | string | Yes | `credit` or `debit` |
 | `amount` | integer | Yes | In kobo, min 1 |
 | `reason` | string | Yes | 10–2000 chars |
 
 A credit is funded from the `refunds` system account; a debit goes to `platform_commission`.
 
-**Reject — request body:** `reason` (string, 10–2000 chars, required).
+**Reject — request body:** `reason` (string, 10–2000 chars, required). The reason, the admin and the time are kept on the adjustment (`rejection_reason`, `rejected_by`, `rejected_at`); reject now returns the adjustment too.
 
 | Response | When |
 |----------|------|
@@ -15082,7 +15292,19 @@ A credit is funded from the `refunds` system account; a debit goes to `platform_
 | 403 | `"Approver must differ from creator."` |
 | 422 | `"Adjustment is not pending."`, or the ledger refused the posting (e.g. the account is frozen: `"Account … is frozen, cannot post."`) — the adjustment stays `pending` |
 
-`GET /admin/adjustments?status=pending` lists adjustments newest first, 20 per page (fixed). `status` is `pending`, `approved` or `rejected`. Create, approve and reject return the adjustment under `adjustment` with their message. `approved_by` and `approved_at` appear once an adjustment has been approved.
+`GET /admin/adjustments` lists adjustments newest first (`per_page` default 20, max 100). Filters:
+
+| Query | Description |
+|-------|-------------|
+| `status` | `pending`, `approved` or `rejected` |
+| `type` | `credit` or `debit` |
+| `owner_type` | `passenger` (wallets) or `driver` (driver ledgers) |
+| `account_id` | One account |
+| `search` | Adjustment reference (`AD-000123`), reason, or the account owner's name, phone or reference |
+
+`GET /admin/adjustments/{id}` returns one adjustment (for shared links). Create, approve and reject return the adjustment under `adjustment` with their message.
+
+Every adjustment has `reference_number` (`AD-` + 6 digits) and `account`: `{ id, type, type_label, owner_type, owner }` — whose money it moves (`owner_type` `passenger`, `driver` or `system`; `owner` as on driver ledgers, `null` for system accounts). `type` says what it does to that account: `credit` adds money, `debit` takes it. `approved_by`/`approved_at` appear once approved; `rejected_by`/`rejected_at`/`rejection_reason` once rejected (rejections before 2026-10-29 were filled in from the audit log); `journal_id` once posted.
 
 **Response 200 (approve):**
 ```json
@@ -15090,7 +15312,15 @@ A credit is funded from the `refunds` system account; a debit goes to `platform_
   "message": "Adjustment approved and posted.",
   "adjustment": {
     "id": "01a1421f-574d-7397-9535-0b816a98b438",
+    "reference_number": "AD-000001",
     "account_id": "01a1421f-572d-7176-a118-adc96379603d",
+    "account": {
+      "id": "01a1421f-572d-7176-a118-adc96379603d",
+      "type": "driver_earnings_available",
+      "type_label": "Driver Earnings (Available)",
+      "owner_type": "driver",
+      "owner": { "id": "uuid", "user_id": "uuid", "reference_number": "DRV-000014", "name": "Tunde Bello", "...": "..." }
+    },
     "type": "credit",
     "type_label": "Credit",
     "amount": 150000,
@@ -15125,6 +15355,7 @@ The list wraps the same objects as `{ "adjustments": [ ... ], "meta": { "current
 
 ```
 GET /admin/payouts?status=requested&search=bayo&from=2026-10-01&to=2026-10-15
+GET /admin/payouts/{payout}
 POST /admin/payouts/{payout}/approve
 POST /admin/payouts/{payout}/reject
 POST /admin/payouts/{payout}/retry
@@ -15137,10 +15368,16 @@ Authorization: Bearer {admin_token}
 
 Each action locks the payout, so two admins acting at once cannot approve, reject or retry the same payout twice. The driver is notified of approval, rejection (with the reason) and the final transfer result.
 
+**List filters:** `status`; `search` (payout reference `PO-000123`, or the driver's first, last or full name, email or phone); `from`/`to` (Y-m-d, **Lagos days**, on `requested_at` — `from=2026-10-21` starts at 00:00 Lagos, 23:00 UTC on the 20th). The export takes the same `from`/`to`, so a day's CSV matches that day's list; it now has a `Reference` column.
+
+`GET /admin/payouts/{id}` returns one payout with `driver`, `bank_account`, `approved_by` and `rejected_by` loaded (for shared links).
+
+Every payout has `reference_number` (`PO-` + 6 digits; drivers see it too). A rejected payout has `rejected_at` and, for admins, `rejected_by` (the reason stays in `failure_reason`). Rejections before 2026-10-29 were filled in from the audit log.
+
 | Action | Allowed from | Result |
 |--------|--------------|--------|
 | `approve` | `requested` | `approved`; transfer queued — `"Payout approved and transfer initiated."` |
-| `reject` | `requested` | `rejected` — body: `reason` (string, min 10 chars, required) |
+| `reject` | `requested` | `rejected` — body: `reason` (string, min 10 chars, required). Returns the payout with `rejected_by` |
 | `retry` | `failed`, `reversed` | `approved`; transfer queued again — `"Payout retry initiated."` The job first checks the previous transfer with Paystack: if it actually went through, the payout is marked paid instead of sending again; otherwise a new transfer reference is used (`PAYOUT-{id}-2`, `-3`, …). |
 | `verify` | `approved`, `processing` | **Check status with Paystack** — see below. |
 
@@ -15163,6 +15400,7 @@ Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, 
   "payouts": [
     {
       "id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+      "reference_number": "PO-003101",
       "amount": 500000,
       "status": "paid",
       "status_label": "Paid",
@@ -15201,6 +15439,7 @@ Each payout in the list has `bank_account_block` (`null`, or `code`, `message`, 
 | `failure_reason` | Only present when set (failed, rejected or reversed payouts) |
 | `approved_at`, `paid_at` | Only present once the payout was approved / paid |
 | `driver`, `approved_by` | Admin only; `approved_by` only when an admin approved it (absent for weekly auto-payouts) |
+| `rejected_at`, `rejected_by` | Only on rejected payouts; `rejected_by` is admin only |
 | `gateway_transfer_id` | Admin only: Paystack's transfer id (numeric, as a string), `null` until the transfer is created; use it to find the transfer in the Paystack dashboard |
 | `needs_attention`, `attention_reason`, `provider_status` | Admin only, see below |
 | `bank_account_block` | Admin only, see the 409 above |
@@ -15257,7 +15496,7 @@ Authorization: Bearer {admin_token}
 
 Drivers' payout bank accounts with their payout safeguards: accounts whose name did not match the driver's verified name wait here for review (listed first), and recently changed accounts are on hold. Every action is audited (`bank_account.review_approved`, `bank_account.review_rejected`, `bank_account.hold_released`) and approve/reject notify the driver (`payout_account_reviewed`).
 
-**Filters:** `review_status` (`pending`, `approved`, `rejected`), `name_match_status` (`matched`, `mismatch`), `on_hold` (`1` held now, `0` not held), `search` (account name, driver name or phone).
+**Filters:** `review_status` (`pending`, `approved`, `rejected`), `name_match_status` (`matched`, `mismatch`), `on_hold` (`1` held now, `0` not held), `search` (account name, account number or part of it, bank name — 3+ letters, e.g. `zenith` or `guaranty` — or the driver's first, last or full name or phone).
 
 **Response 200 (list):**
 ```json
@@ -15342,12 +15581,15 @@ The passenger receives a `wallet_refund` notification once the refund is committ
 ```
 GET /admin/settings/commission
 PUT /admin/settings/commission
+DELETE /admin/settings/commission/drivers/{driver_id}
 Authorization: Bearer {admin_token}
 ```
 
 **Allowed Roles:** Finance
 
-`GET` returns the global rate (0.20 when none is set) and the active per-driver overrides.
+`GET` returns the global rate (0.20 when none is set) and the active per-driver overrides. Each override has `driver`: `{ id, reference_number, user_id, name, phone }`.
+
+To find a driver to give their own rate, Finance can now use `GET /admin/drivers` (read only; search by name, phone or reference), so drivers without a bank account can be given a rate too.
 
 **Response 200:**
 ```json
@@ -15358,6 +15600,7 @@ Authorization: Bearer {admin_token}
       "id": "01a1421a-2b41-73c6-a95e-8bfbec8048c5",
       "rate": 0.15,
       "driver_id": "01a1421a-2a72-73e2-afb3-c114f8d4f4e2",
+      "driver": { "id": "01a1421a-2a72-73e2-afb3-c114f8d4f4e2", "reference_number": "DRV-000014", "user_id": "uuid", "name": "Tunde Bello", "phone": "+2348200000003" },
       "is_global": false,
       "is_active": true,
       "created_at": "2026-10-16T00:26:13+00:00"
@@ -15366,7 +15609,9 @@ Authorization: Bearer {admin_token}
 }
 ```
 
-`PUT` sets the global rate, or a driver's override when `driver_id` is sent. It is audit-logged.
+`PUT` sets the global rate, or a driver's override when `driver_id` is sent. It is audit-logged with the previous rate.
+
+`DELETE /admin/settings/commission/drivers/{driver_id}` removes a driver's own rate: the driver goes back to the global rate and follows its later changes (setting their rate equal to the global rate would not). Returns `200` with `global_rate`, or `404` `"This driver is already on the global commission rate."` Audit-logged as `commission.override_removed`.
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
@@ -15603,9 +15848,18 @@ Returns current tip configuration (preset amounts shown as quick-select buttons 
     "min_amount": 50,
     "max_amount": 50000,
     "currency": "NGN"
+  },
+  "limits": {
+    "min_amount_floor": 1,
+    "max_amount_floor": 100,
+    "preset_min": 50,
+    "preset_max": 50000,
+    "presets_max_count": 10
   }
 }
 ```
+
+`limits` are the fixed bounds the form can check before saving (₦). Presets have their own floor of ₦50 even though the minimum custom tip can be as low as ₦1: presets are the suggested buttons, the minimum applies to amounts typed in.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -15627,9 +15881,18 @@ Updates tip configuration. Only provided fields are updated; omitted fields reta
 
 | Field | Type | Rules |
 |-------|------|-------|
-| `presets` | array of integers | 1–10 values, each 50–50,000 |
+| `presets` | array of integers | 1–10 distinct values, each 50–50,000 |
 | `min_amount` | integer | Min: 1 |
 | `max_amount` | integer | Min: 100, must be greater than `min_amount` |
+
+Every refusal is a standard validation error on the field that caused it, so it can be shown beside that field: `min_amount` / `max_amount` when the minimum is not below the maximum (on whichever was sent), `presets.{index}` for each preset outside the range, or `min_amount` / `max_amount` when the new limit would leave a **saved** preset outside it.
+
+```json
+{
+  "message": "Each tip preset must be between ₦100 and ₦1000.",
+  "errors": { "presets.1": ["Each tip preset must be between ₦100 and ₦1000."] }
+}
+```
 
 **Response 200:**
 ```json
@@ -15650,14 +15913,18 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Returns the daily reconciliation report generated by `DailyReconciliationJob` (02:00 daily, for the previous day; one report per date). It compares, in kobo:
+Returns the daily reconciliation report generated by `DailyReconciliationJob` (02:00 UTC daily, for the previous **Lagos** day — reports before 2026-10-29 cover UTC days; one report per date). It compares, in kobo:
 
 | Pair | Gateway side | Ledger side |
 |------|--------------|-------------|
 | Charges | Successful wallet top-up charges confirmed by webhook (`TOPUP-` references; Paystack `charge.success` and Flutterwave `charge.completed`) | Top-up credits to passenger wallets |
 | Transfers | Successful payout transfers confirmed by webhook (Paystack `transfer.success`, Flutterwave `transfer.completed`), plus payouts marked `paid` that day with no such webhook (settled by *Check Payout Status* or payout reconciliation), at the amount Paystack's transfer verify API reports for them | Payouts marked `paid` that day |
 
-Any difference is listed in `mismatches` with `type`, `gateway_total`, `ledger_total` and `difference`, and the report `status` is `mismatched`. Ride card payments are not part of this report. A webhook received just before midnight and processed just after it can show as a one-day timing difference. A paid payout that Paystack does not confirm as successful, or that cannot be checked because Paystack is unreachable, adds nothing to the gateway side and shows as a mismatch.
+Any difference is listed in `mismatches` with `type`, `gateway_total`, `ledger_total` and `difference`, and the report `status` is `mismatched`. Each mismatch also lists the transactions that don't match, matched by gateway reference, largest difference first:
+
+- `items`: `{ reference, issue, gateway_amount, ledger_amount, difference }` plus, for charges, `account_id` and `journal_id` (the wallet credited), and for transfers, `payout_id` and `payout_reference`. `issue` is `missing_in_ledger` (the gateway took or sent money E-tiGo didn't record), `missing_at_gateway` (E-tiGo recorded money the gateway didn't confirm that day) or `amount_mismatch`. The amount that's missing is `null`.
+- `items_count`: how many there are; `items` holds at most 200 (`items_truncated: true` when there are more; the totals still cover all).
+- Reports made before 2026-10-29 have totals only: `items` is `null` there. Ride card payments are not part of this report. A webhook received just before midnight and processed just after it can show as a one-day timing difference. A paid payout that Paystack does not confirm as successful, or that cannot be checked because Paystack is unreachable, adds nothing to the gateway side and shows as a mismatch.
 
 **Query Parameters:**
 
@@ -15681,6 +15948,31 @@ Any difference is listed in `mismatches` with `type`, `gateway_total`, `ledger_t
     "generated_at": "2026-10-10T02:00:00Z"
   }
 }
+```
+
+A mismatched day:
+```json
+"mismatches": [
+  {
+    "type": "transfers",
+    "gateway_total": 0,
+    "ledger_total": 70000,
+    "difference": 70000,
+    "items_count": 1,
+    "items_truncated": false,
+    "items": [
+      {
+        "reference": "PAYOUT-5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+        "issue": "missing_at_gateway",
+        "gateway_amount": null,
+        "ledger_amount": 70000,
+        "difference": 70000,
+        "payout_id": "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+        "payout_reference": "PO-003101"
+      }
+    ]
+  }
+]
 ```
 
 **Response 404:** No report generated for that date.

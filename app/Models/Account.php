@@ -46,6 +46,36 @@ class Account extends Model
         return $this->morphTo();
     }
 
+    /**
+     * Set the owner on each account in two queries: passengers, and drivers
+     * with their user. E-tiGo's own accounts (owner_type "system") can't be
+     * loaded through the morph relation, so their owner is set to null.
+     *
+     * @param  iterable<Account|null>  $accounts
+     */
+    public static function loadOwners(iterable $accounts): void
+    {
+        $accounts = collect($accounts)->filter()->unique('id');
+        $userClass = (new User)->getMorphClass();
+        $driverClass = (new Driver)->getMorphClass();
+
+        $users = User::whereIn('id', $accounts->where('owner_type', $userClass)->pluck('owner_id')->unique())
+            ->get()
+            ->keyBy('id');
+        $drivers = Driver::with('user')
+            ->whereIn('id', $accounts->where('owner_type', $driverClass)->pluck('owner_id')->unique())
+            ->get()
+            ->keyBy('id');
+
+        foreach ($accounts as $account) {
+            $account->setRelation('owner', match ($account->owner_type) {
+                $userClass => $users->get($account->owner_id),
+                $driverClass => $drivers->get($account->owner_id),
+                default => null,
+            });
+        }
+    }
+
     public function entries(): HasMany
     {
         return $this->hasMany(LedgerEntry::class);

@@ -9,6 +9,8 @@ use App\Enums\PayoutStatus;
 use App\Models\Payout;
 use App\Models\ReconciliationReport;
 use App\Models\WebhookEvent;
+use App\Support\LagosDay;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,12 +28,17 @@ class DailyReconciliationJob implements ShouldQueue
 
     public function __construct(private ?string $date = null) {}
 
+    /** Most mismatched transactions listed per kind; the totals still cover all of them. */
+    public const MAX_ITEMS = 200;
+
     public function handle(): void
     {
-        $reportDate = $this->date ? now()->parse($this->date) : now()->subDay();
-        $dateString = $reportDate->toDateString();
-        $startOfDay = $reportDate->copy()->startOfDay();
-        $endOfDay = $reportDate->copy()->endOfDay();
+        // Report days are Lagos calendar days, like every date on the dashboard.
+        $dateString = $this->date
+            ? CarbonImmutable::parse($this->date)->toDateString()
+            : CarbonImmutable::now(LagosDay::TIMEZONE)->subDay()->toDateString();
+        $startOfDay = LagosDay::start($dateString);
+        $endOfDay = LagosDay::end($dateString);
 
         $existingReport = ReconciliationReport::where('report_date', $dateString)->first();
         if ($existingReport) {
@@ -40,65 +47,73 @@ class DailyReconciliationJob implements ShouldQueue
             return;
         }
 
-        $gatewayChargesTotal = $this->gatewayTotalKobo($startOfDay, $endOfDay, [
+        $gatewayCharges = $this->gatewayAmountsByReference($startOfDay, $endOfDay, [
             'paystack' => ['charge.success'],
             'flutterwave' => ['charge.completed'],
         ], topUpsOnly: true);
 
-        $ledgerCreditsTotal = (int) DB::table('ledger_entries')
+        $ledgerCredits = [];
+        DB::table('ledger_entries')
             ->join('accounts', 'ledger_entries.account_id', '=', 'accounts.id')
+            ->join('journals', 'journals.id', '=', 'ledger_entries.journal_id')
             ->where('accounts.type', AccountType::PassengerWallet->value)
             ->where('ledger_entries.type', LedgerEntryType::Credit->value)
-            ->whereBetween('ledger_entries.created_at', [$startOfDay, $endOfDay])
-            ->whereExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('journals')
-                    ->whereColumn('journals.id', 'ledger_entries.journal_id')
-                    ->where('journals.description', 'like', '%top-up%');
-            })
-            ->sum('ledger_entries.amount');
+            ->where('ledger_entries.created_at', '>=', $startOfDay)
+            ->where('ledger_entries.created_at', '<', $endOfDay)
+            ->where('journals.description', 'like', '%top-up%')
+            ->select([
+                'ledger_entries.amount',
+                'ledger_entries.account_id',
+                'journals.id as journal_id',
+                DB::raw("journals.metadata->>'reference' as reference"),
+            ])
+            ->orderBy('ledger_entries.id')
+            ->each(function ($row) use (&$ledgerCredits) {
+                $key = $row->reference ?: "journal:{$row->journal_id}";
+                $ledgerCredits[$key] = [
+                    'amount' => ($ledgerCredits[$key]['amount'] ?? 0) + (int) $row->amount,
+                    'account_id' => $row->account_id,
+                    'journal_id' => $row->journal_id,
+                ];
+            });
 
-        $gatewayTransfersTotal = $this->gatewayTotalKobo($startOfDay, $endOfDay, [
+        $gatewayTransfers = $this->gatewayAmountsByReference($startOfDay, $endOfDay, [
             'paystack' => ['transfer.success'],
             'flutterwave' => ['transfer.completed'],
-        ]) + $this->paidWithoutWebhookKobo($startOfDay, $endOfDay);
-
-        $ledgerPayoutsTotal = (int) DB::table('payouts')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$startOfDay, $endOfDay])
-            ->sum('amount');
-
-        $mismatches = [];
-
-        $chargesDiff = abs($gatewayChargesTotal - $ledgerCreditsTotal);
-        if ($chargesDiff > 0) {
-            $mismatches[] = [
-                'type' => 'charges',
-                'gateway_total' => $gatewayChargesTotal,
-                'ledger_total' => $ledgerCreditsTotal,
-                'difference' => $chargesDiff,
-            ];
+        ]);
+        foreach ($this->paidWithoutWebhook($startOfDay, $endOfDay) as $reference => $amount) {
+            $gatewayTransfers[$reference] = ($gatewayTransfers[$reference] ?? 0) + $amount;
         }
 
-        $transfersDiff = abs($gatewayTransfersTotal - $ledgerPayoutsTotal);
-        if ($transfersDiff > 0) {
-            $mismatches[] = [
-                'type' => 'transfers',
-                'gateway_total' => $gatewayTransfersTotal,
-                'ledger_total' => $ledgerPayoutsTotal,
-                'difference' => $transfersDiff,
-            ];
-        }
+        $ledgerPayouts = [];
+        Payout::where('status', PayoutStatus::Paid)
+            ->where('paid_at', '>=', $startOfDay)
+            ->where('paid_at', '<', $endOfDay)
+            ->lazyById()
+            ->each(function (Payout $payout) use (&$ledgerPayouts) {
+                // The transfer reference sent to the gateway (ProcessPayoutTransferJob).
+                $key = $payout->gateway_reference ?: "PAYOUT-{$payout->id}";
+                $ledgerPayouts[$key] = [
+                    'amount' => ($ledgerPayouts[$key]['amount'] ?? 0) + (int) $payout->amount,
+                    'payout_id' => $payout->id,
+                    'payout_reference' => $payout->reference_number,
+                ];
+            });
+
+        $mismatches = array_values(array_filter([
+            $this->mismatch('charges', $gatewayCharges, $ledgerCredits),
+            $this->mismatch('transfers', $gatewayTransfers, $ledgerPayouts),
+        ]));
 
         $status = empty($mismatches) ? 'clean' : 'mismatched';
 
         ReconciliationReport::firstOrCreate(
             ['report_date' => $dateString],
             [
-                'gateway_charges_total' => $gatewayChargesTotal,
-                'ledger_credits_total' => $ledgerCreditsTotal,
-                'gateway_transfers_total' => $gatewayTransfersTotal,
-                'ledger_payouts_total' => $ledgerPayoutsTotal,
+                'gateway_charges_total' => array_sum($gatewayCharges),
+                'ledger_credits_total' => array_sum(array_column($ledgerCredits, 'amount')),
+                'gateway_transfers_total' => array_sum($gatewayTransfers),
+                'ledger_payouts_total' => array_sum(array_column($ledgerPayouts, 'amount')),
                 'mismatches_count' => count($mismatches),
                 'mismatches' => $mismatches ?: null,
                 'status' => $status,
@@ -107,7 +122,7 @@ class DailyReconciliationJob implements ShouldQueue
 
         if ($status === 'mismatched') {
             Log::warning("Reconciliation mismatch detected for {$dateString}", [
-                'mismatches' => $mismatches,
+                'mismatches' => array_map(fn (array $m) => array_diff_key($m, ['items' => true]), $mismatches),
             ]);
         }
 
@@ -115,25 +130,82 @@ class DailyReconciliationJob implements ShouldQueue
     }
 
     /**
-     * Total, in kobo, of the successful gateway events of the day that were
-     * processed. Amounts are read from the event's `data`: Paystack reports
-     * kobo, Flutterwave naira.
+     * Compare one kind of money movement transaction by transaction, keyed by
+     * the gateway reference. Null when the totals and every transaction agree.
+     *
+     * @param  array<string, int>  $gateway  Kobo per gateway reference
+     * @param  array<string, array{amount: int}&array<string, mixed>>  $ledger  Kobo (and ids) per reference
+     * @return array<string, mixed>|null
+     */
+    private function mismatch(string $type, array $gateway, array $ledger): ?array
+    {
+        $items = [];
+
+        foreach (array_unique([...array_keys($gateway), ...array_keys($ledger)]) as $reference) {
+            $gatewayAmount = $gateway[$reference] ?? null;
+            $ledgerAmount = $ledger[$reference]['amount'] ?? null;
+
+            if ($gatewayAmount === $ledgerAmount) {
+                continue;
+            }
+
+            $items[] = [
+                // The gateway reference; "journal:…" for a top-up journal without one.
+                'reference' => $reference,
+                'issue' => match (true) {
+                    $ledgerAmount === null => 'missing_in_ledger',
+                    $gatewayAmount === null => 'missing_at_gateway',
+                    default => 'amount_mismatch',
+                },
+                'gateway_amount' => $gatewayAmount,
+                'ledger_amount' => $ledgerAmount,
+                'difference' => abs(($gatewayAmount ?? 0) - ($ledgerAmount ?? 0)),
+                ...array_diff_key($ledger[$reference] ?? [], ['amount' => true]),
+            ];
+        }
+
+        $gatewayTotal = array_sum($gateway);
+        $ledgerTotal = array_sum(array_column($ledger, 'amount'));
+
+        if ($items === [] && $gatewayTotal === $ledgerTotal) {
+            return null;
+        }
+
+        usort($items, fn (array $a, array $b) => $b['difference'] <=> $a['difference']);
+
+        return [
+            'type' => $type,
+            'gateway_total' => $gatewayTotal,
+            'ledger_total' => $ledgerTotal,
+            'difference' => abs($gatewayTotal - $ledgerTotal),
+            'items_count' => count($items),
+            'items_truncated' => count($items) > self::MAX_ITEMS,
+            'items' => array_slice($items, 0, self::MAX_ITEMS),
+        ];
+    }
+
+    /**
+     * Kobo per reference of the successful gateway events of the day that
+     * were processed. Amounts are read from the event's `data`: Paystack
+     * reports kobo, Flutterwave naira.
      *
      * @param  array<string, list<string>>  $eventTypes  Event types per provider
+     * @return array<string, int>
      */
-    private function gatewayTotalKobo(CarbonInterface $from, CarbonInterface $to, array $eventTypes, bool $topUpsOnly = false): int
+    private function gatewayAmountsByReference(CarbonInterface $from, CarbonInterface $to, array $eventTypes, bool $topUpsOnly = false): array
     {
-        $total = 0;
+        $amounts = [];
 
         WebhookEvent::whereNotNull('processed_at')
-            ->whereBetween('created_at', [$from, $to])
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
             ->where(function ($query) use ($eventTypes) {
                 foreach ($eventTypes as $provider => $types) {
                     $query->orWhere(fn ($query) => $query->where('provider', $provider)->whereIn('event_type', $types));
                 }
             })
             ->lazyById()
-            ->each(function (WebhookEvent $event) use (&$total, $topUpsOnly) {
+            ->each(function (WebhookEvent $event) use (&$amounts, $topUpsOnly) {
                 $data = $event->payload['data'] ?? [];
                 $reference = (string) ($data['tx_ref'] ?? $data['reference'] ?? '');
 
@@ -146,25 +218,29 @@ class DailyReconciliationJob implements ShouldQueue
                 }
 
                 $amount = (float) ($data['amount'] ?? 0);
-                $total += $event->provider === 'flutterwave' ? (int) round($amount * 100) : (int) $amount;
+                $key = $reference !== '' ? $reference : "webhook:{$event->id}";
+                $amounts[$key] = ($amounts[$key] ?? 0) + ($event->provider === 'flutterwave' ? (int) round($amount * 100) : (int) $amount);
             });
 
-        return $total;
+        return $amounts;
     }
 
     /**
-     * Total, in kobo, that Paystack reports for the day's paid payouts whose
+     * Kobo per transfer reference that Paystack reports for the day's paid payouts whose
      * success webhook never arrived. Such a payout was settled by asking
      * Paystack about the transfer (an admin's verify, or the payout sweep),
      * so Paystack is asked again here. A payout Paystack does not confirm
      * adds nothing and shows up as a mismatch.
+     *
+     * @return array<string, int>
      */
-    private function paidWithoutWebhookKobo(CarbonInterface $from, CarbonInterface $to): int
+    private function paidWithoutWebhook(CarbonInterface $from, CarbonInterface $to): array
     {
-        $total = 0;
+        $amounts = [];
 
         Payout::where('status', PayoutStatus::Paid)
-            ->whereBetween('paid_at', [$from, $to])
+            ->where('paid_at', '>=', $from)
+            ->where('paid_at', '<', $to)
             ->whereNotNull('gateway_reference')
             ->whereNotExists(function ($query) {
                 $query->select(DB::raw(1))
@@ -174,7 +250,7 @@ class DailyReconciliationJob implements ShouldQueue
                     ->whereRaw("webhook_events.payload->'data'->>'reference' = payouts.gateway_reference");
             })
             ->lazyById()
-            ->each(function (Payout $payout) use (&$total) {
+            ->each(function (Payout $payout) use (&$amounts) {
                 try {
                     $transfer = app(WalletGateway::class)->verifyTransfer($payout->gateway_reference);
                 } catch (\Throwable $e) {
@@ -187,10 +263,10 @@ class DailyReconciliationJob implements ShouldQueue
                 }
 
                 if ($transfer !== null && strtolower((string) $transfer['status']) === 'success') {
-                    $total += (int) $transfer['amount'];
+                    $amounts[$payout->gateway_reference] = (int) $transfer['amount'];
                 }
             });
 
-        return $total;
+        return $amounts;
     }
 }

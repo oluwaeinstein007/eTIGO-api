@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PayoutStatus;
+use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,9 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payout extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
 
     protected $fillable = [
+        'reference_number',
         'driver_id',
         'bank_account_id',
         'amount',
@@ -25,6 +27,8 @@ class Payout extends Model
         'requested_at',
         'approved_at',
         'approved_by_admin_id',
+        'rejected_at',
+        'rejected_by_admin_id',
         'paid_at',
     ];
 
@@ -35,6 +39,7 @@ class Payout extends Model
             'amount' => 'integer',
             'requested_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'paid_at' => 'datetime',
         ];
     }
@@ -52,6 +57,16 @@ class Payout extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_admin_id');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_admin_id');
+    }
+
+    protected static function referencePrefix(): string
+    {
+        return 'PO-';
     }
 
     // ── Scopes ──

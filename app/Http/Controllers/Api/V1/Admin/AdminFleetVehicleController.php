@@ -16,6 +16,7 @@ use App\Models\Vehicle;
 use App\Services\FleetRemittanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminFleetVehicleController extends Controller
@@ -26,12 +27,22 @@ class AdminFleetVehicleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'fuel_type' => ['nullable', Rule::in([...array_column(FuelType::cases(), 'value'), 'none'])],
+            'vehicle_class_id' => ['nullable', 'uuid'],
+            'status' => ['nullable', Rule::in(Vehicle::FLEET_STATUSES)],
+            'search' => ['nullable', 'string', 'max:100'],
+            'unassigned_only' => ['nullable', 'boolean'],
+        ]);
+
+        // unassigned_only predates status: cars with no driver, servicing or
+        // not. status=available is the list of cars that can be given out.
         $query = $request->boolean('unassigned_only')
             ? Vehicle::fleetInventory()->with(['vehicleClass'])
             : Vehicle::fleet()->with(['driver.user', 'vehicleClass']);
 
         if ($request->filled('search')) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->input('search'));
+            $search = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $request->input('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('make', 'ilike', "%{$search}%")
                     ->orWhere('model', 'ilike', "%{$search}%")
@@ -39,11 +50,17 @@ class AdminFleetVehicleController extends Controller
             });
         }
 
-        $request->validate(['fuel_type' => ['nullable', Rule::in([...array_column(FuelType::cases(), 'value'), 'none'])]]);
-
         if ($request->filled('fuel_type')) {
             $fuelType = $request->input('fuel_type');
             $fuelType === 'none' ? $query->whereNull('fuel_type') : $query->where('fuel_type', $fuelType);
+        }
+
+        if ($request->filled('vehicle_class_id')) {
+            $query->where('vehicle_class_id', $request->input('vehicle_class_id'));
+        }
+
+        if ($request->filled('status')) {
+            $query->withFleetStatus($request->input('status'));
         }
 
         $vehicles = $query->latest()->paginate(20);
@@ -114,6 +131,10 @@ class AdminFleetVehicleController extends Controller
             return response()->json(['message' => 'Vehicle is already assigned to a driver.'], 422);
         }
 
+        if ($vehicle->isInMaintenance()) {
+            return response()->json(['message' => 'This car is in for maintenance. Mark it back in service before giving it to a driver.'], 422);
+        }
+
         $driver = Driver::findOrFail($request->validated('driver_id'));
 
         if (! $driver->isApproved()) {
@@ -177,10 +198,72 @@ class AdminFleetVehicleController extends Controller
         ]);
     }
 
-    public function awaitingAssignment(): JsonResponse
+    /**
+     * Take a fleet car off the road for servicing, or put it back in service.
+     * A car in maintenance can't be given to a driver; a car that has a
+     * driver keeps them (the driver usually brings it in).
+     */
+    public function maintenance(Request $request, Vehicle $vehicle): JsonResponse
     {
+        if (! $vehicle->is_fleet) {
+            return response()->json(['message' => 'Vehicle is not a fleet vehicle.'], 404);
+        }
+
+        $validated = $request->validate([
+            'in_maintenance' => ['required', 'boolean'],
+            'reason' => ['required_if_accepted:in_maintenance', 'nullable', 'string', 'max:500'],
+        ]);
+
+        $start = (bool) $validated['in_maintenance'];
+
+        if ($start === $vehicle->isInMaintenance()) {
+            return response()->json([
+                'message' => $start ? 'This car is already in for maintenance.' : 'This car is not in for maintenance.',
+            ], 422);
+        }
+
+        $old = $vehicle->only(['maintenance_started_at', 'maintenance_reason']);
+
+        DB::transaction(function () use ($vehicle, $start, $validated, $old, $request) {
+            $vehicle->update([
+                'maintenance_started_at' => $start ? now() : null,
+                'maintenance_reason' => $start ? $validated['reason'] : null,
+            ]);
+
+            AuditLog::record(
+                $vehicle,
+                $start ? 'fleet_vehicle_maintenance_started' : 'fleet_vehicle_maintenance_ended',
+                $request->user(),
+                $old,
+                $start ? ['reason' => $validated['reason']] : ['reason' => $validated['reason'] ?? null],
+            );
+        });
+
+        return response()->json([
+            'message' => $start ? 'Car marked as in for maintenance.' : 'Car is back in service.',
+            'vehicle' => new VehicleResource($vehicle->fresh(['driver.user', 'vehicleClass'])),
+        ]);
+    }
+
+    public function awaitingAssignment(Request $request): JsonResponse
+    {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'city_id' => ['nullable', 'uuid'],
+        ]);
+
         $drivers = Driver::awaitingVehicle()
             ->with(['user', 'documents', 'city'])
+            ->when($request->input('search'), function ($query, $search) {
+                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $search).'%';
+                $query->where(fn ($q) => $q->where('reference_number', 'ilike', $like)
+                    ->orWhereHas('user', fn ($u) => $u->where('first_name', 'ilike', $like)
+                        ->orWhere('last_name', 'ilike', $like)
+                        ->orWhereRaw("concat(first_name, ' ', last_name) ilike ?", [$like])
+                        ->orWhere('phone', 'ilike', $like)
+                        ->orWhere('email', 'ilike', $like)));
+            })
+            ->when($request->input('city_id'), fn ($query, $cityId) => $query->where('city_id', $cityId))
             ->latest()
             ->paginate(20);
 

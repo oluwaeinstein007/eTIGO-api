@@ -31,6 +31,8 @@ class AdminPromoController extends Controller
             // "inactive" is the name the filter had before "paused".
             'status' => ['nullable', Rule::in([...array_column(PromoStatus::cases(), 'value'), 'inactive'])],
             'city_id' => ['nullable', 'uuid'],
+            // With city_id: false leaves out promos that run in every city.
+            'include_all_cities' => ['nullable', 'boolean'],
             'search' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -44,8 +46,12 @@ class AdminPromoController extends Controller
             $query->withStatus($status);
         }
 
+        // What runs in the city: promos limited to it, and promos with no
+        // cities (they run everywhere, that city included).
         if ($request->filled('city_id')) {
-            $query->whereHas('cities', fn ($q) => $q->whereKey($request->input('city_id')));
+            $request->boolean('include_all_cities', true)
+                ? $query->availableInCity($request->input('city_id'))
+                : $query->whereHas('cities', fn ($q) => $q->whereKey($request->input('city_id')));
         }
 
         if ($request->filled('search')) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\SosIncidentStatus;
 use App\Enums\SosQueueStatus;
+use App\Exceptions\SosIncidentTakenException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sos\DispatchSosFormRequest;
 use App\Http\Requests\Sos\LogSosCallFormRequest;
@@ -141,12 +142,33 @@ class AdminSosController extends Controller
         ]);
     }
 
-    public function assign(SosIncident $incident): JsonResponse
+    /**
+     * Take the incident. Send expected_operator_id (null when nobody had it)
+     * with the holder the console last showed: if someone else has taken it
+     * since, the take is refused with 409 instead of moving it away from them.
+     * Without the field the take always goes ahead (explicit take-over).
+     */
+    public function assign(Request $request, SosIncident $incident): JsonResponse
     {
-        $operator = request()->user();
+        $request->validate([
+            'expected_operator_id' => ['nullable', 'uuid'],
+        ]);
+
+        $operator = $request->user();
 
         try {
-            $incident = $this->sosService->assignOperator($incident, $operator);
+            $incident = $this->sosService->assignOperator(
+                $incident,
+                $operator,
+                checkHolder: $request->exists('expected_operator_id'),
+                expectedOperatorId: $request->input('expected_operator_id'),
+            );
+        } catch (SosIncidentTakenException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'error_code' => 'SOS_INCIDENT_TAKEN',
+                'incident' => new SosIncidentResource($e->incident->load(self::LIST_RELATIONS)),
+            ], 409);
         } catch (\RuntimeException $e) {
             return response()->json([
                 'message' => $e->getMessage(),

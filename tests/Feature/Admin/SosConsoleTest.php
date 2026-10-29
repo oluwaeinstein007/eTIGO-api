@@ -191,10 +191,64 @@ it('logs a call to the passenger in the audit trail', function () {
             'outcome' => 'no_answer',
             'phone' => $this->passenger->phone,
         ])
+        ->assertCreated();
+
+    $call = $incident->eventLogs()->where('event_type', 'operator_call')->sole();
+    expect($call->actor_id)->toBe($this->operator->id);
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/sos/{$incident->id}")
+        ->assertJsonFragment(['event_type' => 'operator_call', 'description' => 'Called the passenger: no answer']);
+});
+
+it('takes an untaken alert when a call is logged on it', function () {
+    $incident = sosIncident(state: 'escalated');
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/sos/{$incident->id}/calls", ['outcome' => 'reached'])
         ->assertCreated()
-        ->assertJsonPath('incident.event_logs.0.event_type', 'operator_call')
-        ->assertJsonPath('incident.event_logs.0.description', 'Called the passenger: no answer')
-        ->assertJsonPath('incident.event_logs.0.actor_id', $this->operator->id);
+        ->assertJsonPath('incident.status', 'operator_assigned')
+        ->assertJsonPath('incident.operator_id', $this->operator->id);
+
+    expect($incident->fresh()->operator_assigned_at)->not->toBeNull();
+});
+
+it('leaves an alert with its operator when someone else logs a call', function () {
+    $holder = User::factory()->safetyOperator()->create();
+    $incident = sosIncident(state: 'escalated');
+    app(SosService::class)->assignOperator($incident, $holder);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/sos/{$incident->id}/calls", ['outcome' => 'reached'])
+        ->assertCreated()
+        ->assertJsonPath('incident.operator_id', $holder->id);
+
+    expect($incident->eventLogs()->where('event_type', 'operator_call')->sole()->actor_id)->toBe($this->operator->id);
+});
+
+it('refuses a take when another operator took the alert first', function () {
+    $holder = User::factory()->safetyOperator()->create();
+    $incident = sosIncident(state: 'escalated');
+    app(SosService::class)->assignOperator($incident, $holder);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/sos/{$incident->id}/assign", ['expected_operator_id' => null])
+        ->assertConflict()
+        ->assertJsonPath('error_code', 'SOS_INCIDENT_TAKEN')
+        ->assertJsonPath('incident.operator_id', $holder->id);
+
+    expect($incident->fresh()->operator_id)->toBe($holder->id);
+});
+
+it('takes over an alert when the console names its current holder', function () {
+    $holder = User::factory()->safetyOperator()->create();
+    $incident = sosIncident(state: 'escalated');
+    app(SosService::class)->assignOperator($incident, $holder);
+
+    $this->withToken($this->token)
+        ->postJson("/api/v1/admin/sos/{$incident->id}/assign", ['expected_operator_id' => $holder->id])
+        ->assertOk()
+        ->assertJsonPath('incident.operator_id', $this->operator->id);
 });
 
 it('requires a call outcome', function () {

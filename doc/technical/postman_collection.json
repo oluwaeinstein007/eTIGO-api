@@ -4896,7 +4896,7 @@
                     "tip-settings"
                   ]
                 },
-                "description": "Tip presets (\u20a6) to show as quick-select buttons, plus the allowed min/max tip."
+                "description": "Tip presets (\u20a6) to show as quick-select buttons, plus the allowed min/max tip.\n\n**2026-10-29:** Also returns `limits` (min_amount_floor, max_amount_floor, preset_min, preset_max, presets_max_count)."
               },
               "response": [
                 {
@@ -12370,7 +12370,7 @@
                     }
                   ]
                 },
-                "description": "Map pins and latest trips for one city. Operations only.\n\n- `cities`: cities with active rides, busiest first, for the switcher.\n- `markers` (max 300, newest first; `markers_truncated` when more): `lat`/`lng` from the driver's live location (`position_source: driver`) or the pickup (`pickup`); `needs_attention` = red pin.\n- `rides[]`: `reference_number`, `status_label`, `pickup_address`, `destination_address`, `passenger.name`, `driver.name`, `attention_reasons` (`sos`, `driver_location_missing`).\n- `summary`: `active_rides` (full count), `needs_attention` (among markers).\n- `city` is `null` with empty lists when nothing is moving and no `city_id` was given."
+                "description": "Map pins and latest trips for one city. Operations only.\n\n- `cities`: cities with active rides, busiest first, for the switcher.\n- `markers` (max 300, newest first; `markers_truncated` when more): `lat`/`lng` from the driver's live location (`position_source: driver`) or the pickup (`pickup`); `needs_attention` = red pin.\n- `rides[]`: `reference_number`, `status_label`, `pickup_address`, `destination_address`, `passenger.name`, `driver.name`, `attention_reasons` (`sos`, `driver_location_missing`).\n- `summary`: `active_rides` (full count), `needs_attention` (among markers).\n- `city` is `null` with empty lists when nothing is moving and no `city_id` was given.\n\n**2026-10-29:** Each trip has `is_third_party` and `rider: { user_id, name }` \u2014 the person being picked up. Show `rider.name` as the passenger; `passenger` stays the booker. `rider.user_id` is null on rides booked for someone else."
               },
               "response": [
                 {
@@ -14345,10 +14345,22 @@
                       "value": "none",
                       "description": "Fuel type, or none for vehicles without one",
                       "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "available",
+                      "description": "available, assigned, maintenance or blocked",
+                      "disabled": true
+                    },
+                    {
+                      "key": "vehicle_class_id",
+                      "value": "",
+                      "description": "Vehicle class UUID",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists all fleet vehicles in inventory. Supports pagination (20 per page).\n\n**Query parameters:**\n- `unassigned_only` (boolean) \u2014 `true` to show only unassigned (available) vehicles.\n- `fuel_type` (string) \u2014 filter by fuel type; `none` lists vehicles without one.\n- `search` (string) \u2014 Search by make, model, or plate number (case-insensitive)."
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists all fleet vehicles in inventory. Supports pagination (20 per page).\n\n**Query parameters:**\n- `unassigned_only` (boolean) \u2014 `true` to show only unassigned (available) vehicles.\n- `fuel_type` (string) \u2014 filter by fuel type; `none` lists vehicles without one.\n- `search` (string) \u2014 Search by make, model, or plate number (case-insensitive).\n\n**2026-10-29:** Filters `status` (`available`, `assigned`, `maintenance`, `blocked`) and `vehicle_class_id`. Each car has `fleet_status` and, while in for servicing, `maintenance: { started_at, reason }`. `status=available` lists the cars you can give out (`unassigned_only` also includes cars in maintenance)."
               },
               "response": [
                 {
@@ -14640,7 +14652,7 @@
                     "assign"
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nAssigns an unassigned fleet vehicle to an approved driver and creates a fleet agreement automatically in a single transaction.\n\n**Prerequisites:**\n- Vehicle must be fleet (`is_fleet: true`) and unassigned (`driver_id: null`).\n- Driver must be approved and not already have a vehicle assigned.\n- The car is not in shift mode, and the driver has no upcoming shifts on a shared fleet car (one car per driver; 422 otherwise).\n\n**Required fields:**\n- `driver_id` (UUID, must exist in drivers)\n- `daily_remittance_target` (number, min: 1000)\n- `total_vehicle_cost` (number, min: 100000)\n- `agreement_start_date` (date Y-m-d, today or future)"
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nAssigns an unassigned fleet vehicle to an approved driver and creates a fleet agreement automatically in a single transaction.\n\n**Prerequisites:**\n- Vehicle must be fleet (`is_fleet: true`) and unassigned (`driver_id: null`).\n- Driver must be approved and not already have a vehicle assigned.\n- The car is not in shift mode, and the driver has no upcoming shifts on a shared fleet car (one car per driver; 422 otherwise).\n\n**Required fields:**\n- `driver_id` (UUID, must exist in drivers)\n- `daily_remittance_target` (number, min: 1000)\n- `total_vehicle_cost` (number, min: 100000)\n- `agreement_start_date` (date Y-m-d, today or future)\n\n**2026-10-29:** Refused (422) when the car is in for maintenance."
               },
               "response": [
                 {
@@ -14773,6 +14785,74 @@
               ]
             },
             {
+              "name": "Mark Fleet Car In or Out of Maintenance",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles/{{vehicle_id}}/maintenance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles",
+                    "{{vehicle_id}}",
+                    "maintenance"
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nTakes a fleet car off the road for servicing (`in_maintenance: true`, `reason` required) or puts it back (`false`). A car in maintenance can't be assigned, put on an agreement or swapped in. A car with a driver keeps them.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"in_maintenance\": true,\n  \"reason\": \"Brake pads and service\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 In maintenance",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Car marked as in for maintenance.\",\n  \"vehicle\": {\n    \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n    \"plate_number\": \"FLEET-001\",\n    \"is_fleet\": true,\n    \"fleet_status\": \"maintenance\",\n    \"maintenance\": {\n      \"started_at\": \"2026-10-29T09:00:00+00:00\",\n      \"reason\": \"Brake pads and service\"\n    }\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Already in maintenance",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This car is already in for maintenance.\"\n}"
+                }
+              ]
+            },
+            {
               "name": "Drivers Awaiting Vehicle Assignment",
               "request": {
                 "method": "GET",
@@ -14795,9 +14875,23 @@
                     "admin",
                     "fleet-vehicles",
                     "drivers-awaiting"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Name, phone, email or driver reference",
+                      "disabled": true
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "description": "City UUID",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists approved fleet drivers (`vehicle_ownership_type: fleet_vehicle`) who do not yet have a vehicle assigned. Useful for admins to find which drivers need a fleet vehicle. Supports pagination (20 per page)."
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists approved fleet drivers (`vehicle_ownership_type: fleet_vehicle`) who do not yet have a vehicle assigned. Useful for admins to find which drivers need a fleet vehicle. Supports pagination (20 per page).\n\n**2026-10-29:** `search` (name, phone, email or driver reference) and `city_id`."
               },
               "response": [
                 {
@@ -14843,9 +14937,23 @@
                   "path": [
                     "admin",
                     "fleet-agreements"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Agreement reference, driver name/phone/reference, or plate",
+                      "disabled": true
+                    },
+                    {
+                      "key": "vehicle_class_id",
+                      "value": "",
+                      "description": "Vehicle class UUID",
+                      "disabled": true
+                    }
                   ]
                 },
-                "description": "Fleet agreements with driver and vehicle. Filters: `status`, `driver_id`. **Sets `{{fleet_agreement_id}}`** (first agreement)."
+                "description": "Fleet agreements with driver and vehicle. Filters: `status`, `driver_id`. **Sets `{{fleet_agreement_id}}`** (first agreement).\n\n**2026-10-29:** `search` (agreement reference `FA-000123`, driver name, phone or reference, or plate) and `vehicle_class_id`. Each agreement has `reference_number`; `vehicle.vehicle_class` is loaded; admins see `paused_reason` while paused."
               },
               "response": [
                 {
@@ -15067,6 +15175,55 @@
               ]
             },
             {
+              "name": "Fleet Agreement History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-agreements/{{fleet_agreement_id}}/history?per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-agreements",
+                    "{{fleet_agreement_id}}",
+                    "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nEverything done to the agreement, newest first, with who did it and why: created, changed (with from/to), paused, resumed, excused, excuse withdrawn, terminated, swapped, paid off, car handed over or taken back."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 History",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"history\": [\n    {\n      \"id\": \"0b5e1c2d-0000-7000-8000-000000000001\",\n      \"event\": \"fleet_agreement.paused\",\n      \"description\": \"Agreement paused\",\n      \"reason\": \"Vehicle maintenance\",\n      \"changes\": null,\n      \"details\": null,\n      \"actor\": {\n        \"id\": \"3c1d0000-0000-7000-8000-000000000001\",\n        \"name\": \"Ope Ops\",\n        \"role\": \"operations\"\n      },\n      \"created_at\": \"2026-10-20T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
               "name": "Update Fleet Agreement",
               "request": {
                 "method": "PUT",
@@ -15087,7 +15244,12 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"daily_remittance_target\": 45000\n}"
+                  "raw": "{\n  \"total_vehicle_cost\": 5000000,\n  \"agreement_start_date\": \"2026-11-01\",\n  \"reason\": \"Cost was typed without the last zero\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/fleet-agreements/{{fleet_agreement_id}}",
@@ -15100,7 +15262,7 @@
                     "{{fleet_agreement_id}}"
                   ]
                 },
-                "description": "Updates an active fleet agreement. Only active agreements can be updated.\n\n**Updatable fields:**\n- `daily_remittance_target` (min: 1000)"
+                "description": "Updates an active fleet agreement. Only active agreements can be updated.\n\n**Updatable fields:**\n- `daily_remittance_target` (min: 1000)\n\n**2026-10-29:** Active or paused agreements. Also takes `total_vehicle_cost` (must be more than `total_remitted`) and `agreement_start_date` (not before the day it was entered, not after the first paid day); `reason` is required with either. Agreement-dependent limits come back as validation errors on the field."
               },
               "response": [
                 {
@@ -15126,6 +15288,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Only active agreements can be updated.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Total below what was paid",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The total vehicle cost must be more than the driver has already paid (\u20a61,250,000.00).\",\n  \"errors\": {\n    \"total_vehicle_cost\": [\n      \"The total vehicle cost must be more than the driver has already paid (\u20a61,250,000.00).\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -15164,7 +15338,7 @@
                     "terminate"
                   ]
                 },
-                "description": "Permanently terminates a fleet agreement. Cannot terminate already completed or terminated agreements.\n\n**Required fields:**\n- `reason` (string, max 1000 chars)"
+                "description": "Permanently terminates a fleet agreement. Cannot terminate already completed or terminated agreements.\n\n**Required fields:**\n- `reason` (string, max 1000 chars)\n\n**2026-10-29:** Also takes the car back from the driver and takes them offline in the same transaction \u2014 no separate unassign call. Refused (422) while the driver is on a trip."
               },
               "response": [
                 {
@@ -15194,6 +15368,10 @@
                     "key": "Authorization",
                     "value": "Bearer {{admin_token}}",
                     "type": "string"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -15208,7 +15386,16 @@
                     "pause"
                   ]
                 },
-                "description": "Pauses an active agreement (e.g., vehicle maintenance, driver leave). Only active agreements can be paused. No request body required."
+                "description": "Pauses an active agreement (e.g., vehicle maintenance, driver leave). Only active agreements can be paused. **`reason` is required** (max 500); it is shown as `paused_reason` while paused and kept in the history.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Vehicle maintenance\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
               },
               "response": [
                 {
@@ -15221,7 +15408,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Fleet agreement paused.\",\n  \"agreement\": {\n    \"status\": \"paused\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Fleet agreement paused.\",\n  \"agreement\": {\n    \"status\": \"paused\",\n    \"paused_at\": \"2026-10-29T09:00:00.000000Z\",\n    \"paused_reason\": \"Vehicle maintenance\"\n  }\n}"
                 }
               ]
             },
@@ -15304,7 +15491,7 @@
                     "swap"
                   ]
                 },
-                "description": "Swaps the vehicle on an active fleet agreement. Terminates the current agreement and creates a new one with the replacement vehicle.\n\n**Required fields:**\n- `new_vehicle_id` (UUID) \u2014 replacement fleet vehicle (must be unassigned)\n- `reason` (string, max 1000) \u2014 reason for the swap\n- `carry_over_remitted` (boolean) \u2014 whether to carry over total_remitted to new agreement\n\n**Optional fields:**\n- `daily_remittance_target` (number, min 1000) \u2014 new daily target (defaults to previous)\n- `total_vehicle_cost` (number, min 100000) \u2014 new total cost (defaults to previous)"
+                "description": "Swaps the vehicle on an active fleet agreement. Terminates the current agreement and creates a new one with the replacement vehicle.\n\n**Required fields:**\n- `new_vehicle_id` (UUID) \u2014 replacement fleet vehicle (must be unassigned)\n- `reason` (string, max 1000) \u2014 reason for the swap\n- `carry_over_remitted` (boolean) \u2014 whether to carry over total_remitted to new agreement\n\n**Optional fields:**\n- `daily_remittance_target` (number, min 1000) \u2014 new daily target (defaults to previous)\n- `total_vehicle_cost` (number, min 100000) \u2014 new total cost (defaults to previous)\n\n**2026-10-29:** Refused while the driver is on a trip or when the replacement car is in for maintenance."
               },
               "response": [
                 {
@@ -15356,7 +15543,7 @@
                     "terminate-settle"
                   ]
                 },
-                "description": "Terminates a fleet agreement with full settlement details including vehicle return status and financial reconciliation.\n\n**Required fields:**\n- `reason` (string, max 1000)\n\n**Optional fields:**\n- `vehicle_return_status` (string) \u2014 `returned`, `pending_return`, `not_returned`, `damaged`\n- `outstanding_amount` (number, min 0) \u2014 outstanding amount owed by driver\n- `settlement_amount` (number, min 0) \u2014 amount settled/agreed upon\n- `settlement_notes` (string, max 2000) \u2014 free-text settlement notes"
+                "description": "Terminates a fleet agreement with full settlement details including vehicle return status and financial reconciliation.\n\n**Required fields:**\n- `reason` (string, max 1000)\n\n**Optional fields:**\n- `vehicle_return_status` (string) \u2014 `returned`, `pending_return`, `not_returned`, `damaged`\n- `outstanding_amount` (number, min 0) \u2014 outstanding amount owed by driver\n- `settlement_amount` (number, min 0) \u2014 amount settled/agreed upon\n- `settlement_notes` (string, max 2000) \u2014 free-text settlement notes\n\n**2026-10-29:** Also takes the car back from the driver and takes them offline in the same transaction \u2014 no separate unassign call. Refused (422) while the driver is on a trip."
               },
               "response": [
                 {
@@ -15410,7 +15597,7 @@
                     "excuse"
                   ]
                 },
-                "description": "Marks a settled remittance day as excused. Decrements the shortfall streak by 1.\n\n**Required fields:**\n- `reason` (string) \u2014 one of: `approved_leave`, `vehicle_downtime`, `low_demand`, `payment_failure`, `other`\n\n**Optional fields:**\n- `notes` (string, max 1000) \u2014 additional context"
+                "description": "Marks a settled remittance day as excused. Decrements the shortfall streak by 1.\n\n**Required fields:**\n- `reason` (string) \u2014 one of: `approved_leave`, `vehicle_downtime`, `low_demand`, `payment_failure`, `other`\n\n**Optional fields:**\n- `notes` (string, max 1000) \u2014 additional context\n\n**2026-10-29:** Excusing a day that is already excused answers 422 `This remittance day is already excused.` (was 500)."
               },
               "response": [
                 {
@@ -15424,6 +15611,76 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Remittance day marked as excused.\",\n  \"remittance\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"date\": \"2026-10-08\",\n    \"excused_reason\": \"vehicle_downtime: Vehicle was in maintenance shop\",\n    \"settled\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Withdraw Remittance Excuse",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-agreements/{{fleet_agreement_id}}/remittances/{{remittance_id}}/withdraw-excuse",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-agreements",
+                    "{{fleet_agreement_id}}",
+                    "remittances",
+                    "{{remittance_id}}",
+                    "withdraw-excuse"
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nTakes back an excuse given by mistake. A settled short day counts towards the shortfall streak again. `reason` required.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Leave was not approved\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Withdrawn",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Excuse withdrawn. The day counts towards the target again.\",\n  \"remittance\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"date\": \"2026-10-08\",\n    \"settled\": true\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Not excused",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This remittance day is not excused.\"\n}"
                 }
               ]
             }
@@ -22099,10 +22356,22 @@
                       "key": "page",
                       "value": "1",
                       "description": "Page number"
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-10-20",
+                      "description": "Lagos day; same range as /aggregate",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-26",
+                      "description": "Lagos day",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Passengers' gamification profiles (**passengers only** \u2014 only passengers earn points).\n\n`city_id` / `city_name` \u2014 the passenger's city, from their most recent ride (`null` with no rides).\n\nFilters: `tier` (1\u20135), `search` (name/email), `min_points`, `city_id` (passengers with a ride in that city), `sort_by` (`total_ranking_points`, `total_carbon_score`, `current_tier`, `created_at`), `sort_dir`, `per_page`, `page`."
+                "description": "Passengers' gamification profiles (**passengers only** \u2014 only passengers earn points).\n\n`city_id` / `city_name` \u2014 the passenger's city, from their most recent ride (`null` with no rides).\n\nFilters: `tier` (1\u20135), `search` (name/email), `min_points`, `city_id` (passengers with a ride in that city), `sort_by` (`total_ranking_points`, `total_carbon_score`, `current_tier`, `created_at`), `sort_dir`, `per_page`, `page`.\n\n**2026-10-29:** `from`/`to` (Y-m-d, Lagos days, the same range as `/aggregate`) limit the table to passengers who earned points in the range, add `period: { points, co2_saved_kg, trips }` to each profile and rank by `period.points` (`sort_by=period_points|period_co2_saved_kg` also work). Leave them out for all-time standings (`period: null`)."
               },
               "response": [
                 {
@@ -22886,6 +23155,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -22900,7 +23173,16 @@
                     "assign"
                   ]
                 },
-                "description": "The safety operator takes over an incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`) \u2014 no need to wait for the escalation. On an incident another operator holds, it reassigns it to the caller. Closed incidents \u2192 422."
+                "description": "The safety operator takes the incident at any open stage (`triggered`, `check_in_sent`, `acknowledged`, `escalated`). Send `expected_operator_id` with the holder the console showed (`null` = nobody has it). If someone else took it in the meantime the take is refused with **409 `SOS_INCIDENT_TAKEN`** and the alert stays with them; the response carries the incident as it is now. Without the field the take always goes ahead (explicit take-over, logged as `operator_reassigned`). Taking an incident you already hold changes nothing. Closed incidents \u2192 422.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expected_operator_id\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
               },
               "response": [
                 {
@@ -22914,6 +23196,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"You have been assigned to this incident.\",\n  \"incident\": {\n    \"id\": \"01a14039-5f89-7209-adfd-bdc45dea5c40\",\n    \"ride_id\": \"01a14039-5e86-73f2-9e75-e118d94210d8\",\n    \"triggered_by_user_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n    \"trigger_type\": \"passenger\",\n    \"trigger_type_label\": \"Passenger\",\n    \"status\": \"operator_assigned\",\n    \"status_label\": \"Operator Assigned\",\n    \"gps_lat\": \"6.5244000\",\n    \"gps_lng\": \"3.3792000\",\n    \"vehicle_details\": {\n      \"plate_number\": \"LAG-001AB\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"color\": \"White\",\n      \"vehicle_class\": \"economy\"\n    },\n    \"telemetry_data\": {\n      \"ride_status\": \"driver_en_route\",\n      \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"driver_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n      \"pickup_lat\": 6.5244,\n      \"pickup_lng\": 3.3792,\n      \"destination_lat\": 6.4541,\n      \"destination_lng\": 3.3947,\n      \"triggered_at_speed\": 45.2,\n      \"triggered_at_heading\": 180.5\n    },\n    \"check_in_sent_at\": null,\n    \"check_in_acknowledged_at\": null,\n    \"escalated_at\": null,\n    \"operator_id\": \"01a14039-5520-72fc-be4b-ac01ae3c8498\",\n    \"operator_notes\": null,\n    \"resolved_at\": null,\n    \"triggered_by\": {\n      \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"reference_number\": null,\n      \"first_name\": \"Ade\",\n      \"last_name\": \"Ogunleye\",\n      \"phone\": \"+2348100000001\",\n      \"email\": \"ade@demo.etigo.com\",\n      \"type\": \"passenger\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"operator\": {\n      \"id\": \"01a14039-5520-72fc-be4b-ac01ae3c8498\",\n      \"reference_number\": null,\n      \"first_name\": \"Safety\",\n      \"last_name\": \"Operator\",\n      \"phone\": \"+2340000000005\",\n      \"email\": \"safety@etigo.com\",\n      \"type\": \"admin\",\n      \"admin_role\": \"safety_operator\",\n      \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n      \"is_active\": true,\n      \"profile_photo_url\": null,\n      \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n    },\n    \"ride\": {\n      \"id\": \"01a14039-5e86-73f2-9e75-e118d94210d8\",\n      \"reference_number\": \"TRP-NG-000006\",\n      \"city_id\": \"01a14039-5544-7369-a5fe-d26254af11dc\",\n      \"vehicle_class_id\": \"01a14039-5537-7292-8644-e025e6ed2d33\",\n      \"passenger_id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n      \"driver_id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n      \"pickup\": {\n        \"lat\": \"6.5244000\",\n        \"lng\": \"3.3792000\",\n        \"address\": \"123 Herbert Macaulay Way, Yaba, Lagos\"\n      },\n      \"destination\": {\n        \"lat\": \"6.4541000\",\n        \"lng\": \"3.3947000\",\n        \"address\": \"456 Broad Street, Lagos Island, Lagos\"\n      },\n      \"status\": \"driver_en_route\",\n      \"status_label\": \"Driver En Route\",\n      \"is_scheduled\": false,\n      \"scheduled_pickup_at\": null,\n      \"scheduled\": null,\n      \"share_token\": \"tCCqdsa2pzJnGVE95z1RS6i36OHV9GeM\",\n      \"fare_estimate_amount\": \"4088.00\",\n      \"final_fare_amount\": null,\n      \"discount_amount\": null,\n      \"fare_currency\": \"NGN\",\n      \"distance_km\": 10,\n      \"duration_minutes\": 25,\n      \"co2_saved_kg\": 1.2,\n      \"payment_method\": \"cash\",\n      \"payment_status\": \"pending\",\n      \"tip_amount\": null,\n      \"cancellation_reason\": null,\n      \"passenger\": {\n        \"id\": \"01a14039-556d-72e9-a52f-6a5418c9d384\",\n        \"reference_number\": null,\n        \"first_name\": \"Ade\",\n        \"last_name\": \"Ogunleye\",\n        \"phone\": \"+2348100000001\",\n        \"email\": \"ade@demo.etigo.com\",\n        \"type\": \"passenger\",\n        \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n      },\n      \"driver\": {\n        \"id\": \"01a14039-5583-7117-91da-1400463c53ea\",\n        \"reference_number\": null,\n        \"first_name\": \"Bayo\",\n        \"last_name\": \"Akinola\",\n        \"phone\": \"+2348200000001\",\n        \"email\": \"bayo@demo.etigo.com\",\n        \"type\": \"driver\",\n        \"phone_verified_at\": \"2026-10-15T15:41:01.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"rating\": null,\n        \"created_at\": \"2026-10-15T15:41:01.000000Z\"\n      },\n      \"matched_at\": \"2026-10-15T15:41:04.000000Z\",\n      \"started_at\": null,\n      \"completed_at\": null,\n      \"created_at\": \"2026-10-15T15:41:04.000000Z\",\n      \"updated_at\": \"2026-10-15T15:41:04.000000Z\"\n    },\n    \"created_at\": \"2026-10-15T16:41:02.000000Z\"\n  }\n}"
+                },
+                {
+                  "name": "409 \u2014 Another operator took it first",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Another operator has taken this incident.\",\n  \"error_code\": \"SOS_INCIDENT_TAKEN\",\n  \"incident\": {\n    \"id\": \"01a14039-5f89-7209-adfd-bdc45dea5c40\",\n    \"status\": \"operator_assigned\",\n    \"operator_id\": \"01a14039-5520-72fc-be4b-ac01ae3c8498\",\n    \"operator\": {\n      \"id\": \"01a14039-5520-72fc-be4b-ac01ae3c8498\",\n      \"first_name\": \"Sade\",\n      \"last_name\": \"Safety\"\n    }\n  }\n}"
                 }
               ]
             },
@@ -23061,7 +23355,7 @@
                     "calls"
                   ]
                 },
-                "description": "Add a call the operator made (from their own phone) to the incident's audit trail. `called_party`: passenger (default), driver, emergency_contact, other. `outcome`: reached, no_answer, busy, unreachable.",
+                "description": "Add a call the operator made (from their own phone) to the incident's audit trail. `called_party`: passenger (default), driver, emergency_contact, other. `outcome`: reached, no_answer, busy, unreachable.\n\n**2026-10-29:** If nobody has taken the alert, logging the call takes it for the caller in the same request (both steps are in the audit trail). Do not send a separate `/assign` afterwards. An alert another operator holds stays with them.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"called_party\": \"passenger\",\n  \"outcome\": \"no_answer\",\n  \"phone\": \"+2348012345678\",\n  \"notes\": \"Rang twice, went to voicemail.\"\n}"
@@ -25470,10 +25764,34 @@
                     {
                       "key": "status",
                       "value": "pending"
+                    },
+                    {
+                      "key": "type",
+                      "value": "",
+                      "description": "credit or debit",
+                      "disabled": true
+                    },
+                    {
+                      "key": "owner_type",
+                      "value": "",
+                      "description": "passenger or driver",
+                      "disabled": true
+                    },
+                    {
+                      "key": "account_id",
+                      "value": "",
+                      "description": "Account UUID",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Reference, reason, owner name/phone/reference",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Returns paginated manual balance adjustments. Optional `status` filter: pending, approved, rejected."
+                "description": "Returns paginated manual balance adjustments. Optional `status` filter: pending, approved, rejected.\n\n**2026-10-29:** Filters `type`, `owner_type` (`passenger`/`driver`), `account_id`, `search` (reference `AD-000123`, reason, owner name/phone/reference). Each adjustment has `reference_number`, `account: { id, type, type_label, owner_type, owner }`, and once rejected `rejected_by`, `rejected_at`, `rejection_reason`."
               },
               "response": [
                 {
@@ -25487,6 +25805,48 @@
                     }
                   ],
                   "body": "{\n  \"adjustments\": [\n    {\n      \"id\": \"01a1421f-574d-7397-9535-0b816a98b438\",\n      \"account_id\": \"01a1421f-572d-7176-a118-adc96379603d\",\n      \"type\": \"credit\",\n      \"type_label\": \"Credit\",\n      \"amount\": 150000,\n      \"reason\": \"Goodwill credit for a cancelled trip\",\n      \"status\": \"approved\",\n      \"status_label\": \"Approved\",\n      \"created_by\": {\n        \"id\": \"01a1421f-5721-7088-a20f-868013afdd6c\",\n        \"reference_number\": null,\n        \"first_name\": \"Ngozi\",\n        \"last_name\": \"Eze\",\n        \"phone\": \"+2348300000001\",\n        \"email\": \"ngozi.finance@demo.etigo.com\",\n        \"type\": \"admin\",\n        \"admin_role\": \"finance\",\n        \"phone_verified_at\": \"2026-10-16T00:31:52.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-16T00:31:52.000000Z\"\n      },\n      \"approved_by\": {\n        \"id\": \"01a1421f-5724-73c7-b071-85cf1df56c5c\",\n        \"reference_number\": null,\n        \"first_name\": \"Kunle\",\n        \"last_name\": \"Adeyemi\",\n        \"phone\": \"+2348300000002\",\n        \"email\": \"kunle.finance@demo.etigo.com\",\n        \"type\": \"admin\",\n        \"admin_role\": \"finance\",\n        \"phone_verified_at\": \"2026-10-16T00:31:52.000000Z\",\n        \"is_active\": true,\n        \"profile_photo_url\": null,\n        \"created_at\": \"2026-10-16T00:31:52.000000Z\"\n      },\n      \"approved_at\": \"2026-10-16T00:31:52+00:00\",\n      \"created_at\": \"2026-10-16T00:31:52+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Adjustment",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/adjustments/{{adjustment_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "adjustments",
+                    "{{adjustment_id}}"
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Finance).**\n\nOne adjustment, for shared links."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Adjustment",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"adjustment\": {\n    \"id\": \"01a1421f-574d-7397-9535-0b816a98b438\",\n    \"reference_number\": \"AD-000001\",\n    \"account_id\": \"01a1421f-572d-7176-a118-adc96379603d\",\n    \"account\": {\n      \"id\": \"01a1421f-572d-7176-a118-adc96379603d\",\n      \"type\": \"driver_earnings_available\",\n      \"type_label\": \"Driver Earnings (Available)\",\n      \"owner_type\": \"driver\",\n      \"owner\": {\n        \"id\": \"uuid\",\n        \"user_id\": \"uuid\",\n        \"reference_number\": \"DRV-000014\",\n        \"name\": \"Tunde Bello\"\n      }\n    },\n    \"type\": \"debit\",\n    \"amount\": 150000,\n    \"reason\": \"Duplicate earnings credit\",\n    \"status\": \"rejected\",\n    \"rejected_at\": \"2026-10-29T10:00:00+00:00\",\n    \"rejection_reason\": \"Duplicate of an earlier request\"\n  }\n}"
                 }
               ]
             },
@@ -25518,7 +25878,7 @@
                     "adjustments"
                   ]
                 },
-                "description": "Manual credit or debit to any ledger account (`{{account_id}}` \u2014 run **List Wallets** or **List Driver Ledgers** first). `amount` in kobo, `reason` 10\u20132000 chars. Nothing is posted until a **different** admin approves it. **Sets `{{adjustment_id}}`.**",
+                "description": "Manual credit or debit to any ledger account (`{{account_id}}` \u2014 run **List Wallets** or **List Driver Ledgers** first). `amount` in kobo, `reason` 10\u20132000 chars. Nothing is posted until a **different** admin approves it. **Sets `{{adjustment_id}}`.**\n\n**2026-10-29:** `account_id` must be a passenger wallet or a driver ledger (`/admin/driver-ledgers` id); E-tiGo's own accounts \u2192 422.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"type\": \"credit\",\n  \"amount\": 150000,\n  \"reason\": \"Compensation for failed ride that was charged incorrectly\"\n}"
@@ -25657,7 +26017,7 @@
                     "reject"
                   ]
                 },
-                "description": "Reject a pending adjustment. Requires `reason` (min 10 chars).",
+                "description": "Reject a pending adjustment. Requires `reason` (min 10 chars).\n\n**2026-10-29:** Returns the adjustment with `rejected_by`, `rejected_at`, `rejection_reason`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"The amount is incorrect. Please resubmit with the right figure.\"\n}"
@@ -25730,10 +26090,16 @@
                     {
                       "key": "to",
                       "value": "2026-10-13"
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "Payout reference, driver name, email or phone",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Paginated payout requests. Filters: `status`, `search` (driver name/email), `from`/`to` (date range).\n\n`needs_attention` is `true` when the transfer outcome has been unconfirmed for longer than usual: approved for over 10 minutes without being sent, or processing for over 30 minutes without Paystack's confirmation. Show a **Check status** button for those payouts that calls *Check Payout Status (Paystack)*.\n\n`attention_reason` explains the flag: `awaiting_otp` (Paystack is holding the transfer for an OTP; turn off transfer OTP in the Paystack dashboard, then check status; flagged immediately), `not_sent` or `unconfirmed`. `provider_status` is Paystack's last reported status for the transfer. Each payout has `bank_account_block` (`null` or `code`, `message`, `payouts_held_until`): disable Approve/Retry when set."
+                "description": "Paginated payout requests. Filters: `status`, `search` (driver name/email), `from`/`to` (date range).\n\n`needs_attention` is `true` when the transfer outcome has been unconfirmed for longer than usual: approved for over 10 minutes without being sent, or processing for over 30 minutes without Paystack's confirmation. Show a **Check status** button for those payouts that calls *Check Payout Status (Paystack)*.\n\n`attention_reason` explains the flag: `awaiting_otp` (Paystack is holding the transfer for an OTP; turn off transfer OTP in the Paystack dashboard, then check status; flagged immediately), `not_sent` or `unconfirmed`. `provider_status` is Paystack's last reported status for the transfer. Each payout has `bank_account_block` (`null` or `code`, `message`, `payouts_held_until`): disable Approve/Retry when set.\n\n**2026-10-29:** `from`/`to` are Lagos days (Y-m-d). `search` also matches the payout reference `PO-000123` and phone. Each payout has `reference_number`; rejected ones `rejected_at` and `rejected_by`."
               },
               "response": [
                 {
@@ -25775,6 +26141,48 @@
               ]
             },
             {
+              "name": "Get Payout",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/payouts/{{payout_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "payouts",
+                    "{{payout_id}}"
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Finance).**\n\nOne payout with driver, bank account, approved_by and rejected_by, for shared links."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Payout",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payout\": {\n    \"id\": \"5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c\",\n    \"reference_number\": \"PO-003101\",\n    \"amount\": 500000,\n    \"status\": \"rejected\",\n    \"failure_reason\": \"Bank details do not match the driver\",\n    \"rejected_at\": \"2026-10-29T10:00:00+00:00\",\n    \"rejected_by\": {\n      \"id\": \"uuid\",\n      \"first_name\": \"Finance\",\n      \"last_name\": \"Admin\"\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
               "name": "Export Payouts (CSV)",
               "request": {
                 "method": "GET",
@@ -25809,7 +26217,7 @@
                     }
                   ]
                 },
-                "description": "Export payouts as CSV. Requires `from` and `to`. Columns: Payout ID, Driver, Bank, Account, Amount (kobo), Status, Requested At, Paid At."
+                "description": "Export payouts as CSV. Requires `from` and `to`. Columns: Payout ID, Driver, Bank, Account, Amount (kobo), Status, Requested At, Paid At.\n\n**2026-10-29:** Lagos days, like the list; new `Reference` column."
               },
               "response": [
                 {
@@ -25927,7 +26335,7 @@
                     "reject"
                   ]
                 },
-                "description": "Finance rejects a `requested` payout with a `reason` (min 10 characters). The driver is notified with the reason (`payout_rejected`). Not `requested` \u2192 422.",
+                "description": "Finance rejects a `requested` payout with a `reason` (min 10 characters). The driver is notified with the reason (`payout_rejected`). Not `requested` \u2192 422.\n\n**2026-10-29:** Returns the payout with `rejected_by`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"Bank account details could not be verified. Please update your bank account.\"\n}"
@@ -26168,7 +26576,7 @@
                     "payout-accounts"
                   ]
                 },
-                "description": "Accounts with their safeguards, pending reviews first. Filters: `review_status` (pending, approved, rejected), `name_match_status` (matched, mismatch), `on_hold` (1/0), `search` (account name, driver name or phone), `per_page`. `summary.pending_review` is the badge count. **Sets `{{payout_account_id}}`** to the first account."
+                "description": "Accounts with their safeguards, pending reviews first. Filters: `review_status` (pending, approved, rejected), `name_match_status` (matched, mismatch), `on_hold` (1/0), `search` (account name, driver name or phone), `per_page`. `summary.pending_review` is the badge count. **Sets `{{payout_account_id}}`** to the first account.\n\n**2026-10-29:** `search` also matches the account number (or part of it) and the bank name (3+ letters)."
               },
               "response": [
                 {
@@ -26757,7 +27165,7 @@
                     }
                   ]
                 },
-                "description": "Staff changes to the wallet, newest first: freezes, unfreezes and manual adjustments, with reason and who did it (name and role)."
+                "description": "Staff changes to the wallet, newest first: freezes, unfreezes and manual adjustments, with reason and who did it (name and role).\n\n**2026-10-29:** Adjustment entries carry `direction` (`credit` added money, `debit` took it) and `adjustment: { id, reference_number, type, status }`; both are `null` for freezes."
               },
               "response": [
                 {
@@ -27010,7 +27418,7 @@
                     }
                   ]
                 },
-                "description": "Paginated driver earnings accounts. Optional `search` by driver name/email. 20 per page (fixed); `search` matches the driver's name or email. Owner details are not included."
+                "description": "Paginated driver earnings accounts. Optional `search` by driver name/email. 20 per page (fixed); `search` matches the driver's name or email. Owner details are not included.\n\n**2026-10-29:** Each ledger has `owner_type: \"driver\"` and `owner` (driver id, user_id, reference, name, phone, email). Search also matches phone and driver reference."
               },
               "response": [
                 {
@@ -27052,7 +27460,7 @@
                     "{{account_id}}"
                   ]
                 },
-                "description": "Driver earnings account with recent transactions and payout history."
+                "description": "Driver earnings account with recent transactions and payout history.\n\n**2026-10-29:** Latest 20 entries / 10 payouts; page further back with `/entries` and `/payouts`. 404 for non-driver accounts."
               },
               "response": [
                 {
@@ -27066,6 +27474,124 @@
                     }
                   ],
                   "body": "{\n  \"driver_ledger\": {\n    \"id\": \"01a1421a-6c72-7184-bd34-306e9de2ad5f\",\n    \"type\": \"driver_earnings_available\",\n    \"type_label\": \"Driver Earnings (Available)\",\n    \"currency\": \"NGN\",\n    \"status\": \"active\",\n    \"status_label\": \"Active\",\n    \"balance\": 320000,\n    \"available_balance\": 320000,\n    \"held\": 0,\n    \"created_at\": \"2026-10-16T00:26:30+00:00\"\n  },\n  \"recent_transactions\": [\n    {\n      \"id\": \"01a1421a-6c7d-707c-8e8c-5df4044a53e6\",\n      \"type\": \"credit\",\n      \"type_label\": \"Credit\",\n      \"amount\": 320000,\n      \"running_balance\": 320000,\n      \"created_at\": \"2026-10-16T00:26:30+00:00\",\n      \"source_type\": \"ride\",\n      \"source_id\": \"01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b\",\n      \"journal\": {\n        \"id\": \"01a1421a-6c75-72e1-b35e-82c4f7051953\",\n        \"reference\": \"JRN-OTMJPR23QUFN-261016\",\n        \"description\": \"Card ride settlement for ride 01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b\",\n        \"metadata\": {\n          \"ride_id\": \"01a14a20-1c2d-7e3f-9a4b-5c6d7e8f9a0b\"\n        },\n        \"posted_at\": \"2026-10-16T00:26:30+00:00\"\n      }\n    }\n  ],\n  \"recent_payouts\": [\n    {\n      \"id\": \"01a14229-a599-7360-9d61-373f196f59cf\",\n      \"amount\": 200000,\n      \"status\": \"paid\",\n      \"status_label\": \"Paid\",\n      \"requested_at\": \"2026-10-15T00:43:08+00:00\",\n      \"approved_at\": \"2026-10-15T00:43:08+00:00\",\n      \"paid_at\": \"2026-10-15T00:45:08+00:00\",\n      \"bank_account\": {\n        \"id\": \"01a14229-a575-70c3-8c6f-a455de44365c\",\n        \"bank_code\": \"058\",\n        \"bank_name\": \"Guaranty Trust Bank\",\n        \"account_number\": \"******0473\",\n        \"account_name\": \"TUNDE BELLO\",\n        \"is_verified\": true,\n        \"is_primary\": true,\n        \"created_at\": \"2026-10-16T00:43:08+00:00\"\n      },\n      \"gateway_transfer_id\": \"1043901125\",\n      \"needs_attention\": false,\n      \"attention_reason\": null,\n      \"provider_status\": \"success\",\n      \"created_at\": \"2026-10-15T00:43:08+00:00\"\n    },\n    {\n      \"id\": \"01a14229-a594-7173-b990-b2fe509ce821\",\n      \"amount\": 150000,\n      \"status\": \"failed\",\n      \"status_label\": \"Failed\",\n      \"failure_reason\": \"Transfer failed by the payment provider.\",\n      \"requested_at\": \"2026-10-13T00:43:08+00:00\",\n      \"approved_at\": \"2026-10-13T00:43:08+00:00\",\n      \"bank_account\": {\n        \"id\": \"01a14229-a575-70c3-8c6f-a455de44365c\",\n        \"bank_code\": \"058\",\n        \"bank_name\": \"Guaranty Trust Bank\",\n        \"account_number\": \"******0473\",\n        \"account_name\": \"TUNDE BELLO\",\n        \"is_verified\": true,\n        \"is_primary\": true,\n        \"created_at\": \"2026-10-16T00:43:08+00:00\"\n      },\n      \"gateway_transfer_id\": \"1043836718\",\n      \"needs_attention\": false,\n      \"attention_reason\": null,\n      \"provider_status\": \"failed\",\n      \"created_at\": \"2026-10-13T00:43:08+00:00\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Driver Ledger Entries",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-ledgers/{{account_id}}/entries?page=1&per_page=50&from=&to=&type=",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-ledgers",
+                    "{{account_id}}",
+                    "entries"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "50"
+                    },
+                    {
+                      "key": "from",
+                      "value": ""
+                    },
+                    {
+                      "key": "to",
+                      "value": ""
+                    },
+                    {
+                      "key": "type",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Finance, Support).**\n\nEvery entry on the driver's account, newest first. `from`/`to` Lagos days, `type` debit|credit."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Entries",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"entries\": [\n    {\n      \"id\": \"uuid\",\n      \"type\": \"credit\",\n      \"amount\": 320000,\n      \"running_balance\": 320000\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 3,\n    \"per_page\": 50,\n    \"total\": 120\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Driver Ledger Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-ledgers/{{account_id}}/payouts?page=1&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-ledgers",
+                    "{{account_id}}",
+                    "payouts"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Finance, Support).**\n\nEvery payout the driver asked for, newest first."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Payouts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"payouts\": [\n    {\n      \"id\": \"uuid\",\n      \"reference_number\": \"PO-000045\",\n      \"amount\": 200000,\n      \"status\": \"paid\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
                 }
               ]
             }
@@ -27109,10 +27635,16 @@
                     {
                       "key": "to",
                       "value": "2026-10-13"
+                    },
+                    {
+                      "key": "account_id",
+                      "value": "",
+                      "description": "Only journals touching this account",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Paginated double-entry journals with line entries. Filters: `reference` (partial match), `from`/`to` (date range). 20 per page (fixed). `reference` is a partial, case-insensitive match on journal references (`JRN-\u2026`). Entries do not include the account they hit; use the CSV export for that."
+                "description": "Paginated double-entry journals with line entries. Filters: `reference` (partial match), `from`/`to` (date range). 20 per page (fixed). `reference` is a partial, case-insensitive match on journal references (`JRN-\u2026`). Entries do not include the account they hit; use the CSV export for that.\n\n**2026-10-29:** `from`/`to` are Lagos days. `account_id` filters to journals touching one account. Each entry has `account: { id, type, type_label, owner_type, owner }` (owner null for system accounts)."
               },
               "response": [
                 {
@@ -27164,7 +27696,7 @@
                     }
                   ]
                 },
-                "description": "Export journal entries as CSV. Requires `from` and `to`. Columns: Reference, Description, Account ID, Account Type, Entry Type, Amount (kobo), Running Balance, Posted At."
+                "description": "Export journal entries as CSV. Requires `from` and `to`. Columns: Reference, Description, Account ID, Account Type, Entry Type, Amount (kobo), Running Balance, Posted At.\n\n**2026-10-29:** Lagos days; new `Account Owner` column."
               },
               "response": [
                 {
@@ -27217,7 +27749,7 @@
                     }
                   ]
                 },
-                "description": "Daily report (generated at 02:00 for the previous day) comparing, in kobo, successful wallet top-up charges and payout transfers confirmed by Paystack/Flutterwave webhooks with the matching ledger entries. A payout marked paid without a success webhook (settled by *Check Payout Status* or payout reconciliation) is counted on the gateway side at the amount Paystack's transfer verify API reports; if Paystack does not confirm it, it shows as a mismatch. `status` is `clean` or `mismatched`, with each difference listed in `mismatches`. Optional `date` (Y-m-d, default yesterday); 404 when no report exists for that date."
+                "description": "Daily report (generated at 02:00 for the previous day) comparing, in kobo, successful wallet top-up charges and payout transfers confirmed by Paystack/Flutterwave webhooks with the matching ledger entries. A payout marked paid without a success webhook (settled by *Check Payout Status* or payout reconciliation) is counted on the gateway side at the amount Paystack's transfer verify API reports; if Paystack does not confirm it, it shows as a mismatch. `status` is `clean` or `mismatched`, with each difference listed in `mismatches`. Optional `date` (Y-m-d, default yesterday); 404 when no report exists for that date.\n\n**2026-10-29:** Each mismatch lists its transactions in `items` (`reference`, `issue`: missing_in_ledger|missing_at_gateway|amount_mismatch, amounts, payout/journal ids), max 200 (`items_count`, `items_truncated`). Reports cover Lagos days from 2026-10-29; older reports have `items: null`."
               },
               "response": [
                 {
@@ -27382,10 +27914,16 @@
                     {
                       "key": "per_page",
                       "value": "20"
+                    },
+                    {
+                      "key": "include_all_cities",
+                      "value": "true",
+                      "description": "With city_id: false leaves out promos for every city",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "List promos, newest first. `status`: `active`, `scheduled`, `paused`, `expired`, `cancelled` (`inactive` still means paused). `city_id`: promos targeted at that city. `search`: code or description."
+                "description": "List promos, newest first. `status`: `active`, `scheduled`, `paused`, `expired`, `cancelled` (`inactive` still means paused). `city_id`: promos targeted at that city. `search`: code or description.\n\n**2026-10-29:** `city_id` now includes promos that run in every city. `include_all_cities=false` lists only promos limited to the city."
               },
               "response": [
                 {
@@ -27891,7 +28429,7 @@
                     "commission"
                   ]
                 },
-                "description": "Returns the global commission rate and any per-driver overrides."
+                "description": "Returns the global commission rate and any per-driver overrides.\n\n**2026-10-29:** Each override has `driver: { id, reference_number, user_id, name, phone }`. Finance can look drivers up with `GET /admin/drivers`."
               },
               "response": [
                 {
@@ -27955,6 +28493,62 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Global commission rate updated.\",\n  \"commission\": {\n    \"id\": \"01a1421a-6d02-70ef-a49d-1d7e1336d838\",\n    \"rate\": 0.18,\n    \"driver_id\": null,\n    \"is_global\": true,\n    \"is_active\": true,\n    \"created_at\": \"2026-10-16T00:26:30+00:00\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Remove Driver Commission Rate",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/commission/drivers/{{driver_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "commission",
+                    "drivers",
+                    "{{driver_id}}"
+                  ]
+                },
+                "description": "**Auth required (admin \u2014 Finance).**\n\nPuts the driver back on the global rate (they follow its later changes)."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Back on the global rate",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver moved back to the global commission rate.\",\n  \"global_rate\": 0.18\n}"
+                },
+                {
+                  "name": "404 \u2014 No own rate",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This driver is already on the global commission rate.\"\n}"
                 }
               ]
             },
@@ -28133,7 +28727,7 @@
                     "tips"
                   ]
                 },
-                "description": "Updates tip presets (1\u201310 amounts) and the min/max tip. `min_amount` must be below `max_amount`, and every preset must lie within the resulting range (422 otherwise). Presets are stored sorted; changes are audited.",
+                "description": "Updates tip presets (1\u201310 amounts) and the min/max tip. `min_amount` must be below `max_amount`, and every preset must lie within the resulting range (422 otherwise). Presets are stored sorted; changes are audited.\n\n**2026-10-29:** Refusals are validation errors on the field: `min_amount`/`max_amount`, or `presets.{index}`. Presets must be distinct.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"presets\": [\n    200,\n    500,\n    1000,\n    2000\n  ],\n  \"min_amount\": 100,\n  \"max_amount\": 20000\n}"
@@ -28175,6 +28769,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Every tip preset must be between 100 and 20000.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Preset out of range",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Each tip preset must be between \u20a6100 and \u20a61000.\",\n  \"errors\": {\n    \"presets.1\": [\n      \"Each tip preset must be between \u20a6100 and \u20a61000.\"\n    ]\n  }\n}"
                 }
               ]
             }

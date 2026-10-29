@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AdjustmentStatus;
 use App\Enums\AdjustmentType;
+use App\Traits\HasReferenceNumber;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,9 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Adjustment extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
 
     protected $fillable = [
+        'reference_number',
         'account_id',
         'type',
         'amount',
@@ -23,6 +25,9 @@ class Adjustment extends Model
         'approved_by_admin_id',
         'journal_id',
         'approved_at',
+        'rejected_by_admin_id',
+        'rejected_at',
+        'rejection_reason',
     ];
 
     protected function casts(): array
@@ -32,6 +37,7 @@ class Adjustment extends Model
             'status' => AdjustmentStatus::class,
             'amount' => 'integer',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 
@@ -50,9 +56,19 @@ class Adjustment extends Model
         return $this->belongsTo(User::class, 'approved_by_admin_id');
     }
 
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_admin_id');
+    }
+
     public function journal(): BelongsTo
     {
         return $this->belongsTo(Journal::class);
+    }
+
+    protected static function referencePrefix(): string
+    {
+        return 'AD-';
     }
 
     public function isPending(): bool
