@@ -347,6 +347,8 @@ it('searches the scheduled list by reference, names, phones and address', functi
         ->and($found('07011112222'))->toBe([$forRider])
         ->and($found('marina'))->toBe([$forRider])
         ->and($found('  '))->toBe([$own, $forRider])
+        ->and($found('%'))->toBe([])
+        ->and($found('_'))->toBe([])
         ->and($found('100%'))->toBe([])
         ->and($found('Zainab'))->toBe([]);
 

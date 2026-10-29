@@ -19925,7 +19925,7 @@
                       "key": "search",
                       "value": "TRP-NG-000002",
                       "disabled": true,
-                      "description": "Trip reference, pickup/destination address, or the name or phone of the passenger, the third-party rider or the reserved driver. Phones in any format (0803 123 4567, +234 803 123). Max 100 characters."
+                      "description": "Trip reference, pickup/destination address, or the name or phone of the passenger, the third-party rider or the reserved driver. Phones in any format (0803 123 4567, +234 803 123), at least 4 digits. Max 100 characters."
                     },
                     {
                       "key": "city_id",
@@ -19958,7 +19958,7 @@
                     }
                   ]
                 },
-                "description": "Operations view: every booking still in `scheduled` status, soonest pickup first (same-time bookings in a fixed order), with the passenger and `scheduled.reserved_driver` (with `last_name` for admins). Filters: `search` (trip reference, address, or the name or phone of the passenger, the third-party rider or the reserved driver; phones in any format, local or international; max 100 characters), `city_id`, `vehicle_class_id`, `from` / `to` (pickup time), `reserved` (true/false), `per_page` (1\u2013100, default 25). Role: operations."
+                "description": "Operations view: every booking still in `scheduled` status, soonest pickup first (same-time bookings in a fixed order), with the passenger and `scheduled.reserved_driver` (with `last_name` for admins). Filters: `search` (trip reference, address, or the name or phone of the passenger, the third-party rider or the reserved driver; phones in any format, local or international, at least 4 digits; max 100 characters), `city_id`, `vehicle_class_id`, `from` / `to` (pickup time), `reserved` (true/false), `per_page` (1\u2013100, default 25). Role: operations."
               },
               "response": [
                 {
@@ -20032,7 +20032,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The search field must not be greater than 100 characters.\",\n  \"errors\": {\n    \"search\": [\n      \"The search field must not be greater than 100 characters.\"\n    ]\n  }\n}",
+                  "body": "{\n  \"message\": \"The search field must not be greater than 100 characters.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"search\": [\n      \"The search field must not be greater than 100 characters.\"\n    ]\n  }\n}",
                   "originalRequest": {
                     "method": "GET",
                     "header": [
@@ -20050,7 +20050,7 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{base_url}}/admin/scheduled-rides?search=aaaa\u2026(101%20characters)",
+                      "raw": "{{base_url}}/admin/scheduled-rides?search=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                       "host": [
                         "{{base_url}}"
                       ],
@@ -20061,7 +20061,7 @@
                       "query": [
                         {
                           "key": "search",
-                          "value": "aaaa\u2026(101 characters)"
+                          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                         }
                       ]
                     }

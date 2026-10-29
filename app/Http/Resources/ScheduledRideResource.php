@@ -76,6 +76,9 @@ class ScheduledRideResource extends JsonResource
     }
 
     /**
+     * Admins get the driver's last name so operations can name them in full;
+     * the passenger sees the first name only.
+     *
      * @return array<string, mixed>|null
      */
     private function reservedDriverPayload(Request $request): ?array
@@ -91,8 +94,6 @@ class ScheduledRideResource extends JsonResource
         return [
             'id' => $driver->id,
             'first_name' => $driver->first_name,
-            // Operations name the driver in full; the passenger sees the
-            // first name only, as before.
             ...($request->user()?->isAdmin() ? ['last_name' => $driver->last_name] : []),
             'profile_photo_url' => $driver->profile_photo_path
                 ? Storage::disk(config('filesystems.uploads'))->url($driver->profile_photo_path)
