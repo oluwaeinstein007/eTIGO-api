@@ -124,6 +124,33 @@ class LostItem extends Model
             ->orWhere('status', LostItemStatus::Reported));
     }
 
+    /**
+     * The support queue order: open reports that need attention, then the
+     * other open ones, then everything finished, newest first within each.
+     */
+    public function scopeQueueOrder(Builder $query): void
+    {
+        $terminal = array_map(fn (LostItemStatus $status) => $status->value, LostItemStatus::terminal());
+        $placeholders = implode(', ', array_fill(0, count($terminal), '?'));
+
+        $query
+            ->orderByRaw(
+                "CASE WHEN status IN ({$placeholders}) THEN 2 WHEN escalated_at IS NOT NULL OR status = ? THEN 0 ELSE 1 END",
+                [...$terminal, LostItemStatus::Reported->value],
+            )
+            ->orderByDesc('created_at')
+            ->orderByDesc('reference_number');
+    }
+
+    /**
+     * Whether the report is in the `needsAttention` scope.
+     */
+    public function requiresAttention(): bool
+    {
+        return $this->isOpen()
+            && ($this->escalated_at !== null || $this->status === LostItemStatus::Reported);
+    }
+
     public function isOpen(): bool
     {
         return ! $this->status->isTerminal();
@@ -200,6 +227,28 @@ class LostItem extends Model
                 $actions[] = 'mark_returned';
             }
             $actions[] = 'message';
+        }
+
+        return $actions;
+    }
+
+    /**
+     * What support can do through `intervene` right now. Notes and messages
+     * stay available after the report closes, so support can follow up.
+     *
+     * @return list<string>
+     */
+    public function supportActions(): array
+    {
+        $actions = ['note', 'message'];
+
+        if (in_array($this->status, [LostItemStatus::Reported, LostItemStatus::DriverNotified, LostItemStatus::DriverDenied], true)) {
+            $actions[] = 'mark_found';
+        }
+
+        if ($this->isOpen()) {
+            $actions[] = 'resolve';
+            $actions[] = 'close';
         }
 
         return $actions;

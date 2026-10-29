@@ -69,7 +69,8 @@ class LostItemResource extends JsonResource
             'messages' => $this->when($this->relationLoaded('messages'), fn () => LostItemMessageResource::collection(
                 $this->messages->filter(fn (LostItemMessage $message) => $isAdmin || ! $message->is_internal)->values(),
             )),
-            'available_actions' => $isAdmin ? [] : $this->actionsFor($viewer),
+            'needs_attention' => $this->when($isAdmin, fn () => $this->requiresAttention()),
+            'available_actions' => $isAdmin ? $this->supportActions() : $this->actionsFor($viewer),
             'driver_notified_at' => $this->driver_notified_at,
             'driver_responded_at' => $this->driver_responded_at,
             'returned_at' => $this->returned_at,

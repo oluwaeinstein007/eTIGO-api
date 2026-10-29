@@ -103,6 +103,13 @@ beforeEach(function () {
     $this->respond = fn (LostItem $item, bool $found, ?string $note = null) => ($this->as)($this->driverToken)
         ->postJson("/api/v1/lost-items/{$item->id}/respond", ['found' => $found, 'note' => $note]);
 
+    $this->newRide = fn () => Ride::factory()->completed()->create([
+        'city_id' => $this->city->id,
+        'vehicle_class_id' => $this->ride->vehicle_class_id,
+        'passenger_id' => $this->passenger->id,
+        'driver_id' => $this->driverUser->id,
+    ])->id;
+
     $this->notified = fn (User $user, string $type) => Notification::where('user_id', $user->id)->where('type', $type)->count();
 
     $this->setting = fn (string $key, mixed $value) => AppSetting::setValue(
@@ -464,6 +471,105 @@ it('gives support a queue with the reports that need attention first', function 
     ($this->as)($this->supportToken)->getJson("/api/v1/admin/lost-items?search={$quiet->reference_number}")
         ->assertOk()
         ->assertJsonCount(1, 'lost_items');
+});
+
+it('sorts the queue by open and escalated, then other open, then finished, newest first within each', function () {
+    $make = fn (int $hoursAgo, array $attributes) => LostItem::factory()->create([
+        ...$attributes,
+        'ride_id' => ($this->newRide)(),
+        'created_at' => now()->subHours($hoursAgo),
+    ]);
+
+    $oldEscalated = $make(50, ['status' => LostItemStatus::DriverDenied, 'escalated_at' => now()->subHours(40)]);
+    $newEscalated = $make(30, ['status' => LostItemStatus::DriverConfirmed, 'escalated_at' => now()->subHours(20)]);
+    $oldOpen = $make(40, ['status' => LostItemStatus::DriverNotified]);
+    $newOpen = $make(20, ['status' => LostItemStatus::DriverConfirmed]);
+    // Finished reports are newer, and some were escalated before they closed.
+    $escalatedCancelled = $make(2, ['status' => LostItemStatus::Cancelled, 'cancelled_at' => now(), 'escalated_at' => now()->subHour()]);
+    $cancelled = $make(1, ['status' => LostItemStatus::Cancelled, 'cancelled_at' => now()]);
+    $resolved = $make(10, ['status' => LostItemStatus::Resolved, 'resolved_at' => now()]);
+
+    $response = ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items')->assertOk();
+
+    expect($response->json('lost_items.*.id'))->toBe([
+        $newEscalated->id, $oldEscalated->id,
+        $newOpen->id, $oldOpen->id,
+        $cancelled->id, $escalatedCancelled->id, $resolved->id,
+    ])->and($response->json('lost_items.*.needs_attention'))->toBe([true, true, false, false, false, false, false])
+        ->and($response->json('summary.needs_attention'))->toBe(2);
+
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=3&page=2')
+        ->assertOk()
+        ->assertJsonPath('lost_items.0.id', $oldOpen->id)
+        ->assertJsonPath('lost_items.1.id', $cancelled->id);
+});
+
+it('breaks created_at ties in the queue by reference number, across pages', function () {
+    $make = fn (string $reference) => LostItem::factory()->create([
+        'ride_id' => ($this->newRide)(),
+        'reference_number' => $reference,
+        'created_at' => now()->subHour(),
+    ]);
+
+    $middle = $make('LF-900002');
+    $last = $make('LF-900001');
+    $first = $make('LF-900003');
+
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=2')
+        ->assertOk()
+        ->assertJsonPath('lost_items.0.id', $first->id)
+        ->assertJsonPath('lost_items.1.id', $middle->id);
+
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=2&page=2')
+        ->assertOk()
+        ->assertJsonCount(1, 'lost_items')
+        ->assertJsonPath('lost_items.0.id', $last->id);
+});
+
+it('lists the actions support can take at each status', function () {
+    $actions = fn (LostItem $item) => ($this->as)($this->supportToken)->getJson("/api/v1/admin/lost-items/{$item->id}")
+        ->assertOk()
+        ->json('lost_item.available_actions');
+
+    $before = ['note', 'message', 'mark_found', 'resolve', 'close'];
+    $withDriver = ['note', 'message', 'resolve', 'close'];
+    $finished = ['note', 'message'];
+
+    $item = ($this->reportedItem)();
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items')
+        ->assertJsonPath('lost_items.0.available_actions', $before);
+
+    ($this->as)($this->supportToken)->postJson("/api/v1/admin/lost-items/{$item->id}/intervene", ['action' => 'mark_found'])
+        ->assertOk()
+        ->assertJsonPath('lost_item.available_actions', $withDriver);
+
+    ($this->as)($this->supportToken)->postJson("/api/v1/admin/lost-items/{$item->id}/intervene", ['action' => 'mark_found'])
+        ->assertUnprocessable();
+
+    ($this->as)($this->supportToken)->postJson("/api/v1/admin/lost-items/{$item->id}/intervene", ['action' => 'close', 'closure_reason' => 'unclaimed'])
+        ->assertOk()
+        ->assertJsonPath('lost_item.available_actions', $finished);
+
+    ($this->as)($this->supportToken)->postJson("/api/v1/admin/lost-items/{$item->id}/intervene", ['action' => 'note', 'body' => 'Passenger called after closing.'])
+        ->assertCreated()
+        ->assertJsonPath('lost_item.available_actions', $finished);
+
+    ($this->as)($this->passengerToken)->getJson("/api/v1/lost-items/{$item->id}")
+        ->assertJsonPath('lost_item.available_actions', [])
+        ->assertJsonMissingPath('lost_item.needs_attention');
+
+    foreach ([
+        [LostItemStatus::Reported, $before],
+        [LostItemStatus::DriverNotified, $before],
+        [LostItemStatus::DriverDenied, $before],
+        [LostItemStatus::DriverConfirmed, $withDriver],
+        [LostItemStatus::Returned, $withDriver],
+        [LostItemStatus::Resolved, $finished],
+        [LostItemStatus::Unresolved, $finished],
+        [LostItemStatus::Cancelled, $finished],
+    ] as [$status, $expected]) {
+        expect($actions(LostItem::factory()->create(['status' => $status, 'ride_id' => ($this->newRide)()])))->toBe($expected, $status->value);
+    }
 });
 
 it('restricts the admin queue to support and operations', function () {
