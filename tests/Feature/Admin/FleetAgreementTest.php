@@ -3,8 +3,10 @@
 use App\Models\DailyRemittance;
 use App\Models\Driver;
 use App\Models\FleetAgreement;
+use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleClass;
 use App\Services\CommissionService;
 
 function adminToken(): array
@@ -149,7 +151,7 @@ it('rejects updating terminated agreement', function () {
         ]);
 
     $response->assertStatus(422)
-        ->assertJsonPath('message', 'Only active agreements can be updated.');
+        ->assertJsonPath('message', 'Only active or paused agreements can be changed.');
 });
 
 it('terminates a fleet agreement', function () {
@@ -176,17 +178,25 @@ it('pauses and resumes a fleet agreement', function () {
 
     $agreement = FleetAgreement::factory()->create(['created_by_admin_id' => $admin->id]);
 
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/pause")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+
     $pauseResponse = $this->withToken($token)
-        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/pause");
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/pause", ['reason' => 'Car in for an engine repair']);
 
     $pauseResponse->assertOk()
-        ->assertJsonPath('agreement.status', 'paused');
+        ->assertJsonPath('agreement.status', 'paused')
+        ->assertJsonPath('agreement.paused_reason', 'Car in for an engine repair');
 
     $resumeResponse = $this->withToken($token)
         ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/resume");
 
     $resumeResponse->assertOk()
         ->assertJsonPath('agreement.status', 'active');
+
+    expect($agreement->fresh()->paused_reason)->toBeNull();
 });
 
 it('exposes total_vehicle_cost to admin users', function () {
@@ -399,4 +409,263 @@ it('returns zero commission rate for fleet drivers', function () {
     $result = $commissionService->calculate(500000, $driver->id);
     expect($result['commission'])->toBe(0)
         ->and($result['net_earnings'])->toBe(500000);
+});
+
+it('gives each agreement a readable reference and finds it by reference, driver or plate', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create();
+    $driver->user->update(['first_name' => 'Tunde', 'last_name' => 'Bakare']);
+    $mine = FleetAgreement::factory()->create([
+        'driver_id' => $driver->id,
+        'vehicle_id' => Vehicle::factory()->fleet()->create(['plate_number' => 'LAG-123-XY'])->id,
+    ]);
+    FleetAgreement::factory()->create();
+
+    expect($mine->reference_number)->toMatch('/^FA-\d{6}$/');
+
+    foreach ([$mine->reference_number, 'Tunde Bakare', 'lag-123'] as $search) {
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/fleet-agreements?search='.urlencode($search))
+            ->assertOk()
+            ->assertJsonCount(1, 'agreements')
+            ->assertJsonPath('agreements.0.reference_number', $mine->reference_number);
+    }
+});
+
+it('filters agreements by vehicle class', function () {
+    [, $token] = adminToken();
+
+    $class = VehicleClass::factory()->create();
+    $match = FleetAgreement::factory()->create(['vehicle_id' => Vehicle::factory()->fleet()->create(['vehicle_class_id' => $class->id])->id]);
+    FleetAgreement::factory()->create();
+
+    $this->withToken($token)
+        ->getJson("/api/v1/admin/fleet-agreements?vehicle_class_id={$class->id}")
+        ->assertOk()
+        ->assertJsonCount(1, 'agreements')
+        ->assertJsonPath('agreements.0.id', $match->id)
+        ->assertJsonPath('agreements.0.vehicle.vehicle_class.id', $class->id);
+});
+
+it('corrects the total vehicle cost and start date with a reason', function () {
+    [, $token] = adminToken();
+
+    $agreement = FleetAgreement::factory()->create(['total_remitted' => 200000]);
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-agreements/{$agreement->id}", ['total_vehicle_cost' => 6000000])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-agreements/{$agreement->id}", [
+            'total_vehicle_cost' => 6000000,
+            'agreement_start_date' => now('Africa/Lagos')->addDays(2)->toDateString(),
+            'reason' => 'Cost was typed without the last zero',
+        ])
+        ->assertOk()
+        ->assertJsonPath('agreement.total_vehicle_cost', '6000000.00')
+        ->assertJsonPath('agreement.agreement_start_date', now('Africa/Lagos')->addDays(2)->toDateString());
+
+    $this->withToken($token)
+        ->getJson("/api/v1/admin/fleet-agreements/{$agreement->id}/history")
+        ->assertOk()
+        ->assertJsonPath('history.0.event', 'fleet_agreement.updated')
+        ->assertJsonPath('history.0.reason', 'Cost was typed without the last zero')
+        ->assertJsonPath('history.0.changes.total_vehicle_cost.from', '5000000.00');
+});
+
+it('refuses a total cost at or below what the driver has paid, on the field', function () {
+    [, $token] = adminToken();
+
+    $agreement = FleetAgreement::factory()->create(['total_remitted' => 300000]);
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-agreements/{$agreement->id}", ['total_vehicle_cost' => 300000, 'reason' => 'Typo fix'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('total_vehicle_cost');
+});
+
+it('refuses a start date after the first day the driver paid', function () {
+    [, $token] = adminToken();
+
+    $agreement = FleetAgreement::factory()->create();
+    DailyRemittance::factory()->create([
+        'agreement_id' => $agreement->id,
+        'driver_id' => $agreement->driver_id,
+        'date' => now('Africa/Lagos')->toDateString(),
+        'remitted_amount' => 10000,
+    ]);
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-agreements/{$agreement->id}", [
+            'agreement_start_date' => now('Africa/Lagos')->addDays(3)->toDateString(),
+            'reason' => 'Wrong date',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('agreement_start_date');
+});
+
+it('takes the car back and the driver offline when an agreement is terminated', function () {
+    [$admin, $token] = adminToken();
+
+    $driver = Driver::factory()->create(['is_online' => true]);
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $agreement = FleetAgreement::factory()->create(['driver_id' => $driver->id, 'vehicle_id' => $vehicle->id]);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/terminate", ['reason' => 'Driver left E-tiGo'])
+        ->assertOk();
+
+    expect($vehicle->fresh()->driver_id)->toBeNull()
+        ->and($driver->fresh()->is_online)->toBeFalse();
+
+    $this->assertDatabaseHas('audit_logs', ['event' => 'fleet_vehicle_unassigned', 'auditable_id' => $vehicle->id, 'actor_id' => $admin->id]);
+});
+
+it('takes the car back when an agreement is terminated with a settlement', function () {
+    [, $token] = adminToken();
+
+    $driver = Driver::factory()->create();
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $agreement = FleetAgreement::factory()->create(['driver_id' => $driver->id, 'vehicle_id' => $vehicle->id]);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/terminate-settle", [
+            'reason' => 'Mutual exit',
+            'vehicle_return_status' => 'pending_return',
+        ])
+        ->assertOk();
+
+    expect($vehicle->fresh()->driver_id)->toBeNull();
+});
+
+it('refuses to terminate while the driver is on a trip', function () {
+    [, $token] = adminToken();
+
+    $driver = Driver::factory()->create();
+    $vehicle = Vehicle::factory()->fleet()->create(['driver_id' => $driver->id]);
+    $agreement = FleetAgreement::factory()->create(['driver_id' => $driver->id, 'vehicle_id' => $vehicle->id]);
+    Ride::factory()->inProgress()->create(['driver_id' => $driver->user_id]);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/terminate", ['reason' => 'Driver left E-tiGo'])
+        ->assertUnprocessable();
+
+    expect($agreement->fresh()->status->value)->toBe('active')
+        ->and($vehicle->fresh()->driver_id)->toBe($driver->id);
+});
+
+it('refuses to excuse a day twice with a 422', function () {
+    [, $token] = adminToken();
+
+    $agreement = FleetAgreement::factory()->create();
+    $remittance = DailyRemittance::factory()->create([
+        'agreement_id' => $agreement->id,
+        'driver_id' => $agreement->driver_id,
+        'excused_reason' => 'approved_leave',
+    ]);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/remittances/{$remittance->id}/excuse", ['reason' => 'approved_leave'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'This remittance day is already excused.');
+});
+
+it('withdraws an excuse and counts the short day towards the streak again', function () {
+    [, $token] = adminToken();
+
+    $agreement = FleetAgreement::factory()->create(['shortfall_streak_days' => 1]);
+    $remittance = DailyRemittance::factory()->create([
+        'agreement_id' => $agreement->id,
+        'driver_id' => $agreement->driver_id,
+        'settled' => true,
+        'remitted_amount' => 20000,
+        'target_amount' => 40000,
+        'excused_reason' => 'approved_leave',
+    ]);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/remittances/{$remittance->id}/withdraw-excuse", ['reason' => 'Leave was not approved'])
+        ->assertOk()
+        ->assertJsonMissingPath('remittance.excused_reason');
+
+    expect($agreement->fresh()->shortfall_streak_days)->toBe(2);
+
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-agreements/{$agreement->id}/remittances/{$remittance->id}/withdraw-excuse", ['reason' => 'Again'])
+        ->assertUnprocessable();
+});
+
+it('filters fleet cars by class and status, and tracks maintenance', function () {
+    [, $token] = adminToken();
+
+    $class = VehicleClass::factory()->create();
+    $free = Vehicle::factory()->fleet()->create(['vehicle_class_id' => $class->id, 'driver_id' => null]);
+    $servicing = Vehicle::factory()->fleet()->create(['vehicle_class_id' => $class->id, 'driver_id' => null]);
+    Vehicle::factory()->fleet()->create(['vehicle_class_id' => $class->id, 'driver_id' => Driver::factory()]);
+    Vehicle::factory()->fleet()->create();
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-vehicles/{$servicing->id}/maintenance", ['in_maintenance' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-vehicles/{$servicing->id}/maintenance", ['in_maintenance' => true, 'reason' => 'Brake pads'])
+        ->assertOk()
+        ->assertJsonPath('vehicle.fleet_status', 'maintenance')
+        ->assertJsonPath('vehicle.maintenance.reason', 'Brake pads');
+
+    $this->withToken($token)
+        ->getJson("/api/v1/admin/fleet-vehicles?vehicle_class_id={$class->id}&status=available")
+        ->assertOk()
+        ->assertJsonCount(1, 'vehicles')
+        ->assertJsonPath('vehicles.0.id', $free->id);
+
+    $this->withToken($token)
+        ->getJson('/api/v1/admin/fleet-vehicles?status=maintenance')
+        ->assertJsonCount(1, 'vehicles')
+        ->assertJsonPath('vehicles.0.id', $servicing->id);
+
+    $driver = Driver::factory()->approved()->create();
+    $this->withToken($token)
+        ->postJson("/api/v1/admin/fleet-vehicles/{$servicing->id}/assign", [
+            'driver_id' => $driver->id,
+            'daily_remittance_target' => 40000,
+            'total_vehicle_cost' => 5000000,
+            'agreement_start_date' => now()->toDateString(),
+        ])
+        ->assertUnprocessable();
+
+    $this->withToken($token)
+        ->putJson("/api/v1/admin/fleet-vehicles/{$servicing->id}/maintenance", ['in_maintenance' => false])
+        ->assertOk()
+        ->assertJsonPath('vehicle.fleet_status', 'available');
+});
+
+it('searches drivers waiting for a car', function () {
+    [, $token] = adminToken();
+
+    $waiting = Driver::factory()->approved()->create(['vehicle_ownership_type' => 'fleet_vehicle']);
+    $waiting->user->update(['first_name' => 'Chidi', 'last_name' => 'Okafor']);
+    Driver::factory()->approved()->create(['vehicle_ownership_type' => 'fleet_vehicle']);
+
+    $this->withToken($token)
+        ->getJson('/api/v1/admin/fleet-vehicles/drivers-awaiting?search=chidi')
+        ->assertOk()
+        ->assertJsonCount(1, 'drivers')
+        ->assertJsonPath('drivers.0.id', $waiting->id);
+});
+
+it('lets finance read vehicle classes and drivers but not change classes', function () {
+    $finance = User::factory()->finance()->create();
+    $token = $finance->createToken('admin-auth', ['admin'])->plainTextToken;
+    $class = VehicleClass::factory()->create();
+
+    $this->withToken($token)->getJson('/api/v1/admin/vehicle-classes')->assertOk();
+    $this->withToken($token)->getJson('/api/v1/admin/drivers')->assertOk();
+    $this->withToken($token)->putJson("/api/v1/admin/vehicle-classes/{$class->id}", ['name' => 'Renamed'])->assertForbidden();
+    $this->withToken($token)->getJson('/api/v1/admin/drivers/pending')->assertForbidden();
 });

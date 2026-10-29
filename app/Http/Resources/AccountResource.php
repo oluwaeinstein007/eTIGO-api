@@ -2,8 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\AccountType;
 use App\Models\Account;
+use App\Models\Driver;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -28,15 +31,9 @@ class AccountResource extends JsonResource
             'balance' => $this->balance,
             'available_balance' => $this->balance - $held,
             'held' => $held,
-            'owner' => $this->whenLoaded('owner', fn () => $this->owner instanceof User ? [
-                'id' => $this->owner->id,
-                'reference_number' => $this->owner->reference_number,
-                'name' => trim($this->owner->first_name.' '.$this->owner->last_name),
-                'first_name' => $this->owner->first_name,
-                'last_name' => $this->owner->last_name,
-                'phone' => $this->owner->phone,
-                'email' => $this->owner->email,
-            ] : null),
+            // passenger, driver or system (E-tiGo's own accounts have no owner).
+            'owner_type' => self::ownerType($this->resource),
+            'owner' => $this->whenLoaded('owner', fn () => self::ownerSummary($this->owner)),
             // When money last moved in or out of the wallet; null if it never has.
             'last_activity_at' => $this->when(
                 array_key_exists('last_activity_at', $this->getAttributes()),
@@ -52,6 +49,46 @@ class AccountResource extends JsonResource
                 ] : null,
             ]),
             'created_at' => $this->created_at?->toIso8601String(),
+        ];
+    }
+
+    public static function ownerType(Account $account): string
+    {
+        return match (true) {
+            $account->type->isDriverAccount() => 'driver',
+            $account->type === AccountType::PassengerWallet => 'passenger',
+            default => 'system',
+        };
+    }
+
+    /**
+     * Who the account belongs to. For a driver's account, id is the driver
+     * profile id (as in /admin/drivers/{id}) and user_id their user.
+     * Load the owner with Driver's user to avoid a query per account.
+     *
+     * @return array{id: string, user_id: string|null, reference_number: string|null, name: string, first_name: string|null, last_name: string|null, phone: string|null, email: string|null}|null
+     */
+    public static function ownerSummary(?Model $owner): ?array
+    {
+        $user = match (true) {
+            $owner instanceof User => $owner,
+            $owner instanceof Driver => $owner->user,
+            default => null,
+        };
+
+        if ($user === null) {
+            return null;
+        }
+
+        return [
+            'id' => $owner->getKey(),
+            'user_id' => $user->id,
+            'reference_number' => $owner->reference_number ?? $user->reference_number,
+            'name' => trim($user->first_name.' '.$user->last_name),
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'phone' => $user->phone,
+            'email' => $user->email,
         ];
     }
 }

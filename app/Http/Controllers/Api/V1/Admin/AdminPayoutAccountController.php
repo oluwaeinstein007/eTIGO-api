@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Contracts\WalletGateway;
 use App\Enums\BankAccountNameMatch;
 use App\Enums\BankAccountReviewStatus;
 use App\Http\Controllers\Controller;
@@ -11,6 +12,7 @@ use App\Models\BankAccount;
 use App\Notifications\PayoutAccountReviewedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -50,12 +52,19 @@ class AdminPayoutAccountController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('account_name', 'ilike', "%{$search}%")
-                    ->orWhereHas('driver.user', fn ($u) => $u->where('first_name', 'ilike', "%{$search}%")
-                        ->orWhere('last_name', 'ilike', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%"));
+            // Account name or number, bank name, or the driver's name or phone.
+            $search = trim($request->input('search'));
+            $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+            $bankCodes = $this->bankCodesMatching($search);
+
+            $query->where(function ($q) use ($like, $bankCodes) {
+                $q->where('account_name', 'ilike', $like)
+                    ->orWhere('account_number', 'like', $like)
+                    ->when($bankCodes !== [], fn ($q) => $q->orWhereIn('bank_code', $bankCodes))
+                    ->orWhereHas('driver.user', fn ($u) => $u->where('first_name', 'ilike', $like)
+                        ->orWhere('last_name', 'ilike', $like)
+                        ->orWhereRaw("concat(first_name, ' ', last_name) ilike ?", [$like])
+                        ->orWhere('phone', 'like', $like));
             });
         }
 
@@ -185,5 +194,31 @@ class AdminPayoutAccountController extends Controller
             'message' => $outcome === BankAccountReviewStatus::Approved ? 'Bank account approved for payouts.' : 'Bank account rejected.',
             'payout_account' => new AdminPayoutAccountResource($reviewed->load(['driver.user', 'reviewedBy'])),
         ]);
+    }
+
+    /**
+     * Codes of the banks whose name contains the search (from the cached
+     * Paystack bank list; empty if the list can't be fetched).
+     *
+     * @return list<string>
+     */
+    private function bankCodesMatching(string $search): array
+    {
+        if (mb_strlen($search) < 3) {
+            return [];
+        }
+
+        try {
+            $banks = Cache::remember('banks_nigeria', 86400, fn () => app(WalletGateway::class)->listBanks());
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return collect($banks)
+            ->filter(fn ($bank) => isset($bank['code'], $bank['name']) && str_contains(mb_strtolower($bank['name']), mb_strtolower($search)))
+            ->pluck('code')
+            ->map(fn ($code) => (string) $code)
+            ->values()
+            ->all();
     }
 }

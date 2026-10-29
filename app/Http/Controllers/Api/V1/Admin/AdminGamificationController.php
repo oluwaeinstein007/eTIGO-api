@@ -16,6 +16,7 @@ use App\Models\PointMultiplierConfig;
 use App\Models\Ride;
 use App\Models\TierConfig;
 use App\Models\TripCarbonScore;
+use App\Support\LagosDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -23,8 +24,25 @@ use Illuminate\Support\Facades\DB;
 
 class AdminGamificationController extends Controller
 {
+    /**
+     * Passenger standings. Without from/to they are all-time. With from/to
+     * (Lagos days, the same range as /aggregate) only passengers who earned
+     * points in the range are listed, each with what they earned in it
+     * (period), and sort_by=period_points ranks them for the range.
+     */
     public function indexUsers(Request $request): JsonResponse
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'sort_by' => ['nullable', 'in:total_ranking_points,total_carbon_score,current_tier,created_at,period_points,period_co2_saved_kg'],
+            'sort_dir' => ['nullable', 'in:asc,desc'],
+        ]);
+
+        $from = $request->input('from');
+        $to = $request->input('to');
+        $hasPeriod = $from !== null || $to !== null;
+
         $latestRide = fn (string $column) => Ride::select($column)
             ->join('cities', 'cities.id', '=', 'rides.city_id')
             ->whereColumn('rides.passenger_id', 'gamification_profiles.user_id')
@@ -38,6 +56,21 @@ class AdminGamificationController extends Controller
                 'city_id' => $latestRide('cities.id'),
                 'city_name' => $latestRide('cities.name'),
             ]);
+
+        if ($hasPeriod) {
+            $inPeriod = fn () => LagosDay::filter(
+                TripCarbonScore::whereColumn('trip_carbon_scores.user_id', 'gamification_profiles.user_id'),
+                'trip_carbon_scores.created_at',
+                $from,
+                $to,
+            );
+
+            $query->addSelect([
+                'period_points' => $inPeriod()->selectRaw('COALESCE(SUM(final_points), 0)'),
+                'period_co2_saved_kg' => $inPeriod()->selectRaw('COALESCE(SUM(co2_saved), 0)'),
+                'period_trips' => $inPeriod()->selectRaw('COUNT(*)'),
+            ])->whereExists($inPeriod()->select(DB::raw(1)));
+        }
 
         if ($request->filled('tier')) {
             $query->where('current_tier', $request->input('tier'));
@@ -61,12 +94,20 @@ class AdminGamificationController extends Controller
             $query->whereHas('user', fn ($q) => $q->whereHas('rides', fn ($r) => $r->where('city_id', $cityId)));
         }
 
-        $sortBy = $request->input('sort_by', 'total_ranking_points');
-        $sortDir = $request->input('sort_dir', 'desc');
+        $sortBy = $request->input('sort_by', $hasPeriod ? 'period_points' : 'total_ranking_points');
+        $sortDir = $request->input('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
-        if (in_array($sortBy, ['total_ranking_points', 'total_carbon_score', 'current_tier', 'created_at'])) {
-            $query->orderBy("gamification_profiles.{$sortBy}", $sortDir === 'asc' ? 'asc' : 'desc');
+        if (in_array($sortBy, ['period_points', 'period_co2_saved_kg'], true)) {
+            // Period sorts only mean something with a range; fall back to all-time points.
+            $hasPeriod
+                ? $query->orderBy($sortBy, $sortDir)
+                : $query->orderBy('gamification_profiles.total_ranking_points', $sortDir);
+        } else {
+            $query->orderBy("gamification_profiles.{$sortBy}", $sortDir);
         }
+
+        // Ties keep a stable order across pages.
+        $query->orderBy('gamification_profiles.id');
 
         $profiles = $query->paginate(min(max($request->integer('per_page', 15), 1), 100));
 
@@ -74,6 +115,8 @@ class AdminGamificationController extends Controller
 
         return response()->json([
             'profiles' => GamificationResource::collection($profiles),
+            // The range the period figures cover; null means all-time standings.
+            'period' => $hasPeriod ? ['from' => $from, 'to' => $to] : null,
             'meta' => [
                 'current_page' => $profiles->currentPage(),
                 'last_page' => $profiles->lastPage(),
@@ -94,22 +137,16 @@ class AdminGamificationController extends Controller
             $carbonQuery->whereHas('ride', fn ($q) => $q->where('city_id', $cityId));
         }
 
-        if ($request->filled('from')) {
-            $carbonQuery->whereDate('created_at', '>=', $request->input('from'));
-        }
-        if ($request->filled('to')) {
-            $carbonQuery->whereDate('created_at', '<=', $request->input('to'));
-        }
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
+        // Lagos days, the same range as the standings (/users).
+        LagosDay::filter($carbonQuery, 'created_at', $request->input('from'), $request->input('to'));
 
         if ($request->filled('from') || $request->filled('to')) {
-            $profileQuery->whereHas('carbonScores', function ($q) use ($request) {
-                if ($request->filled('from')) {
-                    $q->whereDate('created_at', '>=', $request->input('from'));
-                }
-                if ($request->filled('to')) {
-                    $q->whereDate('created_at', '<=', $request->input('to'));
-                }
-            });
+            $profileQuery->whereHas('carbonScores', fn ($q) => LagosDay::filter($q, 'created_at', $request->input('from'), $request->input('to')));
         }
 
         $tierDistribution = (clone $profileQuery)

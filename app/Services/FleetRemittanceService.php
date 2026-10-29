@@ -7,6 +7,8 @@ use App\Enums\FleetAgreementStatus;
 use App\Enums\LedgerEntryType;
 use App\Enums\NotificationType;
 use App\Enums\PaymentMethod;
+use App\Enums\RideStatus;
+use App\Exceptions\FleetAgreementFieldException;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\DailyRemittance;
@@ -43,6 +45,10 @@ class FleetRemittanceService
 
         if (! $vehicle->is_fleet) {
             throw new \DomainException('Vehicle must be marked as fleet before creating an agreement.');
+        }
+
+        if ($vehicle->isInMaintenance()) {
+            throw new \DomainException('This car is in for maintenance. Mark it back in service before putting it on an agreement.');
         }
 
         // A car shared on shifts (OQ-20) cannot be bought by one driver.
@@ -117,35 +123,94 @@ class FleetRemittanceService
         });
     }
 
+    /**
+     * Correct an agreement's daily target, total vehicle cost or start date.
+     *
+     * The total can't drop to what the driver has already paid or below
+     * (that would end the agreement by accident; terminate or settle it
+     * instead), and the start date can't move after the first day money was
+     * collected or before the day the agreement was entered.
+     *
+     * @param  array{daily_remittance_target?: float|int|string, total_vehicle_cost?: float|int|string, agreement_start_date?: string, reason?: string|null}  $data
+     */
     public function updateAgreement(
         FleetAgreement $agreement,
         array $data,
         User $admin,
     ): FleetAgreement {
-        if (! $agreement->isActive()) {
-            throw new \DomainException('Only active agreements can be updated.');
-        }
-
         return DB::transaction(function () use ($agreement, $data, $admin) {
-            $oldValues = $agreement->only(array_keys($data));
-            $agreement->update($data);
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
 
-            AuditLog::record($agreement, 'fleet_agreement.updated', $admin, $oldValues, $data);
+            if (! $agreement->isActive() && ! $agreement->isPaused()) {
+                throw new \DomainException('Only active or paused agreements can be changed.');
+            }
+
+            $reason = $data['reason'] ?? null;
+            $changes = array_intersect_key($data, array_flip(['daily_remittance_target', 'total_vehicle_cost', 'agreement_start_date']));
+
+            if (array_key_exists('total_vehicle_cost', $changes)
+                && (float) $changes['total_vehicle_cost'] <= (float) $agreement->total_remitted) {
+                throw new FleetAgreementFieldException(
+                    'total_vehicle_cost',
+                    'The total vehicle cost must be more than the driver has already paid (₦'.number_format((float) $agreement->total_remitted, 2).').',
+                );
+            }
+
+            if (array_key_exists('agreement_start_date', $changes)) {
+                $startDate = Carbon::parse($changes['agreement_start_date'])->toDateString();
+                $enteredOn = $agreement->created_at->copy()->timezone('Africa/Lagos')->toDateString();
+                $firstPaidDay = DailyRemittance::where('agreement_id', $agreement->id)
+                    ->where('remitted_amount', '>', 0)
+                    ->min('date');
+
+                if ($startDate < $enteredOn) {
+                    throw new FleetAgreementFieldException('agreement_start_date', "The start date can't be before the agreement was entered ({$enteredOn}).");
+                }
+
+                if ($firstPaidDay !== null && $startDate > Carbon::parse($firstPaidDay)->toDateString()) {
+                    throw new FleetAgreementFieldException(
+                        'agreement_start_date',
+                        'The start date can\'t be after the first day the driver paid ('.Carbon::parse($firstPaidDay)->toDateString().').',
+                    );
+                }
+
+                $changes['agreement_start_date'] = $startDate;
+            }
+
+            $oldValues = collect($agreement->only(array_keys($changes)))
+                ->map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value)
+                ->all();
+
+            $agreement->update($changes);
+
+            AuditLog::record($agreement, 'fleet_agreement.updated', $admin, $oldValues, [...$changes, 'reason' => $reason]);
 
             return $agreement->fresh();
         });
     }
 
+    /**
+     * End an agreement and take the car back in the same transaction, so an
+     * ended agreement never leaves the car with the driver. Refused while the
+     * driver is on a trip in the car.
+     */
     public function terminateAgreement(
         FleetAgreement $agreement,
         string $reason,
         User $admin,
+        bool $releaseVehicle = true,
     ): FleetAgreement {
-        if ($agreement->isCompleted() || $agreement->isTerminated()) {
-            throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
-        }
+        return DB::transaction(function () use ($agreement, $reason, $admin, $releaseVehicle) {
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
 
-        return DB::transaction(function () use ($agreement, $reason, $admin) {
+            if ($agreement->isCompleted() || $agreement->isTerminated()) {
+                throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
+            }
+
+            if ($releaseVehicle) {
+                $this->ensureDriverNotOnTrip($agreement);
+            }
+
             $agreement->update([
                 'status' => FleetAgreementStatus::Terminated,
                 'terminated_reason' => $reason,
@@ -156,23 +221,30 @@ class FleetRemittanceService
                 'reason' => $reason,
             ]);
 
+            if ($releaseVehicle) {
+                $this->releaseVehicle($agreement, $admin);
+            }
+
             return $agreement->fresh();
         });
     }
 
-    public function pauseAgreement(FleetAgreement $agreement, User $admin): FleetAgreement
+    public function pauseAgreement(FleetAgreement $agreement, User $admin, ?string $reason = null): FleetAgreement
     {
-        if (! $agreement->isActive()) {
-            throw new \DomainException('Only active agreements can be paused.');
-        }
+        $agreement = DB::transaction(function () use ($agreement, $admin, $reason) {
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
 
-        $agreement = DB::transaction(function () use ($agreement, $admin) {
+            if (! $agreement->isActive()) {
+                throw new \DomainException('Only active agreements can be paused.');
+            }
+
             $agreement->update([
                 'status' => FleetAgreementStatus::Paused,
                 'paused_at' => now(),
+                'paused_reason' => $reason,
             ]);
 
-            AuditLog::record($agreement, 'fleet_agreement.paused', $admin);
+            AuditLog::record($agreement, 'fleet_agreement.paused', $admin, null, ['reason' => $reason]);
 
             return $agreement->fresh();
         });
@@ -184,17 +256,22 @@ class FleetRemittanceService
 
     public function resumeAgreement(FleetAgreement $agreement, User $admin): FleetAgreement
     {
-        if ($agreement->status !== FleetAgreementStatus::Paused) {
-            throw new \DomainException('Only paused agreements can be resumed.');
-        }
-
         $agreement = DB::transaction(function () use ($agreement, $admin) {
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
+
+            if (! $agreement->isPaused()) {
+                throw new \DomainException('Only paused agreements can be resumed.');
+            }
+
+            $pausedReason = $agreement->paused_reason;
+
             $agreement->update([
                 'status' => FleetAgreementStatus::Active,
                 'paused_at' => null,
+                'paused_reason' => null,
             ]);
 
-            AuditLog::record($agreement, 'fleet_agreement.resumed', $admin);
+            AuditLog::record($agreement, 'fleet_agreement.resumed', $admin, ['paused_reason' => $pausedReason]);
 
             return $agreement->fresh();
         });
@@ -407,6 +484,79 @@ class FleetRemittanceService
         });
     }
 
+    /**
+     * Take back an excuse given by mistake. A settled day that fell short
+     * counts towards the shortfall streak again, as it did before.
+     */
+    public function unexcuseDay(DailyRemittance $remittance, string $reason, User $admin): DailyRemittance
+    {
+        return DB::transaction(function () use ($remittance, $reason, $admin) {
+            $remittance = DailyRemittance::whereKey($remittance->id)->lockForUpdate()->firstOrFail();
+
+            if (! $remittance->isExcused()) {
+                throw new \DomainException('This remittance day is not excused.');
+            }
+
+            $agreement = FleetAgreement::whereKey($remittance->agreement_id)->lockForUpdate()->firstOrFail();
+            $excusedReason = $remittance->excused_reason;
+
+            $remittance->update(['excused_reason' => null]);
+
+            AuditLog::record($agreement, 'remittance_day_excuse_withdrawn', $admin, ['excused_reason' => $excusedReason], [
+                'date' => $remittance->date->toDateString(),
+                'reason' => $reason,
+            ]);
+
+            if ($remittance->settled && $remittance->shortfall() > 0 && $agreement->isActive()) {
+                $agreement->increment('shortfall_streak_days');
+            }
+
+            return $remittance->fresh();
+        });
+    }
+
+    /**
+     * @throws \DomainException when the driver is on a trip
+     */
+    private function ensureDriverNotOnTrip(FleetAgreement $agreement): void
+    {
+        $userId = Driver::whereKey($agreement->driver_id)->value('user_id');
+
+        if ($userId && Ride::where('driver_id', $userId)->whereIn('status', RideStatus::driverOnTripStatuses())->exists()) {
+            throw new \DomainException('The driver is on a trip in this car. End the agreement once the trip is over.');
+        }
+    }
+
+    /**
+     * Take the agreement's car back from the driver (when they still have it)
+     * and take them offline: without a car they can't take rides.
+     */
+    private function releaseVehicle(FleetAgreement $agreement, ?User $admin): void
+    {
+        $vehicle = Vehicle::whereKey($agreement->vehicle_id)->lockForUpdate()->first();
+
+        if ($vehicle === null || $vehicle->driver_id !== $agreement->driver_id) {
+            return;
+        }
+
+        $vehicle->update(['driver_id' => null]);
+
+        AuditLog::record($vehicle, 'fleet_vehicle_unassigned', $admin, ['driver_id' => $agreement->driver_id], [
+            'agreement_id' => $agreement->id,
+            'reason' => 'agreement_ended',
+        ]);
+
+        $driver = Driver::whereKey($agreement->driver_id)->lockForUpdate()->first();
+
+        if ($driver?->is_online) {
+            $driver->update(['is_online' => false]);
+
+            DB::afterCommit(function () use ($driver) {
+                rescue(fn () => app(DriverLocationService::class)->removeDriver($driver->id, $driver->user_id), report: false);
+            });
+        }
+    }
+
     private function notifyDriver(FleetAgreement $agreement, NotificationType $type, string $body): void
     {
         $userId = Driver::whereKey($agreement->driver_id)->value('user_id');
@@ -460,10 +610,16 @@ class FleetRemittanceService
                 throw new \DomainException('Replacement vehicle is already assigned.');
             }
 
+            if ($newVehicle->isInMaintenance()) {
+                throw new \DomainException('Replacement vehicle is in for maintenance.');
+            }
+
+            $this->ensureDriverNotOnTrip($currentAgreement);
+
             $driver = $currentAgreement->driver;
             $oldVehicle = $currentAgreement->vehicle;
 
-            $this->terminateAgreement($currentAgreement, "Vehicle swap: {$reason}", $admin);
+            $this->terminateAgreement($currentAgreement, "Vehicle swap: {$reason}", $admin, releaseVehicle: false);
 
             $oldVehicle->update(['driver_id' => null]);
             $newVehicle->update(['driver_id' => $driver->id]);
@@ -508,14 +664,18 @@ class FleetRemittanceService
         float $settlementAmount = 0,
         ?string $settlementNotes = null,
     ): FleetAgreement {
-        if ($agreement->isCompleted() || $agreement->isTerminated()) {
-            throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
-        }
-
         return DB::transaction(function () use (
             $agreement, $reason, $admin,
             $vehicleReturnStatus, $outstandingAmount, $settlementAmount, $settlementNotes,
         ) {
+            $agreement = FleetAgreement::whereKey($agreement->id)->lockForUpdate()->firstOrFail();
+
+            if ($agreement->isCompleted() || $agreement->isTerminated()) {
+                throw new \DomainException('Agreement is already '.$agreement->status->value.'.');
+            }
+
+            $this->ensureDriverNotOnTrip($agreement);
+
             $agreement->update([
                 'status' => FleetAgreementStatus::Terminated,
                 'terminated_reason' => $reason,
@@ -533,6 +693,10 @@ class FleetRemittanceService
                 'outstanding_amount' => $outstandingAmount,
                 'settlement_amount' => $settlementAmount,
             ]);
+
+            // The car comes off the driver's account whether or not it has
+            // been handed back yet; vehicle_return_status tracks the handover.
+            $this->releaseVehicle($agreement, $admin);
 
             return $agreement->fresh();
         });

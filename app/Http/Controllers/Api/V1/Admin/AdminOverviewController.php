@@ -182,10 +182,20 @@ class AdminOverviewController extends Controller
                 'status_label' => $e['ride']->status->label(),
                 'pickup_address' => $e['ride']->pickup_address,
                 'destination_address' => $e['ride']->destination_address,
+                // The account that booked the ride (as on every ride payload).
                 'passenger' => $e['ride']->passenger ? [
                     'id' => $e['ride']->passenger->id,
                     'name' => $this->name($e['ride']->passenger),
                 ] : null,
+                'is_third_party' => (bool) $e['ride']->is_third_party,
+                // The person being picked up: the booker, or the person they
+                // booked for. Show this as the trip's passenger.
+                'rider' => [
+                    'user_id' => $e['ride']->is_third_party ? null : $e['ride']->passenger_id,
+                    'name' => $e['ride']->is_third_party
+                        ? (trim((string) $e['ride']->rider_name) ?: null)
+                        : ($e['ride']->passenger ? $this->name($e['ride']->passenger) : null),
+                ],
                 'driver' => $e['ride']->driver ? [
                     'id' => $e['ride']->driver->id,
                     'name' => $this->name($e['ride']->driver),

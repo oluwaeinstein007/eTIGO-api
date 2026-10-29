@@ -16,6 +16,8 @@ class FleetAgreementResource extends JsonResource
 
         return [
             'id' => $this->id,
+            // Short name for the agreement ("FA-000123") for staff and the driver.
+            'reference_number' => $this->reference_number,
             'driver_id' => $this->driver_id,
             'vehicle_id' => $this->vehicle_id,
             'daily_remittance_target' => $this->daily_remittance_target,
@@ -37,6 +39,7 @@ class FleetAgreementResource extends JsonResource
             'terminated_at' => $this->when($this->terminated_at !== null, $this->terminated_at),
             'completed_at' => $this->when($this->completed_at !== null, $this->completed_at),
             'paused_at' => $this->when($this->paused_at !== null, $this->paused_at),
+            'paused_reason' => $this->when($isAdmin && $this->paused_at !== null, fn () => $this->paused_reason),
             'daily_remittances' => DailyRemittanceResource::collection($this->whenLoaded('dailyRemittances')),
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),

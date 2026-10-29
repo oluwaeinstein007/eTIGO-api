@@ -12,6 +12,7 @@ use App\Models\Payout;
 use App\Notifications\PayoutStatusNotification;
 use App\Services\PayoutAccountSafeguards;
 use App\Services\PayoutReconciliationService;
+use App\Support\LagosDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,11 +25,13 @@ class AdminPayoutController extends Controller
     {
         $request->validate([
             'status' => ['sometimes', 'nullable', Rule::enum(PayoutStatus::class)],
-            'from' => ['sometimes', 'nullable', 'date'],
-            'to' => ['sometimes', 'nullable', 'date'],
+            // Lagos calendar days, on requested_at.
+            'from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
-        $query = Payout::with(['driver.user', 'bankAccount', 'approvedBy'])
+        $query = Payout::with(['driver.user', 'bankAccount', 'approvedBy', 'rejectedBy'])
             ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
@@ -36,21 +39,19 @@ class AdminPayoutController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->whereHas('driver.user', function ($q) use ($search) {
-                $q->where('first_name', 'ilike', "%{$search}%")
-                    ->orWhere('last_name', 'ilike', "%{$search}%")
-                    ->orWhere('email', 'ilike', "%{$search}%");
-            });
+            // Payout reference, or the driver's name, email or phone.
+            $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $request->input('search')).'%';
+            $query->where(fn ($q) => $q->where('reference_number', 'ilike', $like)
+                ->orWhereHas('driver.user', function ($q) use ($like) {
+                    $q->where('first_name', 'ilike', $like)
+                        ->orWhere('last_name', 'ilike', $like)
+                        ->orWhereRaw("concat(first_name, ' ', last_name) ilike ?", [$like])
+                        ->orWhere('email', 'ilike', $like)
+                        ->orWhere('phone', 'ilike', $like);
+                }));
         }
 
-        if ($request->filled('from')) {
-            $query->where('requested_at', '>=', $request->input('from'));
-        }
-
-        if ($request->filled('to')) {
-            $query->where('requested_at', '<=', $request->input('to').' 23:59:59');
-        }
+        LagosDay::filter($query, 'requested_at', $request->input('from'), $request->input('to'));
 
         $payouts = $query->paginate(20);
 
@@ -62,6 +63,13 @@ class AdminPayoutController extends Controller
                 'per_page' => $payouts->perPage(),
                 'total' => $payouts->total(),
             ],
+        ]);
+    }
+
+    public function show(Payout $payout): JsonResponse
+    {
+        return response()->json([
+            'payout' => new PayoutResource($payout->load(['driver.user', 'bankAccount', 'approvedBy', 'rejectedBy'])),
         ]);
     }
 
@@ -120,6 +128,8 @@ class AdminPayoutController extends Controller
             $payout->update([
                 'status' => PayoutStatus::Rejected,
                 'failure_reason' => $request->input('reason'),
+                'rejected_at' => now(),
+                'rejected_by_admin_id' => $request->user()->id,
             ]);
 
             AuditLog::record($payout, 'payout.rejected', $request->user(), null, [
@@ -139,7 +149,10 @@ class AdminPayoutController extends Controller
             $request->input('reason'),
         )));
 
-        return response()->json(['message' => 'Payout rejected.']);
+        return response()->json([
+            'message' => 'Payout rejected.',
+            'payout' => new PayoutResource($rejected->fresh()->load(['driver.user', 'bankAccount', 'rejectedBy'])),
+        ]);
     }
 
     public function retry(Request $request, Payout $payout, PayoutAccountSafeguards $safeguards): JsonResponse
@@ -221,22 +234,25 @@ class AdminPayoutController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $request->validate([
-            'from' => ['required', 'date'],
-            'to' => ['required', 'date'],
+            // Lagos calendar days, as on the list.
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
 
         return response()->streamDownload(function () use ($request) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Payout ID', 'Driver', 'Bank', 'Account', 'Amount (kobo)', 'Status', 'Requested At', 'Paid At']);
+            fputcsv($handle, ['Payout ID', 'Reference', 'Driver', 'Bank', 'Account', 'Amount (kobo)', 'Status', 'Requested At', 'Paid At']);
 
-            Payout::with(['driver.user', 'bankAccount'])
-                ->whereBetween('requested_at', [$request->input('from'), $request->input('to').' 23:59:59'])
+            $query = Payout::with(['driver.user', 'bankAccount']);
+
+            LagosDay::filter($query, 'requested_at', $request->input('from'), $request->input('to'))
                 ->orderBy('requested_at')
                 ->orderBy('id')
                 ->chunk(100, function ($payouts) use ($handle) {
                     foreach ($payouts as $payout) {
                         fputcsv($handle, [
                             $payout->id,
+                            $payout->reference_number,
                             $payout->driver?->user?->first_name.' '.$payout->driver?->user?->last_name,
                             $payout->bankAccount?->bank_code,
                             $payout->bankAccount?->maskedAccountNumber(),

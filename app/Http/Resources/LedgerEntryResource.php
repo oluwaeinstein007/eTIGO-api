@@ -28,6 +28,14 @@ class LedgerEntryResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'source_type' => $rideId ? 'ride' : ($payoutId ? 'payout' : null),
             'source_id' => $rideId ?? $payoutId,
+            // The account the entry posts to, and whose it is.
+            'account' => $this->whenLoaded('account', fn () => [
+                'id' => $this->account->id,
+                'type' => $this->account->type->value,
+                'type_label' => $this->account->type->label(),
+                'owner_type' => AccountResource::ownerType($this->account),
+                'owner' => $this->account->relationLoaded('owner') ? AccountResource::ownerSummary($this->account->owner) : null,
+            ]),
             'journal' => new JournalResource($this->whenLoaded('journal')),
         ];
     }

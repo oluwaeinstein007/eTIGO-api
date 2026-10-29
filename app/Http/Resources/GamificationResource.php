@@ -113,6 +113,12 @@ class GamificationResource extends JsonResource
             'total_co2_saved_kg' => round($totalCo2Saved, 2),
             'co2_saved_this_month_kg' => round($co2SavedThisMonth, 2),
             'points_this_month' => $pointsThisMonth,
+            // What the passenger earned in the requested range (from/to on /admin/gamification/users).
+            'period' => $this->when($this->hasAttribute('period_points'), fn () => [
+                'points' => (int) $this->period_points,
+                'co2_saved_kg' => round((float) $this->period_co2_saved_kg, 2),
+                'trips' => (int) $this->period_trips,
+            ]),
             'tier_upgraded_at' => $this->tier_upgraded_at,
             'progress_to_next_tier' => $progressToNext,
             'points_to_next_tier' => $nextTierConfig

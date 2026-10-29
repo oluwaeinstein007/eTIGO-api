@@ -8,6 +8,7 @@ use App\Events\SosIncidentEscalated;
 use App\Events\SosIncidentTriggered;
 use App\Events\SosIncidentUpdated;
 use App\Exceptions\InvalidStateTransitionException;
+use App\Exceptions\SosIncidentTakenException;
 use App\Jobs\SendSosCheckInJob;
 use App\Jobs\SendSosWhatsAppAlertJob;
 use App\Models\Ride;
@@ -321,13 +322,34 @@ class SosService
         return true;
     }
 
-    public function assignOperator(SosIncident $incident, User $operator): SosIncident
-    {
-        return DB::transaction(function () use ($incident, $operator) {
+    /**
+     * Take the incident, or take it over from another operator.
+     *
+     * When $expectedOperatorId is given (null meaning "nobody has it"), the
+     * take only goes ahead if the incident is still held by that operator, so
+     * two operators racing for the same alert can't silently swap it.
+     *
+     * @throws SosIncidentTakenException when the holder changed since the caller looked
+     */
+    public function assignOperator(
+        SosIncident $incident,
+        User $operator,
+        bool $checkHolder = false,
+        ?string $expectedOperatorId = null,
+    ): SosIncident {
+        return DB::transaction(function () use ($incident, $operator, $checkHolder, $expectedOperatorId) {
             $incident = $this->lock($incident);
 
             if ($incident->isTerminal()) {
                 throw new \RuntimeException('This incident cannot be assigned in its current state.');
+            }
+
+            if ($checkHolder && $incident->operator_id !== $expectedOperatorId && $incident->operator_id !== $operator->id) {
+                throw new SosIncidentTakenException($incident->load('operator'));
+            }
+
+            if ($incident->operator_id === $operator->id) {
+                return $incident->fresh();
             }
 
             if ($this->canTransitionTo($incident, SosIncidentStatus::OperatorAssigned)) {
@@ -405,14 +427,25 @@ class SosService
      */
     public function logCall(SosIncident $incident, User $operator, array $data): SosIncident
     {
-        $this->logEvent($incident, 'operator_call', $operator, [
-            'called_party' => $data['called_party'],
-            'outcome' => $data['outcome'],
-            'phone' => $data['phone'] ?? null,
-            'notes' => $data['notes'] ?? null,
-        ]);
+        return DB::transaction(function () use ($incident, $operator, $data) {
+            $incident = $this->lock($incident);
 
-        return $incident->fresh();
+            // Calling about an alert nobody has taken yet takes it, under the
+            // same lock, like dispatch does. An alert another operator holds
+            // stays with them; the call is still logged.
+            if ($incident->operator_id === null && $this->canTransitionTo($incident, SosIncidentStatus::OperatorAssigned)) {
+                $this->takeIncident($incident, $operator);
+            }
+
+            $this->logEvent($incident, 'operator_call', $operator, [
+                'called_party' => $data['called_party'],
+                'outcome' => $data['outcome'],
+                'phone' => $data['phone'] ?? null,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            return $incident->fresh();
+        });
     }
 
     private function takeIncident(SosIncident $incident, User $operator): void

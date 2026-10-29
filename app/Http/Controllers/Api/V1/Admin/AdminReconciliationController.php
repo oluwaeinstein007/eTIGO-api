@@ -35,7 +35,14 @@ class AdminReconciliationController extends Controller
                 'gateway_transfers_total' => $report->gateway_transfers_total,
                 'ledger_payouts_total' => $report->ledger_payouts_total,
                 'mismatches_count' => $report->mismatches_count,
-                'mismatches' => $report->mismatches,
+                // Each kind lists its mismatched transactions in items; reports
+                // made before 2026-10-29 have totals only (items null).
+                'mismatches' => $report->mismatches === null ? null : collect($report->mismatches)->map(fn (array $mismatch) => [
+                    'items_count' => null,
+                    'items_truncated' => false,
+                    'items' => null,
+                    ...$mismatch,
+                ])->values(),
                 'status' => $report->status,
                 'generated_at' => $report->created_at->toIso8601String(),
             ],

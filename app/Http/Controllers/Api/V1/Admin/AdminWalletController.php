@@ -235,6 +235,14 @@ class AdminWalletController extends Controller
                     'description' => $this->describeAuditEvent($log->event),
                     'reason' => $log->new_values['reason'] ?? $adjustment?->reason,
                     'amount' => $adjustment?->amount,
+                    // credit (added to the wallet) or debit (taken from it); null for non-adjustment events.
+                    'direction' => $adjustment?->type->value,
+                    'adjustment' => $adjustment ? [
+                        'id' => $adjustment->id,
+                        'reference_number' => $adjustment->reference_number,
+                        'type' => $adjustment->type->value,
+                        'status' => $adjustment->status->value,
+                    ] : null,
                     'actor' => $log->actor ? [
                         'id' => $log->actor->id,
                         'name' => trim($log->actor->first_name.' '.$log->actor->last_name),
