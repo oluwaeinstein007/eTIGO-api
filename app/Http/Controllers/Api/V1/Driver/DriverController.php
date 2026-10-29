@@ -108,7 +108,9 @@ class DriverController extends Controller
                 }
 
                 if ($cityNotLaunched) {
-                    $reasons[] = "E-tiGo has not launched in {$driver->city->name} yet. You can go online from launch day.";
+                    $reasons[] = $driver->city->wasClosed()
+                        ? "E-tiGo is not running in {$driver->city->name} for now. You can go online again when it reopens."
+                        : "E-tiGo has not launched in {$driver->city->name} yet. You can go online from launch day.";
                 }
 
                 return response()->json([

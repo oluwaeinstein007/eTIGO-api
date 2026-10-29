@@ -80,6 +80,22 @@ class City extends Model
         return $this->launch_status === CityLaunchStatus::Live;
     }
 
+    /**
+     * Back in onboarding after having launched: closed, not new.
+     */
+    public function wasClosed(): bool
+    {
+        return $this->launch_status === CityLaunchStatus::Onboarding && $this->launched_at !== null;
+    }
+
+    /**
+     * What a passenger sees when they try to book here.
+     */
+    public function unavailableMessage(): string
+    {
+        return $this->launch_status->unavailableMessage($this->name, $this->wasClosed());
+    }
+
     public function acceptsBookings(): bool
     {
         return $this->launch_status?->acceptsBookings() ?? false;

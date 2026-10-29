@@ -12,7 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Tells a city's approved drivers it launched, resumed or paused
+ * Tells a city's approved drivers it launched, resumed, paused or closed
  * (CityLaunchService::notifyDrivers). Not retried: nothing records which
  * drivers were told, so a retry would message them twice.
  */

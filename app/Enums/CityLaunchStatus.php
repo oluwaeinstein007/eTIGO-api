@@ -7,7 +7,8 @@ namespace App\Enums;
  * in onboarding: drivers sign up and are approved, passengers can only join
  * the waitlist. It goes live once it passes the readiness checklist. Paused
  * stops new bookings; trips in progress and, by default, bookings already
- * made still go ahead.
+ * made still go ahead. A live or paused city can be closed back to
+ * onboarding once no trip is running and no booking is open.
  */
 enum CityLaunchStatus: string
 {
@@ -72,7 +73,7 @@ enum CityLaunchStatus: string
     {
         return match ($this) {
             self::Onboarding => [self::Live],
-            self::Live => [self::Paused],
+            self::Live => [self::Paused, self::Onboarding],
             self::Paused => [self::Live, self::Onboarding],
         };
     }
@@ -85,10 +86,12 @@ enum CityLaunchStatus: string
     /**
      * What a passenger sees when they try to book here.
      */
-    public function unavailableMessage(string $cityName): string
+    public function unavailableMessage(string $cityName, bool $closed = false): string
     {
         return match ($this) {
-            self::Onboarding => "E-tiGo is not available in {$cityName} yet. Join the waitlist and we will tell you when we launch.",
+            self::Onboarding => $closed
+                ? "E-tiGo is not running in {$cityName} for now. Join the waitlist and we will tell you when we are back."
+                : "E-tiGo is not available in {$cityName} yet. Join the waitlist and we will tell you when we launch.",
             self::Paused => "Rides in {$cityName} are paused for now. Please try again later.",
             self::Live => '',
         };

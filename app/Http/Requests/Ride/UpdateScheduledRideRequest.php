@@ -70,7 +70,7 @@ class UpdateScheduledRideRequest extends FormRequest
                     if ($city !== null && $city->id !== $ride->city_id) {
                         $validator->errors()->add('pickup_lat', $city->is_active
                             ? "This pickup is in {$city->name}, not the booking's city. Cancel and book again to be picked up there."
-                            : $city->launch_status->unavailableMessage($city->name));
+                            : $city->unavailableMessage());
                     }
                 }
             },

@@ -111,7 +111,7 @@ class StoreRideRequest extends FormRequest
 
         if (! $city->is_active) {
             $field = $city->id === $requestedCityId ? 'city_id' : 'pickup_lat';
-            $validator->errors()->add($field, $city->launch_status->unavailableMessage($city->name));
+            $validator->errors()->add($field, $city->unavailableMessage());
 
             return null;
         }

@@ -42,8 +42,7 @@ class CityResource extends JsonResource
                 ),
                 'readiness_confirmations' => $this->readiness_confirmations,
             ]),
-            // Admin city list: onboarding cities only, since only a launch
-            // from onboarding needs the checklist.
+            // Admin city list: every city's ready flag and missing gates.
             'readiness' => $this->when(array_key_exists('readiness_summary', $this->resource->getAttributes()), fn () => $this->readiness_summary),
             'waitlist_count' => $this->whenCounted('waitlistEntries'),
             'vehicle_classes_count' => $this->whenCounted('vehicleClasses'),

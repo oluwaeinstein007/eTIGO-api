@@ -79,12 +79,10 @@ class AdminCityController extends Controller
             $overlaps[$city->id],
         ));
 
-        // Only a launch from onboarding needs the checklist, so live and
-        // paused cities get null.
-        $cities->getCollection()->each(function (City $city) {
-            $report = $city->launch_status === CityLaunchStatus::Onboarding ? $this->readiness->report($city) : null;
-            $city->readiness_summary = $report === null ? null : ['ready' => $report['ready'], 'missing' => $report['missing']];
-        });
+        // Every city: an onboarding city needs it to launch; for a live or
+        // paused one it says whether it would still pass.
+        $summaries = $this->readiness->summaries($cities->getCollection(), $overlaps);
+        $cities->getCollection()->each(fn (City $city) => $city->readiness_summary = $summaries[$city->id]);
 
         return response()->json([
             'cities' => CityResource::collection($cities),
@@ -274,10 +272,7 @@ class AdminCityController extends Controller
         try {
             $result = $this->launch->changeStatus($city, $to, $request->user());
         } catch (CityLaunchException $e) {
-            return response()->json(array_filter([
-                'message' => $e->getMessage(),
-                'readiness' => $e->readiness,
-            ]), 422);
+            return response()->json($e->body(), $e->status);
         }
 
         $city = $result['city']->load('launchStatusChangedBy');

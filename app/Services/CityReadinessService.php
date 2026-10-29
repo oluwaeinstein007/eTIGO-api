@@ -12,10 +12,11 @@ use App\Models\AuditLog;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\EvChargingStation;
-use App\Models\PromoCode;
 use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,30 +41,16 @@ class CityReadinessService
     public function report(City $city): array
     {
         $settings = AppSetting::cities();
-        $approvedDrivers = $this->approvedDrivers($city)->count();
-
-        $gates = [
-            $this->boundaryGate($city),
-            $this->pricingGate($city),
-            $this->driversGate($approvedDrivers, $settings['launch_min_approved_drivers']),
-            $this->evChargingGate($city, $settings['require_ev_charging']),
-            $this->manualGate($city, CityReadinessGate::SupportCover),
-            $this->manualGate($city, CityReadinessGate::Permits),
-            $this->launchDateGate($city),
-            $this->launchPromosGate($city),
-        ];
-
-        $missing = array_values(array_map(
-            fn (array $gate) => $gate['gate'],
-            array_filter($gates, fn (array $gate) => $gate['required'] && $gate['status'] === 'failed'),
-        ));
+        $facts = $this->facts(new Collection([$city]))[$city->id];
+        $gates = $this->gates($city, $facts, $settings, withNames: true);
+        $missing = $this->missing($gates);
 
         return [
             'ready' => $missing === [],
             'missing' => $missing,
             'gates' => $gates,
             'counts' => [
-                'approved_drivers' => $approvedDrivers,
+                'approved_drivers' => $facts['approved_drivers'],
                 'min_approved_drivers' => $settings['launch_min_approved_drivers'],
                 'waitlist' => $city->waitlistEntries()->whereNull('notified_at')->count(),
                 'active_rides' => Ride::where('city_id', $city->id)
@@ -72,6 +59,31 @@ class CityReadinessService
                 'upcoming_scheduled_rides' => $this->upcomingScheduledRides($city)->count(),
             ],
         ];
+    }
+
+    /**
+     * Ready and missing for many cities at once, for the admin city list:
+     * the same gates as report(), read in a few grouped queries rather than
+     * a dozen per city.
+     *
+     * @param  Collection<int, City>  $cities
+     * @param  array<string, list<City>>|null  $overlaps  CityBoundaryService::overlapsFor, when already read
+     * @return array<string, array{ready: bool, missing: list<string>}>
+     */
+    public function summaries(Collection $cities, ?array $overlaps = null): array
+    {
+        if ($cities->isEmpty()) {
+            return [];
+        }
+
+        $settings = AppSetting::cities();
+        $facts = $this->facts($cities, $overlaps);
+
+        return $cities->mapWithKeys(function (City $city) use ($facts, $settings) {
+            $missing = $this->missing($this->gates($city, $facts[$city->id], $settings, withNames: false));
+
+            return [$city->id => ['ready' => $missing === [], 'missing' => $missing]];
+        })->all();
     }
 
     /**
@@ -122,11 +134,108 @@ class CityReadinessService
     }
 
     /**
+     * What the computed gates read, for each city.
+     *
+     * @param  Collection<int, City>  $cities
+     * @param  array<string, list<City>>|null  $overlaps
+     * @return array<string, array{overlap: City|null, offered_classes: int, unpriced_classes: list<string>, approved_drivers: int, plug_in_drivers: int, active_stations: int, promo_codes: int}>
+     */
+    private function facts(Collection $cities, ?array $overlaps = null): array
+    {
+        $ids = $cities->modelKeys();
+        $overlaps ??= $this->boundaries->overlapsFor($cities);
+
+        $offered = DB::table('city_vehicle_classes as cvc')
+            ->join('vehicle_classes', 'vehicle_classes.id', '=', 'cvc.vehicle_class_id')
+            ->whereIn('cvc.city_id', $ids)
+            ->where('cvc.is_active', true)
+            ->where('vehicle_classes.is_active', true)
+            ->groupBy('cvc.city_id')
+            ->selectRaw('cvc.city_id, count(*) as total')
+            ->pluck('total', 'city_id');
+
+        $unpriced = $this->coverage->gaps($ids)->groupBy('city_id');
+
+        $approved = $this->countByCity($this->approvedDrivers($ids));
+
+        $plugIn = $this->countByCity($this->approvedDrivers($ids)
+            ->whereHas('vehicle', fn ($q) => $q->whereIn('fuel_type', array_map(
+                fn (FuelType $type) => $type->value,
+                array_filter(FuelType::cases(), fn (FuelType $type) => $type->canCharge()),
+            ))));
+
+        $stations = $this->countByCity(EvChargingStation::active()->whereIn('city_id', $ids));
+
+        $promos = DB::table('city_promo_code')
+            ->join('promo_codes', 'promo_codes.id', '=', 'city_promo_code.promo_code_id')
+            ->whereIn('city_promo_code.city_id', $ids)
+            ->where('promo_codes.is_active', true)
+            ->whereNull('promo_codes.cancelled_at')
+            ->where('promo_codes.expires_at', '>', now())
+            ->groupBy('city_promo_code.city_id')
+            ->selectRaw('city_promo_code.city_id, count(distinct promo_codes.id) as total')
+            ->pluck('total', 'city_id');
+
+        return $cities->mapWithKeys(fn (City $city) => [$city->id => [
+            'overlap' => ($overlaps[$city->id] ?? [])[0] ?? null,
+            'offered_classes' => (int) $offered->get($city->id, 0),
+            'unpriced_classes' => $unpriced->get($city->id, collect())->pluck('vehicle_class_name')->values()->all(),
+            'approved_drivers' => (int) $approved->get($city->id, 0),
+            'plug_in_drivers' => (int) $plugIn->get($city->id, 0),
+            'active_stations' => (int) $stations->get($city->id, 0),
+            'promo_codes' => (int) $promos->get($city->id, 0),
+        ]])->all();
+    }
+
+    /**
+     * @return SupportCollection<string, int>
+     */
+    private function countByCity(Builder $query): SupportCollection
+    {
+        return $query->toBase()
+            ->groupBy('city_id')
+            ->selectRaw('city_id, count(*) as total')
+            ->pluck('total', 'city_id');
+    }
+
+    /**
+     * @param  array<string, mixed>  $facts
+     * @param  array<string, mixed>  $settings
+     * @return list<array<string, mixed>>
+     */
+    private function gates(City $city, array $facts, array $settings, bool $withNames): array
+    {
+        return [
+            $this->boundaryGate($city, $facts['overlap']),
+            $this->pricingGate($facts['offered_classes'], $facts['unpriced_classes']),
+            $this->driversGate($facts['approved_drivers'], $settings['launch_min_approved_drivers']),
+            $this->evChargingGate($facts['plug_in_drivers'], $facts['active_stations'], $settings['require_ev_charging']),
+            $this->manualGate($city, CityReadinessGate::SupportCover, $withNames),
+            $this->manualGate($city, CityReadinessGate::Permits, $withNames),
+            $this->launchDateGate($city),
+            $this->launchPromosGate($facts['promo_codes']),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $gates
+     * @return list<string>
+     */
+    private function missing(array $gates): array
+    {
+        return array_values(array_map(
+            fn (array $gate) => $gate['gate'],
+            array_filter($gates, fn (array $gate) => $gate['required'] && $gate['status'] === 'failed'),
+        ));
+    }
+
+    /**
+     * @param  list<string>  $cityIds
      * @return Builder<Driver>
      */
-    private function approvedDrivers(City $city): Builder
+    private function approvedDrivers(array $cityIds): Builder
     {
-        return Driver::where('city_id', $city->id)
+        return Driver::whereIn('city_id', $cityIds)
             ->where('status', DriverStatus::Approved)
             ->where('kyc_status', KycStatus::Verified);
     }
@@ -134,13 +243,11 @@ class CityReadinessService
     /**
      * @return array<string, mixed>
      */
-    private function boundaryGate(City $city): array
+    private function boundaryGate(City $city, ?City $overlap): array
     {
         if (! is_array($city->boundary) || $city->boundary === []) {
             return $this->gate(CityReadinessGate::Boundary, 'failed', 'No map boundary has been drawn.');
         }
-
-        $overlap = $this->boundaries->findOverlappingCity($city->boundary, $city->id);
 
         if ($overlap !== null) {
             return $this->gate(CityReadinessGate::Boundary, 'failed', "The boundary overlaps {$overlap->name}.", [
@@ -154,22 +261,18 @@ class CityReadinessService
     /**
      * @return array<string, mixed>
      */
-    private function pricingGate(City $city): array
+    /**
+     * @param  list<string>  $unpriced
+     * @return array<string, mixed>
+     */
+    private function pricingGate(int $offered, array $unpriced): array
     {
-        $offered = $city->vehicleClasses()
-            ->wherePivot('is_active', true)
-            ->where('vehicle_classes.is_active', true)
-            ->count();
-
         if ($offered === 0) {
             return $this->gate(CityReadinessGate::Pricing, 'failed', 'No vehicle classes are offered in the city.', [
                 'offered_classes' => 0,
                 'unpriced_classes' => [],
             ]);
         }
-
-        $gaps = $this->coverage->gaps([$city->id]);
-        $unpriced = $gaps->pluck('vehicle_class_name')->values()->all();
 
         return $this->gate(
             CityReadinessGate::Pricing,
@@ -197,16 +300,8 @@ class CityReadinessService
     /**
      * @return array<string, mixed>
      */
-    private function evChargingGate(City $city, bool $required): array
+    private function evChargingGate(int $plugInDrivers, int $stations, bool $required): array
     {
-        $plugInDrivers = $this->approvedDrivers($city)
-            ->whereHas('vehicle', fn ($q) => $q->whereIn('fuel_type', array_map(
-                fn (FuelType $type) => $type->value,
-                array_filter(FuelType::cases(), fn (FuelType $type) => $type->canCharge()),
-            )))
-            ->count();
-
-        $stations = EvChargingStation::active()->where('city_id', $city->id)->count();
         $data = ['plug_in_drivers' => $plugInDrivers, 'active_stations' => $stations];
 
         if (! $required || $plugInDrivers === 0) {
@@ -228,7 +323,7 @@ class CityReadinessService
     /**
      * @return array<string, mixed>
      */
-    private function manualGate(City $city, CityReadinessGate $gate): array
+    private function manualGate(City $city, CityReadinessGate $gate, bool $withNames = true): array
     {
         $confirmation = ($city->readiness_confirmations ?? [])[$gate->value] ?? null;
 
@@ -243,11 +338,13 @@ class CityReadinessService
         };
 
         // Named when shown, so a renamed admin shows their current name.
-        $admin = isset($confirmation['confirmed_by_admin_id']) ? User::find($confirmation['confirmed_by_admin_id']) : null;
-        $confirmation['confirmed_by'] = $admin ? [
-            'id' => $admin->id,
-            'name' => trim($admin->first_name.' '.$admin->last_name),
-        ] : null;
+        if ($withNames) {
+            $admin = isset($confirmation['confirmed_by_admin_id']) ? User::find($confirmation['confirmed_by_admin_id']) : null;
+            $confirmation['confirmed_by'] = $admin ? [
+                'id' => $admin->id,
+                'name' => trim($admin->first_name.' '.$admin->last_name),
+            ] : null;
+        }
 
         return $this->gate($gate, 'passed', $detail, ['confirmation' => $confirmation]);
     }
@@ -267,14 +364,8 @@ class CityReadinessService
     /**
      * @return array<string, mixed>
      */
-    private function launchPromosGate(City $city): array
+    private function launchPromosGate(int $promos): array
     {
-        $promos = PromoCode::whereHas('cities', fn ($q) => $q->whereKey($city->id))
-            ->where('is_active', true)
-            ->whereNull('cancelled_at')
-            ->where('expires_at', '>', now())
-            ->count();
-
         return $this->gate(
             CityReadinessGate::LaunchPromos,
             $promos > 0 ? 'passed' : 'failed',

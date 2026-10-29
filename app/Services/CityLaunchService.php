@@ -17,6 +17,7 @@ use App\Models\CityWaitlistEntry;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -25,7 +26,11 @@ use Illuminate\Support\Facades\Log;
  * OQ-22). A first launch needs the readiness checklist; resuming a paused
  * city does not. Pausing never touches trips in progress; upcoming bookings
  * go ahead unless the admin cancels them, and then each passenger is told.
- * Going live tells the waitlist; drivers hear about launches and pauses.
+ * Closing (back to onboarding, from live or paused) is refused while a trip
+ * is running or a booking is open; it clears the manual readiness checks
+ * and the launch date, so a relaunch needs fresh ones, and takes the
+ * city's online drivers offline. Going live tells the waitlist; drivers
+ * hear about launches, pauses and closes.
  */
 class CityLaunchService
 {
@@ -58,6 +63,12 @@ class CityLaunchService
                 throw new CityLaunchException("{$city->name} cannot move from {$from->label()} to {$to->label()}.");
             }
 
+            $closing = $to === CityLaunchStatus::Onboarding;
+
+            if ($closing) {
+                $this->assertCanClose($city);
+            }
+
             if ($from === CityLaunchStatus::Onboarding && $to === CityLaunchStatus::Live) {
                 $report = $this->readiness->report($city);
 
@@ -73,9 +84,16 @@ class CityLaunchService
                 ? ($scheduledRides ?? AppSetting::cities()['pause_scheduled_rides'])
                 : null;
 
-            // Back to onboarding closes the city to bookings entirely.
-            $cancel = $scheduledRides === 'cancel' || $to === CityLaunchStatus::Onboarding;
+            // Back to onboarding closes the city to bookings entirely. None
+            // is open (checked above), so this only catches a booking made in
+            // a live city while it was being closed.
+            $cancel = $scheduledRides === 'cancel' || $closing;
             $toCancel = $cancel ? $this->readiness->upcomingScheduledRides($city)->count() : 0;
+
+            $cleared = $closing ? array_filter([
+                'readiness_confirmations' => $city->readiness_confirmations,
+                'launch_date' => $city->launch_date?->toDateString(),
+            ]) : [];
 
             $city->update([
                 'launch_status' => $to,
@@ -84,7 +102,10 @@ class CityLaunchService
                 'pause_scheduled_rides' => $scheduledRides,
                 'launch_status_changed_at' => now(),
                 'launch_status_changed_by_admin_id' => $admin->id,
+                ...($closing ? ['readiness_confirmations' => null, 'launch_date' => null] : []),
             ]);
+
+            $offline = $closing ? $this->takeDriversOffline($city) : collect();
 
             $event = match (true) {
                 $to === CityLaunchStatus::Live && $from === CityLaunchStatus::Onboarding => 'city_launched',
@@ -97,12 +118,13 @@ class CityLaunchService
                 $city,
                 $event,
                 $admin,
-                ['launch_status' => $from->value],
+                ['launch_status' => $from->value, ...$cleared],
                 array_filter([
                     'launch_status' => $to->value,
                     'reason' => $reason,
                     'scheduled_rides' => $scheduledRides,
                     'scheduled_rides_to_cancel' => $toCancel ?: null,
+                    'drivers_taken_offline' => $offline->count() ?: null,
                 ], fn ($value) => $value !== null),
             );
 
@@ -115,17 +137,99 @@ class CityLaunchService
                     ->whereIn('status', RideStatus::activeStatuses())
                     ->count(),
                 'cancel' => $cancel,
+                'offline' => $offline,
             ];
         });
 
         $this->cache->invalidateCities();
+        $this->removeFromLocationIndex($result['offline']);
 
         CityLaunchStatusChangedJob::dispatch($result['city']->id, $to->value, $admin->id, $result['cancel']);
         NotifyCityDriversJob::dispatch($result['city']->id, $to->value);
 
-        unset($result['cancel']);
+        unset($result['cancel'], $result['offline']);
 
         return $result;
+    }
+
+    /**
+     * A city closes only once nothing is left running in it: trips (and
+     * dispatched bookings still finding a driver) must finish and upcoming
+     * bookings must be cancelled, e.g. by pausing with scheduled_rides
+     * cancel. Read under the city's row lock, which dispatch also takes.
+     *
+     * @throws CityLaunchException
+     */
+    private function assertCanClose(City $city): void
+    {
+        $activeRides = Ride::where('city_id', $city->id)
+            ->whereIn('status', RideStatus::activeStatuses())
+            ->count();
+        $bookings = $this->readiness->upcomingScheduledRides($city)->count();
+
+        if ($activeRides === 0 && $bookings === 0) {
+            return;
+        }
+
+        $open = array_filter([
+            match (true) {
+                $activeRides === 0 => null,
+                $activeRides === 1 => '1 trip is running',
+                default => "{$activeRides} trips are running",
+            },
+            match (true) {
+                $bookings === 0 => null,
+                $bookings === 1 => '1 upcoming booking is open',
+                default => "{$bookings} upcoming bookings are open",
+            },
+        ]);
+
+        throw new CityLaunchException(
+            "{$city->name} cannot be closed while ".implode(' and ', $open).'. Let trips finish and cancel the bookings (pause the city with bookings cancelled), then close it.',
+            status: 409,
+            context: ['active_rides' => $activeRides, 'upcoming_scheduled_rides' => $bookings],
+        );
+    }
+
+    /**
+     * Online drivers in a closing city have nowhere to drive: no trip is
+     * running (checked before), and they cannot go online again until it
+     * relaunches.
+     *
+     * @return Collection<int, Driver>
+     */
+    private function takeDriversOffline(City $city): Collection
+    {
+        $drivers = Driver::where('city_id', $city->id)
+            ->where('is_online', true)
+            ->lockForUpdate()
+            ->get(['id', 'user_id']);
+
+        if ($drivers->isNotEmpty()) {
+            Driver::whereKey($drivers->modelKeys())->update(['is_online' => false, 'online_since' => null]);
+        }
+
+        return $drivers->toBase();
+    }
+
+    /**
+     * @param  Collection<int, Driver>  $drivers
+     */
+    private function removeFromLocationIndex(Collection $drivers): void
+    {
+        if ($drivers->isEmpty()) {
+            return;
+        }
+
+        try {
+            $locations = app(DriverLocationService::class);
+            $drivers->each(fn (Driver $driver) => $locations->removeDriver($driver->id, $driver->user_id));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to remove drivers of a closed city from the live location index', [
+                'driver_ids' => $drivers->pluck('id')->all(),
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -170,7 +274,7 @@ class CityLaunchService
     }
 
     /**
-     * Tell approved drivers in the city it launched, resumed or paused. Run
+     * Tell approved drivers in the city it launched, resumed, paused or closed. Run
      * by its own job, never retried, so a failure elsewhere cannot resend it.
      */
     public function notifyDrivers(City $city, CityLaunchStatus $status): void
@@ -190,12 +294,11 @@ class CityLaunchService
                     ? 'Passengers cannot book for now and upcoming bookings were cancelled. Trips in progress finish normally.'
                     : 'Passengers cannot book for now. Trips in progress and rides already booked still go ahead.',
             ],
-            CityLaunchStatus::Onboarding => [null, null],
+            CityLaunchStatus::Onboarding => [
+                "Rides closed in {$city->name}",
+                'E-tiGo has stopped rides here for now. You cannot go online until the city reopens; we will tell you when it does. If you were online, you have been taken offline.',
+            ],
         };
-
-        if ($title === null) {
-            return;
-        }
 
         Driver::where('city_id', $city->id)
             ->where('status', DriverStatus::Approved)

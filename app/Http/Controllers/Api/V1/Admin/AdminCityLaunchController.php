@@ -80,14 +80,17 @@ class AdminCityLaunchController extends Controller
     }
 
     /**
-     * Move the city to onboarding, live or paused.
+     * Move the city to onboarding (close), live or paused.
      */
     public function update(Request $request, City $city): JsonResponse
     {
         $validated = $request->validate([
             'status' => ['required', Rule::enum(CityLaunchStatus::class)],
-            'reason' => ['required_if:status,paused', 'nullable', 'string', 'max:500'],
+            // Pausing and closing both stop rides, so each says why.
+            'reason' => ['required_if:status,paused,onboarding', 'nullable', 'string', 'max:500'],
             'scheduled_rides' => ['nullable', 'string', 'in:honour,cancel', 'prohibited_unless:status,paused'],
+        ], [
+            'reason.required_if' => 'Give a reason for pausing or closing the city.',
         ]);
 
         try {
@@ -99,10 +102,7 @@ class AdminCityLaunchController extends Controller
                 $validated['scheduled_rides'] ?? null,
             );
         } catch (CityLaunchException $e) {
-            return response()->json(array_filter([
-                'message' => $e->getMessage(),
-                'readiness' => $e->readiness,
-            ]), 422);
+            return response()->json($e->body(), $e->status);
         }
 
         $city = $result['city']->load('launchStatusChangedBy');

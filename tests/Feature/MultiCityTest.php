@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Services\CityBoundaryService;
+use App\Services\CityLaunchService;
 use App\Services\ScheduledRideService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -446,8 +447,9 @@ it('refuses transitions that do not exist', function () {
         ->assertUnprocessable()
         ->assertJsonPath('message', "{$abuja->name} cannot move from Onboarding to Paused.");
 
-    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding'])
-        ->assertUnprocessable();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'onboarding', 'reason' => 'x'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', "{$abuja->name} is already Onboarding.");
 
     ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'live'])
         ->assertUnprocessable()
@@ -1036,7 +1038,7 @@ it('shows who closed a city and when, and keeps its first launch date through a 
 
     $this->travel(1)->hour();
     $closedAt = now()->toIso8601ZuluString('microsecond');
-    ($this->as)($closerToken)->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'onboarding'])
+    ($this->as)($closerToken)->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Not enough demand'])
         ->assertOk()
         ->assertJsonPath('city.launch_status', 'onboarding')
         ->assertJsonPath('city.launch_status_changed_by', ['id' => $closer->id, 'name' => 'Ada Obi'])
@@ -1050,8 +1052,17 @@ it('shows who closed a city and when, and keeps its first launch date through a 
     $listed = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->json('cities'))->firstWhere('id', $abuja->id);
     expect($listed['launch_status_changed_by'])->toBe(['id' => $closer->id, 'name' => 'Ada Obi']);
 
-    // Relaunching goes through the checklist again but keeps the first launch date.
+    // Relaunching goes through the checklist again, with fresh manual
+    // checks and launch date, but keeps the first launch date.
     $this->travel(1)->hour();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])
+        ->assertUnprocessable()
+        ->assertJsonPath('readiness.missing', ['support_cover', 'permits', 'launch_date']);
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/readiness/support_cover")->assertOk();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/readiness/permits", ['value' => 'obtained'])->assertOk();
+    $abuja->fresh()->update(['launch_date' => '2027-01-15']);
+
     ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])
         ->assertOk()
         ->assertJsonPath('message', 'Abuja is live.')
@@ -1060,20 +1071,32 @@ it('shows who closed a city and when, and keeps its first launch date through a 
     expect($abuja->fresh()->launched_at->equalTo($launchedAt))->toBeTrue();
 });
 
-it('shows each onboarding city\'s readiness in the admin city list', function () {
+it('shows every city\'s readiness in the admin city list, the same as its own checklist', function () {
     $abuja = ($this->readyCity)();
     $kano = ($this->readyCity)(['drivers']);
     $kano->update(['name' => 'Kano', 'boundary' => ['type' => 'Point', 'coordinates' => [8.5167, 12.0000], 'radius_km' => 30]]);
+    // A paused city that has lost its drivers and charging station.
+    $enugu = City::factory()->paused()->create(['name' => 'Enugu', 'launch_date' => '2026-06-01', 'boundary' => ['type' => 'Point', 'coordinates' => [7.5083, 6.4584], 'radius_km' => 20]]);
+    $enugu->vehicleClasses()->attach($this->vehicleClass->id, ['is_active' => true]);
+    $plugIn = Driver::factory()->approved()->create(['city_id' => $enugu->id]);
+    Vehicle::factory()->create(['driver_id' => $plugIn->id, 'vehicle_class_id' => $this->vehicleClass->id, 'fuel_type' => 'electric']);
 
     $cities = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->assertOk()->json('cities'))->keyBy('id');
 
     expect($cities[$abuja->id]['readiness'])->toBe(['ready' => true, 'missing' => []])
         ->and($cities[$kano->id]['readiness'])->toBe(['ready' => false, 'missing' => ['drivers']])
-        // Live (and paused) cities need no checklist.
-        ->and($cities[$this->lagos->id])->toHaveKey('readiness')
-        ->and($cities[$this->lagos->id]['readiness'])->toBeNull()
-        // Never changed since it was created.
-        ->and($cities[$this->lagos->id]['launch_status_changed_at'])->toBeNull()
+        // Live and paused cities say whether they would still pass.
+        ->and($cities[$this->lagos->id]['readiness'])->toBe(['ready' => false, 'missing' => ['drivers', 'support_cover', 'permits', 'launch_date']])
+        ->and($cities[$enugu->id]['readiness'])->toBe(['ready' => false, 'missing' => ['pricing', 'drivers', 'ev_charging', 'support_cover', 'permits']]);
+
+    // The list's grouped reads agree with each city's own checklist.
+    foreach ([$abuja, $kano, $this->lagos, $enugu] as $city) {
+        $report = ($this->asAdmin)()->getJson("/api/v1/admin/cities/{$city->id}/readiness")->json('readiness');
+        expect($cities[$city->id]['readiness'])->toBe(['ready' => $report['ready'], 'missing' => $report['missing']]);
+    }
+
+    // Never changed since it was created.
+    expect($cities[$this->lagos->id]['launch_status_changed_at'])->toBeNull()
         ->and($cities[$this->lagos->id]['launch_status_changed_by'])->toBeNull();
 });
 
@@ -1095,4 +1118,144 @@ it('fills in who last changed each city\'s status from the audit log', function 
     expect($lagos->launch_status_changed_by_admin_id)->toBe($other->id)
         ->and($lagos->launch_status_changed_at->equalTo($latest->created_at))->toBeTrue()
         ->and(City::whereKeyNot($this->lagos->id)->whereNotNull('launch_status_changed_at')->exists())->toBeFalse();
+});
+
+// === FRONTEND REPORT 29 OCT: CLOSING CITIES, SAFETY PICKERS ===
+
+it('closes a live city directly once no trip is running, with a reason', function () {
+    Queue::fake();
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Licence withdrawn'])
+        ->assertOk()
+        ->assertJsonPath('message', 'Lagos is back in onboarding.')
+        ->assertJsonPath('previous_status', 'live')
+        ->assertJsonPath('city.launch_status', 'onboarding')
+        ->assertJsonPath('city.is_active', false);
+
+    $log = AuditLog::where('event', 'city_returned_to_onboarding')->where('auditable_id', $this->lagos->id)->sole();
+    expect($log->new_values['reason'])->toBe('Licence withdrawn');
+});
+
+it('refuses to close a city while trips are running or bookings are open', function () {
+    Queue::fake();
+    $trip = Ride::factory()->inProgress()->create(['city_id' => $this->lagos->id]);
+    // A dispatched booking still finding a driver counts as a running trip.
+    $searching = Ride::factory()->create(['city_id' => $this->lagos->id, 'status' => RideStatus::Searching]);
+    $bookingId = ($this->book)($this->lagos, ['scheduled_pickup_at' => now()->addHours(3)->toIso8601String()])
+        ->assertCreated()->json('ride.id');
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Closing'])
+        ->assertStatus(409)
+        ->assertJsonPath('message', 'Lagos cannot be closed while 2 trips are running and 1 upcoming booking is open. Let trips finish and cancel the bookings (pause the city with bookings cancelled), then close it.')
+        ->assertJsonPath('active_rides', 2)
+        ->assertJsonPath('upcoming_scheduled_rides', 1);
+
+    // Pausing with bookings cancelled and letting trips finish clears the way.
+    Queue::assertNothingPushed();
+    $trip->update(['status' => RideStatus::Completed]);
+    $searching->update(['status' => RideStatus::Cancelled]);
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'paused', 'reason' => 'Closing', 'scheduled_rides' => 'cancel'])->assertOk();
+    app(CityLaunchService::class)->applyStatusChange($this->lagos->fresh(), CityLaunchStatus::Paused, $this->admin, true);
+    expect(Ride::find($bookingId)->status)->toBe(RideStatus::Cancelled);
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Closing'])
+        ->assertOk()
+        ->assertJsonPath('active_rides', 0)
+        ->assertJsonPath('scheduled_rides_to_cancel', 0);
+});
+
+it('clears the manual checks and launch date when a city closes, so a relaunch needs fresh ones', function () {
+    Queue::fake();
+    $abuja = ($this->readyCity)();
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'live'])->assertOk();
+    $confirmations = $abuja->fresh()->readiness_confirmations;
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$abuja->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Closing'])
+        ->assertOk()
+        ->assertJsonPath('city.readiness_confirmations', null)
+        ->assertJsonPath('city.launch_date', null)
+        ->assertJsonPath('readiness.ready', false)
+        ->assertJsonPath('readiness.missing', ['support_cover', 'permits', 'launch_date']);
+
+    // The old checks are kept in the audit log.
+    $log = AuditLog::where('event', 'city_returned_to_onboarding')->where('auditable_id', $abuja->id)->sole();
+    expect($log->old_values['readiness_confirmations'])->toBe($confirmations)
+        ->and($log->old_values['launch_date'])->toBe('2026-12-01');
+
+    $listed = collect(($this->asAdmin)()->getJson('/api/v1/admin/cities')->json('cities'))->firstWhere('id', $abuja->id);
+    expect($listed['readiness'])->toBe(['ready' => false, 'missing' => ['support_cover', 'permits', 'launch_date']]);
+});
+
+it('takes a closing city\'s online drivers offline and tells its drivers', function () {
+    $online = Driver::factory()->online()->approved()->create(['city_id' => $this->lagos->id]);
+    Vehicle::factory()->create(['driver_id' => $online->id, 'vehicle_class_id' => $this->vehicleClass->id]);
+    $elsewhere = Driver::factory()->online()->approved()->create(['city_id' => City::factory()->create()->id]);
+
+    ($this->asAdmin)()->postJson("/api/v1/admin/cities/{$this->lagos->id}/launch-status", ['status' => 'onboarding', 'reason' => 'Closing'])
+        ->assertOk();
+
+    expect($online->fresh()->is_online)->toBeFalse()
+        ->and($elsewhere->fresh()->is_online)->toBeTrue()
+        ->and(AuditLog::where('event', 'city_returned_to_onboarding')->sole()->new_values['drivers_taken_offline'])->toBe(1);
+
+    $notice = Notification::where('user_id', $online->user_id)->where('type', 'city_status_changed')->sole();
+    expect($notice->title)->toBe('Rides closed in Lagos')
+        ->and($notice->data['launch_status'])->toBe('onboarding');
+
+    // Going online again says the city is closed, not that it never launched.
+    $token = $online->user->createToken('auth', ['driver'])->plainTextToken;
+    ($this->as)($token)->postJson('/api/v1/driver/toggle-online')
+        ->assertUnprocessable()
+        ->assertJsonPath('reasons', ['E-tiGo is not running in Lagos for now. You can go online again when it reopens.']);
+
+    // Passengers are told the same.
+    ($this->book)($this->lagos)
+        ->assertUnprocessable()
+        ->assertJsonFragment(['E-tiGo is not running in Lagos for now. Join the waitlist and we will tell you when we are back.']);
+});
+
+it('lets safety operators read the city and vehicle class lists for the driver dialogs, but not change them', function () {
+    $safety = User::factory()->admin(AdminRole::SafetyOperator)->create();
+    $token = $safety->createToken('auth', ['admin'])->plainTextToken;
+
+    ($this->as)($token)->getJson('/api/v1/admin/cities')->assertOk()->assertJsonPath('cities.0.id', $this->lagos->id);
+    ($this->as)($token)->getJson('/api/v1/admin/vehicle-classes?is_active=1')->assertOk()->assertJsonPath('vehicle_classes.0.id', $this->vehicleClass->id);
+    ($this->as)($token)->getJson("/api/v1/admin/vehicle-classes/{$this->vehicleClass->id}")->assertOk();
+
+    ($this->as)($token)->getJson("/api/v1/admin/cities/{$this->lagos->id}")->assertForbidden();
+    ($this->as)($token)->postJson('/api/v1/admin/cities', ['name' => 'Ibadan', 'state' => 'Oyo'])->assertForbidden();
+    ($this->as)($token)->postJson('/api/v1/admin/vehicle-classes', ['name' => 'Van'])->assertForbidden();
+    ($this->as)($token)->putJson("/api/v1/admin/vehicle-classes/{$this->vehicleClass->id}", ['name' => 'Van'])->assertForbidden();
+
+    // Support still cannot read them.
+    $support = User::factory()->admin(AdminRole::Support)->create();
+    ($this->as)($support->createToken('auth', ['admin'])->plainTextToken)->getJson('/api/v1/admin/cities')->assertForbidden();
+
+    // And the two driver actions work end to end.
+    $abuja = City::factory()->create(['name' => 'Abuja']);
+    $driver = Driver::factory()->approved()->create(['city_id' => $this->lagos->id]);
+    Vehicle::factory()->create(['driver_id' => $driver->id, 'vehicle_class_id' => $this->vehicleClass->id]);
+    $other = VehicleClass::factory()->create(['name' => 'Van']);
+
+    ($this->as)($token)->putJson("/api/v1/admin/drivers/{$driver->id}/vehicle-class", ['vehicle_class_id' => $other->id])
+        ->assertOk()
+        ->assertJsonPath('vehicle.vehicle_class.id', $other->id)
+        // Lagos only offers the first class.
+        ->assertJsonPath('warnings', ['Lagos does not offer Van, so the driver will not get trips until it is offered there or their class changes.']);
+
+    ($this->as)($token)->putJson("/api/v1/admin/drivers/{$driver->id}/city", ['city_id' => $abuja->id, 'reason' => 'Relocated'])
+        ->assertOk();
+});
+
+it('gives no warning when the driver\'s city offers the new class', function () {
+    $driver = Driver::factory()->approved()->create(['city_id' => $this->lagos->id]);
+    Vehicle::factory()->create(['driver_id' => $driver->id, 'vehicle_class_id' => VehicleClass::factory()->create()->id]);
+
+    ($this->asAdmin)()->putJson("/api/v1/admin/drivers/{$driver->id}/vehicle-class", ['vehicle_class_id' => $this->vehicleClass->id])
+        ->assertOk()
+        ->assertJsonPath('warnings', []);
 });

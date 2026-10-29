@@ -517,8 +517,10 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });
 
+    // Safety operators read the list to move a driver to another city.
+    Route::get('/cities', [AdminCityController::class, 'index'])->middleware('admin.role:operations,safety_operator');
+
     Route::middleware('admin.role:operations')->prefix('cities')->group(function () {
-        Route::get('/', [AdminCityController::class, 'index']);
         Route::post('/', [AdminCityController::class, 'store']);
         Route::post('/boundary-check', [AdminCityController::class, 'checkBoundary']);
         Route::get('/{city}', [AdminCityController::class, 'show']);
@@ -530,8 +532,9 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::put('/{city}/vehicle-classes', [AdminCityVehicleClassController::class, 'update']);
     });
 
-    // Finance reads the classes to register fleet cars; only Operations changes them.
-    Route::middleware('admin.role:operations,finance')->prefix('vehicle-classes')->group(function () {
+    // Finance reads the classes to register fleet cars and safety operators
+    // to change a driver's class; only Operations changes them.
+    Route::middleware('admin.role:operations,finance,safety_operator')->prefix('vehicle-classes')->group(function () {
         Route::get('/', [AdminVehicleClassController::class, 'index']);
         Route::post('/', [AdminVehicleClassController::class, 'store'])->middleware('admin.role:operations');
         Route::get('/{vehicleClass}', [AdminVehicleClassController::class, 'show']);

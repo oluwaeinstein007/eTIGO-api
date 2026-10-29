@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\SurgeType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Surge\StoreSurgeRuleRequest;
 use App\Http\Requests\Admin\Surge\UpdateSurgeRuleRequest;
@@ -11,6 +12,7 @@ use App\Models\SurgeRule;
 use App\Services\SurgePricingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class AdminSurgeRuleController extends Controller
 {
@@ -49,6 +51,7 @@ class AdminSurgeRuleController extends Controller
     {
         $validated = $request->validated();
         $admin = $request->user();
+        $validated['conditions'] = $this->conditionsFor(SurgeType::from($validated['type']), $validated['conditions'] ?? []);
 
         $rule = SurgeRule::create([
             ...$validated,
@@ -87,6 +90,13 @@ class AdminSurgeRuleController extends Controller
 
         $oldValues = $surgeRule->only(['name', 'type', 'multiplier', 'conditions', 'priority', 'is_active']);
 
+        if (isset($validated['type']) || isset($validated['conditions'])) {
+            $validated['conditions'] = $this->conditionsFor(
+                SurgeType::from($validated['type'] ?? $surgeRule->type->value),
+                $validated['conditions'] ?? $surgeRule->conditions ?? [],
+            );
+        }
+
         $surgeRule->update($validated);
 
         AuditLog::record($surgeRule, 'surge_rule_updated', $admin, $oldValues, $surgeRule->only(['name', 'type', 'multiplier', 'conditions', 'priority', 'is_active']));
@@ -111,6 +121,23 @@ class AdminSurgeRuleController extends Controller
             'message' => $surgeRule->is_active ? 'Surge rule activated.' : 'Surge rule deactivated.',
             'surge_rule' => new SurgeRuleResource($surgeRule),
         ]);
+    }
+
+    /**
+     * Only the keys the rule's type reads, with days as sorted numbers.
+     *
+     * @param  array<string, mixed>  $conditions
+     * @return array<string, mixed>
+     */
+    private function conditionsFor(SurgeType $type, array $conditions): array
+    {
+        $conditions = Arr::only($conditions, $type->conditionKeys());
+
+        if (isset($conditions['days_of_week'])) {
+            $conditions['days_of_week'] = collect($conditions['days_of_week'])->map(fn ($day) => (int) $day)->unique()->sort()->values()->all();
+        }
+
+        return $conditions;
     }
 
     public function currentMultiplier(Request $request, SurgePricingService $surgePricingService): JsonResponse
