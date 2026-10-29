@@ -103,7 +103,6 @@ beforeEach(function () {
     $this->respond = fn (LostItem $item, bool $found, ?string $note = null) => ($this->as)($this->driverToken)
         ->postJson("/api/v1/lost-items/{$item->id}/respond", ['found' => $found, 'note' => $note]);
 
-    // A finished trip in the same city and class, for tests that need many.
     $this->newRide = fn () => Ride::factory()->completed()->create([
         'city_id' => $this->city->id,
         'vehicle_class_id' => $this->ride->vehicle_class_id,
@@ -499,11 +498,32 @@ it('sorts the queue by open and escalated, then other open, then finished, newes
     ])->and($response->json('lost_items.*.needs_attention'))->toBe([true, true, false, false, false, false, false])
         ->and($response->json('summary.needs_attention'))->toBe(2);
 
-    // The order holds across pages.
     ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=3&page=2')
         ->assertOk()
         ->assertJsonPath('lost_items.0.id', $oldOpen->id)
         ->assertJsonPath('lost_items.1.id', $cancelled->id);
+});
+
+it('breaks created_at ties in the queue by reference number, across pages', function () {
+    $make = fn (string $reference) => LostItem::factory()->create([
+        'ride_id' => ($this->newRide)(),
+        'reference_number' => $reference,
+        'created_at' => now()->subHour(),
+    ]);
+
+    $middle = $make('LF-900002');
+    $last = $make('LF-900001');
+    $first = $make('LF-900003');
+
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=2')
+        ->assertOk()
+        ->assertJsonPath('lost_items.0.id', $first->id)
+        ->assertJsonPath('lost_items.1.id', $middle->id);
+
+    ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items?per_page=2&page=2')
+        ->assertOk()
+        ->assertJsonCount(1, 'lost_items')
+        ->assertJsonPath('lost_items.0.id', $last->id);
 });
 
 it('lists the actions support can take at each status', function () {
@@ -515,7 +535,6 @@ it('lists the actions support can take at each status', function () {
     $withDriver = ['note', 'message', 'resolve', 'close'];
     $finished = ['note', 'message'];
 
-    // The list and the intervene response carry them, and they follow the change.
     $item = ($this->reportedItem)();
     ($this->as)($this->supportToken)->getJson('/api/v1/admin/lost-items')
         ->assertJsonPath('lost_items.0.available_actions', $before);
@@ -535,7 +554,6 @@ it('lists the actions support can take at each status', function () {
         ->assertCreated()
         ->assertJsonPath('lost_item.available_actions', $finished);
 
-    // The passenger and driver views keep their own actions.
     ($this->as)($this->passengerToken)->getJson("/api/v1/lost-items/{$item->id}")
         ->assertJsonPath('lost_item.available_actions', [])
         ->assertJsonMissingPath('lost_item.needs_attention');

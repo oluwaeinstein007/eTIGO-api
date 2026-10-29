@@ -21887,7 +21887,7 @@
         },
         {
           "name": "Admin \u2014 Lost & Found",
-          "description": "Lost & Found queue and settings (Phase 2). Queue: roles `support` and `operations`. Settings: `operations`. Open reports waiting on support (escalated by the passenger, the driver silent for 24 h, a return 7 days late, no driver to ask) come first, then other open reports, then finished ones.",
+          "description": "Lost & Found queue and settings (Phase 2). Queue: roles `support`, `support_lead` and `operations`. Settings: `operations`. Open reports waiting on support (escalated by the passenger, the driver silent for 24 h, a return 7 days late, no driver to ask) come first, then other open reports, then finished ones.",
           "item": [
             {
               "name": "List Lost Item Reports",

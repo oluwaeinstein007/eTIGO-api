@@ -7452,7 +7452,7 @@ Each trip can have one open report at a time, whoever filed it, and one report c
 | `passenger` / `driver` | The other side's `first_name` (the rider's on a third-party trip); full user objects for support |
 | `messages` | On the detail endpoints only. Each message has `sender_role` (`passenger`, `driver`, `support`), `sender_name` (`E-tiGo Support` for support), `is_mine`, `body` and `created_at`. Support also sees internal notes (`is_internal: true`) |
 | `available_actions` | What the viewer can do now: passenger `cancel`, `confirm_received`, `escalate`, `message`; driver `respond`, `mark_returned`, `message`; support the `intervene` actions (see the admin queue). Use it to show the buttons |
-| `needs_attention` | Support only. `true` while the report is open and escalated (or `reported` with no driver): the same rule as the `needs_attention` filter and the queue's top group |
+| `needs_attention` | Support only. `true` while the report is open and escalated (or still `reported`, the driver never reached): the same rule as the `needs_attention` filter and the queue's top group |
 | `driver_notified_at`, `driver_responded_at`, `returned_at`, `resolved_at`, `closed_at`, `cancelled_at`, `created_at` | Timeline |
 
 **Notifications** (in-app and push, Account category):
@@ -7680,10 +7680,10 @@ GET /admin/lost-items
 GET /admin/lost-items/{lostItem}
 ```
 
-**Auth:** admin role `support` or `operations` (and `super_admin`). The detail includes every message and internal note.
+**Auth:** admin role `support`, `support_lead` or `operations` (and `super_admin`). The detail includes every message and internal note.
 
 **Order:** three groups, newest first (`created_at`) within each:
-1. Open reports that need attention (`needs_attention: true`: escalated, or `reported` with no driver).
+1. Open reports that need attention (`needs_attention: true`: escalated, or still `reported`).
 2. The other open reports.
 3. Finished reports (`resolved`, `unresolved`, `cancelled`), whether or not they were ever escalated.
 
@@ -7700,7 +7700,7 @@ Filters narrow the list but keep this order.
 | Query | Description |
 |-------|-------------|
 | status | One status or several, comma-separated (`driver_notified,driver_denied`) |
-| needs_attention | `1`: open reports support has to act on (escalated, or `reported` with no driver) |
+| needs_attention | `1`: open reports support has to act on (escalated, or still `reported`) |
 | open | `1` open only, `0` closed only |
 | category, city_id, ride_id, passenger_id, driver_id | Filters |
 | search | Report or trip reference, or text in the description |
@@ -7726,7 +7726,7 @@ Filters narrow the list but keep this order.
 POST /admin/lost-items/{lostItem}/intervene
 ```
 
-**Auth:** admin role `support` or `operations`. Audit-logged.
+**Auth:** admin role `support`, `support_lead` or `operations` (and `super_admin`). Audit-logged.
 
 | `action` | Other fields | Effect |
 |----------|--------------|--------|

@@ -82,7 +82,7 @@ Disputes still accept `item_left_behind` for older app versions. New versions sh
 
 ## Admin Dashboard
 
-### Lost & Found queue (roles: support, operations)
+### Lost & Found queue (roles: support, support_lead, operations)
 - `GET /admin/lost-items`. Order: open reports that need attention, then other open ones, then finished ones, newest first within each. Each report has `needs_attention` (use it for the red badge, not `escalated`, which stays `true` after a report closes). Use `summary` (`open`, `needs_attention`, `by_status`) for the badges. Filters: `status` (comma list), `needs_attention=1`, `open`, `category`, `city_id`, `ride_id`, `passenger_id`, `driver_id`, `search` (LF or trip reference, description), `from`, `to`.
 - Detail: `GET /admin/lost-items/{id}`, with full passenger and driver (with vehicle), every message and internal notes (`is_internal: true`). Show `escalation_reason` and `escalation_source` (`passenger` or `system`).
 - **Intervention form**: `POST /admin/lost-items/{id}/intervene` with `action`. Show only the buttons in the report's `available_actions`, and replace the report with the `lost_item` in the response (its actions change with the status):
