@@ -6904,7 +6904,7 @@ The dispatcher is a database-driven sweep that the scheduler runs every minute (
 | `cancelled_at` | When the booking was cancelled before dispatch |
 | `dispatch_failure_reason` | Why the dispatcher cancelled it (see above), else `null` |
 | `reservation_fee` | Reservation fee included in the quote (NGN) |
-| `reserved_driver` | `null`, or the driver who reserved it: `id`, `first_name`, `profile_photo_url`, `rating`, `vehicle` (`make`, `model`, `colour`, `plate_number`) |
+| `reserved_driver` | `null`, or the driver who reserved it: `id`, `first_name`, `last_name` (admins only; the passenger sees the first name), `profile_photo_url`, `rating`, `vehicle` (`make`, `model`, `colour`, `plate_number`) |
 | `reserved_at` | When the driver reserved it |
 | `reserved_by_operations` | `true` when operations assigned the driver |
 | `reservation_released_reason` | Why the last reservation was dropped: `driver_released`, `admin_released`, `pickup_changed`, `driver_unavailable`, `vehicle_blocked` (the driver's papers expired past the grace period), `shift_changed` (a shared-car driver's shift no longer covers the pickup), `driver_suspended` (the driver was suspended or deactivated) |
@@ -7086,17 +7086,20 @@ GET /admin/scheduled-rides
 
 **Auth required. Admin role:** `operations` (and `super_admin`)
 
-Every booking still in `scheduled` status, soonest pickup first, with the passenger.
+Every booking still in `scheduled` status, soonest pickup first (bookings at the same time in a fixed order, so pages do not overlap), with the passenger.
 
 | Query | Type | Description |
 |-------|------|-------------|
+| search | string | Up to 100 characters, any case. Matches the trip reference (`TRP-…`), the pickup or destination address, or the name or phone of the passenger (the booker), the rider of a booking made for someone else (`third_party.rider_name` / `rider_phone`) or the reserved driver. Names match first, last or full name. A phone matches in any format, local or international, in whole or in part (`0803 123 4567`, `08031234567`, `+234 803 123`); at least 4 digits. Blank is ignored. Combines with the other filters |
 | city_id | string (UUID) | Filter by city |
 | vehicle_class_id | string (UUID) | Filter by vehicle class |
 | from / to | string (date/time) | Pickup time range (an offset in the value is honoured) |
 | reserved | boolean | `true`: only bookings with a reserved driver; `false`: only unreserved |
 | per_page | integer | 1–100, default 25 |
 
-**Response 200:** `{ "rides": [ ...ride objects with "passenger" and scheduled.reserved_driver... ], "meta": { ... } }`
+**Response 200:** `{ "rides": [ ...ride objects with "passenger" and scheduled.reserved_driver... ], "meta": { ... } }`. `scheduled.reserved_driver` carries `last_name` here, so the list, the panel and the assign dialogs can name the driver in full.
+
+**Response 422:** `errors.search` — longer than 100 characters.
 
 ---
 

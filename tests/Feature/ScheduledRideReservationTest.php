@@ -143,6 +143,7 @@ it('lists bookings a driver can reserve and lets them reserve one', function () 
 
     ($this->as)($this->passengerToken)->getJson("/api/v1/rides/{$rideId}")
         ->assertJsonPath('ride.scheduled.reserved_driver.first_name', 'Bayo')
+        ->assertJsonMissingPath('ride.scheduled.reserved_driver.last_name')
         ->assertJsonPath('ride.scheduled.reserved_by_operations', false);
 });
 
@@ -312,6 +313,78 @@ it('lets operations assign, move and remove a driver before dispatch', function 
     ($this->as)($this->adminToken)->postJson("/api/v1/admin/scheduled-rides/{$rideId}/assign", ['driver_id' => $this->passenger->id])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('driver_id');
+});
+
+it('searches the scheduled list by reference, names, phones and address', function () {
+    $this->passenger->update(['first_name' => 'Ade', 'last_name' => 'Bello', 'phone' => '+2348031234567']);
+    $this->driverUser->update(['last_name' => 'Akin', 'phone' => '+2347011112222']);
+    $other = User::factory()->create(['type' => UserType::Passenger, 'first_name' => 'Chioma', 'last_name' => 'Eze', 'phone' => '+2348099990000']);
+
+    $own = ($this->book)();
+    $forRider = ($this->book)(['scheduled_pickup_at' => now()->addHours(5)->toIso8601String(), 'pickup_address' => '7 Marina Road']);
+    Ride::whereKey($forRider)->update([
+        'passenger_id' => $other->id,
+        'is_third_party' => true,
+        'rider_name' => 'Ada Okafor',
+        'rider_phone' => '+2348020000002',
+    ]);
+    ($this->reserve)($forRider)->assertOk();
+
+    $found = fn (string $search) => collect(($this->as)($this->adminToken)
+        ->getJson('/api/v1/admin/scheduled-rides?search='.urlencode($search))
+        ->assertOk()
+        ->json('rides'))->pluck('id')->all();
+
+    expect($found('Ade Bello'))->toBe([$own])
+        ->and($found('bello'))->toBe([$own])
+        ->and($found('0803 123 4567'))->toBe([$own])
+        ->and($found('+234 803-123'))->toBe([$own])
+        ->and($found(Ride::find($forRider)->reference_number))->toBe([$forRider])
+        ->and($found('Chioma Eze'))->toBe([$forRider])
+        ->and($found('Ada Okafor'))->toBe([$forRider])
+        ->and($found('08020000002'))->toBe([$forRider])
+        ->and($found('Bayo Akin'))->toBe([$forRider])
+        ->and($found('07011112222'))->toBe([$forRider])
+        ->and($found('marina'))->toBe([$forRider])
+        ->and($found('  '))->toBe([$own, $forRider])
+        ->and($found('100%'))->toBe([])
+        ->and($found('Zainab'))->toBe([]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/scheduled-rides?search=bello&reserved=1')
+        ->assertOk()
+        ->assertJsonCount(0, 'rides');
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/scheduled-rides?search='.str_repeat('a', 101))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('search');
+});
+
+it('names the reserved driver in full for operations', function () {
+    $this->driverUser->update(['last_name' => 'Akin']);
+    $rideId = ($this->book)();
+    ($this->reserve)($rideId)->assertOk();
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/scheduled-rides')
+        ->assertOk()
+        ->assertJsonPath('rides.0.scheduled.reserved_driver.first_name', 'Bayo')
+        ->assertJsonPath('rides.0.scheduled.reserved_driver.last_name', 'Akin');
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/scheduled-rides/{$rideId}/assign", ['driver_id' => $this->driverUser->id])
+        ->assertOk()
+        ->assertJsonPath('ride.scheduled.reserved_driver.last_name', 'Akin');
+});
+
+it('keeps bookings at the same pickup time in a fixed order across pages', function () {
+    $first = ($this->book)();
+    $second = ($this->book)(['scheduled_pickup_at' => now()->addHours(5)->toIso8601String()]);
+    ScheduledRide::whereIn('ride_id', [$first, $second])->update(['scheduled_pickup_at' => now()->addHours(4)]);
+
+    $page = fn (int $n) => ($this->as)($this->adminToken)
+        ->getJson("/api/v1/admin/scheduled-rides?per_page=1&page={$n}")
+        ->assertOk()
+        ->json('rides.0.id');
+
+    expect([$page(1), $page(2)])->toBe(collect([$first, $second])->sort()->values()->all());
 });
 
 // === FEES ===

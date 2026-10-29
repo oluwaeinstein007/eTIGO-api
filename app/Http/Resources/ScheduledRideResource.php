@@ -46,7 +46,7 @@ class ScheduledRideResource extends JsonResource
             'cancelled_at' => $this->cancelled_at,
             'dispatch_failure_reason' => $this->dispatch_failure_reason,
             'reservation_fee' => (float) data_get($ride?->pricing_snapshot, 'reservation_fee', 0),
-            'reserved_driver' => $this->reserved_driver_id ? $this->reservedDriverPayload() : null,
+            'reserved_driver' => $this->reserved_driver_id ? $this->reservedDriverPayload($request) : null,
             'reserved_at' => $this->reserved_at,
             'reserved_by_operations' => $this->reserved_by_admin_id !== null,
             'reservation_released_reason' => $this->reservation_released_reason,
@@ -78,7 +78,7 @@ class ScheduledRideResource extends JsonResource
     /**
      * @return array<string, mixed>|null
      */
-    private function reservedDriverPayload(): ?array
+    private function reservedDriverPayload(Request $request): ?array
     {
         $driver = $this->reservedDriver;
 
@@ -91,6 +91,9 @@ class ScheduledRideResource extends JsonResource
         return [
             'id' => $driver->id,
             'first_name' => $driver->first_name,
+            // Operations name the driver in full; the passenger sees the
+            // first name only, as before.
+            ...($request->user()?->isAdmin() ? ['last_name' => $driver->last_name] : []),
             'profile_photo_url' => $driver->profile_photo_path
                 ? Storage::disk(config('filesystems.uploads'))->url($driver->profile_photo_path)
                 : null,
