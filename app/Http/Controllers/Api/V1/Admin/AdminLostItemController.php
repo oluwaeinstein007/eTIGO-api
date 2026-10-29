@@ -96,11 +96,7 @@ class AdminLostItemController extends Controller
             $query->whereDate('created_at', '<=', $request->input('to'));
         }
 
-        // Reports waiting on support first, then the newest.
-        $items = $query
-            ->orderByRaw('CASE WHEN escalated_at IS NOT NULL AND status NOT IN (?, ?, ?) THEN 0 ELSE 1 END', array_map(fn (LostItemStatus $s) => $s->value, LostItemStatus::terminal()))
-            ->orderByDesc('created_at')
-            ->paginate($request->integer('per_page', 15));
+        $items = $query->queueOrder()->paginate($request->integer('per_page', 15));
 
         return response()->json([
             'lost_items' => LostItemResource::collection($items),

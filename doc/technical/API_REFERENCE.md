@@ -7451,7 +7451,8 @@ Each trip can have one open report at a time, whoever filed it, and one report c
 | `ride` | Trip summary: `id`, `reference_number`, `pickup_address`, `destination_address`, `started_at`, `completed_at`, `city`, `is_third_party`, and `vehicle` (`make`, `model`, `colour`, `plate_number`; passenger and support only) |
 | `passenger` / `driver` | The other side's `first_name` (the rider's on a third-party trip); full user objects for support |
 | `messages` | On the detail endpoints only. Each message has `sender_role` (`passenger`, `driver`, `support`), `sender_name` (`E-tiGo Support` for support), `is_mine`, `body` and `created_at`. Support also sees internal notes (`is_internal: true`) |
-| `available_actions` | What the viewer can do now: passenger `cancel`, `confirm_received`, `escalate`, `message`; driver `respond`, `mark_returned`, `message`. Use it to show the buttons |
+| `available_actions` | What the viewer can do now: passenger `cancel`, `confirm_received`, `escalate`, `message`; driver `respond`, `mark_returned`, `message`; support the `intervene` actions (see the admin queue). Use it to show the buttons |
+| `needs_attention` | Support only. `true` while the report is open and escalated (or `reported` with no driver): the same rule as the `needs_attention` filter and the queue's top group |
 | `driver_notified_at`, `driver_responded_at`, `returned_at`, `resolved_at`, `closed_at`, `cancelled_at`, `created_at` | Timeline |
 
 **Notifications** (in-app and push, Account category):
@@ -7679,7 +7680,22 @@ GET /admin/lost-items
 GET /admin/lost-items/{lostItem}
 ```
 
-**Auth:** admin role `support` or `operations` (and `super_admin`). Reports waiting on support (open and escalated) come first, then the newest. The detail includes every message and internal note.
+**Auth:** admin role `support` or `operations` (and `super_admin`). The detail includes every message and internal note.
+
+**Order:** three groups, newest first (`created_at`) within each:
+1. Open reports that need attention (`needs_attention: true`: escalated, or `reported` with no driver).
+2. The other open reports.
+3. Finished reports (`resolved`, `unresolved`, `cancelled`), whether or not they were ever escalated.
+
+Filters narrow the list but keep this order.
+
+**`available_actions`** on each report lists what support can send to `intervene` at its status:
+
+| Status | `available_actions` |
+|--------|---------------------|
+| `reported`, `driver_notified`, `driver_denied` | `note`, `message`, `mark_found`, `resolve`, `close` |
+| `driver_confirmed`, `returned` | `note`, `message`, `resolve`, `close` |
+| `resolved`, `unresolved`, `cancelled` | `note`, `message` |
 
 | Query | Description |
 |-------|-------------|
@@ -7694,7 +7710,7 @@ GET /admin/lost-items/{lostItem}
 **Response 200:**
 ```json
 {
-  "lost_items": [ { "reference_number": "LF-000002", "viewer_role": "support", "status": "driver_denied", "escalated": true, "escalation_source": "passenger", "passenger": { "...": "full user" }, "driver": { "...": "full user with vehicle" }, "resolved_by": null } ],
+  "lost_items": [ { "reference_number": "LF-000002", "viewer_role": "support", "status": "driver_denied", "escalated": true, "escalation_source": "passenger", "needs_attention": true, "available_actions": ["note", "message", "mark_found", "resolve", "close"], "passenger": { "...": "full user" }, "driver": { "...": "full user with vehicle" }, "resolved_by": null } ],
   "meta": { "current_page": 1, "last_page": 2, "per_page": 15, "total": 18 },
   "summary": {
     "open": 7,
@@ -7720,7 +7736,7 @@ POST /admin/lost-items/{lostItem}/intervene
 | `resolve` | `notes`, `waive_return_fee` (boolean) | The item is back with the passenger → `resolved`. The return fee is collected unless waived (only when the driver had the item) |
 | `close` | `closure_reason` (required), `notes` | Closed without the item being returned → `unresolved`; the passenger (and the driver, if involved) is told |
 
-`note` and `message` return `{ "message", "lost_item_message", "lost_item" }`; the others return `{ "message", "lost_item" }`. **Response 422:** a closed report cannot be resolved, closed or marked found again; missing `body` or `closure_reason`.
+`note` and `message` return `{ "message", "lost_item_message", "lost_item" }`; the others return `{ "message", "lost_item" }`. The returned `lost_item` carries the new `available_actions`. **Response 422:** an action not in the report's `available_actions` (for example `mark_found` once the driver has the item, or `resolve` on a closed report; someone else may have just changed it, so refresh); missing `body` or `closure_reason`.
 
 ### Lost & Found Settings (Admin)
 
