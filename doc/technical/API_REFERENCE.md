@@ -2858,9 +2858,12 @@ Confirms or changes the vehicle class and/or fuel type of a driver's vehicle. Dr
     "plate_number": "LAG-123AB",
     "vehicle_class_id": "1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
     "vehicle_class": { "id": "1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f", "name": "premium", "display_name": "Premium" }
-  }
+  },
+  "warnings": []
 }
 ```
+
+`warnings` (always present, may be empty) flags a class the driver's city does not offer: `"Lagos does not offer premium, so the driver will not get trips until it is offered there or their class changes."` The change is saved anyway, as when moving a driver to a city without their class. Pick the class from [List Vehicle Classes](#list-vehicle-classes) (`?is_active=1`), which safety operators can read.
 
 **Response 409:** `"The vehicle class cannot be changed while the driver is on an active ride."`
 **Response 422:** No registered vehicle, or `vehicle_class_id` missing/inactive.
@@ -2871,7 +2874,7 @@ Confirms or changes the vehicle class and/or fuel type of a driver's vehicle. Dr
 ```
 PUT /admin/drivers/{driver_id}/city
 ```
-Moves a driver to another city (Phase 2 multi-city). Drivers choose their city during onboarding; after they apply, only Operations can move them. An online driver is taken offline (their location is in the old city's matching pool) and every driver gets a `driver_city_changed` notification. Audited as `driver_city_changed` with the reason.
+Moves a driver to another city (Phase 2 multi-city). Drivers choose their city during onboarding; after they apply, only Operations or a safety operator can move them. Pick the city from [List Cities](#list-cities), which safety operators can read. A closed city (`onboarding` with `launched_at` set) gets the warning `"{city} is closed, so the driver cannot go online until it relaunches."`. An online driver is taken offline (their location is in the old city's matching pool) and every driver gets a `driver_city_changed` notification. Audited as `driver_city_changed` with the reason.
 
 **Roles:** `operations`, `safety_operator` (and `super_admin`).
 
@@ -4974,9 +4977,9 @@ Authorization: Bearer {token}
 
 ## Admin — City Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations`
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations` (list: `operations,safety_operator`)
 
-**Allowed Roles:** Operations (Super Admin always has access)
+**Allowed Roles:** Operations (Super Admin always has access). Safety operators can read [List Cities](#list-cities) only, to pick the city in [Move Driver to Another City](#move-driver-to-another-city); every other city endpoint stays Operations.
 
 Single-city responses (show, create, update, toggle status, update vehicle classes) include a `warnings` array that flags vehicle classes with no pricing in effect. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
@@ -5035,7 +5038,7 @@ For the map editor: checks a boundary before it is saved. Saves nothing.
 | `live` | Normal | Normal |
 | `paused` | Can go online for bookings made before the pause; no new sign-ups | Cannot book; trips in progress finish; upcoming bookings go ahead unless the admin cancelled them |
 
-New cities start in `onboarding`. Moves: onboarding → live (first launch, needs every required [readiness gate](#get-city-readiness)), live → paused, paused → live (resume, no checklist), paused → onboarding (cancels upcoming bookings). `is_active` stays and is always `launch_status == live`, for older clients.
+New cities start in `onboarding`. Moves: onboarding → live (first launch, needs every required [readiness gate](#get-city-readiness)), live → paused, paused → live (resume, no checklist), live or paused → onboarding (close; refused while a trip is running or a booking is open, and clears the manual checks and launch date). `is_active` stays and is always `launch_status == live`, for older clients.
 
 Admin city responses add `launch_date` (the client's target date, a readiness gate), `launched_at` (first launch), `paused_at`, `pause_reason`, `pause_scheduled_rides` (`honour` or `cancel`), `launch_status_changed_at` and `launch_status_changed_by` (who last changed the launch status and when) and `readiness_confirmations` (the manual gates); public responses only carry `launch_status`/`launch_status_label`.
 
@@ -5101,7 +5104,7 @@ GET /admin/cities
 }
 ```
 
-`readiness` is `{ "ready": true|false, "missing": ["drivers", …] }` for each `onboarding` city: the same `ready` and `missing` as [Get City Readiness](#get-city-readiness), for a Ready / Readiness required badge. It is `null` for `live` and `paused` cities, since only a launch from onboarding needs the checklist (a resume does not).
+`readiness` is `{ "ready": true|false, "missing": ["drivers", …] }` for **every** city: the same `ready` and `missing` as [Get City Readiness](#get-city-readiness), for a Ready / Readiness required badge. For an `onboarding` city it says whether it can launch. For a `live` or `paused` city it says whether it would still pass the checklist (e.g. it has fallen below the driver minimum); it never blocks anything, since a resume needs no checklist. *(Until 29 Oct 2026 it was `null` for live and paused cities.)*
 
 ---
 
@@ -5384,18 +5387,32 @@ POST /admin/cities/{city_id}/launch-status
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | status | string | Yes | `onboarding`, `live` or `paused` |
-| reason | string | When pausing | Max 500, shown to admins |
+| reason | string | When pausing or closing (`paused`, `onboarding`) | Max 500, kept in the audit log; a pause's is also `city.pause_reason`. 422 `Give a reason for pausing or closing the city.` |
 | scheduled_rides | string | No (pause only) | `honour`: upcoming bookings still go ahead (default, from the `pause_scheduled_rides` setting). `cancel`: each is cancelled with reason `city_paused`; the passenger (and any reserved driver) is told |
 
 What happens:
 - **onboarding → live:** every required readiness gate must pass, else 422 with `readiness`. The waitlist gets `city_launched`; approved drivers in the city get `city_status_changed`.
 - **live → paused:** trips in progress are never touched. New estimates and bookings are refused. Drivers get `city_status_changed`. A booking that reaches dispatch in a city paused with `cancel` fails with `dispatch_failure_reason` `city_paused`.
 - **paused → live:** a resume; no checklist (the city already launched). Clears the pause fields. The waitlist is told.
-- **paused → onboarding:** closes the city again and cancels upcoming bookings. `launched_at` is kept. Launching it again is a first launch as far as the checklist goes (every required gate must pass) but keeps the original `launched_at`.
+- **live or paused → onboarding (close):** a live city can close directly, without pausing first. Refused with **409** while any trip is running (`requested` and `searching` count, so a dispatched booking still finding a driver blocks it) or any upcoming booking is open; resolve them first, e.g. pause with `scheduled_rides: cancel` and let trips finish. On closing:
+  - the manual checks (`support_cover`, `permits`) and `launch_date` are cleared (`readiness_confirmations: null`, `launch_date: null`), so a relaunch needs fresh confirmations and a new date from the client; the old values are in the audit event's `old_values`;
+  - online drivers in the city are taken offline (`drivers_taken_offline` in the audit event) and approved drivers get `city_status_changed` ("Rides closed in {city}", `data.launch_status` `onboarding`);
+  - passengers and drivers who try to book or go online are told the city is not running for now (not that it has not launched yet);
+  - `launched_at` is kept. Launching it again is a first launch as far as the checklist goes (every required gate must pass) but keeps the original `launched_at`.
 
 Every move sets `city.launch_status_changed_at` and `city.launch_status_changed_by` to now and the admin who made it.
 
 Cancelling bookings and the notifications run on the queue after the response (driver notices in their own job that is never retried, so nobody is told twice). Audit events: `city_launched`, `city_resumed`, `city_paused`, `city_returned_to_onboarding`.
+
+**Response 409** (close refused):
+```json
+{
+  "message": "Lagos cannot be closed while 2 trips are running and 1 upcoming booking is open. Let trips finish and cancel the bookings (pause the city with bookings cancelled), then close it.",
+  "active_rides": 2,
+  "upcoming_scheduled_rides": 1
+}
+```
+Both counts are also in [Get City Readiness](#get-city-readiness) `counts.active_rides` / `counts.upcoming_scheduled_rides`, so the close dialog can disable its button while either is above zero.
 
 **Response 200:**
 ```json
@@ -5435,9 +5452,9 @@ PUT /admin/settings/cities
 
 ## Admin — Vehicle Class Management
 
-**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance` (create and update: `operations`)
+**Middleware:** `auth:sanctum`, `user.type:admin`, `admin.role:operations,finance,safety_operator` (create and update: `operations`)
 
-**Allowed Roles:** Operations; Finance can list and view classes (to register fleet cars) but not create or change them (Super Admin always has access)
+**Allowed Roles:** Operations; Finance (to register fleet cars) and safety operators (to [change a driver's class](#update-driver-vehicle-class)) can list and view classes but not create or change them (Super Admin always has access)
 
 Single-class responses (show, create, update) include a `warnings` array that flags cities where the class has no pricing in effect, or cities left with nothing bookable when the class is turned off. See [Pricing coverage warnings](#pricing-coverage-warnings).
 
@@ -9178,10 +9195,10 @@ POST /admin/surge-rules
 | name                                 | string  | Yes                           | Rule name (e.g. "Morning Rush Hour")     |
 | type                                 | string  | Yes                           | `manual`, `time_based`, or `demand_based`|
 | multiplier                           | number  | Yes                           | Surge multiplier (1.00–5.00)             |
-| conditions                           | object  | Depends on type               | Type-specific conditions (see below)     |
-| conditions.days_of_week              | array   | Yes (time_based)              | ISO day numbers: 1=Mon, 7=Sun            |
-| conditions.start_time                | string  | Yes (time_based)              | HH:mm format (e.g. "07:00")             |
-| conditions.end_time                  | string  | Yes (time_based)              | HH:mm format (e.g. "09:00")             |
+| conditions                           | object  | Depends on type               | Type-specific conditions (see below). Only the five keys below are accepted (422 `Unknown condition…` otherwise); keys another type uses are dropped |
+| conditions.days_of_week              | array   | Yes (time_based)              | ISO day numbers, at least one, no repeats: 1=Mon, 7=Sun. Saved sorted |
+| conditions.start_time                | string  | Yes (time_based)              | HH:mm format (e.g. "07:00"), the city's local time |
+| conditions.end_time                  | string  | Yes (time_based)              | HH:mm, different from `start_time`. An end before the start runs past midnight (`20:00`–`02:00`); `00:00` means until midnight |
 | conditions.min_demand_supply_ratio   | number  | Yes (demand_based)            | Minimum ratio to trigger (≥1.0)          |
 | conditions.min_requests              | integer | No (demand_based)             | Minimum passengers asking before it can fire (default 5) |
 | priority                             | integer | No                            | Higher wins when rules conflict (0–100)  |
@@ -9260,6 +9277,10 @@ Returns a specific surge rule with city, vehicle class, and creator details.
 PUT /admin/surge-rules/{surge_rule_id}
 ```
 Same fields as create, all optional (partial update). City and vehicle class cannot be changed after creation.
+
+- `conditions`, when sent, **replaces** the saved conditions, so it must be complete for the rule's type (a time-based rule needs `days_of_week`, `start_time` and `end_time` together). Leave it out to keep the saved ones.
+- Changing `type` to `time_based` or `demand_based` needs that type's conditions in the same request; changing to `manual` clears them.
+- `effective_until` alone is checked against the saved `effective_from`, and `effective_from` alone against the saved `effective_until`.
 
 **Response 200:**
 ```json
@@ -16539,8 +16560,8 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | Value          | Description                                      |
 |----------------|--------------------------------------------------|
 | `manual`       | Admin-toggled surge (weather, events, emergencies)|
-| `time_based`   | Scheduled surge by day of week + time window     |
-| `demand_based` | Dynamic surge based on demand/supply ratio       |
+| `time_based`   | Scheduled surge by day of week + time window. `conditions`: `days_of_week`, `start_time`, `end_time` |
+| `demand_based` | Dynamic surge based on demand/supply ratio. `conditions`: `min_demand_supply_ratio`, `min_requests` |
 
 ### KYC Status (Driver-level)
 | Value          | Description                                      |

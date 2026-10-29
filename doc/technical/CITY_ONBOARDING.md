@@ -106,7 +106,12 @@ Optional: create launch promo codes limited to the city (`/admin/promos` with `c
 
 **Resume:** `{ "status": "live" }`. A resume does not re-run the checklist, because the city has already launched. Check the readiness report before resuming after a long pause; drivers may have left.
 
-**Close completely (back to onboarding):** `{ "status": "onboarding" }` from paused. Upcoming bookings are cancelled. Use this when a city will not reopen soon; passengers can then join the waitlist again.
+**Close completely (back to onboarding):** `{ "status": "onboarding", "reason": "…" }` from live or paused. Use this when a city will not reopen soon; passengers can then join the waitlist again.
+
+- `reason` is required.
+- It is refused while any trip is running or any upcoming booking is open. Pause first with `scheduled_rides: cancel`, let the trips finish, then close. `counts.active_rides` and `counts.upcoming_scheduled_rides` in the readiness report show what is left.
+- Closing clears the Support cover and Permits confirmations and the launch date. Before relaunching, confirm both checks again and enter the client's new launch date.
+- Drivers still online in the city are taken offline, and every approved driver there is told rides are closed. They cannot go online until the city relaunches.
 
 The old on/off switch (`PATCH /admin/cities/{city}/status`) still works: it pauses a live city (following the `pause_scheduled_rides` setting) and launches or resumes the others.
 

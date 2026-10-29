@@ -440,9 +440,19 @@ class DriverManagementController extends Controller
             );
         });
 
+        $vehicle = $vehicle->fresh('vehicleClass');
+
+        // Saved anyway, as when moving a driver to a city without their class.
+        $warnings = [];
+        $city = $driver->city;
+        if (isset($changes['vehicle_class_id']) && $city && ! $city->vehicleClasses()->wherePivot('is_active', true)->whereKey($changes['vehicle_class_id'])->exists()) {
+            $warnings[] = "{$city->name} does not offer {$vehicle->vehicleClass?->name}, so the driver will not get trips until it is offered there or their class changes.";
+        }
+
         return response()->json([
             'message' => isset($changes['vehicle_class_id']) ? 'Vehicle class updated.' : 'Vehicle fuel type updated.',
-            'vehicle' => new VehicleResource($vehicle->fresh('vehicleClass')),
+            'vehicle' => new VehicleResource($vehicle),
+            'warnings' => $warnings,
         ]);
     }
 
@@ -551,10 +561,12 @@ class DriverManagementController extends Controller
             userId: $driver->user_id,
             type: NotificationType::DriverCityChanged,
             title: 'Your City Changed',
-            body: ($city->launch_status->allowsDriversOnline()
-                ? "You now drive in {$city->name}. You will get trips there from now on."
-                : "You now drive in {$city->name}. E-tiGo has not launched there yet; you can go online from launch day.")
-                .($wasOnline ? ' You have been taken offline; go online again when you are in the city.' : ''),
+            body: match (true) {
+                $city->launch_status->allowsDriversOnline() => "You now drive in {$city->name}. You will get trips there from now on.",
+                $city->wasClosed() => "You now drive in {$city->name}. E-tiGo is not running there for now; you can go online when it reopens.",
+                default => "You now drive in {$city->name}. E-tiGo has not launched there yet; you can go online from launch day.",
+            }
+            .($wasOnline ? ' You have been taken offline; go online again when you are in the city.' : ''),
             data: ['city_id' => (string) $city->id],
         );
 
@@ -566,7 +578,9 @@ class DriverManagementController extends Controller
             $warnings[] = "{$city->name} does not offer the driver's vehicle class ({$driver->vehicle->vehicleClass?->name}), so they will not get trips until it is offered or their class changes.";
         }
         if (! $city->launch_status->allowsDriversOnline()) {
-            $warnings[] = "{$city->name} has not launched yet, so the driver cannot go online until it is live.";
+            $warnings[] = $city->wasClosed()
+                ? "{$city->name} is closed, so the driver cannot go online until it relaunches."
+                : "{$city->name} has not launched yet, so the driver cannot go online until it is live.";
         }
         if ($outcome['plans_removed'] > 0) {
             $warnings[] = "The driver's {$outcome['plans_removed']} upcoming availability plan(s) in their old city were removed.";

@@ -58,7 +58,7 @@ class CityController extends Controller
         // city so the app can offer the waitlist.
         if (! $city->isLive()) {
             return response()->json([
-                'message' => $city->launch_status->unavailableMessage($city->name),
+                'message' => $city->unavailableMessage(),
                 'resolved_address' => $result['resolved_address'],
                 'unavailable_city' => [
                     'id' => $city->id,

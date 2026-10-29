@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class StoreSurgeRuleRequest extends FormRequest
 {
+    use ValidatesSurgeConditions;
+
     public function authorize(): bool
     {
         return true;
@@ -24,13 +26,10 @@ class StoreSurgeRuleRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(SurgeType::class)],
             'multiplier' => ['required', 'numeric', 'min:1.00', 'max:5.00'],
-            'conditions' => ['sometimes', 'array'],
-            'conditions.days_of_week' => ['required_if:type,time_based', 'array'],
-            'conditions.days_of_week.*' => ['integer', 'min:1', 'max:7'],
-            'conditions.start_time' => ['required_if:type,time_based', 'date_format:H:i'],
-            'conditions.end_time' => ['required_if:type,time_based', 'date_format:H:i'],
-            'conditions.min_demand_supply_ratio' => ['required_if:type,demand_based', 'numeric', 'min:1.0'],
-            'conditions.min_requests' => ['nullable', 'integer', 'min:1'],
+            ...$this->conditionRules(
+                timeBased: $this->input('type') === SurgeType::TimeBased->value,
+                demandBased: $this->input('type') === SurgeType::DemandBased->value,
+            ),
             'priority' => ['sometimes', 'integer', 'min:0', 'max:100'],
             'is_active' => ['sometimes', 'boolean'],
             'effective_from' => ['required', 'date'],
