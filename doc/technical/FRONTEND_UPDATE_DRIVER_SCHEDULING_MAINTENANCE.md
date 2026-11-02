@@ -117,3 +117,24 @@ Scheduled rides: a reserved pickup can be released with `vehicle_blocked` (paper
 
 ### Roles
 Every endpoint above is for **Operations** (and super admins).
+
+---
+
+## Update, 2 November 2026: the dashboard's driver scheduling gaps
+
+Answers the five "Driver scheduling — API gaps" items from the dashboard team. Details and examples: `API_REFERENCE.md` › **Admin — Driver Shifts** and **List Fleet Vehicles**; Postman › **Admin › Admin — Driver Shifts & Availability**.
+
+1. **Search shifts.** `GET /admin/driver-shifts?search=` matches the shift reference, the driver's reference, full name or phone, and the car's plate. Phones match in local or `+234` form, 4 digits minimum. Plates match with or without spaces and dashes (`lag 100` finds `LAG-100AA`). Max 100 characters.
+2. **Shift reference.** Every shift has `reference_number`, e.g. `SH-000123`: six digits, like `FA-`, `PO-` and `AD-`. Existing shifts were numbered in the order they were created. Show it as sent; don't strip the zeros to make "SH-1".
+3. **`per_page`** on the shifts list: default **20** (it was always 50), 1–100. Values outside are clamped, not refused. A week's calendar for one car fits in one page; for wider views, narrow `from`/`to` or page through.
+4. **`shift_mode` filter** on `GET /admin/fleet-vehicles`: `shift_mode=true` for the "Book a shift" car picker. Blocked cars still come back (`fleet_status: "blocked"`). Show them disabled, as booking one is refused. For the hire-purchase "Assign car" picker, send `status=available&shift_mode=false`: a free shared car is `available` too, but assigning it is refused. `per_page` works here too.
+5. **Who can be booked.** Use the new `GET /admin/driver-shifts/eligible-drivers`, not `drivers-awaiting`. That list only has drivers who signed up for a fleet car, and it drops anyone who already has an upcoming shift, so you couldn't book anyone's second shift. The new list has every approved driver whose account can sign in and who has no car of their own. Booking uses the same rule. Send the form's `starts_at` and `ends_at` and each driver gets `clashing_shift`, with free drivers listed first. When changing the driver of an existing shift, also send `except_shift_id`. Filters: `search`, `city_id`, `per_page`.
+
+**Other changes on the same endpoints**
+- `status` on the shifts list must be known values (`scheduled`, `active`, `missed`, `completed`, `cancelled`, comma-separated); anything else is now 422. It used to be ignored and returned everything.
+- `summary` now always has all five statuses (0 when none). It follows `vehicle_id`, `driver_id` and `search` but not `status`, so tab counts stay right while a tab is selected. It used to count every shift in the range, whatever the filters.
+- `from`/`to`: sending only `to` used to fail with 422; it now lists the 15 days before it. A plain date (`2026-11-02`) is a Lagos day: `to=2026-11-02` includes the whole of 2 November. `to` not after `from` is 422 on `to`. Empty values (`?status=`) are ignored.
+- `unassigned_only=true` on the fleet list used to be refused (422), because the check only took `1`/`0`. Both forms now work.
+- Booking a driver whose account is suspended (can't sign in) is now refused (422 on `driver_id`).
+
+Nothing else changes. Every field is additive, apart from the default page size and the stricter `status`.

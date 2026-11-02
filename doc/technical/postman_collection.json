@@ -8294,7 +8294,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"You are now online.\",\n  \"driver\": {\n    \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n    \"reference_number\": \"D-000001\",\n    \"status\": \"approved\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"fuel_type\": \"petrol\",\n      \"can_charge\": false,\n      \"is_fleet\": true,\n      \"shift_mode\": true,\n      \"is_blocked\": false,\n      \"block_reason\": null\n    },\n    \"...\": \"(full driver object as before)\"\n  },\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"active\",\n    \"status_label\": \"In progress\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"vehicle_notice\": null,\n  \"city_notice\": null\n}"
+                  "body": "{\n  \"message\": \"You are now online.\",\n  \"driver\": {\n    \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n    \"reference_number\": \"D-000001\",\n    \"status\": \"approved\",\n    \"is_online\": true,\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"fuel_type\": \"petrol\",\n      \"can_charge\": false,\n      \"is_fleet\": true,\n      \"shift_mode\": true,\n      \"is_blocked\": false,\n      \"block_reason\": null\n    },\n    \"...\": \"(full driver object as before)\"\n  },\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"reference_number\": \"SH-000001\",\n    \"status\": \"active\",\n    \"status_label\": \"In progress\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"vehicle_notice\": null,\n  \"city_notice\": null\n}"
                 },
                 {
                   "name": "200 \u2014 Online with a papers warning",
@@ -9505,7 +9505,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"shift_driver\": true,\n  \"current_shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"rules\": {\n    \"online_lead_minutes\": 15,\n    \"offer_cutoff_minutes\": 15,\n    \"missed_after_minutes\": 30\n  },\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 2\n  }\n}"
+                  "body": "{\n  \"shift_driver\": true,\n  \"current_shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"reference_number\": \"SH-000001\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\"\n    },\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  },\n  \"rules\": {\n    \"online_lead_minutes\": 15,\n    \"offer_cutoff_minutes\": 15,\n    \"missed_after_minutes\": 30\n  },\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"reference_number\": \"SH-000001\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"reference_number\": \"SH-000002\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\"\n      },\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 30,\n    \"total\": 2\n  }\n}"
                 }
               ]
             },
@@ -14369,10 +14369,28 @@
                       "value": "",
                       "description": "Vehicle class UUID",
                       "disabled": true
+                    },
+                    {
+                      "key": "shift_mode",
+                      "value": "true",
+                      "description": "Optional, true/false or 1/0: true = cars shared on shifts (book-a-shift picker); false = cars a hire-purchase agreement can use",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "lag 100 aa",
+                      "description": "Optional: make, model or plate (spaces and dashes ignored)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Optional: default 20, 1\u2013100 (clamped)",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists all fleet vehicles in inventory. Supports pagination (20 per page).\n\n**Query parameters:**\n- `unassigned_only` (boolean) \u2014 `true` to show only unassigned (available) vehicles.\n- `fuel_type` (string) \u2014 filter by fuel type; `none` lists vehicles without one.\n- `search` (string) \u2014 Search by make, model, or plate number (case-insensitive).\n\n**2026-10-29:** Filters `status` (`available`, `assigned`, `maintenance`, `blocked`) and `vehicle_class_id`. Each car has `fleet_status` and, while in for servicing, `maintenance: { started_at, reason }`. `status=available` lists the cars you can give out (`unassigned_only` also includes cars in maintenance)."
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists all fleet vehicles in inventory. Supports pagination (20 per page).\n\n**Query parameters:**\n- `unassigned_only` (boolean) \u2014 `true` to show only unassigned (available) vehicles.\n- `fuel_type` (string) \u2014 filter by fuel type; `none` lists vehicles without one.\n- `search` (string) \u2014 Search by make, model, or plate number (case-insensitive).\n\n**2026-10-29:** Filters `status` (`available`, `assigned`, `maintenance`, `blocked`) and `vehicle_class_id`. Each car has `fleet_status` and, while in for servicing, `maintenance: { started_at, reason }`. `status=available` lists the cars you can give out (`unassigned_only` also includes cars in maintenance).\n\nFilters also take `shift_mode` (true/false) and `per_page` (default 20, up to 100). Boolean filters accept `true`/`false` or `1`/`0`. Plates match with or without spaces and dashes. For the hire-purchase assign picker send `status=available&shift_mode=false`."
               },
               "response": [
                 {
@@ -14433,6 +14451,125 @@
                     }
                   ],
                   "body": "{\n  \"vehicles\": [\n    {\n      \"id\": \"7d1a5c0e-9b3f-4e2d-8a6c-0f5e4d3c2b1a\",\n      \"driver_id\": null,\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"FLEET-001\",\n      \"year\": 2024,\n      \"fuel_type\": \"petrol\",\n      \"can_charge\": false,\n      \"is_fleet\": true,\n      \"is_assigned\": false,\n      \"vehicle_class\": {\n        \"name\": \"economy\",\n        \"display_name\": \"Economy\"\n      },\n      \"created_at\": \"2026-10-09T10:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Fleet Vehicles \u2014 Shared on Shifts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/fleet-vehicles?shift_mode=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "fleet-vehicles"
+                  ],
+                  "query": [
+                    {
+                      "key": "shift_mode",
+                      "value": "true",
+                      "description": "true: cars in shift mode; false: cars not shared"
+                    }
+                  ]
+                },
+                "description": "The \"Book a shift\" car picker: fleet cars in shift mode. Blocked cars (`fleet_status: blocked`) still come back; show them disabled, as booking one is refused."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Shared cars",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"vehicles\": [\n    {\n      \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n      \"driver_id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n      \"driver\": {\n        \"id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n        \"name\": \"Bayo Adeyemi\"\n      },\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"plate_number\": \"LAG-100AA\",\n      \"year\": 2024,\n      \"fuel_type\": \"petrol\",\n      \"can_charge\": false,\n      \"is_fleet\": true,\n      \"is_assigned\": true,\n      \"shift_mode\": true,\n      \"odometer_km\": null,\n      \"estimated_odometer_km\": null,\n      \"is_blocked\": false,\n      \"block_reason\": null,\n      \"fleet_status\": \"assigned\",\n      \"vehicle_class_id\": \"01a19cb9-7d36-7375-aa92-97ea52734e23\",\n      \"vehicle_class\": {\n        \"id\": \"01a19cb9-7d36-7375-aa92-97ea52734e23\",\n        \"name\": \"luxury\",\n        \"display_name\": \"Luxury\",\n        \"capacity\": 5,\n        \"icon\": null,\n        \"description\": \"Velit provident rerum est quidem et.\",\n        \"is_active\": true,\n        \"created_at\": \"2026-11-02T09:00:00.000000Z\",\n        \"updated_at\": \"2026-11-02T09:00:00.000000Z\"\n      },\n      \"created_at\": \"2026-11-02T09:00:00.000000Z\"\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/fleet-vehicles?shift_mode=true",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "fleet-vehicles"
+                      ],
+                      "query": [
+                        {
+                          "key": "shift_mode",
+                          "value": "true",
+                          "description": "true: cars in shift mode; false: cars not shared"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "422 \u2014 Not a boolean",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The selected shift mode is invalid.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"shift_mode\": [\n      \"The selected shift mode is invalid.\"\n    ]\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/fleet-vehicles?shift_mode=yes",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "fleet-vehicles"
+                      ],
+                      "query": [
+                        {
+                          "key": "shift_mode",
+                          "value": "yes"
+                        }
+                      ]
+                    }
+                  }
                 }
               ]
             },
@@ -14903,7 +15040,7 @@
                     }
                   ]
                 },
-                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists approved fleet drivers (`vehicle_ownership_type: fleet_vehicle`) who do not yet have a vehicle assigned. Useful for admins to find which drivers need a fleet vehicle. Supports pagination (20 per page).\n\n**2026-10-29:** `search` (name, phone, email or driver reference) and `city_id`."
+                "description": "**Auth required (admin \u2014 Operations or Finance).**\n\nLists approved fleet drivers (`vehicle_ownership_type: fleet_vehicle`) who do not yet have a vehicle assigned. Useful for admins to find which drivers need a fleet vehicle. Supports pagination (20 per page).\n\n**2026-10-29:** `search` (name, phone, email or driver reference) and `city_id`.\n\nNot for booking shifts: it leaves out drivers who already have an upcoming shift. Use Admin \u203a Driver Shifts \u203a Drivers Who Can Take a Shift."
               },
               "response": [
                 {
@@ -15786,11 +15923,41 @@
                     {
                       "key": "status",
                       "value": "scheduled,active,missed",
-                      "description": "Optional, comma-separated"
+                      "description": "Optional: one or more of scheduled, active, missed, completed, cancelled, comma-separated. Anything else is 422"
+                    },
+                    {
+                      "key": "driver_id",
+                      "value": "{{driver_id}}",
+                      "description": "Optional",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "LAG 100",
+                      "description": "Optional, max 100: shift reference, driver reference, name or phone (local or +234, 4 digits minimum), or plate (spaces and dashes ignored)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "from",
+                      "value": "2026-11-02",
+                      "description": "Optional: date (a Lagos day) or ISO 8601. Only from: 15 days from it",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-11-08",
+                      "description": "Optional: date (the end of that Lagos day) or ISO 8601. Only to: the 15 days before it",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Optional: default 20, 1\u2013100 (clamped)",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Shifts overlapping `from`\u2013`to` (default: yesterday to 14 days ahead), soonest first, paginated (50), with a `summary` per status. Filters: `vehicle_id`, `driver_id`, `status` (comma-separated). `vehicle.held_by_driver_id` is who has the car now."
+                "description": "Shifts overlapping `from`\u2013`to`, soonest first. Default range: yesterday to 14 days ahead. Plain dates are Lagos days. Paginated: `per_page` default 20, up to 100. Every shift has `reference_number` (`SH-000123`). Filters: `vehicle_id`, `driver_id`, `status` (comma-separated, known values only), `search`. `summary` counts every status (0 when none) under the same filters except `status`, for tab counts. `vehicle.held_by_driver_id` is who has the car now."
               },
               "response": [
                 {
@@ -15803,7 +15970,83 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T16:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ],\n  \"summary\": {\n    \"scheduled\": 2\n  },\n  \"meta\": {\n    \"from\": \"2026-10-18T08:00:00+00:00\",\n    \"to\": \"2026-11-02T08:00:00+00:00\",\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 50,\n    \"total\": 2\n  }\n}"
+                  "body": "{\n  \"shifts\": [\n    {\n      \"id\": \"01a19cb9-7d4a-70b1-9243-c6a8bdd4f4e0\",\n      \"reference_number\": \"SH-000003\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-11-03T05:00:00+00:00\",\n      \"ends_at\": \"2026-11-03T13:00:00+00:00\",\n      \"online_from\": \"2026-11-03T04:45:00+00:00\",\n      \"offers_stop_at\": \"2026-11-03T12:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\"\n      },\n      \"driver\": {\n        \"id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Adeyemi\",\n        \"phone\": \"+2348031234567\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a19cb9-7d2c-72f2-a595-ad7ecd1c7110\",\n      \"created_at\": \"2026-11-02T09:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a19cb9-7d4d-7236-b852-abb3d211872d\",\n      \"reference_number\": \"SH-000004\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-11-03T13:00:00+00:00\",\n      \"ends_at\": \"2026-11-03T21:00:00+00:00\",\n      \"online_from\": \"2026-11-03T12:45:00+00:00\",\n      \"offers_stop_at\": \"2026-11-03T20:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Evening shift\",\n      \"vehicle\": {\n        \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\"\n      },\n      \"driver\": {\n        \"id\": \"01a19cb9-7d3d-7309-b531-3bfd7e9c40ce\",\n        \"reference_number\": \"D-000002\",\n        \"name\": \"Kemi Okafor\",\n        \"phone\": \"+2349098765432\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a19cb9-7d2c-72f2-a595-ad7ecd1c7110\",\n      \"created_at\": \"2026-11-02T09:00:00+00:00\"\n    }\n  ],\n  \"summary\": {\n    \"scheduled\": 2,\n    \"active\": 0,\n    \"completed\": 0,\n    \"missed\": 0,\n    \"cancelled\": 1\n  },\n  \"meta\": {\n    \"from\": \"2026-11-01T09:00:00+00:00\",\n    \"to\": \"2026-11-16T09:00:00+00:00\",\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/driver-shifts?vehicle_id={{vehicle_id}}&status=scheduled,active,missed",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "driver-shifts"
+                      ],
+                      "query": [
+                        {
+                          "key": "vehicle_id",
+                          "value": "{{vehicle_id}}",
+                          "description": "Optional"
+                        },
+                        {
+                          "key": "status",
+                          "value": "scheduled,active,missed",
+                          "description": "Optional: one or more of scheduled, active, missed, completed, cancelled, comma-separated. Anything else is 422"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "422 \u2014 Unknown status",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The status must be one or more of: scheduled, active, completed, missed, cancelled, separated by commas.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"status\": [\n      \"The status must be one or more of: scheduled, active, completed, missed, cancelled, separated by commas.\"\n    ]\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/driver-shifts?status=pending",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "driver-shifts"
+                      ],
+                      "query": [
+                        {
+                          "key": "status",
+                          "value": "pending"
+                        }
+                      ]
+                    }
+                  }
                 }
               ],
               "event": [
@@ -15820,6 +16063,251 @@
                       "}",
                       "try { remember('shift_id', data.shifts[0].id); } catch (e) {}"
                     ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Search Shifts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts?search=0803 123&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "0803 123",
+                      "description": "Shift reference (SH-000123), driver reference, driver name or phone (0803\u2026 or +234\u2026, 4 digits minimum), or plate (LAG 100 finds LAG-100AA). Max 100"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Optional: default 20, 1\u2013100"
+                    }
+                  ]
+                },
+                "description": "The shifts list filtered by a search box. LIKE wildcards are escaped, so `%` or `_` match only themselves. Combines with every other filter of List Shifts; `summary` follows the search."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Shifts of the driver with that phone",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"shifts\": [\n    {\n      \"id\": \"01a19cb9-7d4a-70b1-9243-c6a8bdd4f4e0\",\n      \"reference_number\": \"SH-000003\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-11-03T05:00:00+00:00\",\n      \"ends_at\": \"2026-11-03T13:00:00+00:00\",\n      \"online_from\": \"2026-11-03T04:45:00+00:00\",\n      \"offers_stop_at\": \"2026-11-03T12:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\"\n      },\n      \"driver\": {\n        \"id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Adeyemi\",\n        \"phone\": \"+2348031234567\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a19cb9-7d2c-72f2-a595-ad7ecd1c7110\",\n      \"created_at\": \"2026-11-02T09:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a19cb9-7d4e-72ac-a16d-b7221d7fcbab\",\n      \"reference_number\": \"SH-000005\",\n      \"status\": \"cancelled\",\n      \"status_label\": \"Cancelled\",\n      \"starts_at\": \"2026-11-04T05:00:00+00:00\",\n      \"ends_at\": \"2026-11-04T13:00:00+00:00\",\n      \"online_from\": \"2026-11-04T04:45:00+00:00\",\n      \"offers_stop_at\": \"2026-11-04T12:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": \"2026-11-02T09:00:00+00:00\",\n      \"cancellation_reason\": \"Driver unwell\",\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\"\n      },\n      \"driver\": {\n        \"id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Adeyemi\",\n        \"phone\": \"+2348031234567\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a19cb9-7d2c-72f2-a595-ad7ecd1c7110\",\n      \"created_at\": \"2026-11-02T09:00:00+00:00\"\n    }\n  ],\n  \"summary\": {\n    \"scheduled\": 1,\n    \"active\": 0,\n    \"completed\": 0,\n    \"missed\": 0,\n    \"cancelled\": 1\n  },\n  \"meta\": {\n    \"from\": \"2026-11-01T09:00:00+00:00\",\n    \"to\": \"2026-11-16T09:00:00+00:00\",\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/driver-shifts?search=0803 123&per_page=20",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "driver-shifts"
+                      ],
+                      "query": [
+                        {
+                          "key": "search",
+                          "value": "0803 123",
+                          "description": "Shift reference (SH-000123), driver reference, driver name or phone (0803\u2026 or +234\u2026, 4 digits minimum), or plate (LAG 100 finds LAG-100AA). Max 100"
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "description": "Optional: default 20, 1\u2013100"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Drivers Who Can Take a Shift",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-shifts/eligible-drivers?starts_at=2026-11-03T10:00:00Z&ends_at=2026-11-03T12:00:00Z",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-shifts",
+                    "eligible-drivers"
+                  ],
+                  "query": [
+                    {
+                      "key": "starts_at",
+                      "value": "2026-11-03T10:00:00Z",
+                      "description": "Optional, with ends_at: flag clashes and list free drivers first"
+                    },
+                    {
+                      "key": "ends_at",
+                      "value": "2026-11-03T12:00:00Z",
+                      "description": "Optional, with starts_at; after starts_at"
+                    },
+                    {
+                      "key": "except_shift_id",
+                      "value": "{{shift_id}}",
+                      "description": "Optional: when changing the driver of this shift, it is not a clash",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "Kemi",
+                      "description": "Optional: driver reference, full name or phone (local or +234, 4 digits minimum)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "{{city_id}}",
+                      "description": "Optional",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "description": "Optional: default 20, 1\u2013100",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "The \"book a shift\" driver picker. Approved drivers whose account can sign in and who have no car of their own. Booking uses the same rule. Drivers who hold a shared car now or already have shifts are listed. Sorted by name. With `starts_at` and `ends_at` (both or neither), each driver has `clashing_shift` (their shift at that time, or null) and free drivers come first. `shared_car` is the shared car they hold now. Operations only."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Free drivers first",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"drivers\": [\n    {\n      \"id\": \"01a19cb9-7d3d-7309-b531-3bfd7e9c40ce\",\n      \"reference_number\": \"D-000002\",\n      \"name\": \"Kemi Okafor\",\n      \"first_name\": \"Kemi\",\n      \"last_name\": \"Okafor\",\n      \"phone\": \"+2349098765432\",\n      \"is_online\": false,\n      \"city\": {\n        \"id\": \"01a19cb9-7d34-70e2-b717-c0fd4d3f8efc\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_ownership_type\": \"fleet_vehicle\",\n      \"shared_car\": null,\n      \"upcoming_shifts_count\": 1,\n      \"clashing_shift\": null\n    },\n    {\n      \"id\": \"01a19cb9-7d39-7379-bd05-226ce567b5a0\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Adeyemi\",\n      \"first_name\": \"Bayo\",\n      \"last_name\": \"Adeyemi\",\n      \"phone\": \"+2348031234567\",\n      \"is_online\": false,\n      \"city\": {\n        \"id\": \"01a19cb9-7d34-70e2-b717-c0fd4d3f8efc\",\n        \"name\": \"Lagos\"\n      },\n      \"vehicle_ownership_type\": \"fleet_vehicle\",\n      \"shared_car\": {\n        \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n        \"plate_number\": \"LAG-100AA\"\n      },\n      \"upcoming_shifts_count\": 1,\n      \"clashing_shift\": {\n        \"id\": \"01a19cb9-7d4a-70b1-9243-c6a8bdd4f4e0\",\n        \"reference_number\": \"SH-000003\",\n        \"status\": \"scheduled\",\n        \"starts_at\": \"2026-11-03T05:00:00+00:00\",\n        \"ends_at\": \"2026-11-03T13:00:00+00:00\",\n        \"vehicle\": {\n          \"id\": \"01a19cb9-7d40-71e0-9958-f3a353111b5c\",\n          \"plate_number\": \"LAG-100AA\"\n        }\n      }\n    }\n  ],\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 2\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/driver-shifts/eligible-drivers?starts_at=2026-11-03T10:00:00Z&ends_at=2026-11-03T12:00:00Z",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "driver-shifts",
+                        "eligible-drivers"
+                      ],
+                      "query": [
+                        {
+                          "key": "starts_at",
+                          "value": "2026-11-03T10:00:00Z",
+                          "description": "Optional, with ends_at: flag clashes and list free drivers first"
+                        },
+                        {
+                          "key": "ends_at",
+                          "value": "2026-11-03T12:00:00Z",
+                          "description": "Optional, with starts_at; after starts_at"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "422 \u2014 Only one end of the window",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"The ends at field is required when starts at is present.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"ends_at\": [\n      \"The ends at field is required when starts at is present.\"\n    ]\n  }\n}",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/driver-shifts/eligible-drivers?starts_at=2026-11-03T10:00:00Z",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "driver-shifts",
+                        "eligible-drivers"
+                      ],
+                      "query": [
+                        {
+                          "key": "starts_at",
+                          "value": "2026-11-03T10:00:00Z",
+                          "description": "Optional, with ends_at: flag clashes and list free drivers first"
+                        }
+                      ]
+                    }
                   }
                 }
               ]
@@ -15869,7 +16357,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"2 shifts created.\",\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T16:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
+                  "body": "{\n  \"message\": \"2 shifts created.\",\n  \"shifts\": [\n    {\n      \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n      \"reference_number\": \"SH-000001\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-19T16:00:00+00:00\",\n      \"online_from\": \"2026-10-19T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-19T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    },\n    {\n      \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n      \"reference_number\": \"SH-000002\",\n      \"status\": \"scheduled\",\n      \"status_label\": \"Scheduled\",\n      \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n      \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n      \"online_from\": \"2026-10-20T07:45:00+00:00\",\n      \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n      \"started_at\": null,\n      \"ended_at\": null,\n      \"missed_at\": null,\n      \"cancelled_at\": null,\n      \"cancellation_reason\": null,\n      \"notes\": \"Day shift\",\n      \"vehicle\": {\n        \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n        \"plate_number\": \"LAG-100AA\",\n        \"make\": \"Toyota\",\n        \"model\": \"Corolla\",\n        \"colour\": \"White\",\n        \"held_by_driver_id\": null\n      },\n      \"driver\": {\n        \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Akinola\",\n        \"phone\": \"+15202337993\",\n        \"is_online\": false\n      },\n      \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n      \"created_at\": \"2026-10-19T08:00:00+00:00\"\n    }\n  ]\n}"
                 },
                 {
                   "name": "422 \u2014 Overlap",
@@ -15940,7 +16428,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                  "body": "{\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"reference_number\": \"SH-000001\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
                 }
               ]
             },
@@ -15990,7 +16478,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Shift updated.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Shift updated.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e147-7084-aa84-3d748438d768\",\n    \"reference_number\": \"SH-000001\",\n    \"status\": \"scheduled\",\n    \"status_label\": \"Scheduled\",\n    \"starts_at\": \"2026-10-19T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-19T17:00:00+00:00\",\n    \"online_from\": \"2026-10-19T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-19T16:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": null,\n    \"cancellation_reason\": null,\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": null\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": false\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
                 }
               ]
             },
@@ -16041,7 +16529,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Shift cancelled.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n    \"online_from\": \"2026-10-20T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": \"2026-10-19T08:00:00+00:00\",\n    \"cancellation_reason\": \"Car booked for its service\",\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\"\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": true\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Shift cancelled.\",\n  \"shift\": {\n    \"id\": \"01a14d75-e14b-71f5-be7c-d3309b8b591f\",\n    \"reference_number\": \"SH-000002\",\n    \"status\": \"cancelled\",\n    \"status_label\": \"Cancelled\",\n    \"starts_at\": \"2026-10-20T08:00:00+00:00\",\n    \"ends_at\": \"2026-10-20T16:00:00+00:00\",\n    \"online_from\": \"2026-10-20T07:45:00+00:00\",\n    \"offers_stop_at\": \"2026-10-20T15:45:00+00:00\",\n    \"started_at\": null,\n    \"ended_at\": null,\n    \"missed_at\": null,\n    \"cancelled_at\": \"2026-10-19T08:00:00+00:00\",\n    \"cancellation_reason\": \"Car booked for its service\",\n    \"notes\": \"Day shift\",\n    \"vehicle\": {\n      \"id\": \"01a14d75-e0f7-73bd-b8b8-f38bab7b7c07\",\n      \"plate_number\": \"LAG-100AA\",\n      \"make\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"colour\": \"White\",\n      \"held_by_driver_id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\"\n    },\n    \"driver\": {\n      \"id\": \"01a14d75-e100-70f1-bb69-a0f3cdfe48ad\",\n      \"reference_number\": \"D-000001\",\n      \"name\": \"Bayo Akinola\",\n      \"phone\": \"+15202337993\",\n      \"is_online\": true\n    },\n    \"created_by_admin_id\": \"01a14d75-e0ea-7230-8097-1c9b8e4c6510\",\n    \"created_at\": \"2026-10-19T08:00:00+00:00\"\n  }\n}"
                 }
               ]
             },

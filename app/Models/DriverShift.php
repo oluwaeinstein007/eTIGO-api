@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\DriverShiftStatus;
+use App\Traits\HasReferenceNumber;
+use Carbon\CarbonInterface;
 use Database\Factories\DriverShiftFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -13,14 +15,16 @@ use Illuminate\Support\Carbon;
 
 /**
  * A driver's turn with a shared fleet car (vehicles.shift_mode). Times are
- * full date-times, so a shift can run past midnight.
+ * full date-times, so a shift can run past midnight. Each shift has a
+ * readable reference ("SH-000123").
  */
 class DriverShift extends Model
 {
     /** @use HasFactory<DriverShiftFactory> */
-    use HasFactory, HasUuids;
+    use HasFactory, HasReferenceNumber, HasUuids;
 
     protected $fillable = [
+        'reference_number',
         'driver_id',
         'vehicle_id',
         'starts_at',
@@ -83,7 +87,7 @@ class DriverShift extends Model
         $query->whereIn('status', DriverShiftStatus::workable());
     }
 
-    public function scopeOverlapping(Builder $query, Carbon $startsAt, Carbon $endsAt): void
+    public function scopeOverlapping(Builder $query, CarbonInterface $startsAt, CarbonInterface $endsAt): void
     {
         $query->where('starts_at', '<', $endsAt)->where('ends_at', '>', $startsAt);
     }
@@ -107,6 +111,11 @@ class DriverShift extends Model
     public function offersStopAt(int $cutoffMinutes): Carbon
     {
         return $this->ends_at->copy()->subMinutes($cutoffMinutes);
+    }
+
+    protected static function referencePrefix(): string
+    {
+        return 'SH-';
     }
 
     public function isWorkable(): bool

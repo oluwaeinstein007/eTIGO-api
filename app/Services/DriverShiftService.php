@@ -616,6 +616,9 @@ class DriverShiftService
     }
 
     /**
+     * The driver rules here match Driver::scopeShiftEligible(), the list the
+     * dashboard picks from.
+     *
      * @throws ValidationException
      */
     private function assertCanBeAssigned(Vehicle $vehicle, Driver $driver): void
@@ -630,6 +633,10 @@ class DriverShiftService
 
         if (! $driver->isApproved()) {
             throw ValidationException::withMessages(['driver_id' => ['Only approved drivers can be given shifts.']]);
+        }
+
+        if ($driver->user?->is_active === false) {
+            throw ValidationException::withMessages(['driver_id' => ["This driver's account is suspended, so they can't sign in to work a shift."]]);
         }
 
         $otherCar = Vehicle::where('driver_id', $driver->id)->where('shift_mode', false)->first();

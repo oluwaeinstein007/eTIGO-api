@@ -811,3 +811,227 @@ it('releases every reservation of a blocked shift-mode car\'s holder when shifts
     expect($this->car->fresh()->isBlocked())->toBeTrue()
         ->and(ScheduledRide::where('ride_id', $rideId)->value('reservation_released_reason'))->toBe('vehicle_blocked');
 });
+
+// === ADMIN LISTS: SEARCH, REFERENCES, PAGING, PICKERS ===
+
+it('numbers each shift SH-000123 and shows the number to the driver', function () {
+    $response = ($this->as)($this->adminToken)->postJson('/api/v1/admin/driver-shifts', [
+        'driver_id' => $this->day->id,
+        'vehicle_id' => $this->car->id,
+        'starts_at' => '2026-10-20T06:00:00+01:00',
+        'ends_at' => '2026-10-20T14:00:00+01:00',
+        'repeat_daily_for' => 2,
+    ])->assertCreated();
+
+    $references = collect($response->json('shifts'))->pluck('reference_number');
+
+    expect($references->every(fn (?string $reference) => preg_match('/^SH-\d{6}$/', (string) $reference) === 1))->toBeTrue()
+        ->and($references->unique())->toHaveCount(3)
+        ->and((int) substr($references[1], 3))->toBe((int) substr($references[0], 3) + 1);
+
+    $shift = DriverShift::where('reference_number', $references[0])->firstOrFail();
+
+    ($this->as)($this->adminToken)->getJson("/api/v1/admin/driver-shifts/{$shift->id}")
+        ->assertJsonPath('shift.reference_number', $references[0]);
+    ($this->as)($this->dayToken)->getJson('/api/v1/driver/shifts')
+        ->assertJsonPath('shifts.0.reference_number', $references[0]);
+});
+
+it('searches shifts by reference, driver name or phone, and plate', function () {
+    $this->day->user->update(['first_name' => 'Bayo', 'last_name' => 'Adeyemi', 'phone' => '+2348031234567']);
+    $this->night->user->update(['last_name' => 'Okafor', 'phone' => '+2349098765432']);
+    $otherCar = Vehicle::factory()->fleet()->create(['driver_id' => null, 'shift_mode' => true, 'plate_number' => 'KJA-555XY']);
+
+    $dayShift = ($this->shift)($this->day, '2026-10-20 05:00', '2026-10-20 13:00');
+    $nightShift = DriverShift::factory()->create([
+        'driver_id' => $this->night->id,
+        'vehicle_id' => $otherCar->id,
+        'starts_at' => Carbon::parse('2026-10-20 13:00', 'UTC'),
+        'ends_at' => Carbon::parse('2026-10-20 21:00', 'UTC'),
+    ]);
+
+    $found = fn (string $term) => collect(($this->as)($this->adminToken)
+        ->getJson('/api/v1/admin/driver-shifts?'.http_build_query(['search' => $term]))
+        ->assertOk()
+        ->json('shifts'))->pluck('id')->all();
+
+    expect($found('bayo adeyemi'))->toBe([$dayShift->id])
+        ->and($found('Okafor'))->toBe([$nightShift->id])
+        ->and($found('0803 123'))->toBe([$dayShift->id])
+        ->and($found('+234 909 876'))->toBe([$nightShift->id])
+        ->and($found('kja 555'))->toBe([$nightShift->id])
+        ->and($found('LAG-100'))->toBe([$dayShift->id])
+        ->and($found($nightShift->fresh()->reference_number))->toBe([$nightShift->id])
+        ->and($found($this->day->reference_number))->toBe([$dayShift->id])
+        // Bare LIKE wildcards would match every shift if left unescaped.
+        ->and($found('%'))->toBe([])
+        ->and($found('_'))->toBe([])
+        // A wildcard between plate characters is literal too.
+        ->and($found('LAG%100'))->toBe([])
+        ->and($found('LAG_100'))->toBe([]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?search='.str_repeat('a', 101))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('search');
+});
+
+it('pages shifts 20 at a time by default and up to 100', function () {
+    foreach (range(0, 24) as $hour) {
+        ($this->shift)($this->day, "2026-10-20 00:00 +{$hour} hours", '2026-10-20 00:00 +'.($hour + 1).' hours');
+    }
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts')
+        ->assertOk()
+        ->assertJsonCount(20, 'shifts')
+        ->assertJsonPath('meta.per_page', 20)
+        ->assertJsonPath('meta.total', 25)
+        ->assertJsonPath('shifts.0.starts_at', '2026-10-20T00:00:00+00:00');
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?per_page=5&page=2')
+        ->assertJsonCount(5, 'shifts')
+        ->assertJsonPath('meta.last_page', 5)
+        ->assertJsonPath('shifts.0.starts_at', '2026-10-20T05:00:00+00:00');
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?per_page=500')
+        ->assertJsonPath('meta.per_page', 100)
+        ->assertJsonCount(25, 'shifts');
+
+    // An empty value is the default, not one per page.
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts/eligible-drivers?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/fleet-vehicles?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
+});
+
+it('refuses unknown statuses and counts every status under the other filters', function () {
+    ($this->shift)($this->day, '2026-10-20 05:00', '2026-10-20 13:00');
+    ($this->shift)($this->day, '2026-10-21 05:00', '2026-10-21 13:00', ['status' => DriverShiftStatus::Cancelled]);
+    ($this->shift)($this->night, '2026-10-20 13:00', '2026-10-20 21:00');
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?status=scheduled,bogus')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('status');
+
+    ($this->as)($this->adminToken)->getJson("/api/v1/admin/driver-shifts?driver_id={$this->day->id}&status=cancelled")
+        ->assertOk()
+        ->assertJsonCount(1, 'shifts')
+        ->assertJsonPath('summary', ['scheduled' => 1, 'active' => 0, 'completed' => 0, 'missed' => 0, 'cancelled' => 1]);
+
+    // An empty filter is ignored.
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?status=&from=')
+        ->assertOk()
+        ->assertJsonCount(3, 'shifts');
+});
+
+it('takes a range from either end, with plain dates as Lagos days', function () {
+    // 00:15–04:00 on 26 Oct in Lagos.
+    $late = ($this->shift)($this->day, '2026-10-25 23:15', '2026-10-26 03:00');
+    $early = ($this->shift)($this->night, '2026-10-19 09:00', '2026-10-19 17:00');
+
+    // Only `to`: the 15 days before the end of 25 Oct in Lagos.
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?to=2026-10-25')
+        ->assertOk()
+        ->assertJsonPath('meta.from', '2026-10-10T23:00:00+00:00')
+        ->assertJsonPath('meta.to', '2026-10-25T23:00:00+00:00')
+        ->assertJsonPath('shifts.*.id', [$early->id]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?from=2026-10-26')
+        ->assertOk()
+        ->assertJsonPath('meta.to', '2026-11-09T23:00:00+00:00')
+        ->assertJsonPath('shifts.*.id', [$late->id]);
+
+    // Full date-times keep their offset.
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?'.http_build_query(['from' => '2026-10-19T09:00:00+01:00', 'to' => '2026-10-19T11:00:00+01:00']))
+        ->assertJsonPath('shifts.*.id', [$early->id]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?from=2026-10-26&to=2026-10-25')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('to');
+});
+
+it('filters fleet cars by shift mode and finds plates typed with spaces', function () {
+    $hirePurchase = Vehicle::factory()->fleet()->create(['driver_id' => null, 'plate_number' => 'ABJ-200BB']);
+
+    $plates = fn (string $query) => collect(($this->as)($this->adminToken)
+        ->getJson("/api/v1/admin/fleet-vehicles?{$query}")
+        ->assertOk()
+        ->json('vehicles'))->pluck('plate_number')->all();
+
+    expect($plates('shift_mode=true'))->toBe(['LAG-100AA'])
+        ->and($plates('shift_mode=1'))->toBe(['LAG-100AA'])
+        ->and($plates('shift_mode=false'))->toBe(['ABJ-200BB'])
+        ->and($plates('search=lag+100+aa'))->toBe(['LAG-100AA'])
+        ->and($plates('unassigned_only=true&shift_mode=false'))->toBe([$hirePurchase->plate_number]);
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/fleet-vehicles?shift_mode=maybe')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('shift_mode');
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/fleet-vehicles?per_page=1')
+        ->assertJsonCount(1, 'vehicles')
+        ->assertJsonPath('meta.per_page', 1);
+});
+
+it('lists the drivers a shift can be given to, free ones first for a given time', function () {
+    // Bayo holds the shared car and has a shift; Kemi has neither.
+    $this->car->update(['driver_id' => $this->day->id]);
+    $this->night->user->update(['phone' => '+2349098765432']);
+    $dayShift = ($this->shift)($this->day, '2026-10-20 05:00', '2026-10-20 13:00');
+
+    // Not bookable: a car of their own, suspended, still in review, or
+    // an account that can't sign in.
+    $ownCar = Driver::factory()->approved()->create(['city_id' => $this->city->id]);
+    Vehicle::factory()->create(['driver_id' => $ownCar->id]);
+    Driver::factory()->suspended()->create(['city_id' => $this->city->id]);
+    Driver::factory()->create(['city_id' => $this->city->id]);
+    [$locked] = ($this->makeFleetDriver)('Tobi');
+    $locked->user->update(['is_active' => false]);
+
+    $url = '/api/v1/admin/driver-shifts/eligible-drivers';
+
+    ($this->as)($this->adminToken)->getJson($url)
+        ->assertOk()
+        ->assertJsonPath('drivers.*.id', [$this->day->id, $this->night->id])
+        ->assertJsonPath('drivers.0.name', $this->day->user->first_name.' '.$this->day->user->last_name)
+        ->assertJsonPath('drivers.0.shared_car.plate_number', 'LAG-100AA')
+        ->assertJsonPath('drivers.0.upcoming_shifts_count', 1)
+        ->assertJsonPath('drivers.0.city.id', $this->city->id)
+        ->assertJsonPath('drivers.1.shared_car', null)
+        ->assertJsonMissingPath('drivers.0.clashing_shift')
+        ->assertJsonPath('meta.total', 2);
+
+    $window = ['starts_at' => '2026-10-20T10:00:00+00:00', 'ends_at' => '2026-10-20T18:00:00+00:00'];
+
+    ($this->as)($this->adminToken)->getJson("{$url}?".http_build_query($window))
+        ->assertJsonPath('drivers.*.id', [$this->night->id, $this->day->id])
+        ->assertJsonPath('drivers.0.clashing_shift', null)
+        ->assertJsonPath('drivers.1.clashing_shift.reference_number', $dayShift->fresh()->reference_number)
+        ->assertJsonPath('drivers.1.clashing_shift.vehicle.plate_number', 'LAG-100AA');
+
+    // Editing Bayo's own shift: it is not a clash with itself.
+    ($this->as)($this->adminToken)->getJson("{$url}?".http_build_query([...$window, 'except_shift_id' => $dayShift->id]))
+        ->assertJsonPath('drivers.*.clashing_shift', [null, null]);
+
+    ($this->as)($this->adminToken)->getJson("{$url}?search=0909+876")
+        ->assertJsonPath('drivers.*.id', [$this->night->id]);
+    ($this->as)($this->adminToken)->getJson("{$url}?city_id=".City::factory()->create()->id)
+        ->assertJsonPath('meta.total', 0);
+    ($this->as)($this->adminToken)->getJson("{$url}?starts_at=2026-10-20T10:00:00Z")
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('ends_at');
+
+    // The list and booking agree.
+    ($this->as)($this->adminToken)->postJson('/api/v1/admin/driver-shifts', [
+        'driver_id' => $locked->id,
+        'vehicle_id' => $this->car->id,
+        'starts_at' => '2026-10-21T06:00:00+01:00',
+        'ends_at' => '2026-10-21T14:00:00+01:00',
+    ])->assertStatus(422)->assertJsonValidationErrors('driver_id');
+
+    $finance = User::factory()->admin(AdminRole::Finance)->create();
+    ($this->as)($finance->createToken('auth', ['admin'])->plainTextToken)->getJson($url)->assertForbidden();
+});

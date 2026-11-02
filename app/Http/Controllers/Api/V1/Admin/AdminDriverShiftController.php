@@ -5,14 +5,22 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\DriverShiftStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverShiftResource;
+use App\Http\Resources\ShiftEligibleDriverResource;
 use App\Http\Resources\VehicleResource;
+use App\Models\Driver;
 use App\Models\DriverShift;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\DriverShiftService;
+use App\Support\LagosDay;
+use App\Support\SearchTerm;
+use Carbon\CarbonImmutable;
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Operations run the timetable of shared fleet cars (OQ-20): turn shift
@@ -25,39 +33,55 @@ class AdminDriverShiftController extends Controller
         private DriverShiftService $shifts,
     ) {}
 
+    /**
+     * Shifts overlapping a time range, soonest first. `summary` counts every
+     * status under the same filters except `status`, for the tab counts.
+     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'vehicle_id' => ['sometimes', 'uuid'],
-            'driver_id' => ['sometimes', 'uuid'],
-            'status' => ['sometimes', 'string'],
-            'from' => ['sometimes', 'date'],
-            'to' => ['sometimes', 'date', 'after:from'],
+            'vehicle_id' => ['sometimes', 'nullable', 'uuid'],
+            'driver_id' => ['sometimes', 'nullable', 'uuid'],
+            'status' => ['sometimes', 'nullable', 'string', function (string $attribute, mixed $value, Closure $fail) {
+                $allowed = array_column(DriverShiftStatus::cases(), 'value');
+
+                if (array_diff($this->statusList($value), $allowed) !== []) {
+                    $fail('The status must be one or more of: '.implode(', ', $allowed).', separated by commas.');
+                }
+            }],
+            'from' => ['sometimes', 'nullable', 'date'],
+            'to' => ['sometimes', 'nullable', 'date'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'per_page' => ['sometimes', 'nullable', 'integer'],
         ]);
 
-        $statuses = isset($validated['status'])
-            ? array_values(array_filter(array_map(fn ($s) => DriverShiftStatus::tryFrom(trim($s)), explode(',', $validated['status']))))
-            : [];
+        [$from, $to] = $this->range($validated['from'] ?? null, $validated['to'] ?? null);
+        $statuses = $this->statusList($validated['status'] ?? '');
+        $search = trim((string) ($validated['search'] ?? ''));
 
-        $from = isset($validated['from']) ? Carbon::parse($validated['from']) : now()->subDay();
-        $to = isset($validated['to']) ? Carbon::parse($validated['to']) : now()->addDays(14);
-
-        $shifts = DriverShift::query()
-            ->with(['driver.user', 'vehicle'])
-            ->when($validated['vehicle_id'] ?? null, fn ($q, $id) => $q->where('vehicle_id', $id))
-            ->when($validated['driver_id'] ?? null, fn ($q, $id) => $q->where('driver_id', $id))
-            ->when($statuses !== [], fn ($q) => $q->whereIn('status', $statuses))
+        $filtered = fn () => DriverShift::query()
             ->overlapping($from, $to)
+            ->when($validated['vehicle_id'] ?? null, fn (Builder $q, string $id) => $q->where('vehicle_id', $id))
+            ->when($validated['driver_id'] ?? null, fn (Builder $q, string $id) => $q->where('driver_id', $id))
+            ->when($search !== '', fn (Builder $q) => $this->search($q, $search));
+
+        $shifts = $filtered()
+            ->with(['driver.user', 'vehicle'])
+            ->when($statuses !== [], fn (Builder $q) => $q->whereIn('status', $statuses))
             ->orderBy('starts_at')
-            ->paginate(50);
+            // Shifts starting together must not swap between pages.
+            ->orderBy('id')
+            ->paginate($this->perPage($request));
+
+        $counts = $filtered()->toBase()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
         return response()->json([
             'shifts' => DriverShiftResource::collection($shifts),
-            'summary' => DriverShift::query()
-                ->overlapping($from, $to)
-                ->selectRaw('status, count(*) as total')
-                ->groupBy('status')
-                ->pluck('total', 'status'),
+            'summary' => collect(DriverShiftStatus::cases())
+                ->mapWithKeys(fn (DriverShiftStatus $status) => [$status->value => (int) ($counts[$status->value] ?? 0)]),
             'meta' => [
                 'from' => $from->toIso8601String(),
                 'to' => $to->toIso8601String(),
@@ -65,6 +89,60 @@ class AdminDriverShiftController extends Controller
                 'last_page' => $shifts->lastPage(),
                 'per_page' => $shifts->perPage(),
                 'total' => $shifts->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Drivers a shift can be given to (Driver::scopeShiftEligible), by name.
+     * With `starts_at` and `ends_at`, each driver carries the shift of theirs
+     * that clashes with that time, if any, and free drivers come first.
+     */
+    public function eligibleDrivers(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'city_id' => ['sometimes', 'nullable', 'uuid'],
+            // Both or neither.
+            'starts_at' => ['required_with:ends_at', 'nullable', 'date'],
+            'ends_at' => ['required_with:starts_at', 'nullable', 'date', 'after:starts_at'],
+            // The shift being edited, so its own driver is not a clash.
+            'except_shift_id' => ['sometimes', 'nullable', 'uuid'],
+            'per_page' => ['sometimes', 'nullable', 'integer'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+        $window = isset($validated['starts_at'], $validated['ends_at'])
+            ? [CarbonImmutable::parse($validated['starts_at'])->utc(), CarbonImmutable::parse($validated['ends_at'])->utc()]
+            : null;
+
+        // Called with a query (withExists) and with the relation (with).
+        $clashing = fn ($q) => $q->holdingSlot()
+            ->overlapping(...$window)
+            ->when($validated['except_shift_id'] ?? null, fn (Builder $q, string $id) => $q->whereKeyNot($id));
+
+        $drivers = Driver::query()
+            ->shiftEligible()
+            ->with(['user', 'city', 'vehicle'])
+            ->withCount(['shifts as upcoming_shifts_count' => fn (Builder $q) => $q->workable()->where('ends_at', '>', now())])
+            ->when($validated['city_id'] ?? null, fn (Builder $q, string $id) => $q->where('city_id', $id))
+            ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $q) => $this->searchDriver($q, $search)))
+            ->when($window !== null, fn (Builder $q) => $q
+                ->with(['shifts' => fn ($q) => $clashing($q)->with('vehicle')->orderBy('starts_at')])
+                ->withExists(['shifts as has_clash' => $clashing])
+                ->orderBy('has_clash'))
+            ->orderBy(User::select('first_name')->whereColumn('users.id', 'drivers.user_id'))
+            ->orderBy(User::select('last_name')->whereColumn('users.id', 'drivers.user_id'))
+            ->orderBy('drivers.id')
+            ->paginate($this->perPage($request));
+
+        return response()->json([
+            'drivers' => ShiftEligibleDriverResource::collection($drivers),
+            'meta' => [
+                'current_page' => $drivers->currentPage(),
+                'last_page' => $drivers->lastPage(),
+                'per_page' => $drivers->perPage(),
+                'total' => $drivers->total(),
             ],
         ]);
     }
@@ -144,5 +222,76 @@ class AdminDriverShiftController extends Controller
             'message' => $vehicle->shift_mode ? 'Shift mode is on: drivers share this car on shifts.' : 'Shift mode is off.',
             'vehicle' => new VehicleResource($vehicle->load(['driver.user', 'vehicleClass'])),
         ]);
+    }
+
+    /**
+     * Match the shift reference, the driver (reference, name or phone) or
+     * the car's plate, typed with or without spaces and dashes.
+     */
+    private function search(Builder $query, string $term): void
+    {
+        $like = SearchTerm::like($term);
+        $plate = SearchTerm::plateKey($term);
+
+        $query->where(fn (Builder $q) => $q
+            ->where('driver_shifts.reference_number', 'ilike', $like)
+            ->orWhereHas('driver', fn (Builder $q) => $this->searchDriver($q, $term))
+            ->orWhereHas('vehicle', fn (Builder $q) => $q->where(fn (Builder $q) => $q
+                ->where('plate_number', 'ilike', $like)
+                ->when($plate, fn (Builder $q) => $q->orWhereRaw(SearchTerm::plateColumn('plate_number').' LIKE ?', ["%{$plate}%"])))));
+    }
+
+    /**
+     * Match a driver by reference, full name or phone (local or +234 form).
+     */
+    private function searchDriver(Builder $query, string $term): void
+    {
+        $like = SearchTerm::like($term);
+        $phone = SearchTerm::phoneDigits($term);
+
+        $query->where(fn (Builder $q) => $q
+            ->where('drivers.reference_number', 'ilike', $like)
+            ->orWhereHas('user', fn (Builder $q) => $q->where(fn (Builder $q) => $q
+                ->whereRaw("CONCAT(first_name, ' ', last_name) ILIKE ?", [$like])
+                ->when($phone, fn (Builder $q) => $q->orWhere('phone', 'like', "%{$phone}%")))));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function statusList(mixed $value): array
+    {
+        if (! is_string($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $value)), fn (string $s) => $s !== ''));
+    }
+
+    /**
+     * The range to list. A plain date (Y-m-d) is a Lagos day: `from` its
+     * start, `to` its end. Without `from` the range starts 15 days before
+     * `to`; without `to` it ends 15 days after `from`; without either it runs
+     * from yesterday to 14 days ahead.
+     *
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
+     *
+     * @throws ValidationException
+     */
+    private function range(?string $from, ?string $to): array
+    {
+        $isDay = fn (string $value) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
+
+        $start = $from === null ? null : ($isDay($from) ? LagosDay::start($from) : CarbonImmutable::parse($from)->utc());
+        $end = $to === null ? null : ($isDay($to) ? LagosDay::end($to) : CarbonImmutable::parse($to)->utc());
+
+        $start ??= $end?->subDays(15) ?? CarbonImmutable::now()->subDay();
+        $end ??= $start->addDays(15);
+
+        if ($end->lte($start)) {
+            throw ValidationException::withMessages(['to' => ['The end of the range must be after its start.']]);
+        }
+
+        return [$start, $end];
     }
 }
