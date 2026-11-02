@@ -27,6 +27,8 @@ class VehicleMaintenanceRecordResource extends JsonResource
             'vehicle' => $this->when($isAdmin && $this->relationLoaded('vehicle'), fn () => [
                 'id' => $this->vehicle->id,
                 'plate_number' => $this->vehicle->plate_number,
+                'make' => $this->vehicle->make,
+                'model' => $this->vehicle->model,
                 'is_fleet' => (bool) $this->vehicle->is_fleet,
             ]),
             'item_type' => $this->item_type->value,

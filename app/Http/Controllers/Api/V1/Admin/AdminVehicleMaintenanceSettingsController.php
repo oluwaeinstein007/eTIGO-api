@@ -16,13 +16,18 @@ use Illuminate\Support\Facades\DB;
  * item (and per fuel type), the reminder lead, and the grace period before
  * expired papers keep a car off the road. Each car's due dates are
  * recomputed on its next check (daily, or when it is opened).
+ *
+ * A fuel type's own interval for an item overrides the main one. Sending
+ * null (or neither km nor months) for it removes it, and null for the whole
+ * fuel type removes all of that fuel type's own intervals, so those items
+ * go back to the main intervals.
  */
 class AdminVehicleMaintenanceSettingsController extends Controller
 {
     public function show(): JsonResponse
     {
         return response()->json([
-            'settings' => AppSetting::vehicleMaintenance(),
+            'settings' => $this->present(AppSetting::vehicleMaintenance()),
         ]);
     }
 
@@ -38,8 +43,8 @@ class AdminVehicleMaintenanceSettingsController extends Controller
             'intervals.*.km' => ['nullable', 'integer', 'min:500', 'max:100000'],
             'intervals.*.months' => ['nullable', 'integer', 'min:1', 'max:60'],
             'fuel_type_intervals' => ['sometimes', 'array:'.implode(',', $fuelTypes)],
-            'fuel_type_intervals.*' => ['array:'.implode(',', $recordable)],
-            'fuel_type_intervals.*.*' => ['array:km,months'],
+            'fuel_type_intervals.*' => ['nullable', 'array:'.implode(',', $recordable)],
+            'fuel_type_intervals.*.*' => ['nullable', 'array:km,months'],
             'fuel_type_intervals.*.*.km' => ['nullable', 'integer', 'min:500', 'max:100000'],
             'fuel_type_intervals.*.*.months' => ['nullable', 'integer', 'min:1', 'max:60'],
             'due_soon_days' => ['sometimes', 'integer', 'min:0', 'max:90'],
@@ -64,21 +69,23 @@ class AdminVehicleMaintenanceSettingsController extends Controller
             }
         }
 
-        // Fuel type overrides merge per fuel type and item, like intervals,
-        // and each needs a km or months value (an empty one would never be due).
+        // Fuel type overrides merge per fuel type and item, like intervals.
+        // An empty one is removed rather than stored (it would never be due),
+        // and a fuel type left with none drops out.
         if (isset($validated['fuel_type_intervals'])) {
             $merged = $current['fuel_type_intervals'];
 
             foreach ($validated['fuel_type_intervals'] as $fuelType => $types) {
-                foreach ($types as $type => $interval) {
+                foreach ($types ?? array_fill_keys(array_keys($merged[$fuelType] ?? []), null) as $type => $interval) {
                     if (empty($interval['km']) && empty($interval['months'])) {
-                        return response()->json([
-                            'message' => 'Each fuel type override needs a km or a months interval.',
-                            'errors' => ["fuel_type_intervals.{$fuelType}.{$type}" => ['Give a km or a months interval.']],
-                        ], 422);
+                        unset($merged[$fuelType][$type]);
+                    } else {
+                        $merged[$fuelType][$type] = ['km' => $interval['km'] ?? null, 'months' => $interval['months'] ?? null];
                     }
+                }
 
-                    $merged[$fuelType][$type] = $interval;
+                if (empty($merged[$fuelType])) {
+                    unset($merged[$fuelType]);
                 }
             }
 
@@ -109,7 +116,25 @@ class AdminVehicleMaintenanceSettingsController extends Controller
 
         return response()->json([
             'message' => 'Vehicle maintenance settings updated.',
-            'settings' => AppSetting::vehicleMaintenance(),
+            'settings' => $this->present(AppSetting::vehicleMaintenance()),
         ]);
+    }
+
+    /**
+     * The interval maps as JSON objects keyed by item and fuel type, never
+     * as lists, even when empty.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    private function present(array $settings): array
+    {
+        $settings['intervals'] = (object) $settings['intervals'];
+        $settings['fuel_type_intervals'] = (object) array_map(
+            fn (array $types) => (object) $types,
+            $settings['fuel_type_intervals'],
+        );
+
+        return $settings;
     }
 }

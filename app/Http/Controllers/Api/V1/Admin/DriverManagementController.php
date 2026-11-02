@@ -238,12 +238,17 @@ class DriverManagementController extends Controller
                 'driver_id' => $driver->id,
             ]);
 
-            // An approved renewal replaces the car's earlier paper of that type.
+            // An approved renewal replaces the car's earlier paper of that type,
+            // but never one that runs longer (an admin may have uploaded a
+            // newer paper while the renewal waited for review).
             if ($newStatus === DocumentStatus::Approved && $document->vehicle_id !== null) {
+                $expiresAt = $document->expires_at;
+
                 $replaced = DriverDocument::where('vehicle_id', $document->vehicle_id)
                     ->where('type', $document->type)
                     ->where('id', '!=', $document->id)
                     ->where('status', DocumentStatus::Approved)
+                    ->when($expiresAt !== null, fn ($q) => $q->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '<=', $expiresAt)))
                     ->get();
 
                 $replacedPaths = $replaced->pluck('file_path')->all();

@@ -197,11 +197,16 @@ class Dispute extends Model
 
     public function tierLabel(): string
     {
-        if ($this->queue === DisputeQueue::Safety && $this->escalation_tier < 3) {
+        return self::labelForTier($this->queue, $this->escalation_tier);
+    }
+
+    public static function labelForTier(DisputeQueue $queue, int $tier): string
+    {
+        if ($queue === DisputeQueue::Safety && $tier < 3) {
             return 'Safety team';
         }
 
-        return match ($this->escalation_tier) {
+        return match ($tier) {
             1 => 'Tier 1 — Support',
             2 => 'Tier 2 — Support lead',
             default => 'Tier 3 — Management',

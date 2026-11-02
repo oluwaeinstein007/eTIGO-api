@@ -14,7 +14,10 @@ use App\Models\Dispute;
 use App\Models\DisputeRefundRequest;
 use App\Models\User;
 use App\Services\DisputeAccess;
+use App\Services\DisputeHistoryService;
 use App\Services\DisputeService;
+use App\Support\SearchTerm;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -31,6 +34,7 @@ class AdminDisputeController extends Controller
     public function __construct(
         private DisputeService $disputes,
         private DisputeAccess $access,
+        private DisputeHistoryService $history,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -43,6 +47,7 @@ class AdminDisputeController extends Controller
             'city_id' => ['sometimes', 'uuid'],
             'sla' => ['sometimes', 'string', 'in:breached,at_risk'],
             'sort' => ['sometimes', 'string', 'in:newest,due'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date'],
         ]);
@@ -100,17 +105,10 @@ class AdminDisputeController extends Controller
             $query->whereHas('ride', fn ($q) => $q->where('city_id', $request->input('city_id')));
         }
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'ilike', "%{$search}%")
-                    ->orWhere('reference_number', 'ilike', "%{$search}%")
-                    ->orWhereHas('reportedBy', function ($q) use ($search) {
-                        $q->where('first_name', 'ilike', "%{$search}%")
-                            ->orWhere('last_name', 'ilike', "%{$search}%")
-                            ->orWhere('email', 'ilike', "%{$search}%");
-                    });
-            });
+        $search = trim((string) $request->input('search'));
+
+        if ($search !== '') {
+            $this->search($query, $search);
         }
 
         if ($request->filled('from')) {
@@ -119,6 +117,14 @@ class AdminDisputeController extends Controller
 
         if ($request->filled('to')) {
             $query->whereDate('created_at', '<=', $request->input('to'));
+        }
+
+        if ($search !== '') {
+            // The case or trip whose reference was typed in full comes first.
+            $query->orderByRaw(
+                'CASE WHEN LOWER(reference_number) = LOWER(?) OR ride_id IN (SELECT id FROM rides WHERE LOWER(reference_number) = LOWER(?)) THEN 0 ELSE 1 END',
+                [$search, $search],
+            );
         }
 
         if ($request->input('sort') === 'due') {
@@ -156,6 +162,8 @@ class AdminDisputeController extends Controller
             'reportedBy',
             'resolvedBy',
             'assignedAdmin',
+            'escalatedBy',
+            'appealOfResolver',
             'linkedDispute',
             'pendingRefundRequest.requestedBy',
             'refundRequests.requestedBy',
@@ -179,7 +187,9 @@ class AdminDisputeController extends Controller
         }
 
         return response()->json([
-            'dispute' => (new DisputeResource($dispute))->withEvidence($showEvidence),
+            'dispute' => (new DisputeResource($dispute))
+                ->withEvidence($showEvidence)
+                ->withHistory($this->history->for($dispute)),
         ]);
     }
 
@@ -280,6 +290,31 @@ class AdminDisputeController extends Controller
             'dispute' => new DisputeResource($dispute),
             'driver_clawback_kobo' => $result['clawback_kobo'],
         ]);
+    }
+
+    /**
+     * Match the case reference, the trip reference, the description, and the
+     * reporter, passenger or driver by name, email or phone (a phone in local
+     * format too). LIKE wildcards in the term match only themselves.
+     */
+    private function search(Builder $query, string $term): void
+    {
+        $like = SearchTerm::like($term);
+        $phone = SearchTerm::phoneDigits($term);
+
+        $person = fn (Builder $q) => $q->where(fn (Builder $q) => $q
+            ->whereRaw("CONCAT(first_name, ' ', last_name) ILIKE ?", [$like])
+            ->orWhere('email', 'ilike', $like)
+            ->when($phone, fn (Builder $q) => $q->orWhere('phone', 'like', "%{$phone}%")));
+
+        $query->where(fn (Builder $q) => $q
+            ->where('reference_number', 'ilike', $like)
+            ->orWhere('description', 'ilike', $like)
+            ->orWhereHas('reportedBy', $person)
+            ->orWhereHas('ride', fn (Builder $ride) => $ride
+                ->where('reference_number', 'ilike', $like)
+                ->orWhereHas('passenger', $person)
+                ->orWhereHas('driver', $person)));
     }
 
     /**
