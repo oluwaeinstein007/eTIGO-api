@@ -2974,9 +2974,13 @@ GET /admin/fleet-vehicles
 |-----------------|---------|----------|--------------------------------------------------|
 | unassigned_only | boolean | No       | `true` to show only cars with no driver (including cars in for maintenance). To list cars you can give out, use `status=available` |
 | status          | string  | No       | `available` (no driver, not in maintenance, papers fine), `assigned`, `maintenance` or `blocked` (papers expired past the grace period). Matches `fleet_status` |
+| shift_mode      | boolean | No       | `true`: cars shared on shifts (the "book a shift" car picker). `false`: cars that are not, the only ones a hire-purchase agreement can use (send it with `status=available` for the assign picker) |
 | vehicle_class_id | uuid   | No       | Only cars of this class |
 | fuel_type       | string  | No       | Filter by fuel type; `none` lists vehicles with no fuel type yet |
-| search          | string  | No       | Search by make, model, or plate number           |
+| search          | string  | No       | Search by make, model, or plate number. Plates match with or without spaces and dashes (`lag 100 aa` finds `LAG-100AA`) |
+| per_page        | integer | No       | Default 20, 1–100 (values outside are clamped) |
+
+Boolean filters take `true`/`false` or `1`/`0`; anything else is 422. Newest cars first.
 
 Each fleet car has `fleet_status` (one of the `status` values above; the first that applies in the order blocked → maintenance → assigned → available) and, while in maintenance, `maintenance: { started_at, reason }`.
 
@@ -3279,6 +3283,8 @@ GET /admin/fleet-vehicles/drivers-awaiting
 ```
 
 Lists approved fleet drivers who do not yet have a vehicle assigned. Useful for admins to find which fleet drivers need a vehicle.
+
+Not the list for booking shifts: it leaves out drivers who already have an upcoming shift and drivers who did not sign up for a fleet car. Use `GET /admin/driver-shifts/eligible-drivers`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -7868,6 +7874,8 @@ GET /driver/shifts
 
 `shift_driver` is `false` for drivers whose car is not shared; they can ignore shifts.
 
+Each shift object has `reference_number` (`SH-000123`), the number operations use for that shift. Showing it is optional.
+
 **Going online** (`POST /driver/toggle-online`) for a shift driver returns 422 reasons such as:
 - `"Your car is shared on shifts. Your next shift starts Tue 20 Oct, 6:00 AM; you can go online from Tue 20 Oct, 5:45 AM."`
 - `"Your car is shared on shifts and you have no shift now. Contact fleet operations for your next shift."`
@@ -7917,19 +7925,111 @@ PUT /admin/fleet-vehicles/{vehicle_id}/shift-mode
 ```
 GET  /admin/driver-shifts
 POST /admin/driver-shifts
+GET  /admin/driver-shifts/eligible-drivers
 GET  /admin/driver-shifts/{shift_id}
 PUT  /admin/driver-shifts/{shift_id}
 POST /admin/driver-shifts/{shift_id}/cancel
 ```
 **Auth:** operations.
 
-**List** query: `vehicle_id`, `driver_id`, `status` (comma-separated, e.g. `scheduled,missed`), `from`, `to` (default: yesterday to 14 days ahead; shifts overlapping the range). Paginated (50), soonest first; `summary` counts per status in the range.
+Every shift has a `reference_number` (`SH-000123`, six digits, numbered in the order shifts were created). The driver app sees it too.
+
+**List** query:
+
+| Parameter | Type | Notes |
+|---|---|---|
+| search | string | Max 100. Shift reference, driver reference, driver name or phone (local `0803 123…` or `+234…`, 4 digits minimum), or the car's plate (with or without spaces and dashes) |
+| vehicle_id, driver_id | UUID | |
+| status | string | One or more of `scheduled`, `active`, `missed`, `completed`, `cancelled`, comma-separated. Any other value: 422 |
+| from, to | date or ISO 8601 | Shifts overlapping the range. A plain date (`2026-11-02`) is a Lagos day: `from` its start, `to` its end. Without either: yesterday to 14 days ahead. Only `from`: 15 days from it. Only `to`: the 15 days before it. `to` not after `from`: 422 |
+| per_page | integer | Default 20, 1–100 (values outside are clamped) |
+
+Soonest first (ties by id, so pages don't overlap). `summary` has a count for **every** status (0 when none) under the same filters except `status`, for tab counts. `meta.from`/`meta.to` are the range used, in UTC.
+
+**Response 200:**
+```json
+{
+  "shifts": [
+    {
+      "id": "01a19cb5-7e05-71c1-a85e-9cc81d493a5d",
+      "reference_number": "SH-000123",
+      "status": "scheduled",
+      "status_label": "Scheduled",
+      "starts_at": "2026-11-03T05:00:00+00:00",
+      "ends_at": "2026-11-03T13:00:00+00:00",
+      "online_from": "2026-11-03T04:45:00+00:00",
+      "offers_stop_at": "2026-11-03T12:45:00+00:00",
+      "started_at": null, "ended_at": null, "missed_at": null, "cancelled_at": null,
+      "cancellation_reason": null,
+      "notes": null,
+      "vehicle": { "id": "…", "plate_number": "LAG-100AA", "make": "Toyota", "model": "Corolla", "colour": "White", "held_by_driver_id": "…" },
+      "driver": { "id": "…", "reference_number": "D-000042", "name": "Bayo Adeyemi", "phone": "+2348031234567", "is_online": false },
+      "created_by_admin_id": "…",
+      "created_at": "2026-11-02T09:00:00+00:00"
+    }
+  ],
+  "summary": { "scheduled": 12, "active": 1, "completed": 30, "missed": 2, "cancelled": 3 },
+  "meta": { "from": "2026-11-01T09:00:00+00:00", "to": "2026-11-16T09:00:00+00:00", "current_page": 1, "last_page": 1, "per_page": 20, "total": 12 }
+}
+```
+
+**Drivers a shift can be given to** (the "book a shift" driver picker):
+```
+GET /admin/driver-shifts/eligible-drivers
+```
+Approved drivers whose account can sign in and who have no car of their own. A driver who holds a shared car now, or already has shifts, is still listed. Booking applies the same rules, so anyone on this list can be booked unless they clash. Sorted by first then last name.
+
+| Parameter | Type | Notes |
+|---|---|---|
+| search | string | Driver reference, full name or phone (local or `+234`, 4 digits minimum) |
+| city_id | UUID | Drivers in this city |
+| starts_at, ends_at | ISO 8601 | Both or neither (422). With them, every driver has `clashing_shift` (their shift at that time, or `null`) and drivers who are free come first |
+| except_shift_id | UUID | When picking a new driver for an existing shift: that shift is not counted as a clash |
+| per_page | integer | Default 20, 1–100 |
+
+**Response 200:**
+```json
+{
+  "drivers": [
+    {
+      "id": "…",
+      "reference_number": "D-000042",
+      "name": "Kemi Okafor",
+      "first_name": "Kemi",
+      "last_name": "Okafor",
+      "phone": "+2349098765432",
+      "is_online": false,
+      "city": { "id": "…", "name": "Lagos" },
+      "vehicle_ownership_type": "fleet_vehicle",
+      "shared_car": null,
+      "upcoming_shifts_count": 0,
+      "clashing_shift": null
+    },
+    {
+      "id": "…",
+      "reference_number": "D-000017",
+      "name": "Bayo Adeyemi",
+      "first_name": "Bayo",
+      "last_name": "Adeyemi",
+      "phone": "+2348031234567",
+      "is_online": true,
+      "city": { "id": "…", "name": "Lagos" },
+      "vehicle_ownership_type": "fleet_vehicle",
+      "shared_car": { "id": "…", "plate_number": "LAG-100AA" },
+      "upcoming_shifts_count": 4,
+      "clashing_shift": { "id": "…", "reference_number": "SH-000123", "status": "scheduled", "starts_at": "2026-11-03T05:00:00+00:00", "ends_at": "2026-11-03T13:00:00+00:00", "vehicle": { "id": "…", "plate_number": "LAG-100AA" } }
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 2 }
+}
+```
+`clashing_shift` is left out when `starts_at`/`ends_at` are not sent. `shared_car` is the shared car the driver holds now (they keep it until the next shift driver goes online with it).
 
 **Create** body:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| driver_id | UUID | Yes | Approved driver with no car of their own |
+| driver_id | UUID | Yes | Approved driver whose account can sign in, with no car of their own (pick from `GET /admin/driver-shifts/eligible-drivers`) |
 | vehicle_id | UUID | Yes | Fleet car in shift mode, not blocked by expired papers |
 | starts_at, ends_at | ISO 8601 | Yes | 60 min – 12 h; ends in the future; starts within 30 days |
 | notes | string | No | Max 500 |

@@ -600,6 +600,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:operations')->group(function () {
         Route::get('/driver-shifts', [AdminDriverShiftController::class, 'index']);
         Route::post('/driver-shifts', [AdminDriverShiftController::class, 'store']);
+        Route::get('/driver-shifts/eligible-drivers', [AdminDriverShiftController::class, 'eligibleDrivers']);
         Route::get('/driver-shifts/{shift}', [AdminDriverShiftController::class, 'show']);
         Route::put('/driver-shifts/{shift}', [AdminDriverShiftController::class, 'update']);
         Route::post('/driver-shifts/{shift}/cancel', [AdminDriverShiftController::class, 'cancel']);

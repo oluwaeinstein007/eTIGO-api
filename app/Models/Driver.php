@@ -284,6 +284,18 @@ class Driver extends Model
         app(DriverShiftService::class)->constrainDispatchable($query);
     }
 
+    /**
+     * Drivers operations can book on a shared car's shifts: approved, able to
+     * sign in, and with no car of their own (holding a shared car is fine).
+     * Keep in step with DriverShiftService::assertCanBeAssigned().
+     */
+    public function scopeShiftEligible(Builder $query): void
+    {
+        $query->where('status', DriverStatus::Approved)
+            ->whereHas('user', fn (Builder $q) => $q->where('is_active', true))
+            ->whereDoesntHave('vehicle', fn (Builder $q) => $q->where('shift_mode', false));
+    }
+
     public function scopeAwaitingVehicle(Builder $query): void
     {
         $query->where('vehicle_ownership_type', VehicleOwnershipType::FleetVehicle)

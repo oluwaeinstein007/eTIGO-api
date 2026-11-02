@@ -14,6 +14,7 @@ use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\Vehicle;
 use App\Services\FleetRemittanceService;
+use App\Support\SearchTerm;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,12 @@ class AdminFleetVehicleController extends Controller
             'vehicle_class_id' => ['nullable', 'uuid'],
             'status' => ['nullable', Rule::in(Vehicle::FLEET_STATUSES)],
             'search' => ['nullable', 'string', 'max:100'],
-            'unassigned_only' => ['nullable', 'boolean'],
+            // Query strings send "true"/"false", which the boolean rule refuses.
+            'unassigned_only' => ['nullable', 'in:0,1,true,false'],
+            // true: cars shared on shifts (the "book a shift" picker); false:
+            // cars that can go on a hire-purchase agreement.
+            'shift_mode' => ['nullable', 'in:0,1,true,false'],
+            'per_page' => ['nullable', 'integer'],
         ]);
 
         // unassigned_only predates status: cars with no driver, servicing or
@@ -42,12 +48,20 @@ class AdminFleetVehicleController extends Controller
             : Vehicle::fleet()->with(['driver.user', 'vehicleClass']);
 
         if ($request->filled('search')) {
-            $search = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $request->input('search'));
-            $query->where(function ($q) use ($search) {
-                $q->where('make', 'ilike', "%{$search}%")
-                    ->orWhere('model', 'ilike', "%{$search}%")
-                    ->orWhere('plate_number', 'ilike', "%{$search}%");
-            });
+            $term = trim($request->string('search')->value());
+            $like = SearchTerm::like($term);
+            $plate = SearchTerm::plateKey($term);
+
+            $query->where(fn ($q) => $q
+                ->where('make', 'ilike', $like)
+                ->orWhere('model', 'ilike', $like)
+                ->orWhere('plate_number', 'ilike', $like)
+                // "LAG 100 AA" finds "LAG-100AA".
+                ->when($plate, fn ($q) => $q->orWhereRaw(SearchTerm::plateColumn('plate_number').' LIKE ?', ["%{$plate}%"])));
+        }
+
+        if ($request->filled('shift_mode')) {
+            $query->where('shift_mode', $request->boolean('shift_mode'));
         }
 
         if ($request->filled('fuel_type')) {
@@ -63,7 +77,8 @@ class AdminFleetVehicleController extends Controller
             $query->withFleetStatus($request->input('status'));
         }
 
-        $vehicles = $query->latest()->paginate(20);
+        // Cars registered together must not swap between pages.
+        $vehicles = $query->latest()->orderBy('id')->paginate($this->perPage($request));
 
         return response()->json([
             'vehicles' => VehicleResource::collection($vehicles),

@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\ScheduledRideReservationService;
+use App\Support\SearchTerm;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,8 +82,8 @@ class AdminScheduledRideController extends Controller
      */
     private function search(Builder $query, string $term): void
     {
-        $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term).'%';
-        $phone = $this->phoneDigits($term);
+        $like = SearchTerm::like($term);
+        $phone = SearchTerm::phoneDigits($term);
 
         $person = fn (Builder $q) => $q->where(fn (Builder $q) => $q
             ->whereRaw("CONCAT(first_name, ' ', last_name) ILIKE ?", [$like])
@@ -96,26 +97,6 @@ class AdminScheduledRideController extends Controller
             ->when($phone, fn (Builder $q) => $q->orWhere('rides.rider_phone', 'like', "%{$phone}%"))
             ->orWhereHas('passenger', $person)
             ->orWhereHas('scheduledRide.reservedDriver', $person));
-    }
-
-    /**
-     * The digits to look for in a stored phone, or null when the term is not
-     * a phone number. A leading 0 (local format) is dropped so it matches the
-     * +234 form.
-     */
-    private function phoneDigits(string $term): ?string
-    {
-        if (preg_match('/^\+?[\d\s\-().]+$/', $term) !== 1) {
-            return null;
-        }
-
-        $digits = preg_replace('/\D/', '', $term);
-
-        if (strlen($digits) < 4) {
-            return null;
-        }
-
-        return str_starts_with($digits, '0') ? substr($digits, 1) : $digits;
     }
 
     /**

@@ -22,6 +22,7 @@ class DriverShiftResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'reference_number' => $this->reference_number,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'starts_at' => $this->starts_at?->toIso8601String(),
