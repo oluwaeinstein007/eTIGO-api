@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\AdminRole;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
@@ -10,19 +11,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Super admin settings for advanced disputes (OQ-21): refund limits per
- * tier, response targets, tier 1 auto-escalation, the appeal window and the
- * evidence limit. Super admin only: the limits bind the people who would
- * otherwise change them. New targets apply to cases entering a tier after
- * the change.
+ * Settings for advanced disputes (OQ-21): refund limits per tier, response
+ * targets, tier 1 auto-escalation, the appeal window and the evidence limit.
+ * The dispute teams and Finance read them; only super admins change them,
+ * since the limits bind the people who would otherwise change them. New
+ * targets apply to cases entering a tier after the change.
  */
 class AdminDisputeSettingsController extends Controller
 {
-    public function show(): JsonResponse
+    public function show(Request $request): JsonResponse
     {
         return response()->json([
             'settings' => AppSetting::disputes(),
             'tiers' => config('disputes.tiers'),
+            'can_edit' => $request->user()->admin_role === AdminRole::SuperAdmin,
         ]);
     }
 

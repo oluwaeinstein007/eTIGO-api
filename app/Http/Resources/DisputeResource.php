@@ -3,8 +3,10 @@
 namespace App\Http\Resources;
 
 use App\Enums\DisputeQueue;
+use App\Enums\DisputeRefundRequestStatus;
 use App\Http\Resources\Concerns\ResolvesUploadUrls;
 use App\Models\AppSetting;
+use App\Models\DisputeRefundRequest;
 use App\Models\User;
 use App\Services\DisputeAccess;
 use Illuminate\Http\Request;
@@ -22,6 +24,9 @@ class DisputeResource extends JsonResource
 
     private bool $withEvidence = false;
 
+    /** @var list<array<string, mixed>>|null */
+    private ?array $history = null;
+
     /**
      * Include evidence files for an admin (single-case views). The
      * controller has already checked the admin may see them.
@@ -29,6 +34,18 @@ class DisputeResource extends JsonResource
     public function withEvidence(bool $show = true): static
     {
         $this->withEvidence = $show;
+
+        return $this;
+    }
+
+    /**
+     * Include the case's audit trail for an admin (single-case views).
+     *
+     * @param  list<array<string, mixed>>  $history
+     */
+    public function withHistory(array $history): static
+    {
+        $this->history = $history;
 
         return $this;
     }
@@ -108,12 +125,7 @@ class DisputeResource extends JsonResource
             'escalation_tier' => $this->escalation_tier,
             'tier_label' => $this->tierLabel(),
             'decision_tier' => $this->decision_tier,
-            'assigned_admin' => $this->whenLoaded('assignedAdmin', fn () => $this->assignedAdmin ? [
-                'id' => $this->assignedAdmin->id,
-                'first_name' => $this->assignedAdmin->first_name,
-                'last_name' => $this->assignedAdmin->last_name,
-                'admin_role' => $this->assignedAdmin->admin_role?->value,
-            ] : null),
+            'assigned_admin' => $this->whenLoaded('assignedAdmin', fn () => self::admin($this->assignedAdmin)),
             'assigned_admin_id' => $this->assigned_admin_id,
             'assigned_at' => $this->assigned_at,
             'is_mine' => $this->assigned_admin_id === $viewer->id,
@@ -122,6 +134,7 @@ class DisputeResource extends JsonResource
                 'reason' => $this->escalation_reason,
                 'source' => $this->escalation_source,
                 'escalated_by_admin_id' => $this->escalated_by_admin_id,
+                'escalated_by' => $this->whenLoaded('escalatedBy', fn () => self::admin($this->escalatedBy)),
             ] : null,
             'sla' => [
                 'status' => $sla->value,
@@ -137,6 +150,12 @@ class DisputeResource extends JsonResource
                 'appealed_at' => $this->appealed_at,
                 'reason' => $this->appeal_reason,
                 'original_decision' => $this->original_decision,
+                // The admins the original decision names by id, for the case page.
+                'original_decided_by' => $this->whenLoaded('appealOfResolver', fn () => self::admin($this->appealOfResolver)),
+                'original_refund_approved_by' => $this->when($this->relationLoaded('refundRequests'), fn () => self::admin(
+                    $this->refundRequests->first(fn (DisputeRefundRequest $refund) => $refund->status === DisputeRefundRequestStatus::Approved
+                        && $refund->reviewed_by_admin_id === ($this->original_decision['refund_approved_by_admin_id'] ?? null))?->reviewedBy,
+                )),
                 'excluded_reviewer_ids' => $this->excludedReviewerIds(),
             ] : null,
             'driver_clawback_amount' => $this->driver_clawback_amount,
@@ -156,9 +175,23 @@ class DisputeResource extends JsonResource
             'refund_requests' => DisputeRefundRequestResource::collection($this->whenLoaded('refundRequests')),
             'resolved_by' => new UserResource($this->whenLoaded('resolvedBy')),
             'notes' => DisputeNoteResource::collection($this->whenLoaded('notes')),
+            'history' => $this->when($this->history !== null, fn () => $this->history),
             'available_actions' => $this->adminActions($access, $viewer),
             'refund_limit' => $access->refundLimit($viewer, $settings),
         ];
+    }
+
+    /**
+     * @return array{id: string, first_name: ?string, last_name: ?string, admin_role: ?string}|null
+     */
+    private static function admin(?User $admin): ?array
+    {
+        return $admin ? [
+            'id' => $admin->id,
+            'first_name' => $admin->first_name,
+            'last_name' => $admin->last_name,
+            'admin_role' => $admin->admin_role?->value,
+        ] : null;
     }
 
     /**

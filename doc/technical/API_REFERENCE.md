@@ -5057,11 +5057,13 @@ Admin city responses add `launch_date` (the client's target date, a readiness ga
 ```
 GET /admin/cities
 ```
+**Auth:** operations, safety operator, finance, support, support lead (and super admin). Only Operations can open a city or change one; the other roles read the list for city pickers and filters (promos, pricing, reports, waiting drivers, disputes). Use `per_page=100` for a picker.
+
 | Query Param | Type    | Description                       |
 |-------------|---------|-----------------------------------|
 | is_active   | boolean | Filter by active/inactive status (active = live) |
 | launch_status | string | Comma list of `onboarding`, `live`, `paused` |
-| search      | string  | Filter by city name (partial)     |
+| search      | string  | Filter by city name (partial; `%` and `_` match only themselves) |
 | state       | string  | Filter by state (e.g. `Lagos`)    |
 | region      | string  | Filter by region (e.g. `South-West`) |
 | per_page    | integer | Results per page (default: 20, max: 100) |
@@ -8236,21 +8238,22 @@ POST /admin/vehicles/{vehicle_id}/documents
 
 - `GET` → `vehicle` (with `shift_mode`, `odometer_km`, `estimated_odometer_km`, `is_blocked`, `block_reason`), `items`, `records` (last 50), `documents` (the car's papers).
 - `POST …/maintenance-records` → same fields as the driver's, `proof` optional; the record is approved at once. Response 201 with `record` and the updated `items`. Audit `maintenance_record_added`.
-- `POST …/documents` (multipart) → `type` (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`), `document` (file), `expires_at` (required except for `vehicle_registration`). Approved at once; replaces the car's earlier paper of that type. Response 201 with `document` and `items`. Audit `vehicle_document_uploaded_by_admin`.
+- `POST …/documents` (multipart) → `type` (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`), `document` (file), `expires_at` (required except for `vehicle_registration`). Approved at once; replaces the car's approved paper of that type. A renewal the driver sent that is still `pending` is kept for review and listed in `pending_documents` (empty when none; the message then says one is waiting). Response 201 with `document`, `pending_documents` and `items`. Audit `vehicle_document_uploaded_by_admin`.
+- Approving a driver's renewal (`POST /admin/drivers/{driver}/documents/{document}/review`) replaces the car's approved papers of that type, except one that expires later than the renewal, which is kept (the car goes by the latest expiry).
 
 ### Admin — Maintenance Records Queue
 ```
 GET  /admin/vehicle-maintenance/records?status=pending&vehicle_id=
 POST /admin/vehicle-maintenance/records/{record_id}/review
 ```
-**Auth:** operations. The queue lists `pending` records oldest first by default (`status` also `approved` / `rejected`). Review body: `action` (`approve` / `reject`), `rejection_reason` (required to reject). Only pending records; approving re-checks the odometer. Audit `maintenance_record_approved` / `maintenance_record_rejected`.
+**Auth:** operations. The queue lists `pending` records oldest first by default (`status` also `approved` / `rejected`). Each record's `vehicle` is `{ "id", "plate_number", "make", "model", "is_fleet" }`. Review body: `action` (`approve` / `reject`), `rejection_reason` (required to reject). Only pending records; approving re-checks the odometer. Audit `maintenance_record_approved` / `maintenance_record_rejected`.
 
 ### Admin — Unlinked Vehicle Papers
 ```
 GET  /admin/vehicle-documents/unlinked
 POST /admin/vehicle-documents/{document_id}/link
 ```
-**Auth:** operations. Papers are now linked to the vehicle. The Phase 2 migration linked each existing paper to its driver's car; papers it could not match (the driver had no car, or more than one) are listed here with the driver. Link body: `vehicle_id`. Audit `vehicle_document_linked`.
+**Auth:** operations. Papers are now linked to the vehicle. The Phase 2 migration linked each existing paper to its driver's car; papers it could not match (the driver had no car, or more than one) are listed here with the driver, the cars that driver holds now (`candidate_vehicles`: `[{ "id", "plate_number", "make", "model", "is_fleet" }]`, empty when none) and `suggested_vehicle_id` (the car when there is exactly one, else `null`). Link body: `vehicle_id` (any car, not only a candidate). Audit `vehicle_document_linked`.
 
 ### Admin — Vehicle Maintenance Settings
 ```
@@ -8263,13 +8266,13 @@ PUT /admin/settings/vehicle-maintenance
 |---|---|---|
 | enabled | true | Off: items are still tracked and shown; no reminders, no block |
 | intervals | `{"service": {"km": 5000, "months": 3}, "tyres_brakes": {"km": null, "months": 6}, "battery_health": {"km": null, "months": 12}}` | Merged item by item; each item needs `km` (500–100,000) or `months` (1–60) |
-| fuel_type_intervals | `{}` | Per fuel type overrides, e.g. `{"electric": {"service": {"km": 10000, "months": 6}}}`; merged per fuel type and item (other stored overrides are kept); each needs `km` or `months` |
+| fuel_type_intervals | `{}` | Per fuel type overrides, e.g. `{"electric": {"service": {"km": 10000, "months": 6}}}`; merged per fuel type and item (other stored overrides are kept). To put an item back on the main interval send it as `null` (or with neither `km` nor `months`): `{"electric": {"service": null}}`; `{"electric": null}` removes all of that fuel type's overrides |
 | due_soon_days | 14 | 0–90 |
 | due_soon_km | 500 | 0–5,000 |
 | legal_grace_days | 7 | 0–60 |
 | block_on_expired_papers | true | Off: expired papers only warn |
 
-Changes apply on each car's next check (daily run, opening the car, going online). Audit: `vehicle_maintenance_settings.updated`.
+`intervals` and `fuel_type_intervals` are always JSON objects keyed by item and fuel type, `{}` when empty, never lists; send them back the same way. A fuel type with no overrides left is not listed. Changes apply on each car's next check (daily run, opening the car, going online). Audit: `vehicle_maintenance_settings.updated`.
 
 ---
 
@@ -10674,7 +10677,7 @@ Once per dispute, within `appeal_window_days` (7) of the decision. The case reop
 | `appealed` | bool   | Only appeals (`true`) or none (`false`) |
 | `pending_refund` | bool | Only cases with a refund waiting for approval |
 | `category`, `ride_id`, `city_id` | | As before |
-| `search`   | string | Description, reference number, or the reporter's name or email |
+| `search`   | string | Max 100. The case reference, the trip reference (`TRP-…`), the description, or the reporter's, passenger's or driver's name (full name too), email or phone (local `0803…` format too). `%` and `_` match only themselves. A case or trip reference typed in full comes first |
 | `from`, `to` | date | Created on or after / on or before (YYYY-MM-DD) |
 | `sort`     | string | `newest` (default) or `due` (open cases first, soonest target first) |
 | `per_page` | int    | Default 15, max 100 |
@@ -10737,7 +10740,44 @@ The list never includes evidence files (`evidence_count` only). `summary` counts
 
 `GET /api/v1/admin/disputes/{dispute}`
 
-The list fields plus the ride (passenger, driver and vehicle, class, city, payment), `notes`, `linked_dispute`, `pending_refund_request`, `refund_requests` (history), `resolved_by`, `appeal` (`appealed_at`, `reason`, `original_decision`, `excluded_reviewer_ids`) and, where the viewer may see them, `evidence`, `evidence_photos` and `evidence_audio`.
+The list fields plus the ride (passenger, driver and vehicle, class, city, payment), `notes`, `linked_dispute`, `pending_refund_request`, `refund_requests` (history), `resolved_by`, `history`, `escalation.escalated_by`, `appeal` (`appealed_at`, `reason`, `original_decision`, `original_decided_by`, `original_refund_approved_by`, `excluded_reviewer_ids`) and, where the viewer may see them, `evidence`, `evidence_photos` and `evidence_audio`.
+
+`escalation.escalated_by`, `appeal.original_decided_by` and `appeal.original_refund_approved_by` are `{ "id", "first_name", "last_name", "admin_role" }` or `null` (the system escalated, no refund was approved, or the admin was deleted since). They are only on this page, not in the list.
+
+`history` is the case's audit trail, oldest first (the newest 100 steps):
+
+```json
+"history": [
+  { "id": null, "event": "dispute_filed", "description": "Submitted the case", "reason": null,
+    "actor": { "id": "...", "name": "Maya Okafor", "role": "passenger" }, "by_system": false,
+    "assignee": null, "routing": null, "amount": null, "created_at": "2026-10-18T10:15:00+00:00" },
+  { "id": "...", "event": "dispute_assigned", "description": "Took the case", "reason": null,
+    "actor": { "id": "...", "name": "Tessy Ade", "role": "support" }, "by_system": false,
+    "assignee": { "id": "...", "name": "Tessy Ade" }, "routing": null, "amount": null, "created_at": "2026-10-18T10:25:00+00:00" },
+  { "id": "...", "event": "dispute_escalated", "description": "Escalated the case to Tier 2 — Support lead", "reason": "Refund above my limit.",
+    "actor": { "id": "...", "name": "Tessy Ade", "role": "support" }, "by_system": false, "assignee": null,
+    "routing": { "queue": "support", "escalation_tier": 2, "label": "Tier 2 — Support lead" }, "amount": null, "created_at": "2026-10-18T10:40:00+00:00" }
+]
+```
+
+| `event` | `description` |
+|---------|---------------|
+| `dispute_filed` | Submitted the case (the reporter) |
+| `dispute_assigned` | Took the case / Assigned the case to {name} (`assignee` set) |
+| `dispute_unassigned` | Returned the case to the queue |
+| `dispute_returned_to_queue` | Case returned to the queue (the admin was deactivated or changed role; `reason` says which) |
+| `dispute_status_changed` | Marked the case under review |
+| `dispute_escalated` | Escalated the case to {tier} / Sent the case to the Safety team (`reason`) |
+| `dispute_auto_escalated` | Escalated automatically to {tier} (`by_system: true`) |
+| `dispute_deescalated` | Sent the case back to {tier} (`reason` is the note) |
+| `dispute_linked_synced` | Moved with the other side's case to {tier} |
+| `dispute_target_missed` | Missed the first response / resolution target (`by_system: true`) |
+| `dispute_evidence_added` | Added N evidence files |
+| `dispute_refund_requested` / `_approved` / `_rejected` / `_withdrawn` | Refund approval steps (`amount` where there is one, `reason` on a rejection) |
+| `dispute_resolved` | Resolved the case / Dismissed the case, with a refund of ₦… (`reason` is the decision notes) |
+| `dispute_appealed` | Appealed the decision to {tier} (`reason`) |
+
+`actor` is `null` with `by_system: true` for the system, and with `by_system: false` for an admin deleted since. `routing` is where the case went (escalations, returns, appeals, moves with the linked case). Evidence views are access logs, not steps, and are left out.
 
 **Errors:** `403` — a safety case viewed by a support role.
 
@@ -10895,7 +10935,7 @@ By an approver → `rejected`; by the requester → `cancelled`. The case stays 
 
 `GET /api/v1/admin/settings/disputes` · `PUT /api/v1/admin/settings/disputes`
 
-**Auth:** super admin only (the limits bind the other dispute roles). Every change is audit-logged (`dispute_settings.updated`). New targets apply to cases that enter a tier afterwards.
+**Auth:** `GET` — support, support lead, safety operator, finance and super admin (read only for all but super admins). `PUT` — super admin only (the limits bind the other dispute roles). Every change is audit-logged (`dispute_settings.updated`). New targets apply to cases that enter a tier afterwards.
 
 | Setting | Default | Rules |
 |---------|---------|-------|
@@ -10912,7 +10952,7 @@ By an approver → `rejected`; by the requester → `cancelled`. The case stays 
 | `appeal_window_days` | 7 | 1–90 |
 | `max_evidence_files` | 10 | 1–30 per case |
 
-**Response: `200 OK`** — `{ "settings": { ... }, "tiers": { "1": "support", "2": "support_lead", "3": "super_admin" } }` (PUT: `{ "message": "Dispute settings updated.", "settings": { ... } }`).
+**Response: `200 OK`** — `{ "settings": { ... }, "tiers": { "1": "support", "2": "support_lead", "3": "super_admin" }, "can_edit": false }` (PUT: `{ "message": "Dispute settings updated.", "settings": { ... } }`). `can_edit` is `true` only for super admins; show the form read-only otherwise.
 
 ---
 
@@ -16538,7 +16578,8 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | Endpoint Group | Operations | Support | Support lead | Finance | Safety |
 |----------------|:----------:|:-------:|:------------:|:-------:|:------:|
 | `/admin/drivers` | Yes | — | — | — | Yes |
-| `/admin/cities` (incl. readiness, launch status) | Yes | — | — | — | — |
+| `GET /admin/cities` (the list, for pickers and filters) | Yes | Yes | Yes | Yes | Yes |
+| `/admin/cities` (the rest, incl. readiness, launch status) | Yes | — | — | — | — |
 | `/admin/settings/cities` | Yes | — | — | — | — |
 | `/admin/vehicle-classes` | Yes | — | — | — | — |
 | `/admin/pricing` | Yes | — | — | Yes | — |
@@ -16555,7 +16596,8 @@ Super Admins always bypass role checks and have full access. Dispute tiers decid
 | `/admin/disputes` (support queue) | — | Yes | Yes | — | Yes (view) |
 | `/admin/disputes` (Safety queue) | — | — | — | — | Yes |
 | `/admin/dispute-refund-requests` | — | Yes | Yes | Yes | Yes |
-| `/admin/settings/disputes` | — | — | — | — | — |
+| `GET /admin/settings/disputes` (read only) | — | Yes | Yes | Yes | Yes |
+| `PUT /admin/settings/disputes` | — | — | — | — | — |
 | `/admin/wallets` (view) | Yes | Yes | Yes | Yes | — |
 | `/admin/wallets` (freeze) | — | — | — | Yes | — |
 | `/admin/driver-ledgers` | — | Yes | Yes | Yes | — |

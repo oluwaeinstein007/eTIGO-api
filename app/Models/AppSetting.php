@@ -232,13 +232,6 @@ class AppSetting extends Model
     }
 
     /**
-     * Vehicle maintenance settings (Phase 2, OQ-19): the admin's runtime
-     * overrides (PUT /admin/settings/vehicle-maintenance) over
-     * config/vehicle_maintenance.php. The two interval maps are stored as JSON.
-     *
-     * @return array{enabled: bool, intervals: array<string, array{km: ?int, months: ?int}>, fuel_type_intervals: array<string, array<string, array{km: ?int, months: ?int}>>, due_soon_days: int, due_soon_km: int, legal_grace_days: int, block_on_expired_papers: bool}
-     */
-    /**
      * EV charging settings: the admin's runtime overrides
      * (PUT /admin/settings/ev-charging) over config/ev_charging.php.
      *
@@ -262,6 +255,13 @@ class AppSetting extends Model
         ];
     }
 
+    /**
+     * Vehicle maintenance settings (Phase 2, OQ-19): the admin's runtime
+     * overrides (PUT /admin/settings/vehicle-maintenance) over
+     * config/vehicle_maintenance.php. The two interval maps are stored as JSON.
+     *
+     * @return array{enabled: bool, intervals: array<string, array{km: ?int, months: ?int}>, fuel_type_intervals: array<string, array<string, array{km: ?int, months: ?int}>>, due_soon_days: int, due_soon_km: int, legal_grace_days: int, block_on_expired_papers: bool}
+     */
     public static function vehicleMaintenance(): array
     {
         $settings = static::where('group', 'vehicle_maintenance')->pluck('value', 'key');

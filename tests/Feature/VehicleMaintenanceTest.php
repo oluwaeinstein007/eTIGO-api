@@ -529,9 +529,9 @@ it('lets operations change the intervals, per fuel type too', function () {
     ])->assertStatus(422);
 });
 
-it('merges fuel type overrides and refuses empty ones', function () {
+it('merges fuel type overrides, and removes one sent as null or empty', function () {
     ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
-        'fuel_type_intervals' => ['electric' => ['service' => ['km' => 10000, 'months' => 6]]],
+        'fuel_type_intervals' => ['electric' => ['service' => ['km' => 10000, 'months' => 6], 'tyres_brakes' => ['months' => 9]]],
     ])->assertOk();
     ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
         'fuel_type_intervals' => ['cng' => ['service' => ['km' => 4000]]],
@@ -539,9 +539,116 @@ it('merges fuel type overrides and refuses empty ones', function () {
         ->assertJsonPath('settings.fuel_type_intervals.electric.service.km', 10000)
         ->assertJsonPath('settings.fuel_type_intervals.cng.service.km', 4000);
 
+    // One item back on the main interval.
     ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
-        'fuel_type_intervals' => ['electric' => ['service' => ['km' => null, 'months' => null]]],
-    ])->assertStatus(422)->assertJsonValidationErrors('fuel_type_intervals.electric.service');
+        'fuel_type_intervals' => ['electric' => ['service' => null]],
+    ])->assertOk()
+        ->assertJsonMissingPath('settings.fuel_type_intervals.electric.service')
+        ->assertJsonPath('settings.fuel_type_intervals.electric.tyres_brakes.months', 9);
+
+    $ev = Vehicle::factory()->electric()->create();
+    expect(app(VehicleMaintenanceService::class)->interval($ev, MaintenanceItemType::Service, AppSetting::vehicleMaintenance()))
+        ->toBe(AppSetting::vehicleMaintenance()['intervals']['service']);
+
+    // An empty interval removes it too, and the fuel type drops out with its last one.
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['electric' => ['tyres_brakes' => ['km' => null, 'months' => null]]],
+    ])->assertOk()
+        ->assertJsonMissingPath('settings.fuel_type_intervals.electric');
+
+    // A whole fuel type at once.
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['cng' => null],
+    ])->assertOk();
+
+    expect(AppSetting::vehicleMaintenance()['fuel_type_intervals'])->toBe([]);
+
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'fuel_type_intervals' => ['diesel_x' => null],
+    ])->assertStatus(422);
+});
+
+it('sends the interval maps as objects, even with no fuel type overrides', function () {
+    $response = ($this->as)($this->adminToken)->getJson('/api/v1/admin/settings/vehicle-maintenance')->assertOk();
+
+    expect($response->getContent())->toContain('"fuel_type_intervals":{}');
+
+    // Saving what was read back works unchanged.
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/vehicle-maintenance', [
+        'intervals' => $response->json('settings.intervals'),
+        'fuel_type_intervals' => $response->json('settings.fuel_type_intervals'),
+    ])->assertOk();
+});
+
+it('names the car by make and model in the review queue', function () {
+    $this->vehicle->update(['make' => 'Toyota', 'model' => 'Camry']);
+
+    ($this->as)($this->token)->post('/api/v1/driver/vehicle/maintenance-records', [
+        'item_type' => 'service',
+        'performed_at' => '2026-10-10',
+        'odometer_km' => 42000,
+        'proof' => UploadedFile::fake()->create('receipt.pdf', 100, 'application/pdf'),
+    ], ['Accept' => 'application/json'])->assertCreated();
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/vehicle-maintenance/records')
+        ->assertOk()
+        ->assertJsonPath('records.0.vehicle.make', 'Toyota')
+        ->assertJsonPath('records.0.vehicle.model', 'Camry')
+        ->assertJsonPath('records.0.vehicle.plate_number', $this->vehicle->plate_number);
+});
+
+it('suggests the car for a paper not linked to one', function () {
+    $orphan = fn (Driver $driver) => DriverDocument::create([
+        'driver_id' => $driver->id,
+        'type' => DocumentType::VehicleRegistration,
+        'file_path' => 'driver-documents/old.pdf',
+        'original_filename' => 'old.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1000,
+        'status' => DocumentStatus::Approved,
+    ]);
+
+    $orphan($this->driver);
+    $twoCars = Driver::factory()->create(['user_id' => User::factory()->create(['type' => UserType::Driver])->id]);
+    Vehicle::factory()->count(2)->create(['driver_id' => $twoCars->id]);
+    $orphan($twoCars);
+    $noCar = Driver::factory()->create(['user_id' => User::factory()->create(['type' => UserType::Driver])->id]);
+    $orphan($noCar);
+
+    $documents = collect(($this->as)($this->adminToken)->getJson('/api/v1/admin/vehicle-documents/unlinked')
+        ->assertOk()
+        ->json('documents'))->keyBy('driver.id');
+
+    expect($documents[$this->driver->id]['suggested_vehicle_id'])->toBe($this->vehicle->id)
+        ->and($documents[$this->driver->id]['candidate_vehicles'][0]['plate_number'])->toBe($this->vehicle->plate_number)
+        ->and($documents[$twoCars->id]['candidate_vehicles'])->toHaveCount(2)
+        ->and($documents[$twoCars->id]['suggested_vehicle_id'])->toBeNull()
+        ->and($documents[$noCar->id]['candidate_vehicles'])->toBe([]);
+});
+
+it('keeps a driver\'s renewal waiting for review when operations upload the paper', function () {
+    $old = ($this->paper)($this->vehicle, DocumentType::InsuranceCertificate, '2026-11-30');
+    $renewal = ($this->paper)($this->vehicle, DocumentType::InsuranceCertificate, '2027-06-30', DocumentStatus::Pending);
+
+    ($this->as)($this->adminToken)->post("/api/v1/admin/vehicles/{$this->vehicle->id}/documents", [
+        'type' => 'insurance_certificate',
+        'document' => UploadedFile::fake()->create('insurance.pdf', 200, 'application/pdf'),
+        'expires_at' => '2027-12-31',
+    ], ['Accept' => 'application/json'])
+        ->assertCreated()
+        ->assertJsonCount(1, 'pending_documents')
+        ->assertJsonPath('pending_documents.0.id', $renewal->id);
+
+    expect(DriverDocument::find($old->id))->toBeNull()
+        ->and($renewal->fresh()->status)->toBe(DocumentStatus::Pending);
+
+    // Approving the driver's shorter renewal later keeps the uploaded paper.
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->driver->id}/documents/{$renewal->id}/review", [
+        'action' => 'approve',
+    ])->assertOk();
+
+    expect(DriverDocument::where('vehicle_id', $this->vehicle->id)->where('status', DocumentStatus::Approved)->count())->toBe(2)
+        ->and(($this->item)($this->vehicle, MaintenanceItemType::Insurance)->due_at->toDateString())->toBe('2027-12-31');
 });
 
 it('keeps the odometer and papers state from passengers', function () {

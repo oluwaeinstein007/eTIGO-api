@@ -1218,7 +1218,7 @@ it('takes a closing city\'s online drivers offline and tells its drivers', funct
         ->assertJsonFragment(['E-tiGo is not running in Lagos for now. Join the waitlist and we will tell you when we are back.']);
 });
 
-it('lets safety operators read the city and vehicle class lists for the driver dialogs, but not change them', function () {
+it('lets safety, finance and support read the city list (safety the vehicle classes too), but not change them', function () {
     $safety = User::factory()->admin(AdminRole::SafetyOperator)->create();
     $token = $safety->createToken('auth', ['admin'])->plainTextToken;
 
@@ -1231,9 +1231,14 @@ it('lets safety operators read the city and vehicle class lists for the driver d
     ($this->as)($token)->postJson('/api/v1/admin/vehicle-classes', ['name' => 'Van'])->assertForbidden();
     ($this->as)($token)->putJson("/api/v1/admin/vehicle-classes/{$this->vehicleClass->id}", ['name' => 'Van'])->assertForbidden();
 
-    // Support still cannot read them.
-    $support = User::factory()->admin(AdminRole::Support)->create();
-    ($this->as)($support->createToken('auth', ['admin'])->plainTextToken)->getJson('/api/v1/admin/cities')->assertForbidden();
+    // Finance and support read the city list for their pickers and filters, and change nothing.
+    foreach ([AdminRole::Finance, AdminRole::Support, AdminRole::SupportLead] as $role) {
+        $other = User::factory()->admin($role)->create()->createToken('auth', ['admin'])->plainTextToken;
+        ($this->as)($other)->getJson('/api/v1/admin/cities?search='.urlencode('Lag%'))->assertOk()->assertJsonCount(0, 'cities');
+        ($this->as)($other)->getJson('/api/v1/admin/cities?search=lag')->assertOk()->assertJsonPath('cities.0.id', $this->lagos->id);
+        ($this->as)($other)->getJson("/api/v1/admin/cities/{$this->lagos->id}")->assertForbidden();
+        ($this->as)($other)->postJson('/api/v1/admin/cities', ['name' => 'Ibadan', 'state' => 'Oyo'])->assertForbidden();
+    }
 
     // And the two driver actions work end to end.
     $abuja = City::factory()->create(['name' => 'Abuja']);

@@ -517,8 +517,10 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{driver}/complete-onboarding', [DriverManagementController::class, 'completeOnboarding']);
     });
 
-    // Safety operators read the list to move a driver to another city.
-    Route::get('/cities', [AdminCityController::class, 'index'])->middleware('admin.role:operations,safety_operator');
+    // Every role reads the list for its city pickers and filters: safety to
+    // move a driver, finance for promos, pricing and reports, support for
+    // disputes. Only Operations changes cities.
+    Route::get('/cities', [AdminCityController::class, 'index'])->middleware('admin.role:operations,safety_operator,finance,support,support_lead');
 
     Route::middleware('admin.role:operations')->prefix('cities')->group(function () {
         Route::post('/', [AdminCityController::class, 'store']);
@@ -737,10 +739,10 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/{refundRequest}/reject', [AdminDisputeRefundRequestController::class, 'reject']);
     });
 
-    Route::middleware('admin.role:super_admin')->group(function () {
-        Route::get('/settings/disputes', [AdminDisputeSettingsController::class, 'show']);
-        Route::put('/settings/disputes', [AdminDisputeSettingsController::class, 'update']);
-    });
+    // The teams that work disputes (and Finance, which approves card refunds)
+    // read the targets and limits they work to; only super admins change them.
+    Route::get('/settings/disputes', [AdminDisputeSettingsController::class, 'show'])->middleware('admin.role:support,support_lead,safety_operator,finance');
+    Route::put('/settings/disputes', [AdminDisputeSettingsController::class, 'update'])->middleware('admin.role:super_admin');
 
     Route::middleware('admin.role:support,support_lead,operations')->prefix('lost-items')->group(function () {
         Route::get('/', [AdminLostItemController::class, 'index']);

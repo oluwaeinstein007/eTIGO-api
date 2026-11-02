@@ -189,7 +189,9 @@ class AdminVehicleMaintenanceController extends Controller
 
     /**
      * Operations upload a paper for a car (typically a fleet car); it is
-     * approved at once and replaces the car's earlier paper of that type.
+     * approved at once and replaces the car's approved paper of that type.
+     * A renewal the driver sent that is still waiting for review is kept for
+     * Operations to approve or reject, and listed in the response.
      */
     public function storeDocument(Request $request, Vehicle $vehicle): JsonResponse
     {
@@ -212,7 +214,7 @@ class AdminVehicleMaintenanceController extends Controller
             [$document, $replacedPaths] = DB::transaction(function () use ($vehicle, $validated, $file, $path, $admin) {
                 $replaced = DriverDocument::where('vehicle_id', $vehicle->id)
                     ->where('type', $validated['type'])
-                    ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Approved])
+                    ->where('status', DocumentStatus::Approved)
                     ->get();
 
                 $replaced->each->delete();
@@ -244,16 +246,26 @@ class AdminVehicleMaintenanceController extends Controller
 
         Storage::disk(config('filesystems.uploads'))->delete($replacedPaths);
 
+        $pending = DriverDocument::where('vehicle_id', $vehicle->id)
+            ->where('type', $validated['type'])
+            ->where('status', DocumentStatus::Pending)
+            ->oldest()
+            ->get();
+
         return response()->json([
-            'message' => 'Document uploaded and approved.',
+            'message' => $pending->isEmpty()
+                ? 'Document uploaded and approved.'
+                : 'Document uploaded and approved. A renewal the driver sent is still waiting for review.',
             'document' => new DriverDocumentResource($document),
+            'pending_documents' => DriverDocumentResource::collection($pending),
             'items' => VehicleMaintenanceItemResource::collection($this->maintenance->refresh($vehicle->fresh())),
         ], 201);
     }
 
     /**
      * Vehicle papers the migration could not match to one car (the driver
-     * had none, or more than one).
+     * had none, or more than one). Each lists the cars its driver holds now
+     * as candidates, and suggests the car when there is only one.
      */
     public function unlinkedDocuments(): JsonResponse
     {
@@ -265,14 +277,31 @@ class AdminVehicleMaintenanceController extends Controller
             ->oldest()
             ->paginate(30);
 
+        $vehicles = Vehicle::whereIn('driver_id', $documents->getCollection()->pluck('driver_id')->filter()->unique())
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('driver_id');
+
         return response()->json([
-            'documents' => $documents->getCollection()->map(fn (DriverDocument $document) => [
-                ...(new DriverDocumentResource($document))->resolve(),
-                'driver' => $document->driver ? [
-                    'id' => $document->driver->id,
-                    'name' => trim(($document->driver->user?->first_name ?? '').' '.($document->driver->user?->last_name ?? '')),
-                ] : null,
-            ])->values(),
+            'documents' => $documents->getCollection()->map(function (DriverDocument $document) use ($vehicles) {
+                $candidates = $document->driver_id ? $vehicles->get($document->driver_id, collect()) : collect();
+
+                return [
+                    ...(new DriverDocumentResource($document))->resolve(),
+                    'driver' => $document->driver ? [
+                        'id' => $document->driver->id,
+                        'name' => trim(($document->driver->user?->first_name ?? '').' '.($document->driver->user?->last_name ?? '')),
+                    ] : null,
+                    'candidate_vehicles' => $candidates->map(fn (Vehicle $vehicle) => [
+                        'id' => $vehicle->id,
+                        'plate_number' => $vehicle->plate_number,
+                        'make' => $vehicle->make,
+                        'model' => $vehicle->model,
+                        'is_fleet' => (bool) $vehicle->is_fleet,
+                    ])->values(),
+                    'suggested_vehicle_id' => $candidates->count() === 1 ? $candidates->first()->id : null,
+                ];
+            })->values(),
             'meta' => [
                 'current_page' => $documents->currentPage(),
                 'last_page' => $documents->lastPage(),

@@ -750,7 +750,136 @@ describe('admin changes and reporter views', function () {
     });
 });
 
+describe('search', function () {
+    beforeEach(function () {
+        $this->passenger->update(['first_name' => 'Maya', 'last_name' => 'Okafor', 'phone' => '+2348031234567']);
+        $this->case = caseFor($this->ride, $this->passenger, ['description' => 'Charged twice for one trip.']);
+        $otherRide = paidRide(User::factory()->create(['type' => UserType::Passenger]), $this->driverUser);
+        $this->other = caseFor($otherRide, $otherRide->passenger, ['description' => 'Rude on the phone, 100% sure.']);
+    });
+
+    it('finds a case by its trip reference, with the exact one first', function () {
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?search='.$this->ride->reference_number)
+            ->assertOk()
+            ->assertJsonPath('disputes.0.id', $this->case->id);
+    });
+
+    it('finds a case by the reporter\'s full name or local phone, and by the trip\'s passenger', function () {
+        foreach (['Maya Okafor', '0803 123 4567'] as $term) {
+            $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?search='.urlencode($term))
+                ->assertOk()
+                ->assertJsonCount(1, 'disputes')
+                ->assertJsonPath('disputes.0.id', $this->case->id);
+        }
+
+        // The driver's side of the same trip turns up under the passenger's name.
+        $driverCase = caseFor($this->ride, $this->driverUser);
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?search=Okafor')
+            ->assertOk()
+            ->assertJsonCount(2, 'disputes')
+            ->assertJsonFragment(['id' => $driverCase->id]);
+    });
+
+    it('treats % as a plain character', function () {
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?search='.urlencode('100%'))
+            ->assertOk()
+            ->assertJsonCount(1, 'disputes')
+            ->assertJsonPath('disputes.0.id', $this->other->id);
+
+        $this->actingAs($this->agent)->getJson('/api/v1/admin/disputes?search='.urlencode('Charged%twice'))
+            ->assertOk()
+            ->assertJsonCount(0, 'disputes');
+    });
+});
+
+describe('case history', function () {
+    it('lists who submitted, took, escalated, decided and appealed the case, in order', function () {
+        $this->passenger->update(['first_name' => 'Maya', 'last_name' => 'Okafor']);
+        $this->agent->update(['first_name' => 'Tessy', 'last_name' => 'Ade']);
+        $this->lead->update(['first_name' => 'Amina', 'last_name' => 'Bello']);
+
+        $dispute = caseFor($this->ride, $this->passenger);
+        $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/assign")->assertOk();
+        $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/escalate", ['reason' => 'Needs a senior look at the fare.'])->assertOk();
+        $this->actingAs($this->lead)->postJson("/api/v1/admin/disputes/{$dispute->id}/assign", ['admin_id' => $this->lead2->id])->assertOk();
+        $this->actingAs($this->lead2)->postJson("/api/v1/admin/disputes/{$dispute->id}/resolve", [
+            'status' => 'dismissed',
+            'resolution_notes' => 'Trip data shows the normal route.',
+        ])->assertOk();
+        $this->actingAs($this->passenger)->postJson("/api/v1/disputes/{$dispute->id}/appeal", ['reason' => 'The route was not normal at all.'])->assertOk();
+
+        $response = $this->actingAs($this->superAdmin)->getJson("/api/v1/admin/disputes/{$dispute->id}")->assertOk();
+
+        expect(collect($response->json('dispute.history'))->pluck('event')->all())->toBe([
+            'dispute_filed',
+            'dispute_assigned',
+            'dispute_escalated',
+            'dispute_assigned',
+            'dispute_resolved',
+            'dispute_appealed',
+        ]);
+
+        $response->assertJsonPath('dispute.history.0.description', 'Submitted the case')
+            ->assertJsonPath('dispute.history.0.actor.name', 'Maya Okafor')
+            ->assertJsonPath('dispute.history.1.description', 'Took the case')
+            ->assertJsonPath('dispute.history.1.actor.name', 'Tessy Ade')
+            ->assertJsonPath('dispute.history.2.description', 'Escalated the case to Tier 2 — Support lead')
+            ->assertJsonPath('dispute.history.2.reason', 'Needs a senior look at the fare.')
+            ->assertJsonPath('dispute.history.3.actor.name', 'Amina Bello')
+            ->assertJsonPath('dispute.history.3.assignee.id', $this->lead2->id)
+            ->assertJsonPath('dispute.history.4.description', 'Dismissed the case')
+            ->assertJsonPath('dispute.history.4.actor.id', $this->lead2->id)
+            ->assertJsonPath('dispute.history.5.routing.escalation_tier', 3)
+            ->assertJsonPath('dispute.appeal.original_decided_by.id', $this->lead2->id)
+            ->assertJsonPath('dispute.appeal.original_refund_approved_by', null)
+            ->assertJsonPath('dispute.escalation.source', 'appeal');
+
+        // Not in the list.
+        $this->actingAs($this->superAdmin)->getJson('/api/v1/admin/disputes')
+            ->assertOk()
+            ->assertJsonMissingPath('disputes.0.history');
+    });
+
+    it('names the admin who escalated and leaves evidence views out', function () {
+        $dispute = caseFor($this->ride, $this->passenger);
+        $this->actingAs($this->agent)->postJson("/api/v1/admin/disputes/{$dispute->id}/escalate", ['reason' => 'Needs a senior look at the fare.'])->assertOk();
+        AuditLog::record($dispute, 'dispute_evidence_viewed', $this->lead, null, ['evidence_ids' => []]);
+
+        $this->actingAs($this->lead)->getJson("/api/v1/admin/disputes/{$dispute->id}")
+            ->assertOk()
+            ->assertJsonPath('dispute.escalation.escalated_by.id', $this->agent->id)
+            ->assertJsonCount(2, 'dispute.history')
+            ->assertJsonPath('dispute.history.1.by_system', false);
+
+        // A missed target is the system's; a deleted admin's step is not.
+        app(DisputeService::class)->escalate($dispute->fresh(), null, 'Tier 2 missed its first response target.', false, Dispute::SOURCE_SYSTEM);
+        $this->agent->delete();
+
+        $this->actingAs($this->superAdmin)->getJson("/api/v1/admin/disputes/{$dispute->id}")
+            ->assertOk()
+            ->assertJsonPath('dispute.history.1.actor', null)
+            ->assertJsonPath('dispute.history.1.by_system', false)
+            ->assertJsonPath('dispute.history.2.event', 'dispute_auto_escalated')
+            ->assertJsonPath('dispute.history.2.by_system', true)
+            ->assertJsonPath('dispute.history.2.description', 'Escalated automatically to Tier 3 — Management');
+    });
+});
+
 describe('settings', function () {
+    it('lets the dispute teams and Finance read the settings, but not change them', function () {
+        foreach ([$this->agent, $this->lead, $this->safety, $this->finance] as $admin) {
+            $this->actingAs($admin)->getJson('/api/v1/admin/settings/disputes')
+                ->assertOk()
+                ->assertJsonPath('can_edit', false)
+                ->assertJsonStructure(['settings' => ['tier_1_refund_limit', 'appeal_window_days'], 'tiers']);
+
+            $this->actingAs($admin)->putJson('/api/v1/admin/settings/disputes', ['appeal_window_days' => 30])->assertForbidden();
+        }
+
+        $this->actingAs($this->superAdmin)->getJson('/api/v1/admin/settings/disputes')->assertOk()->assertJsonPath('can_edit', true);
+        $this->actingAs(disputeAdmin(AdminRole::Operations))->getJson('/api/v1/admin/settings/disputes')->assertForbidden();
+    });
+
     it('lets only super admins change dispute settings', function () {
         $this->actingAs($this->lead)->putJson('/api/v1/admin/settings/disputes', ['tier_1_refund_limit' => 100000])->assertForbidden();
 

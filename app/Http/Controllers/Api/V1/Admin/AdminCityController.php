@@ -19,6 +19,7 @@ use App\Services\CityLaunchService;
 use App\Services\CityReadinessService;
 use App\Services\PricingCoverageService;
 use App\Support\NigerianStates;
+use App\Support\SearchTerm;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +52,7 @@ class AdminCityController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where('name', 'ilike', '%'.$request->input('search').'%');
+            $query->where('name', 'ilike', SearchTerm::like((string) $request->input('search')));
         }
 
         if ($request->filled('state')) {
