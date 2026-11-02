@@ -52,7 +52,7 @@ class AdminDriverShiftController extends Controller
             'from' => ['sometimes', 'nullable', 'date'],
             'to' => ['sometimes', 'nullable', 'date'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'per_page' => ['sometimes', 'integer'],
+            'per_page' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         [$from, $to] = $this->range($validated['from'] ?? null, $validated['to'] ?? null);
@@ -108,7 +108,7 @@ class AdminDriverShiftController extends Controller
             'ends_at' => ['required_with:starts_at', 'nullable', 'date', 'after:starts_at'],
             // The shift being edited, so its own driver is not a clash.
             'except_shift_id' => ['sometimes', 'nullable', 'uuid'],
-            'per_page' => ['sometimes', 'integer'],
+            'per_page' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));

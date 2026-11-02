@@ -865,7 +865,10 @@ it('searches shifts by reference, driver name or phone, and plate', function () 
         ->and($found($this->day->reference_number))->toBe([$dayShift->id])
         // Bare LIKE wildcards would match every shift if left unescaped.
         ->and($found('%'))->toBe([])
-        ->and($found('_'))->toBe([]);
+        ->and($found('_'))->toBe([])
+        // A wildcard between plate characters is literal too.
+        ->and($found('LAG%100'))->toBe([])
+        ->and($found('LAG_100'))->toBe([]);
 
     ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?search='.str_repeat('a', 101))
         ->assertStatus(422)
@@ -892,6 +895,17 @@ it('pages shifts 20 at a time by default and up to 100', function () {
     ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?per_page=500')
         ->assertJsonPath('meta.per_page', 100)
         ->assertJsonCount(25, 'shifts');
+
+    // An empty value is the default, not one per page.
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-shifts/eligible-drivers?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/fleet-vehicles?per_page=')
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 20);
 });
 
 it('refuses unknown statuses and counts every status under the other filters', function () {

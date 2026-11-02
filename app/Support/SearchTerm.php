@@ -40,13 +40,16 @@ class SearchTerm
     /**
      * The term's letters and digits only, upper-case, to match a plate typed
      * with or without spaces and dashes ("LAG 100 AA" finds "LAG-100AA").
-     * Null when nothing is left.
+     * Null when the term has anything else (so "LAG%100" stays a literal
+     * search) or no letters or digits.
      */
     public static function plateKey(string $term): ?string
     {
-        $key = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $term));
+        if (preg_match('/^[A-Za-z0-9\s-]*[A-Za-z0-9][A-Za-z0-9\s-]*$/', $term) !== 1) {
+            return null;
+        }
 
-        return $key === '' ? null : $key;
+        return strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $term));
     }
 
     /**

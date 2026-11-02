@@ -24,7 +24,8 @@ return new class extends Migration
 
         DB::statement("
             UPDATE driver_shifts AS t
-            SET reference_number = 'SH-' || LPAD(numbered.n::text, 6, '0')
+            -- Six digits at least; LPAD alone would cut a seventh.
+            SET reference_number = 'SH-' || CASE WHEN numbered.n >= 1000000 THEN numbered.n::text ELSE LPAD(numbered.n::text, 6, '0') END
             FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) AS n FROM driver_shifts) AS numbered
             WHERE t.id = numbered.id
         ");
