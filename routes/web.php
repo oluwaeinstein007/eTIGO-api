@@ -10,6 +10,9 @@ Route::get('/', function () {
 Route::get('/auth/{provider}/callback', SocialCallbackController::class)
     ->where('provider', 'google|apple|facebook');
 
+Route::get('/api/v1/auth/{provider}/callback', SocialCallbackController::class)
+    ->where('provider', 'google|apple|facebook');
+
 // No-app live trip page (third-party riders and shared trips). It reads the
 // public share endpoint, which checks the token and the link expiry.
 Route::get('/track/{ride}/{token}', function (string $ride, string $token) {
