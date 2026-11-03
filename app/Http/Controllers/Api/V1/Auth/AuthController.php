@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Enums\BalanceDueStatus;
 use App\Enums\DriverStatus;
+use App\Enums\EvReservationStatus;
+use App\Enums\RideStatus;
 use App\Enums\SocialProvider;
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
@@ -13,15 +16,22 @@ use App\Http\Requests\Auth\VerifyOtpRequest;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
+use App\Models\EvReservation;
 use App\Models\OtpCode;
+use App\Models\PassengerBalanceDue;
+use App\Models\Ride;
+use App\Models\ScheduledRide;
 use App\Models\SocialAccount;
 use App\Models\SocialAuthCode;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Services\DriverLocationService;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
@@ -331,6 +341,150 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Logged out successfully.',
+        ]);
+    }
+
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->type === UserType::Admin) {
+            return response()->json([
+                'message' => 'Admin accounts cannot be deleted through this endpoint.',
+            ], 403);
+        }
+
+        if ($user->type === UserType::Passenger) {
+            $hasActiveRide = Ride::where('passenger_id', $user->id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($hasActiveRide) {
+                return response()->json([
+                    'message' => 'Cannot delete account while you have an active ride.',
+                ], 422);
+            }
+
+            $hasActiveScheduledRide = ScheduledRide::whereHas('ride', fn ($q) => $q->where('passenger_id', $user->id))
+                ->whereNull('dispatched_at')
+                ->whereNull('cancelled_at')
+                ->exists();
+
+            if ($hasActiveScheduledRide) {
+                return response()->json([
+                    'message' => 'Cannot delete account while you have an active scheduled ride.',
+                ], 422);
+            }
+
+            $hasOutstandingBalance = PassengerBalanceDue::where('passenger_id', $user->id)
+                ->where('status', BalanceDueStatus::Outstanding)
+                ->exists();
+
+            if ($hasOutstandingBalance) {
+                return response()->json([
+                    'message' => 'Cannot delete account while you have an outstanding balance.',
+                ], 422);
+            }
+        } elseif ($user->type === UserType::Driver) {
+            $hasActiveTrip = Ride::where('driver_id', $user->id)
+                ->whereIn('status', RideStatus::activeStatuses())
+                ->exists();
+
+            if ($hasActiveTrip) {
+                return response()->json([
+                    'message' => 'Cannot delete account while you have an active trip.',
+                ], 422);
+            }
+
+            $hasAssignedScheduledRide = ScheduledRide::where('reserved_driver_id', $user->id)
+                ->whereNull('dispatched_at')
+                ->whereNull('cancelled_at')
+                ->exists();
+
+            if ($hasAssignedScheduledRide) {
+                return response()->json([
+                    'message' => 'Cannot delete account while you have an assigned scheduled ride.',
+                ], 422);
+            }
+
+            $hasActiveEvCharging = EvReservation::where('driver_id', $user->id)
+                ->where('status', EvReservationStatus::Active)
+                ->exists();
+
+            if ($hasActiveEvCharging) {
+                return response()->json([
+                    'message' => 'Cannot delete account while an EV charging session is active.',
+                ], 422);
+            }
+
+            EvReservation::where('driver_id', $user->id)
+                ->whereIn('status', [
+                    EvReservationStatus::PendingReview,
+                    EvReservationStatus::Confirmed,
+                    EvReservationStatus::Reserved,
+                    EvReservationStatus::Queued,
+                ])
+                ->update(['status' => EvReservationStatus::Cancelled]);
+        }
+
+        DB::transaction(function () use ($user) {
+            $user->tokens()->delete();
+            $user->deviceTokens()->delete();
+            $user->savedPlaces()->delete();
+            $user->paymentMethods()->delete();
+            $user->socialAccounts()->delete();
+            $user->notificationPreferences()->delete();
+            $user->gamificationProfile()?->delete();
+
+            if ($user->type === UserType::Driver) {
+                $driver = $user->driver;
+                if ($driver) {
+                    $driver->update([
+                        'is_online' => false,
+                        'status' => DriverStatus::Suspended,
+                    ]);
+                    Vehicle::where('driver_id', $driver->id)->update(['driver_id' => null]);
+                    try {
+                        app(DriverLocationService::class)->removeDriver($driver->id, $user->id);
+                    } catch (\Throwable $e) {}
+                }
+            }
+
+            if ($user->profile_photo_path) {
+                try {
+                    Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
+                } catch (\Throwable $e) {}
+            }
+
+            $hasHistory = Ride::where('passenger_id', $user->id)
+                ->orWhere('driver_id', $user->id)
+                ->exists();
+
+            if (! $hasHistory) {
+                try {
+                    $user->delete();
+                    return;
+                } catch (\Throwable $e) {
+                    // Fall back to anonymization
+                }
+            }
+
+            $user->update([
+                'first_name' => 'Deleted',
+                'last_name' => 'User',
+                'phone' => null,
+                'email' => null,
+                'password' => null,
+                'profile_photo_path' => null,
+                'is_active' => false,
+                'suspension_reason' => 'Account deleted by user.',
+            ]);
+
+            AuditLog::record($user, 'account_deleted');
+        });
+
+        return response()->json([
+            'message' => 'Account deleted successfully.',
         ]);
     }
 

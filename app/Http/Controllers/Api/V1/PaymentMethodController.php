@@ -153,4 +153,14 @@ class PaymentMethodController extends Controller
 
         return response()->json(['message' => 'Payment method removed.']);
     }
+
+    public function callback(Request $request): JsonResponse
+    {
+        $reference = $request->query('reference') ?? $request->query('trxref');
+
+        return response()->json([
+            'status' => 'ok',
+            'reference' => is_string($reference) ? $reference : null,
+        ]);
+    }
 }

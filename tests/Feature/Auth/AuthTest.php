@@ -283,3 +283,128 @@ it('expires the code when no channel accepts it', function () {
 
     expect(OtpCode::forPhone('+2341234567890')->active()->exists())->toBeFalse();
 });
+
+it('allows authenticated passenger to delete account', function () {
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Account deleted successfully.']);
+
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+    expect(User::find($user->id))->toBeNull();
+});
+
+it('anonymizes and deactivates passenger account if historical rides exist', function () {
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    \App\Models\Ride::factory()->create([
+        'passenger_id' => $user->id,
+        'status' => \App\Enums\RideStatus::Completed->value,
+    ]);
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Account deleted successfully.']);
+
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+    $fresh = User::find($user->id);
+    expect($fresh)->not->toBeNull()
+        ->and($fresh->is_active)->toBeFalse()
+        ->and($fresh->first_name)->toBe('Deleted')
+        ->and($fresh->phone)->toBeNull()
+        ->and($fresh->email)->toBeNull();
+});
+
+it('prevents passenger from deleting account while active ride exists', function () {
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    \App\Models\Ride::factory()->create([
+        'passenger_id' => $user->id,
+        'status' => \App\Enums\RideStatus::InProgress->value,
+    ]);
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Cannot delete account while you have an active ride.']);
+});
+
+it('prevents passenger from deleting account with outstanding balance', function () {
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    \App\Models\PassengerBalanceDue::create([
+        'passenger_id' => $user->id,
+        'amount' => 1500,
+        'status' => \App\Enums\BalanceDueStatus::Outstanding,
+        'reason' => \App\Enums\BalanceDueReason::LateCancellationFee,
+    ]);
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Cannot delete account while you have an outstanding balance.']);
+});
+
+it('allows authenticated driver to delete account', function () {
+    $driverUser = User::factory()->driver()->create();
+    $driver = \App\Models\Driver::factory()->create([
+        'user_id' => $driverUser->id,
+        'is_online' => true,
+    ]);
+    $vehicle = \App\Models\Vehicle::factory()->create([
+        'driver_id' => $driver->id,
+    ]);
+    $token = $driverUser->createToken('test', ['driver'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Account deleted successfully.']);
+
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+    expect(User::find($driverUser->id))->toBeNull();
+    expect($vehicle->fresh()->driver_id)->toBeNull();
+});
+
+it('prevents driver from deleting account while active trip exists', function () {
+    $driverUser = User::factory()->driver()->create();
+    \App\Models\Driver::factory()->create([
+        'user_id' => $driverUser->id,
+        'is_online' => true,
+    ]);
+    $token = $driverUser->createToken('test', ['driver'])->plainTextToken;
+
+    \App\Models\Ride::factory()->create([
+        'driver_id' => $driverUser->id,
+        'status' => \App\Enums\RideStatus::InProgress->value,
+    ]);
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => 'Cannot delete account while you have an active trip.']);
+});
+
+it('rejects admin deleting account via auth account endpoint', function () {
+    $admin = User::factory()->admin()->create();
+    $token = $admin->createToken('test', ['admin'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account');
+
+    $response->assertStatus(403)
+        ->assertJson(['message' => 'Admin accounts cannot be deleted through this endpoint.']);
+});

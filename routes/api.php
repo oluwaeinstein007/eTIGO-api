@@ -161,6 +161,7 @@ Route::post('/webhooks/paystack', [PaystackWebhookController::class, 'handle']);
 Route::post('/webhooks/paystack/transfer-approval', [PaystackTransferApprovalController::class, 'handle']);
 Route::post('/webhooks/flutterwave', [FlutterwaveWebhookController::class, 'handle']);
 Route::match(['get', 'post'], '/webhooks/qoreid', [KycWebhookController::class, 'handle']);
+Route::get('/payments/callback', [PaymentMethodController::class, 'callback']);
 
 /*
 |--------------------------------------------------------------------------
@@ -188,6 +189,7 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::delete('/account', [AuthController::class, 'deleteAccount']);
     });
 });
 
