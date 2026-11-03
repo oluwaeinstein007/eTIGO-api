@@ -8,8 +8,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A driver as the admin EV station screens show them: the driver charging at
- * a stall (`stalls[].current_driver`) and each driver in the queue
- * (`queue[].driver`) share this shape. Load `driver.vehicle` first.
+ * a stall (`stalls[].current_driver`), the driver a stall is reserved for
+ * (`stalls[].reserved_driver`) and each driver in the queue (`queue[].driver`)
+ * share this shape. Load `driver.vehicle` first.
  *
  * @mixin User
  */

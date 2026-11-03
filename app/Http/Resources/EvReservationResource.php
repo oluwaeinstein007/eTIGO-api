@@ -3,10 +3,8 @@
 namespace App\Http\Resources;
 
 use App\Enums\EvReservationStatus;
-use App\Models\AppSetting;
 use App\Models\EvReservation;
 use App\Services\EvReservationFeeService;
-use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -73,7 +71,7 @@ class EvReservationResource extends JsonResource
                 : EvReservationFeeService::freeCancellationUntil($this->resource)?->toISOString(),
             // When the stall stops being held if the driver has not started
             // charging: the timestamp behind check_in_time.
-            'check_in_deadline' => $this->checkInDeadline()?->toISOString(),
+            'check_in_deadline' => $this->resource->checkInDeadline()?->toISOString(),
             'estimated_charge_minutes' => $this->estimated_charge_minutes,
             // Operations cancelled or ended it from the dashboard.
             'ended_by_operations' => $this->ended_by_admin_id !== null || $this->ended_at !== null,
@@ -102,16 +100,5 @@ class EvReservationResource extends JsonResource
             'updated_at' => $this->updated_at?->toISOString() ?? $this->created_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
         ];
-    }
-
-    private function checkInDeadline(): ?CarbonInterface
-    {
-        $minutes = AppSetting::forRequest('ev_charging', fn () => AppSetting::evCharging())['reservation_expiry_minutes'];
-
-        return match ($this->status) {
-            EvReservationStatus::Confirmed => $this->confirmed_slot_at?->copy()->addMinutes($minutes),
-            EvReservationStatus::Reserved => $this->reserved_at?->copy()->addMinutes($minutes),
-            default => null,
-        };
     }
 }

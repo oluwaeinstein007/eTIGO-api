@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EvReservationStatus;
 use App\Enums\EvStallStatus;
 use App\Observers\EvAvailabilityObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[ObservedBy(EvAvailabilityObserver::class)]
 class EvChargingStall extends Model
@@ -54,6 +56,19 @@ class EvChargingStall extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(EvReservation::class, 'stall_id');
+    }
+
+    /**
+     * The reservation using the stall now: held for a driver on their way
+     * (reserved) or the driver charging at it (active). A stall has at most
+     * one; latestOfMany() would break on uuid keys (Postgres has no
+     * max(uuid)), so it is a plain ordered relation.
+     */
+    public function openReservation(): HasOne
+    {
+        return $this->hasOne(EvReservation::class, 'stall_id')
+            ->whereIn('status', [EvReservationStatus::Reserved, EvReservationStatus::Active])
+            ->latest('reserved_at');
     }
 
     public function scopeAvailable(Builder $query): Builder

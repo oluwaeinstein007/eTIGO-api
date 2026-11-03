@@ -12810,7 +12810,7 @@ GET /ev-stations/{station}
 }
 ```
 
-Admins also get `current_driver` (the driver on the stall) on each stall, when loaded.
+Admins also get `current_driver` (the driver on the stall), `reserved_driver` (the driver it is held for) and `reservation` on each stall, when loaded.
 
 ---
 
@@ -13152,7 +13152,35 @@ Every EV reservation response (driver and admin) uses one object. Fields added o
         "phone": "+2348300000041",
         "vehicle": { "make": "BYD", "model": "Dolphin", "colour": "White", "plate_number": "LND-241EV" }
       },
+      "reserved_driver": null,
+      "reservation": {
+        "id": "uuid",
+        "status": { "value": "active", "label": "Active" },
+        "reserved_at": "2026-10-21T09:20:00.000000Z",
+        "check_in_deadline": null
+      },
       "updated_at": "2026-10-21T09:35:00.000000Z"
+    },
+    {
+      "id": "uuid",
+      "stall_number": 2,
+      "status": { "value": "reserved", "label": "Reserved" },
+      "occupied_since": null,
+      "estimated_departure_at": null,
+      "current_driver": null,
+      "reserved_driver": {
+        "id": "uuid",
+        "name": "Zainab Lawal",
+        "phone": "+2348300000043",
+        "vehicle": { "make": "Nissan", "model": "Leaf", "colour": "Blue", "plate_number": "LND-243EV" }
+      },
+      "reservation": {
+        "id": "uuid",
+        "status": { "value": "reserved", "label": "Reserved" },
+        "reserved_at": "2026-10-21T09:50:00.000000Z",
+        "check_in_deadline": "2026-10-21T10:20:00.000000Z"
+      },
+      "updated_at": "2026-10-21T09:50:00.000000Z"
     },
     {
       "id": "uuid",
@@ -13161,6 +13189,8 @@ Every EV reservation response (driver and admin) uses one object. Fields added o
       "occupied_since": null,
       "estimated_departure_at": null,
       "current_driver": null,
+      "reserved_driver": null,
+      "reservation": null,
       "updated_at": "2026-10-21T08:00:00.000000Z"
     }
   ]
@@ -13171,11 +13201,15 @@ Every EV reservation response (driver and admin) uses one object. Fields added o
 
 On every admin station response (List, Show, Create, Update, Toggle Status, Manage Stalls) the station has the same shape:
 - `availability` always includes `queue_length` (drivers waiting for a stall). The public endpoints leave `queue_length` out.
-- `stalls` are in stall-number order, each with `current_driver`. The public endpoints leave `current_driver` out.
+- `stalls` are in stall-number order, each with `current_driver`, `reserved_driver` and `reservation`. The public endpoints leave all three out.
 - `current_driver` is the driver charging at the stall: `{ id, name, phone, vehicle }`, with `vehicle` `{ make, model, colour, plate_number }` (or `null` if they have no vehicle on file). The plate is on `vehicle`. It is `null` when the stall is not occupied, and also when an admin marked it occupied by hand (say, a car from outside E-tiGo). A queue entry's `driver` has the same shape.
+- `reserved_driver` is the driver a `reserved` stall is held for, on their way to check in, in the same shape as `current_driver`. It is `null` on every other stall, and on a stall an admin marked reserved by hand. When the driver checks in, the stall turns `occupied` and they move to `current_driver`; when the reservation is cancelled or expires, the stall turns `available` and `reserved_driver` goes back to `null`.
+- `reservation` is the reservation using the stall: `{ id, status, reserved_at, check_in_deadline }`. `status` is `reserved` (held for `reserved_driver`) or `active` (`current_driver` is charging). `check_in_deadline` is when the hold lapses if the driver has not checked in (`reserved_at` + `reservation_expiry_minutes`), and `null` once they are charging. Pass `id` to `POST /admin/ev-reservations/{id}/cancel` (Cancel Reservation (Operations)) or `POST /admin/ev-reservations/{id}/end` (End Charging Session (Operations)). `null` when no reservation uses the stall.
 - `occupied_since` and `estimated_departure_at` are set while a driver charges. `estimated_departure_at` is `null` when the driver gave no charging time; it can be in the past when a driver stays longer than expected.
 
 **Live updates:** the `admin.ev-stations` private channel (operations and super admins) receives `ev.station.availability_changed` whenever a stall changes status, a driver joins or leaves a queue (or moves in it), or a station is created, switched on or off, resized or deleted. Payload: `station_id`, `deleted`, `status`, `availability` (same shape as above), `updated_at`; a deleted station sends only `station_id` and `deleted: true`. The figures are read when the event is sent, so after a burst of changes the last event has the latest state.
+
+The event has no stall details. A screen showing a station's stalls should refetch **Show Station** when an event for that station arrives: every change to a stall's `current_driver`, `reserved_driver` or `reservation` (a driver reserving, checking in, finishing, cancelling, or the hold expiring) also changes the stall's status, so it always sends this event. Driver details are not broadcast.
 
 ### List Stations
 
@@ -13288,6 +13322,8 @@ Returns the station with its stalls in number order (each with its current drive
 
 **Deprecated:** the top-level `availability` repeats `station.availability`. Read `station.availability`; the top-level copy will be removed in a later release.
 
+**Added 2026-11-03:** `stalls[].reserved_driver` and `stalls[].reservation` (see the station object above).
+
 **Changed 2026-10-21:** a queue entry's vehicle moved from `queue[].vehicle` to `queue[].driver.vehicle`, and `current_driver` changed from the full user to `{ id, name, phone, vehicle }`. Neither had data on staging before, so nothing should be reading the old shapes.
 
 ### Update Station
@@ -13356,7 +13392,7 @@ Content-Type: application/json
 
 Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station.
 
-Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. Marking a stall `occupied` by hand starts it afresh: `occupied_since` is now, with no driver and no departure time.
+Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. A stall set to `reserved` by hand has no `reserved_driver` or `reservation`. Marking a stall `occupied` by hand starts it afresh: `occupied_since` is now, with no driver and no departure time.
 
 A stall that a driver holds a reservation on (pending review, reserved or active) can't be changed to another status: 422 on `stalls`, e.g. `"Stall 1 has a driver's reservation. Change it once the driver finishes or cancels."`, and nothing in the request is saved. Sending the status it already has is fine.
 
