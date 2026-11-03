@@ -12,11 +12,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy(EvAvailabilityObserver::class)]
 class EvChargingStation extends Model
 {
-    use HasFactory, HasUuids;
+    // Deleting archives the station: its reservations keep pointing at it.
+    use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'name',

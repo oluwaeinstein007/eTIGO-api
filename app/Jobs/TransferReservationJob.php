@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Contracts\PushNotificationGateway;
 use App\Enums\NotificationType;
 use App\Models\EvChargingStation;
+use App\Models\EvReservation;
 use App\Services\ReservationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,27 +37,46 @@ class TransferReservationJob implements ShouldQueue
             return;
         }
 
-        $reservation = DB::transaction(fn () => $reservationService->transferToNextQueued($station));
-
-        if ($reservation) {
-            $pushGateway->sendToUser(
-                $reservation->driver_id,
-                [
-                    'title' => 'EV Stall Ready',
-                    'body' => "Stall {$reservation->stall?->stall_number} at {$station->name} is ready for you.",
-                    'data' => [
-                        'type' => NotificationType::EvReservationReady->value,
-                        'reservation_id' => (string) $reservation->id,
-                        'station_name' => $station->name,
-                        'stall_number' => (string) ($reservation->stall?->stall_number ?? ''),
-                    ],
-                ],
-            );
-
-            Log::info('TransferReservationJob: driver notified', [
-                'reservation_id' => $reservation->id,
-                'driver_id' => $reservation->driver_id,
-            ]);
+        // A closed station keeps its queue; reopening it runs this job again.
+        if (! $station->isOperational()) {
+            return;
         }
+
+        // Several stalls can free up at once (operations putting stalls back
+        // in use, or adding some): each goes to the next driver in line.
+        // Each hand-over takes a free stall, so the stall count bounds it.
+        $limit = $station->stalls()->count();
+
+        for ($handed = 0; $handed < $limit; $handed++) {
+            $reservation = DB::transaction(fn () => $reservationService->transferToNextQueued($station));
+
+            if (! $reservation) {
+                return;
+            }
+
+            $this->notifyDriver($pushGateway, $station, $reservation);
+        }
+    }
+
+    private function notifyDriver(PushNotificationGateway $pushGateway, EvChargingStation $station, EvReservation $reservation): void
+    {
+        $pushGateway->sendToUser(
+            $reservation->driver_id,
+            [
+                'title' => 'EV Stall Ready',
+                'body' => "Stall {$reservation->stall?->stall_number} at {$station->name} is ready for you.",
+                'data' => [
+                    'type' => NotificationType::EvReservationReady->value,
+                    'reservation_id' => (string) $reservation->id,
+                    'station_name' => $station->name,
+                    'stall_number' => (string) ($reservation->stall?->stall_number ?? ''),
+                ],
+            ],
+        );
+
+        Log::info('TransferReservationJob: driver notified', [
+            'reservation_id' => $reservation->id,
+            'driver_id' => $reservation->driver_id,
+        ]);
     }
 }

@@ -155,10 +155,15 @@ class EvStationsDemoSeeder extends Seeder
             ->orWhereIn('driver_id', $driverIds)
             ->delete();
 
-        $station->stalls()->where('stall_number', '>', 3)->delete();
+        // Nothing points at these stalls any more, so they go for good.
+        $station->stalls()->withTrashed()->where('stall_number', '>', 3)->forceDelete();
 
         for ($number = 1; $number <= 3; $number++) {
-            $station->stalls()->firstOrCreate(['stall_number' => $number], ['status' => EvStallStatus::Available]);
+            $stall = $station->stalls()->withTrashed()->firstOrCreate(['stall_number' => $number], ['status' => EvStallStatus::Available]);
+
+            if ($stall->trashed()) {
+                $stall->restore();
+            }
         }
 
         return $station;

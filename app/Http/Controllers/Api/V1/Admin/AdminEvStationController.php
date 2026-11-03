@@ -11,6 +11,7 @@ use App\Http\Requests\EvStation\StoreEvStationFormRequest;
 use App\Http\Requests\EvStation\UpdateEvStationFormRequest;
 use App\Http\Resources\EvDriverResource;
 use App\Http\Resources\EvStationResource;
+use App\Jobs\TransferReservationJob;
 use App\Models\AuditLog;
 use App\Models\EvChargingStall;
 use App\Models\EvChargingStation;
@@ -171,6 +172,11 @@ class AdminEvStationController extends Controller
         DB::transaction(function () use ($request, $station, $oldStatus) {
             $station->update(['status' => $request->input('status')]);
 
+            // Drivers queued while the station was closed get any free stall.
+            if ($station->status === EvStationStatus::Active && $oldStatus !== EvStationStatus::Active->value) {
+                TransferReservationJob::dispatch($station->id)->afterCommit();
+            }
+
             AuditLog::record(
                 $station,
                 'ev_station_status_changed',
@@ -195,11 +201,13 @@ class AdminEvStationController extends Controller
                 'stall_number' => $stallData['stall_number'],
                 'status' => EvStallStatus::from($stallData['status'] ?? EvStallStatus::Available->value),
             ]);
-            $stalls = $station->stalls()->lockForUpdate()->get()->keyBy('stall_number');
+            // Removed stalls too: sending a removed stall's number brings it back.
+            $stalls = $station->stalls()->withTrashed()->lockForUpdate()->get()->keyBy('stall_number');
 
             // A driver's reservation decides when its stall frees up; there is
             // no admin action that ends it, so the stall waits for the driver.
             $held = $changes->filter(fn (array $change) => ($stall = $stalls->get($change['stall_number']))
+                && ! $stall->trashed()
                 && $stall->status !== $change['status']
                 && $stall->reservations()->active()->exists());
 
@@ -209,10 +217,15 @@ class AdminEvStationController extends Controller
                 ]);
             }
 
+            $freed = false;
+
             foreach ($changes as $change) {
                 $stall = $stalls->get($change['stall_number']) ?? $station->stalls()->make(['stall_number' => $change['stall_number']]);
-                $becomesOccupied = $change['status'] === EvStallStatus::Occupied && $stall->status !== EvStallStatus::Occupied;
+                $isNew = ! $stall->exists || $stall->trashed();
+                $becomesOccupied = $change['status'] === EvStallStatus::Occupied && ($isNew || $stall->status !== EvStallStatus::Occupied);
+                $freed = $freed || ($change['status'] === EvStallStatus::Available && ($isNew || $stall->status !== EvStallStatus::Available));
                 $stall->status = $change['status'];
+                $stall->deleted_at = null;
 
                 // Marked occupied by hand (say, a car from outside E-tiGo), a
                 // stall has no driver; any other status has nobody at it.
@@ -228,6 +241,11 @@ class AdminEvStationController extends Controller
 
             $station->update(['total_stalls' => $station->stalls()->count()]);
 
+            // A stall put back in use (or added) goes to the next driver in line.
+            if ($freed) {
+                TransferReservationJob::dispatch($station->id)->afterCommit();
+            }
+
             AuditLog::record($station, 'ev_stalls_managed', $request->user(), [], $request->validated('stalls'));
         });
 
@@ -239,22 +257,32 @@ class AdminEvStationController extends Controller
         ]);
     }
 
+    /**
+     * Archives the station: it leaves every list and stops taking
+     * reservations, while its past reservations and fees keep pointing at it.
+     */
     public function destroy(Request $request, EvChargingStation $station): JsonResponse
     {
-        $activeReservations = $station->reservations()->active()->exists();
+        $deleted = DB::transaction(function () use ($request, $station) {
+            // Locked so no driver reserves while the station goes.
+            EvChargingStation::whereKey($station->id)->lockForUpdate()->first();
 
-        if ($activeReservations) {
+            if ($station->reservations()->active()->exists()) {
+                return false;
+            }
+
+            AuditLog::record($station, 'ev_station_deleted', $request->user(), $station->toArray());
+
+            $station->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
             return response()->json([
                 'message' => 'Cannot delete station with active reservations.',
             ], 422);
         }
-
-        DB::transaction(function () use ($request, $station) {
-            AuditLog::record($station, 'ev_station_deleted', $request->user(), $station->toArray());
-
-            $station->stalls()->delete();
-            $station->delete();
-        });
 
         return response()->json(['message' => 'EV charging station deleted.']);
     }
@@ -352,6 +380,7 @@ class AdminEvStationController extends Controller
     /**
      * Add stalls after the highest number, or remove the highest-numbered
      * stalls when they are free and nobody holds a reservation on them.
+     * Removed stalls are archived, so their past reservations keep them.
      */
     private function resizeStalls(EvChargingStation $station, int $target): void
     {
@@ -360,14 +389,33 @@ class AdminEvStationController extends Controller
 
         if ($target > $current) {
             $next = (int) $stalls->max('stall_number');
+            $removed = $station->stalls()->onlyTrashed()->lockForUpdate()->get()->keyBy('stall_number');
 
             for ($i = 1; $i <= $target - $current; $i++) {
+                $number = $next + $i;
+
+                // A stall removed earlier comes back under its old number.
+                if ($stall = $removed->get($number)) {
+                    $stall->fill([
+                        'status' => EvStallStatus::Available,
+                        'current_vehicle_driver_id' => null,
+                        'occupied_since' => null,
+                        'estimated_departure_at' => null,
+                        'updated_at' => now(),
+                    ])->restore();
+
+                    continue;
+                }
+
                 EvChargingStall::create([
                     'station_id' => $station->id,
-                    'stall_number' => $next + $i,
+                    'stall_number' => $number,
                     'status' => EvStallStatus::Available,
+                    'updated_at' => now(),
                 ]);
             }
+
+            TransferReservationJob::dispatch($station->id)->afterCommit();
         }
 
         if ($target < $current) {

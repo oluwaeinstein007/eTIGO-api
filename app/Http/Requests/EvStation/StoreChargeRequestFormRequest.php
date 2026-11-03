@@ -4,6 +4,7 @@ namespace App\Http\Requests\EvStation;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreChargeRequestFormRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class StoreChargeRequestFormRequest extends FormRequest
             'requested_date' => ['nullable', 'date', 'after_or_equal:'.now('Africa/Lagos')->toDateString()],
             'requested_time' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'station_id' => ['nullable', 'uuid', 'exists:ev_charging_stations,id'],
+            'station_id' => ['nullable', 'uuid', Rule::exists('ev_charging_stations', 'id')->withoutTrashed()],
             // How long the driver expects to charge: tells drivers queueing
             // behind them when the stall should free up.
             'estimated_charge_minutes' => ['nullable', 'integer', 'min:5', 'max:480'],

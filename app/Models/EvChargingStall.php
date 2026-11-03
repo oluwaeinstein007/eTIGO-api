@@ -13,11 +13,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy(EvAvailabilityObserver::class)]
 class EvChargingStall extends Model
 {
-    use HasFactory, HasUuids;
+    // Removing a stall archives it: its reservations keep pointing at it,
+    // and adding the same stall number again brings it back.
+    use HasFactory, HasUuids, SoftDeletes;
 
     public $timestamps = false;
 
@@ -45,7 +48,7 @@ class EvChargingStall extends Model
 
     public function station(): BelongsTo
     {
-        return $this->belongsTo(EvChargingStation::class, 'station_id');
+        return $this->belongsTo(EvChargingStation::class, 'station_id')->withTrashed();
     }
 
     public function currentDriver(): BelongsTo

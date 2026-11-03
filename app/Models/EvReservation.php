@@ -80,14 +80,16 @@ class EvReservation extends Model
         ];
     }
 
+    /** Includes a removed stall, so past reservations still show their bay. */
     public function stall(): BelongsTo
     {
-        return $this->belongsTo(EvChargingStall::class, 'stall_id');
+        return $this->belongsTo(EvChargingStall::class, 'stall_id')->withTrashed();
     }
 
+    /** Includes a deleted station, so past reservations still show where they were. */
     public function station(): BelongsTo
     {
-        return $this->belongsTo(EvChargingStation::class, 'station_id');
+        return $this->belongsTo(EvChargingStation::class, 'station_id')->withTrashed();
     }
 
     public function driver(): BelongsTo

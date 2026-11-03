@@ -5,6 +5,7 @@ namespace App\Http\Requests\EvStation;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class ConfirmChargeRequestFormRequest extends FormRequest
 {
@@ -20,7 +21,7 @@ class ConfirmChargeRequestFormRequest extends FormRequest
     {
         return [
             'confirmed_slot_at' => ['required', 'date'],
-            'station_id' => ['nullable', 'uuid', 'exists:ev_charging_stations,id'],
+            'station_id' => ['nullable', 'uuid', Rule::exists('ev_charging_stations', 'id')->withoutTrashed()],
         ];
     }
 

@@ -13335,8 +13335,8 @@ Content-Type: application/json
 ```
 
 All create fields are optional here, including `total_stalls` (1–100):
-- **Higher:** new stalls are added after the highest stall number, as `available`.
-- **Lower:** the highest-numbered stalls are removed, provided each is `available` or `out_of_service` and nobody holds a reservation on it. Otherwise 422 on `total_stalls`, e.g. `"Stall 6 is in use. Free it before reducing the stall count."`, and nothing changes.
+- **Higher:** new stalls are added after the highest stall number, as `available`. A stall removed earlier comes back under its old number (same `id`). Drivers in the queue get the new stalls straight away (see *Freed stalls go to the queue* below).
+- **Lower:** the highest-numbered stalls are removed, provided each is `available` or `out_of_service` and nobody holds a reservation on it. Otherwise 422 on `total_stalls`, e.g. `"Stall 6 is in use. Free it before reducing the stall count."`, and nothing changes. A removed stall is archived, not erased: it leaves `stalls` and the counts, and past reservations still show its bay (`assigned_bay`).
 
 **Request Body:**
 ```json
@@ -13374,6 +13374,8 @@ Content-Type: application/json
 |-------|------|-------|
 | `status` | string | Required: `active`, `inactive`, `maintenance` |
 
+While a station is `inactive` or under `maintenance`, drivers can't reserve and its queue waits: a stall that frees up stays `available`. Setting it back to `active` hands any free stalls to the drivers in line.
+
 **Response 200:**
 ```json
 {
@@ -13390,7 +13392,9 @@ Authorization: Bearer {admin_token}
 Content-Type: application/json
 ```
 
-Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station.
+Upserts stalls by stall number (to change individual stall statuses or add specific numbers). Auto-updates `total_stalls` count. To remove stalls, lower `total_stalls` with Update Station. Sending the number of a stall removed earlier brings that stall back.
+
+**Freed stalls go to the queue.** When a stall becomes `available` here (put back in use, or added), or through Update Station or Toggle Station Status, the drivers waiting at the station get the free stalls in queue order, straight away: each stall turns `reserved` for the next driver, who gets the "EV Stall Ready" push (`ev_reservation_ready`), the same as when a driver leaves a stall. The response already shows it (`reserved_driver`, `availability.queue_length`). A station that is not `active` keeps its queue waiting until it reopens.
 
 Setting a stall to anything other than `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`. A stall set to `reserved` by hand has no `reserved_driver` or `reservation`. Marking a stall `occupied` by hand starts it afresh: `occupied_since` is now, with no driver and no departure time.
 
@@ -13467,7 +13471,11 @@ DELETE /admin/ev-stations/{station}
 Authorization: Bearer {admin_token}
 ```
 
-Permanently deletes an EV charging station and all its stalls. Fails if the station has an open reservation (pending review, reserved, queued or active).
+Deletes an EV charging station. It leaves every admin and public list, Show answers 404, and drivers can no longer reserve or request a slot there. It is archived rather than erased: past reservations, their fees and the audit trail still show the station's name and bay. It can't be undone from the API.
+
+Fails with 422 if the station has an open reservation (pending review, confirmed, reserved, queued or active): set the station `inactive` first, and cancel or end those reservations under Admin — EV Reservations.
+
+**Changed 2026-11-03:** deleting a station whose stalls had ever been used failed with a 500. It now works, and keeps the history.
 
 **Response 200:**
 ```json
@@ -13476,7 +13484,12 @@ Permanently deletes an EV charging station and all its stalls. Fails if the stat
 }
 ```
 
-**Response 422:** Station has active reservations.
+**Response 422:**
+```json
+{
+  "message": "Cannot delete station with active reservations."
+}
+```
 
 ---
 
