@@ -13209,6 +13209,8 @@ On every admin station response (List, Show, Create, Update, Toggle Status, Mana
 
 **Live updates:** the `admin.ev-stations` private channel (operations and super admins) receives `ev.station.availability_changed` whenever a stall changes status, a driver joins or leaves a queue (or moves in it), or a station is created, switched on or off, resized or deleted. Payload: `station_id`, `deleted`, `status`, `availability` (same shape as above), `updated_at`; a deleted station sends only `station_id` and `deleted: true`. The figures are read when the event is sent, so after a burst of changes the last event has the latest state.
 
+The event has no stall details. A screen showing a station's stalls should refetch **Show Station** when an event for that station arrives: every change to a stall's `current_driver`, `reserved_driver` or `reservation` (a driver reserving, checking in, finishing, cancelling, or the hold expiring) also changes the stall's status, so it always sends this event. Driver details are not broadcast.
+
 ### List Stations
 
 ```

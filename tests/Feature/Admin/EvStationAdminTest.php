@@ -478,6 +478,31 @@ it('broadcasts when a stall or the queue changes', function () {
         && $e->broadcastWith()['availability']['occupied'] === 1);
 });
 
+it('broadcasts each time the driver on a stall changes, so the dashboard knows to refetch', function (string $end) {
+    $station = stationWithStalls(1);
+    $reservation = reserveStallFor($station->stalls()->first());
+    Event::fake([EvStationAvailabilityChanged::class]);
+    $sent = fn () => Event::dispatched(EvStationAvailabilityChanged::class, fn ($e) => $e->stationId === $station->id)->count();
+
+    // Check in: reserved_driver becomes current_driver.
+    app(ReservationService::class)->activate($reservation, 30);
+    expect($afterCheckIn = $sent())->toBeGreaterThan(0);
+
+    // The session ends: the stall has nobody on it.
+    app(ReservationService::class)->{$end}($reservation->fresh());
+    expect($sent())->toBeGreaterThan($afterCheckIn);
+})->with(['complete', 'expire']);
+
+it('broadcasts when a reserved stall is let go before the driver arrives', function (string $end) {
+    $station = stationWithStalls(1);
+    $reservation = reserveStallFor($station->stalls()->first());
+    Event::fake([EvStationAvailabilityChanged::class]);
+
+    app(ReservationService::class)->{$end}($reservation);
+
+    Event::assertDispatched(EvStationAvailabilityChanged::class, fn ($e) => $e->stationId === $station->id);
+})->with(['cancel', 'expire']);
+
 it('does not broadcast a stall edit that leaves the availability alone', function () {
     $station = stationWithStalls(1);
     Event::fake([EvStationAvailabilityChanged::class]);

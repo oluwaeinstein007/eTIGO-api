@@ -139,7 +139,7 @@ type DayBar = { date: string; count: number; total_discount: number };
 - **Stall status:** `PUT …/stalls` answers 422 on `stalls` when a driver has a reservation on the stall ("Stall 1 has a driver's reservation…"); show the message.
 - **Queue length:** read `station.availability.queue_length`. It is on every admin station response (list, details, create, update, status, stalls). The top-level `availability` on details is deprecated.
 - **Example:** `EvStationsDemoSeeder` keeps "Yaba EV Hub" filled on staging (two drivers charging, three queued). Its details response is saved in Postman under **Admin — EV Station Management → Show Station**.
-- **Live:** subscribe to `private-admin.ev-stations`; on `ev.station.availability_changed`, replace that station's `availability` (or remove it when `deleted` is true).
+- **Live:** subscribe to `private-admin.ev-stations`; on `ev.station.availability_changed`, replace that station's `availability` (or remove it when `deleted` is true). The event carries no stall details, so on the station details screen refetch `GET /admin/ev-stations/{id}` when the event's `station_id` is the open station: that is how `current_driver`, `reserved_driver` and `reservation` stay current. A driver reserving, checking in, finishing, cancelling or expiring always changes the stall's status, so it always sends the event. Several events can arrive close together (a stall freed and handed to the next in line); refetching once per burst (debounce ~500 ms) is enough.
 
 ## 5. Passenger wallets
 
