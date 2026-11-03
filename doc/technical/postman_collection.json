@@ -25518,7 +25518,7 @@
                     "{{ev_station_id}}"
                   ]
                 },
-                "description": "All fields optional. `total_stalls` adds stalls at the end, or removes the highest-numbered ones if they are free (422 `Stall N is in use\u2026` otherwise). Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
+                "description": "All fields optional. `total_stalls` adds stalls at the end (a stall removed earlier comes back under its old number, and drivers in the queue get the new stalls straight away), or removes the highest-numbered ones if they are free (422 `Stall N is in use\u2026` otherwise). Removed stalls are archived: past reservations keep their bay. Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
               },
               "response": []
             },
@@ -25556,7 +25556,7 @@
                     "status"
                   ]
                 },
-                "description": "Change station operational status. Valid values: active, inactive, maintenance. Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
+                "description": "Change station operational status. Valid values: active, inactive, maintenance. While a station is inactive or under maintenance its queue waits; setting it back to `active` hands any free stalls to the drivers in line. Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
               },
               "response": []
             },
@@ -25594,7 +25594,7 @@
                     "stalls"
                   ]
                 },
-                "description": "Add or update stalls for a station. Uses upsert by stall_number. Setting a stall to anything but `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`; marking a stall `occupied` by hand starts it afresh (`occupied_since` now, no driver). A stall set to `reserved` by hand has no `reserved_driver` or `reservation`. A stall with a driver's reservation on it (pending review, reserved or active) can't change status: 422 on `stalls` (`Stall N has a driver's reservation\u2026`), and nothing in the request is saved. Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
+                "description": "Add or update stalls for a station. Uses upsert by stall_number (the number of a removed stall brings it back). A stall that becomes `available` (put back in use, or added) goes straight to the next driver in the queue, so the response can show it `reserved` with a `reserved_driver`; that driver gets the \"EV Stall Ready\" push. A station that isn't `active` keeps its queue waiting. Setting a stall to anything but `occupied` clears its `current_driver`, `occupied_since` and `estimated_departure_at`; marking a stall `occupied` by hand starts it afresh (`occupied_since` now, no driver). A stall set to `reserved` by hand has no `reserved_driver` or `reservation`. A stall with a driver's reservation on it (pending review, reserved or active) can't change status: 422 on `stalls` (`Stall N has a driver's reservation\u2026`), and nothing in the request is saved. Returns the same station shape as every admin station endpoint: `availability.queue_length` and, on each stall, `current_driver` `{ id, name, phone, vehicle }` (null when no driver is charging), `reserved_driver` (same shape: the driver a reserved stall is held for, null otherwise) and `reservation` `{ id, status, reserved_at, check_in_deadline }` (the reserved or active reservation using the stall, null otherwise)."
               },
               "response": []
             },
@@ -25668,7 +25668,7 @@
                     }
                   ]
                 },
-                "description": "Permanently deletes an EV charging station and all its stalls. Fails if the station has active reservations."
+                "description": "Deletes an EV charging station. It leaves every list, Show answers 404, and drivers can no longer reserve or request a slot there. It is archived rather than erased: past reservations, their fees and the audit trail keep the station's name and bay. 422 `Cannot delete station with active reservations.` while any request or reservation there is open (pending review, confirmed, reserved, queued or active): set the station `inactive` and cancel or end them first.\n\nChanged 2026-11-03: deleting a station whose stalls had ever been used used to fail with a 500."
               },
               "response": []
             },

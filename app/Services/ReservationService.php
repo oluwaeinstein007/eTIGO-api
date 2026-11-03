@@ -27,7 +27,14 @@ class ReservationService
     public function reserve(EvChargingStation $station, User $driver, ?int $estimatedChargeMinutes = null): array
     {
         return DB::transaction(function () use ($station, $driver, $estimatedChargeMinutes) {
-            EvChargingStation::where('id', $station->id)->lockForUpdate()->first();
+            $station = EvChargingStation::whereKey($station->id)->lockForUpdate()->first();
+
+            // Checked again under the lock: operations may have just closed
+            // or deleted the station.
+            if (! $station?->isOperational()) {
+                throw new \RuntimeException('This station is not currently operational.');
+            }
+
             User::where('id', $driver->id)->lockForUpdate()->first();
 
             $this->validateDriverEligibility($driver);
