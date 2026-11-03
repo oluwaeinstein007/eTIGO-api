@@ -332,6 +332,7 @@ class AdminEvStationController extends Controller
             'city',
             'stalls' => fn ($q) => $q->orderBy('stall_number'),
             'stalls.currentDriver.driver.vehicle',
+            'stalls.openReservation.driver.driver.vehicle',
         ];
     }
 

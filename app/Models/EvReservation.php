@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EvReservationStatus;
 use App\Observers\EvAvailabilityObserver;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -148,6 +149,21 @@ class EvReservation extends Model
     public function scopeForStation(Builder $query, string $stationId): Builder
     {
         return $query->where('station_id', $stationId);
+    }
+
+    /**
+     * When the stall stops being held if the driver has not started
+     * charging (null once they have, or when nothing is held).
+     */
+    public function checkInDeadline(): ?CarbonInterface
+    {
+        $minutes = AppSetting::forRequest('ev_charging', fn () => AppSetting::evCharging())['reservation_expiry_minutes'];
+
+        return match ($this->status) {
+            EvReservationStatus::Confirmed => $this->confirmed_slot_at?->copy()->addMinutes($minutes),
+            EvReservationStatus::Reserved => $this->reserved_at?->copy()->addMinutes($minutes),
+            default => null,
+        };
     }
 
     public function isActive(): bool

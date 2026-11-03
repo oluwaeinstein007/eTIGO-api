@@ -4,6 +4,7 @@ use App\Enums\AdminRole;
 use App\Enums\EvReservationStatus;
 use App\Enums\EvStallStatus;
 use App\Events\EvStationAvailabilityChanged;
+use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\EvChargingStall;
@@ -12,6 +13,9 @@ use App\Models\EvReservation;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\CityDetectionService;
+use App\Services\ReservationService;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 beforeEach(function () {
@@ -198,6 +202,153 @@ it('keeps the charging driver off the public station endpoints', function () {
         ->assertOk()
         ->assertJsonMissingPath('station.stalls.0.current_driver')
         ->assertJsonMissingPath('station.availability.queue_length');
+});
+
+/**
+ * Holds the stall for an EV driver on their way, as reserving from the
+ * station list (or a confirmed slot starting) does.
+ */
+function reserveStallFor(EvChargingStall $stall, array $driver = [], array $vehicle = [], ?CarbonInterface $reservedAt = null): EvReservation
+{
+    $user = User::factory()->driver()->create($driver);
+    Vehicle::factory()->electric()->create(['driver_id' => Driver::factory()->create(['user_id' => $user->id])->id, ...$vehicle]);
+    $stall->update(['status' => EvStallStatus::Reserved]);
+
+    return EvReservation::factory()->create([
+        'station_id' => $stall->station_id,
+        'stall_id' => $stall->id,
+        'driver_id' => $user->id,
+        'status' => EvReservationStatus::Reserved,
+        'reserved_at' => $reservedAt ?? now(),
+    ]);
+}
+
+it('shows the driver a reserved stall is held for in the same shape as current_driver', function () {
+    $this->travelTo(now()->startOfMinute());
+    $station = stationWithStalls(2);
+    $reservation = reserveStallFor(
+        $station->stalls()->where('stall_number', 2)->first(),
+        ['first_name' => 'Zainab', 'last_name' => 'Lawal', 'phone' => '+2348300000043'],
+        ['make' => 'Nissan', 'model' => 'Leaf', 'colour' => 'Blue', 'plate_number' => 'LND-243EV'],
+        now()->subMinutes(5),
+    );
+    $expiry = AppSetting::evCharging()['reservation_expiry_minutes'];
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertOk()
+        ->assertJsonPath('station.stalls.1.status.value', 'reserved')
+        ->assertJsonPath('station.stalls.1.current_driver', null)
+        ->assertJsonPath('station.stalls.1.reserved_driver', [
+            'id' => $reservation->driver_id,
+            'name' => 'Zainab Lawal',
+            'phone' => '+2348300000043',
+            'vehicle' => ['make' => 'Nissan', 'model' => 'Leaf', 'colour' => 'Blue', 'plate_number' => 'LND-243EV'],
+        ])
+        ->assertJsonPath('station.stalls.1.reservation', [
+            'id' => $reservation->id,
+            'status' => ['value' => 'reserved', 'label' => 'Reserved'],
+            'reserved_at' => now()->subMinutes(5)->toISOString(),
+            'check_in_deadline' => now()->subMinutes(5)->addMinutes($expiry)->toISOString(),
+        ])
+        ->assertJsonPath('station.stalls.0.reserved_driver', null)
+        ->assertJsonPath('station.stalls.0.reservation', null);
+
+    $this->withToken($this->token)
+        ->getJson('/api/v1/admin/ev-stations')
+        ->assertJsonPath('stations.0.stalls.1.reserved_driver.vehicle.plate_number', 'LND-243EV')
+        ->assertJsonPath('stations.0.stalls.1.reservation.id', $reservation->id);
+});
+
+it('moves the driver from reserved_driver to current_driver when they check in', function () {
+    $station = stationWithStalls(1);
+    $reservation = reserveStallFor($station->stalls()->first());
+
+    app(ReservationService::class)->activate($reservation, 45);
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertJsonPath('station.stalls.0.status.value', 'occupied')
+        ->assertJsonPath('station.stalls.0.current_driver.id', $reservation->driver_id)
+        ->assertJsonPath('station.stalls.0.reserved_driver', null)
+        ->assertJsonPath('station.stalls.0.reservation.id', $reservation->id)
+        ->assertJsonPath('station.stalls.0.reservation.status.value', 'active')
+        ->assertJsonPath('station.stalls.0.reservation.check_in_deadline', null);
+});
+
+it('clears the reserved driver once the reservation ends', function (string $end) {
+    $station = stationWithStalls(1);
+    $reservation = reserveStallFor($station->stalls()->first());
+
+    app(ReservationService::class)->{$end}($reservation);
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertJsonPath('station.stalls.0.status.value', 'available')
+        ->assertJsonPath('station.stalls.0.reserved_driver', null)
+        ->assertJsonPath('station.stalls.0.reservation', null);
+})->with(['cancel', 'expire']);
+
+it('sends no reserved driver for a stall marked reserved by hand or left with an ended reservation', function () {
+    $station = stationWithStalls(2);
+    $station->stalls()->update(['status' => EvStallStatus::Reserved]);
+    EvReservation::factory()->expired()->create([
+        'station_id' => $station->id,
+        'stall_id' => $station->stalls()->where('stall_number', 2)->value('id'),
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/api/v1/admin/ev-stations/{$station->id}")
+        ->assertJsonPath('station.stalls.0.reserved_driver', null)
+        ->assertJsonPath('station.stalls.0.reservation', null)
+        ->assertJsonPath('station.stalls.1.reserved_driver', null)
+        ->assertJsonPath('station.stalls.1.reservation', null);
+});
+
+it('sends the reserved driver on every admin station response', function () {
+    $station = stationWithStalls(2);
+    $reservation = reserveStallFor($station->stalls()->where('stall_number', 1)->first());
+    $this->withToken($this->token);
+
+    $this->putJson("/api/v1/admin/ev-stations/{$station->id}", ['name' => 'Renamed'])
+        ->assertJsonPath('station.stalls.0.reserved_driver.id', $reservation->driver_id);
+    $this->patchJson("/api/v1/admin/ev-stations/{$station->id}/status", ['status' => 'maintenance'])
+        ->assertJsonPath('station.stalls.0.reserved_driver.id', $reservation->driver_id);
+    $this->putJson("/api/v1/admin/ev-stations/{$station->id}/stalls", ['stalls' => [['stall_number' => 2, 'status' => 'out_of_service']]])
+        ->assertJsonPath('station.stalls.0.reserved_driver.id', $reservation->driver_id);
+});
+
+it('loads reserved drivers without a query per stall', function () {
+    $countQueries = function () {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->withToken($this->token)->getJson('/api/v1/admin/ev-stations')->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    $station = stationWithStalls(4);
+    reserveStallFor($station->stalls()->where('stall_number', 1)->first());
+    // The first request also signs the admin in; count from the second.
+    $countQueries();
+    $one = $countQueries();
+
+    foreach ([2, 3, 4] as $number) {
+        reserveStallFor($station->stalls()->where('stall_number', $number)->first());
+    }
+    reserveStallFor(stationWithStalls(1)->stalls()->first());
+
+    expect($countQueries())->toBe($one);
+});
+
+it('keeps the reserved driver off the public station endpoints', function () {
+    $station = stationWithStalls(1);
+    reserveStallFor($station->stalls()->first());
+
+    $this->getJson("/api/v1/ev-stations/{$station->id}")
+        ->assertOk()
+        ->assertJsonMissingPath('station.stalls.0.reserved_driver')
+        ->assertJsonMissingPath('station.stalls.0.reservation');
 });
 
 it('sends queue_length inside station.availability on every admin station response', function () {
