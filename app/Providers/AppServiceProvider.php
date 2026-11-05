@@ -97,7 +97,7 @@ class AppServiceProvider extends ServiceProvider
                 ],
             ]);
 
-            $adapter = new CloudinaryAdapter($cloudinary);
+            $adapter = new CloudinaryAdapter($cloudinary, $config['public_prefixes'] ?? []);
 
             return new FilesystemAdapter(
                 new Filesystem($adapter, $config),

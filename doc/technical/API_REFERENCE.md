@@ -6,8 +6,9 @@
 **Rate Limiting:** Auth endpoints (`/auth/*`, `/admin/auth/*`) are limited to 5 requests/minute per IP — exceeding returns `429 Too Many Requests` with a `Retry-After` header (seconds)  
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
-**Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them. `FRONTEND_UPDATE_ADMIN_TWO_FACTOR.md` covers admin two-step sign-in (2026-11-05; off until the dashboard ships the code screen).  
+**Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.  
+**File links:** Profile photos (`profile_photo_url`) are public links that do not expire. Every other uploaded file is private: driver and vehicle documents, dispute evidence, lost-item photos, repair attachments and maintenance proofs. Its link (`file_url`, `url`, `proof_url`, `photos`, `evidence_photos`, `evidence_audio`) is a signed link that **expires 30 minutes** after the response was sent. It looks like `https://api.cloudinary.com/v1_1/{cloud}/{image|raw|video}/download?…&expires_at=…&signature=…`, opens the file inline with its real content type, and returns `401` once expired. Don't store these links or cache them by URL past that time. Fetch the record again to get a new link. You can't add Cloudinary transformations (such as resizing) to a signed link.  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them. `APP_UPDATE_PRIVATE_FILE_LINKS.md` covers the 2026-11-05 change to private, expiring links for uploaded documents and evidence (all three apps). `MOBILE_UPDATE_ACCOUNT_DELETION.md` covers the 30-day account deletion grace period (2026-11-05). `FRONTEND_UPDATE_ADMIN_TWO_FACTOR.md` covers admin two-step sign-in (2026-11-05; off until the dashboard ships the code screen).  
 
 ---
 
@@ -158,6 +159,7 @@ POST /auth/otp/verify
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -173,6 +175,8 @@ POST /auth/otp/verify
   "token": "1|abc123def456ghi789jkl012mno345pqr678stu901"
 }
 ```
+
+`account_restored` (existing accounts only) is `true` when this login cancelled a pending account deletion (see Delete Account), otherwise `false`.
 
 **Response 200 (new user — needs registration):**
 ```json
@@ -334,6 +338,7 @@ The mobile app can either:
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -411,6 +416,7 @@ Exchanges a one-time authorization code (received via the deep link callback) fo
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -480,6 +486,49 @@ POST /auth/logout
 {
   "message": "Logged out successfully."
 }
+```
+
+---
+
+### Delete Account
+
+```
+DELETE /auth/account
+```
+**Auth required.** Passengers and drivers only (admins get 403). Asks for the account to be deleted. Nothing is erased straight away: the user is logged out on every device, push notifications stop, a driver is taken offline and any EV reservation not yet charging is cancelled. The account is kept for a **30-day grace period** (`ACCOUNT_DELETION_GRACE_DAYS`).
+
+- **Logging in again within the grace period cancels the deletion.** Login responses for an existing account (`is_new_user: false`) from `/auth/otp/verify`, `/auth/social` and `/auth/social/exchange` carry `account_restored`: `true` when that login cancelled a pending deletion, so the app can say "Welcome back, your account will not be deleted." Sign-up responses (`is_new_user: true`) do not have the field. A login still restores the account after `deletion_scheduled_for` until the daily job has actually erased it.
+- `deletion_scheduled_for` is fixed when the request is made; changing the grace period later does not move it. While a driver's deletion is pending, operations cannot assign them a scheduled ride.
+- **After the grace period** a daily job (03:00 Lagos) erases the account. With no rides it is deleted outright; with rides it is anonymised (name becomes "Deleted User", phone, email, password and photo cleared, saved places, cards, social logins, notification preferences and rewards deleted, driver unassigned from their vehicle) so trip and payment records stay intact. If something blocks deletion by then (for example a new outstanding balance) the job tries again the next day.
+
+**Response 200:**
+```json
+{
+  "message": "Your account will be deleted on 5 December 2026. Log in again before then to keep it.",
+  "deletion_scheduled_for": "2026-12-05T10:00:00+00:00",
+  "grace_days": 30
+}
+```
+
+**Response 422** (one of):
+```json
+{ "message": "Cannot delete account while you have an active ride." }
+{ "message": "Cannot delete account while you have an active scheduled ride." }
+{ "message": "Cannot delete account while you have an outstanding balance." }
+{ "message": "Cannot delete account while you have an active trip." }
+{ "message": "Cannot delete account while you have an assigned scheduled ride." }
+{ "message": "Cannot delete account while an EV charging session is active." }
+{ "message": "Cannot delete account while your wallet has ₦2,500.00. Use it on a ride or contact support for a refund first." }
+{ "message": "Cannot delete account while you have a fleet vehicle agreement. Ask your fleet manager to end it first." }
+{ "message": "Cannot delete account while you have ₦1,500.00 in earnings. Withdraw them first (earnings still settling become available within a few hours)." }
+{ "message": "Cannot delete account while you owe E-tiGo ₦300.00. Settle it first." }
+```
+
+The same checks run again at the purge; an account that fails one then is kept and retried the next day.
+
+**Response 403:**
+```json
+{ "message": "Admin accounts cannot be deleted through this endpoint." }
 ```
 
 ---
@@ -2448,7 +2497,7 @@ GET /admin/drivers
           "type": "driving_licence",
           "original_filename": "licence.pdf",
           "file_size": 245000,
-          "file_url": "https://res.cloudinary.com/etigo/raw/upload/driver-documents/7/licence.pdf",
+          "file_url": "https://api.cloudinary.com/v1_1/etigo/raw/download?api_key=…&expires_at=1762354800&public_id=driver-documents%2F7%2Flicence.pdf&signature=…&timestamp=…&type=authenticated",
           "expires_at": null,
           "status": "approved",
           "rejection_reason": null,
@@ -10571,12 +10620,12 @@ audio: <audio file (optional)>
     "category": "route_deviation",
     "category_label": "Wrong route taken",
     "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
-    "evidence_photos": ["https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg"],
+    "evidence_photos": ["https://api.cloudinary.com/v1_1/etigo/image/download?…&expires_at=1762354800&format=jpg&public_id=disputes%2Fride-uuid%2Fphoto1&signature=…&type=authenticated"],
     "evidence": [
       {
         "id": "01a10e6f-...",
         "type": "photo",
-        "url": "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg",
+        "url": "https://api.cloudinary.com/v1_1/etigo/image/download?…&expires_at=1762354800&format=jpg&public_id=disputes%2Fride-uuid%2Fphoto1&signature=…&type=authenticated",
         "file_type": "image/jpeg",
         "file_size_bytes": 482113,
         "original_name": "IMG_2041.jpg",

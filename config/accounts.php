@@ -1,0 +1,21 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Account deletion
+|--------------------------------------------------------------------------
+|
+| A passenger or driver who deletes their account is logged out and the
+| account is kept for this many days. Logging in again within that window
+| cancels the deletion; after it, PurgeDeletedAccountsJob erases the
+| personal data (or the whole account when it has no rides).
+|
+*/
+
+return [
+
+    // Whole days, at least 1. Anything else (empty, text, 0) is ignored and
+    // 30 is used, so a typo can never erase accounts early.
+    'deletion_grace_days' => env('ACCOUNT_DELETION_GRACE_DAYS', 30),
+
+];

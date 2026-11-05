@@ -138,6 +138,12 @@ Admins are seeded or invited by a super admin (`/admin/admins/invite` → emaile
 
 The rule lives in `PersonalAccessToken::hasOutlivedSession()` and is applied by the Sanctum guard (`Sanctum::authenticateAccessTokensUsing`) and by the telemetry gateway, so an expired token is refused on every channel. Deactivating an admin or passenger account deletes its tokens.
 
+### Account deletion
+
+`DELETE /auth/account` (passengers and drivers) is refused with 422 while the user has an active ride or trip, an undispatched scheduled ride, an outstanding balance or money in the wallet (passengers), an assigned scheduled ride, an EV charge in progress, an active or paused fleet agreement, or non-zero earnings (pending, available or owed) (drivers). Otherwise `AccountDeletionService::requestDeletion` stamps `users.deletion_requested_at` and `deletion_scheduled_for` (fixed at request time), deletes the user's tokens and device tokens, takes a driver offline and out of the location index, and cancels EV reservations that are not charging through `ReservationService::cancel` (stall released to the queue, in-window fee refunded). Nothing else is removed during the grace period (`ACCOUNT_DELETION_GRACE_DAYS`, whole days ≥ 1; anything else falls back to 30). A driver with a pending deletion cannot be given a scheduled ride (`ScheduledRideReservationService::reservationErrors`).
+
+Any login before the account is erased clears both stamps (`cancelDeletion`, audited `account_deletion_cancelled`) and the login response carries `account_restored: true`. `PurgeDeletedAccountsJob` (daily, 03:00 Lagos) pages due accounts by id and erases each in its own transaction under a row lock (the same lock `cancelDeletion` takes), rechecking that the request still stands: removes saved places, cards, social logins, notification preferences, rewards and the photo, unassigns a driver's vehicle, then deletes the user when they have no rides or anonymises them ("Deleted User", no phone, email or password, inactive) so rides and ledger entries stay intact. An account that is blocked again by then, or whose purge fails (a photo that cannot be deleted rolls the purge back), is logged and retried the next day.
+
 ### Roles and gates
 
 | Middleware | Purpose |
@@ -147,6 +153,12 @@ The rule lives in `PersonalAccessToken::hasOutlivedSession()` and is applied by 
 | `driver.approved` | Blocks ride endpoints for drivers who are not approved |
 
 Admin roles: `super_admin`, `operations`, `safety_operator`, `support`, `support_lead`, `finance` (the per-endpoint matrix is in the API reference). `support_lead` is tier 2 of dispute handling (§6.4) and has the `support` role's other access. Every request is logged by `LogRequests` (method, path, status, duration, user, IP).
+
+### Data protection at rest
+
+- **Encrypted columns** (Laravel `encrypted` casts, AES-256 with `APP_KEY`): KYC `id_number` (NIN, licence or plate), `match_data` (the name, phone and NIN the provider matched) and `provider_response`, `drivers.licence_number`, and SOS `vehicle_details` / `telemetry_data`. These columns can't be searched or filtered in SQL. **Losing or rotating `APP_KEY` makes them unreadable**, so keep the key backed up, and when rotating it put the old one in `APP_PREVIOUS_KEYS`.
+- **Private files:** on the Cloudinary disk, every path except those under `public_prefixes` (`profile-photos/`) is uploaded with delivery type `authenticated`. `CloudinaryAdapter` serves those files only through signed download links (`privateDownloadUrl`) that expire: 30 minutes from `temporaryUrl()` in the resources, and also from `url()`. Files uploaded before this change are moved once with `php artisan uploads:make-private` (`--dry-run` lists them first). It is safe to run again.
+- Card numbers are never stored (Paystack/Flutterwave tokens, brand, last four and expiry only). Bank account numbers are masked in responses.
 
 ---
 
@@ -685,7 +697,7 @@ The complete list is in `.env.example`. The ones that change behaviour:
 | Safety | `SOS_CHECK_IN_DELAY`, `SOS_ESCALATION_TIMEOUT`, `OFFLINE_*` (detection thresholds), `OFFLINE_SUSPENSION_HOURS`, `OFFLINE_DEACTIVATION_RESPONSE_HOURS` (48: a driver's time to dispute a Level 3 flag before it can be upheld or the deactivation confirmed) |
 | Fleet / EV / promos / loyalty | `FLEET_*`, `EV_RESERVATION_FEE`, `EV_RESERVATION_EXPIRY`, `EV_RESERVATION_FREE_CANCEL_MINUTES`, `EV_MAX_QUEUE_SIZE`, `PROMO_PEAK_*`, `CARBON_BASELINE_EMISSION`, `GAMIFICATION_*` |
 | Notifications | `NOTIFICATION_RETENTION_DAYS`, `NOTIFICATION_PUSH_ENABLED`, `NOTIFICATION_IN_APP_ENABLED` |
-| Storage / mail | `UPLOADS_DISK` (documents and photos; `public`, `s3` or `cloudinary`), `CLOUDINARY_*`, `AWS_*`, `MAIL_*` (Resend) |
+| Storage / mail | `UPLOADS_DISK` (documents and photos; `public`, `s3` or `cloudinary`; on Cloudinary only `profile-photos/` is public, see §3), `CLOUDINARY_*`, `AWS_*`, `MAIL_*` (Resend) |
 
 ---
 

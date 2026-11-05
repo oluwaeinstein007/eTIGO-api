@@ -103,6 +103,10 @@ class ScheduledRideReservationService
             return ['Only approved drivers can reserve scheduled rides.'];
         }
 
+        if ($driverUser->deletion_requested_at !== null) {
+            return ['This driver has asked for their account to be deleted.'];
+        }
+
         $scheduled = $ride->scheduledRide;
 
         if ($ride->status !== RideStatus::Scheduled || $scheduled === null || ! $scheduled->isUpcoming()) {

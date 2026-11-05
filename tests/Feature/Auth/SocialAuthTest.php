@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\SocialAccount;
+use App\Models\SocialAuthCode;
 use App\Models\User;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
@@ -173,4 +174,68 @@ it('rejects social login with invalid token', function () {
 
     $response->assertUnauthorized()
         ->assertJson(['message' => 'Invalid social login token.']);
+});
+
+function pendingDeletionPassenger(string $email): User
+{
+    $user = User::factory()->passenger()->create(['email' => $email]);
+    $user->forceFill(['deletion_requested_at' => now()->subDays(3), 'deletion_scheduled_for' => now()->addDays(27)])->save();
+
+    return $user;
+}
+
+function socialExchangeCode(string $providerId, string $email): string
+{
+    $code = str_repeat('a', 64);
+    SocialAuthCode::create([
+        'code' => $code,
+        'provider' => 'google',
+        'provider_id' => $providerId,
+        'email' => $email,
+        'user_type' => 'passenger',
+        'state' => 'state',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    return $code;
+}
+
+it('cancels a pending deletion on social login with a linked account', function () {
+    $user = pendingDeletionPassenger('linked@example.com');
+    SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => '555']);
+    mockSocialiteDriver(fakeSocialiteUser('555', 'linked@example.com'));
+
+    $this->postJson('/api/v1/auth/social', ['provider' => 'google', 'token' => 't', 'type' => 'passenger'])
+        ->assertOk()->assertJson(['account_restored' => true]);
+
+    expect($user->fresh()->deletion_requested_at)->toBeNull();
+});
+
+it('cancels a pending deletion on social login matched by email', function () {
+    $user = pendingDeletionPassenger('match@example.com');
+    mockSocialiteDriver(fakeSocialiteUser('556', 'match@example.com'));
+
+    $this->postJson('/api/v1/auth/social', ['provider' => 'google', 'token' => 't', 'type' => 'passenger'])
+        ->assertOk()->assertJson(['account_restored' => true]);
+
+    expect($user->fresh()->deletion_requested_at)->toBeNull();
+});
+
+it('cancels a pending deletion on social code exchange with a linked account', function () {
+    $user = pendingDeletionPassenger('exlinked@example.com');
+    SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => '557']);
+
+    $this->postJson('/api/v1/auth/social/exchange', ['code' => socialExchangeCode('557', 'exlinked@example.com')])
+        ->assertOk()->assertJson(['account_restored' => true]);
+
+    expect($user->fresh()->deletion_requested_at)->toBeNull();
+});
+
+it('cancels a pending deletion on social code exchange matched by email', function () {
+    $user = pendingDeletionPassenger('exmatch@example.com');
+
+    $this->postJson('/api/v1/auth/social/exchange', ['code' => socialExchangeCode('558', 'exmatch@example.com')])
+        ->assertOk()->assertJson(['account_restored' => true]);
+
+    expect($user->fresh()->deletion_requested_at)->toBeNull();
 });
