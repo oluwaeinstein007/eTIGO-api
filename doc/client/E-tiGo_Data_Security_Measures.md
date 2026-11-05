@@ -1,6 +1,6 @@
 # E-tiGo — Data Security Measures
 
-**Prepared by:** Lanre Sanni, Engineering  
+**Prepared by:** Engineering Lead  
 **Date:** 5 November 2026  
 **Purpose:** Answer to question 7 (data security) for the privacy policy. Covers the Passenger App, Driver App, Admin Dashboard and backend.
 
@@ -36,8 +36,8 @@ Personal data is protected at every stage: it is encrypted while it travels betw
 ## 4. Authentication
 
 - **Passengers and drivers:** Sign in with a one-time code (OTP) sent by SMS to their phone number, or with Google/Apple sign-in. OTPs are 6 digits, expire after 5 minutes, can be requested once a minute, and lock after 5 wrong attempts.
-- **Staff:** Email and password, with secure password reset.
-- **Sessions:** Each login gets a unique access token. Staff sessions expire after 8 hours; app sessions after 30 days. Logging out or deleting an account revokes the token straight away.
+- **Staff:** Email and password, with secure password reset. A second sign-in step is built and ready: after their password, staff must also enter a 6-digit code sent to their email. The code expires after 10 minutes, works once, and the sign-in is cancelled after 5 wrong codes. It will be switched on when the Admin Dashboard screen for it is released.
+- **Sessions:** Each login gets a unique access token. Staff sessions expire after 8 hours; app sessions after 30 days. Logging out, or asking to delete an account, revokes the token straight away.
 - **Trip PIN:** A 4-digit PIN confirms the right passenger is in the right car before a trip starts (limited to 3 attempts).
 - **Payment and identity providers:** Messages from Paystack, Flutterwave and our identity-verification provider are checked with a cryptographic signature, so fake payment confirmations are rejected.
 
@@ -70,7 +70,7 @@ Personal data is protected at every stage: it is encrypted while it travels betw
 
 ## 9. Data retention and deletion
 
-- **Account deletion:** Passengers and drivers can delete their account from the app. This removes their sign-in sessions, saved places, saved cards, social logins and notification settings. Trip and payment records that the law or accounting requires us to keep are retained.
+- **Account deletion:** Passengers and drivers can ask to delete their account from the app. They are signed out on every device straight away, and the account is deleted after a 30-day grace period; signing in again during that time cancels the request. Deletion removes their sign-in details, saved places, saved cards, social logins, notification settings and profile photo. An account with no trips is erased completely. For an account with trips, the name, phone number, email and password are erased, and the trip and payment records that the law and accounting require us to keep are retained without them. A request can't be made during an active trip, or while money is still owed either way (a wallet balance to refund, driver earnings not yet paid out, or an outstanding balance) or an E-tiGo car agreement is active, so these can be settled first.
 - **In-app notifications:** Deleted automatically after 90 days.
 
 ## 10. Trusted service providers
