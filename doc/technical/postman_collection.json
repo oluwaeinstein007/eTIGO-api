@@ -1648,6 +1648,71 @@
                   "body": "{\n  \"message\": \"Logged out successfully.\"\n}"
                 }
               ]
+            },
+            {
+              "name": "Delete Account",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/account",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "account"
+                  ]
+                },
+                "description": "Passengers and drivers. Logs the user out everywhere and schedules the account for deletion after a 30-day grace period. Logging in again within the period cancels it (login responses then carry `account_restored: true`). Afterwards a daily job deletes the account, or anonymises it when it has rides. 422 while an active ride/trip, pending scheduled ride, outstanding balance or active EV charge exists; 403 for admins."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Deletion Scheduled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Your account will be deleted on 5 December 2026. Log in again before then to keep it.\",\n  \"deletion_scheduled_for\": \"2026-12-05T10:00:00+00:00\",\n  \"grace_days\": 30\n}"
+                },
+                {
+                  "name": "422 \u2014 Active Ride",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot delete account while you have an active ride.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Admin",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Admin accounts cannot be deleted through this endpoint.\"\n}"
+                }
+              ]
             }
           ]
         },

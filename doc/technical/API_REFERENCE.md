@@ -484,6 +484,42 @@ POST /auth/logout
 
 ---
 
+### Delete Account
+
+```
+DELETE /auth/account
+```
+**Auth required.** Passengers and drivers only (admins get 403). Asks for the account to be deleted. Nothing is erased straight away: the user is logged out on every device, push notifications stop, a driver is taken offline and any EV reservation not yet charging is cancelled. The account is kept for a **30-day grace period** (`ACCOUNT_DELETION_GRACE_DAYS`).
+
+- **Logging in again within the grace period cancels the deletion.** Every login response (`/auth/otp/verify`, `/auth/social`, `/auth/social/exchange`) carries `account_restored`: `true` when that login cancelled a pending deletion, so the app can say "Welcome back, your account will not be deleted."
+- **After the grace period** a daily job (03:00 Lagos) erases the account. With no rides it is deleted outright; with rides it is anonymised (name becomes "Deleted User", phone, email, password and photo cleared, saved places, cards, social logins, notification preferences and rewards deleted, driver unassigned from their vehicle) so trip and payment records stay intact. If something blocks deletion by then (for example a new outstanding balance) the job tries again the next day.
+
+**Response 200:**
+```json
+{
+  "message": "Your account will be deleted on 5 December 2026. Log in again before then to keep it.",
+  "deletion_scheduled_for": "2026-12-05T10:00:00+00:00",
+  "grace_days": 30
+}
+```
+
+**Response 422** (one of):
+```json
+{ "message": "Cannot delete account while you have an active ride." }
+{ "message": "Cannot delete account while you have an active scheduled ride." }
+{ "message": "Cannot delete account while you have an outstanding balance." }
+{ "message": "Cannot delete account while you have an active trip." }
+{ "message": "Cannot delete account while you have an assigned scheduled ride." }
+{ "message": "Cannot delete account while an EV charging session is active." }
+```
+
+**Response 403:**
+```json
+{ "message": "Admin accounts cannot be deleted through this endpoint." }
+```
+
+---
+
 ### Admin Authentication (Email/Password)
 
 #### Admin Login

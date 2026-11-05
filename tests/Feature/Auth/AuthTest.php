@@ -1,10 +1,19 @@
 <?php
 
 use App\Contracts\SmsGateway;
+use App\Enums\BalanceDueReason;
+use App\Enums\BalanceDueStatus;
+use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Jobs\PurgeDeletedAccountsJob;
 use App\Models\City;
+use App\Models\Driver;
 use App\Models\OtpCode;
+use App\Models\PassengerBalanceDue;
+use App\Models\Ride;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Services\AccountDeletionService;
 use App\Services\OtpService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -284,51 +293,13 @@ it('expires the code when no channel accepts it', function () {
     expect(OtpCode::forPhone('+2341234567890')->active()->exists())->toBeFalse();
 });
 
-it('allows authenticated passenger to delete account', function () {
-    $user = User::factory()->passenger()->create();
-    $token = $user->createToken('test', ['passenger'])->plainTextToken;
-
-    $response = $this->withToken($token)
-        ->deleteJson('/api/v1/auth/account');
-
-    $response->assertOk()
-        ->assertJson(['message' => 'Account deleted successfully.']);
-
-    $this->assertDatabaseCount('personal_access_tokens', 0);
-    expect(User::find($user->id))->toBeNull();
-});
-
-it('anonymizes and deactivates passenger account if historical rides exist', function () {
-    $user = User::factory()->passenger()->create();
-    $token = $user->createToken('test', ['passenger'])->plainTextToken;
-
-    \App\Models\Ride::factory()->create([
-        'passenger_id' => $user->id,
-        'status' => \App\Enums\RideStatus::Completed->value,
-    ]);
-
-    $response = $this->withToken($token)
-        ->deleteJson('/api/v1/auth/account');
-
-    $response->assertOk()
-        ->assertJson(['message' => 'Account deleted successfully.']);
-
-    $this->assertDatabaseCount('personal_access_tokens', 0);
-    $fresh = User::find($user->id);
-    expect($fresh)->not->toBeNull()
-        ->and($fresh->is_active)->toBeFalse()
-        ->and($fresh->first_name)->toBe('Deleted')
-        ->and($fresh->phone)->toBeNull()
-        ->and($fresh->email)->toBeNull();
-});
-
 it('prevents passenger from deleting account while active ride exists', function () {
     $user = User::factory()->passenger()->create();
     $token = $user->createToken('test', ['passenger'])->plainTextToken;
 
-    \App\Models\Ride::factory()->create([
+    Ride::factory()->create([
         'passenger_id' => $user->id,
-        'status' => \App\Enums\RideStatus::InProgress->value,
+        'status' => RideStatus::InProgress->value,
     ]);
 
     $response = $this->withToken($token)
@@ -342,11 +313,11 @@ it('prevents passenger from deleting account with outstanding balance', function
     $user = User::factory()->passenger()->create();
     $token = $user->createToken('test', ['passenger'])->plainTextToken;
 
-    \App\Models\PassengerBalanceDue::create([
+    PassengerBalanceDue::create([
         'passenger_id' => $user->id,
         'amount' => 1500,
-        'status' => \App\Enums\BalanceDueStatus::Outstanding,
-        'reason' => \App\Enums\BalanceDueReason::LateCancellationFee,
+        'status' => BalanceDueStatus::Outstanding,
+        'reason' => BalanceDueReason::LateCancellationFee,
     ]);
 
     $response = $this->withToken($token)
@@ -356,39 +327,17 @@ it('prevents passenger from deleting account with outstanding balance', function
         ->assertJson(['message' => 'Cannot delete account while you have an outstanding balance.']);
 });
 
-it('allows authenticated driver to delete account', function () {
-    $driverUser = User::factory()->driver()->create();
-    $driver = \App\Models\Driver::factory()->create([
-        'user_id' => $driverUser->id,
-        'is_online' => true,
-    ]);
-    $vehicle = \App\Models\Vehicle::factory()->create([
-        'driver_id' => $driver->id,
-    ]);
-    $token = $driverUser->createToken('test', ['driver'])->plainTextToken;
-
-    $response = $this->withToken($token)
-        ->deleteJson('/api/v1/auth/account');
-
-    $response->assertOk()
-        ->assertJson(['message' => 'Account deleted successfully.']);
-
-    $this->assertDatabaseCount('personal_access_tokens', 0);
-    expect(User::find($driverUser->id))->toBeNull();
-    expect($vehicle->fresh()->driver_id)->toBeNull();
-});
-
 it('prevents driver from deleting account while active trip exists', function () {
     $driverUser = User::factory()->driver()->create();
-    \App\Models\Driver::factory()->create([
+    Driver::factory()->create([
         'user_id' => $driverUser->id,
         'is_online' => true,
     ]);
     $token = $driverUser->createToken('test', ['driver'])->plainTextToken;
 
-    \App\Models\Ride::factory()->create([
+    Ride::factory()->create([
         'driver_id' => $driverUser->id,
-        'status' => \App\Enums\RideStatus::InProgress->value,
+        'status' => RideStatus::InProgress->value,
     ]);
 
     $response = $this->withToken($token)
@@ -407,4 +356,142 @@ it('rejects admin deleting account via auth account endpoint', function () {
 
     $response->assertStatus(403)
         ->assertJson(['message' => 'Admin accounts cannot be deleted through this endpoint.']);
+});
+
+it('schedules a passenger account for deletion after the grace period and logs them out', function () {
+    $this->travelTo(now()->setDate(2026, 11, 5)->setTime(10, 0));
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    $this->withToken($token)
+        ->deleteJson('/api/v1/auth/account')
+        ->assertOk()
+        ->assertJson([
+            'message' => 'Your account will be deleted on 5 December 2026. Log in again before then to keep it.',
+            'grace_days' => 30,
+        ])
+        ->assertJsonPath('deletion_scheduled_for', now()->addDays(30)->toIso8601String());
+
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+    $fresh = $user->fresh();
+    expect($fresh)->not->toBeNull()
+        ->and($fresh->is_active)->toBeTrue()
+        ->and($fresh->phone)->toBe($user->phone)
+        ->and($fresh->deletion_requested_at)->not->toBeNull();
+    $this->assertDatabaseHas('audit_logs', ['auditable_id' => $user->id, 'event' => 'account_deletion_requested']);
+});
+
+it('cancels a pending deletion when the user logs in again within the grace period', function () {
+    $user = User::factory()->passenger()->create(['phone' => '+2341234567890']);
+    $user->forceFill(['deletion_requested_at' => now()->subDays(10)])->save();
+
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', '123456'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2341234567890',
+        'code' => '123456',
+        'type' => 'passenger',
+    ])->assertOk()->assertJson(['account_restored' => true]);
+
+    expect($user->fresh()->deletion_requested_at)->toBeNull();
+    $this->assertDatabaseHas('audit_logs', ['auditable_id' => $user->id, 'event' => 'account_deletion_cancelled']);
+
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+    $this->travel(31)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    expect($user->fresh())->not->toBeNull()->and($user->fresh()->first_name)->not->toBe('Deleted');
+});
+
+it('reports account_restored false on an ordinary login', function () {
+    User::factory()->passenger()->create(['phone' => '+2341234567890']);
+    OtpCode::create([
+        'phone' => '+2341234567890',
+        'code' => hash('sha256', '123456'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2341234567890',
+        'code' => '123456',
+        'type' => 'passenger',
+    ])->assertOk()->assertJson(['account_restored' => false]);
+});
+
+it('keeps the account during the grace period and deletes it once the period ends', function () {
+    $user = User::factory()->passenger()->create();
+    app(AccountDeletionService::class)->requestDeletion($user);
+
+    $this->travel(29)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+    expect(User::find($user->id))->not->toBeNull();
+
+    $this->travel(2)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+    expect(User::find($user->id))->toBeNull();
+});
+
+it('anonymises an account with ride history when the grace period ends', function () {
+    $user = User::factory()->passenger()->create();
+    Ride::factory()->create([
+        'passenger_id' => $user->id,
+        'status' => RideStatus::Completed->value,
+    ]);
+    app(AccountDeletionService::class)->requestDeletion($user);
+
+    $this->travel(31)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    $fresh = User::find($user->id);
+    expect($fresh)->not->toBeNull()
+        ->and($fresh->is_active)->toBeFalse()
+        ->and($fresh->first_name)->toBe('Deleted')
+        ->and($fresh->phone)->toBeNull()
+        ->and($fresh->email)->toBeNull()
+        ->and($fresh->deletion_requested_at)->toBeNull();
+});
+
+it('postpones the purge while something blocks deletion', function () {
+    $user = User::factory()->passenger()->create();
+    app(AccountDeletionService::class)->requestDeletion($user);
+
+    PassengerBalanceDue::create([
+        'passenger_id' => $user->id,
+        'amount' => 1500,
+        'status' => BalanceDueStatus::Outstanding,
+        'reason' => BalanceDueReason::LateCancellationFee,
+    ]);
+
+    $this->travel(31)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    expect($user->fresh())->not->toBeNull()
+        ->and($user->fresh()->deletion_requested_at)->not->toBeNull();
+});
+
+it('takes a driver offline on request and frees their vehicle at the purge', function () {
+    $driverUser = User::factory()->driver()->create();
+    $driver = Driver::factory()->create([
+        'user_id' => $driverUser->id,
+        'is_online' => true,
+    ]);
+    $vehicle = Vehicle::factory()->create(['driver_id' => $driver->id]);
+    $token = $driverUser->createToken('test', ['driver'])->plainTextToken;
+
+    $this->withToken($token)->deleteJson('/api/v1/auth/account')->assertOk();
+
+    expect($driver->fresh()->is_online)->toBeFalse()
+        ->and($vehicle->fresh()->driver_id)->toBe($driver->id);
+
+    $this->travel(31)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    expect(User::find($driverUser->id))->toBeNull()
+        ->and($vehicle->fresh()->driver_id)->toBeNull();
 });
