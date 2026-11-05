@@ -3,11 +3,14 @@
 namespace App\Http\Requests\Auth;
 
 use App\Enums\CityLaunchStatus;
+use App\Http\Requests\Concerns\NormalizesPhone;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class CompleteRegistrationRequest extends FormRequest
 {
+    use NormalizesPhone;
+
     public function authorize(): bool
     {
         return true;

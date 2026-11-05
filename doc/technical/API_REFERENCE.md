@@ -96,13 +96,13 @@ All 22 are live: Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekit
 
 ### Static OTP (Non-Production Only)
 
-In **local**, **staging**, and **testing** environments, all OTP codes are set to **`123456`**. Message delivery is skipped entirely. This allows developers and testers to create and verify accounts freely without OTP costs or delivery delays.
+Whenever `APP_ENV` is not `production` (local and testing), all OTP codes are set to **`123456`**. Message delivery is skipped entirely. This allows developers and testers to create and verify accounts freely without OTP costs or delivery delays.
 
 **How to use:**
 1. `POST /auth/otp/send` with any valid phone number → returns success immediately
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
-This static OTP is **disabled in production** — production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
+This static OTP is **disabled in production**. The staging server runs with `APP_ENV=production`, so it sends real codes too. Production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
 
 ### Dual Account Support
 
@@ -126,7 +126,11 @@ POST /auth/otp/send
 
 | Field | Type   | Required | Description                          |
 |-------|--------|----------|--------------------------------------|
-| phone | string | Yes      | E.164 format (e.g. `+2341234567890`) |
+| phone | string | Yes      | E.164 format (e.g. `+2348031234567`) |
+
+Nigerian numbers are normalised before anything else: `+2340803…` (local 0 kept after the country code), `0803…`, `234803…`, `00234803…` and numbers with spaces, dashes or brackets all become `+234803…`. Send, Verify and Complete Registration all do this, so the code goes to a deliverable number and an account always gets the normalised one. The app should still send `+234` and the 10 digits.
+
+**Limits:** 60 seconds between codes for a phone, at most 5 codes per phone in 10 minutes, and 20 requests a minute per IP (loose, because Nigerian mobile networks put many users behind one IP). Over a limit → `429` `"Too Many Attempts."` with a `Retry-After` header.
 
 **Response 200:**
 ```json
@@ -150,9 +154,11 @@ POST /auth/otp/verify
 
 | Field | Type   | Required | Description                          |
 |-------|--------|----------|--------------------------------------|
-| phone | string | Yes      | E.164 format (e.g. `+2341234567890`) |
-| code  | string | Yes      | 6-digit verification code            |
+| phone | string | Yes      | E.164 format; the same number the code was sent to (normalised as in Send OTP) |
+| code  | string | Yes      | 6-digit verification code, as a string so a leading 0 is kept |
 | type  | string | Yes      | `passenger` or `driver`              |
+
+Any of the phone's last 3 unexpired codes is accepted, so a code that arrives late after a resend still works. A phone gets 5 wrong guesses (across those codes) before it must request a new code. Signing in uses up the phone's other codes. Limits: 10 requests a minute per phone, 30 per IP.
 
 **Response 200 (existing user — logged in):**
 ```json
@@ -195,13 +201,14 @@ POST /auth/otp/verify
 }
 ```
 
-**Response 422:**
-```json
-{
-  "message": "Invalid verification code.",
-  "error_code": "VALIDATION_ERROR"
-}
-```
+**Response 422** (show `message` to the user as it is):
+
+| `message` | Meaning |
+|---|---|
+| `Invalid verification code.` | Wrong code; try again |
+| `No active verification code found. Please request a new one.` | Every code for this phone has expired or been used |
+| `Too many attempts. Please request a new code.` | 5 wrong guesses; the codes are cancelled |
+| A validation message, with `error_code: "VALIDATION_ERROR"` and `errors` | A field is missing or malformed, e.g. `"The phone field is required."` |
 
 ---
 

@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\NormalizesPhone;
 use Illuminate\Foundation\Http\FormRequest;
 
 class VerifyOtpRequest extends FormRequest
 {
+    use NormalizesPhone;
+
     public function authorize(): bool
     {
         return true;

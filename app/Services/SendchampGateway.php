@@ -192,6 +192,8 @@ class SendchampGateway implements SmsGateway
 
         Log::info('Sendchamp request accepted', $context + [
             'reference' => $response->json('data.reference') ?? $response->json('data.provider_reference'),
+            'id' => $response->json('data.id') ?? $response->json('data.0.id'),
+            'delivery_status' => $response->json('data.status') ?? $response->json('data.0.status'),
         ]);
 
         return (array) ($response->json('data') ?? []);
