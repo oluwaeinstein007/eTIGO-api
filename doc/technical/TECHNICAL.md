@@ -127,7 +127,7 @@ The mobile app completes the provider's OAuth flow natively and posts the provid
 
 ### Admins
 
-Admins are seeded or invited by a super admin (`/admin/admins/invite` → emailed link → `/admin/auth/invite/accept`); there is no self-registration. They sign in with email and password and can reset it by email.
+Admins are seeded or invited by a super admin (`/admin/admins/invite` → emailed link → `/admin/auth/invite/accept`); there is no self-registration. They sign in with email and password and can reset it by email. With `ADMIN_TWO_FACTOR_ENABLED=true` (off by default; an environment setting, so no admin can switch it off from the dashboard) sign-in has two steps: the password starts a challenge, `AdminLoginChallengeService` emails a 6-digit code (sent straight away, not queued), and `POST /admin/auth/login/verify` trades challenge and code for the token. Only SHA-256 hashes of the challenge token and code are kept, in the cache, for 10 minutes. There are 5 wrong codes per challenge, 3 resends 60 seconds apart, and a separate `admin-login-code` rate limit (10 a minute per IP). Outside production the code is `123456`.
 
 ### Sessions
 

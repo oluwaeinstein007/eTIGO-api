@@ -8,7 +8,7 @@
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
 **Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.  
 **File links:** Profile photos (`profile_photo_url`) are public links that do not expire. Every other uploaded file is private: driver and vehicle documents, dispute evidence, lost-item photos, repair attachments and maintenance proofs. Its link (`file_url`, `url`, `proof_url`, `photos`, `evidence_photos`, `evidence_audio`) is a signed link that **expires 30 minutes** after the response was sent. It looks like `https://api.cloudinary.com/v1_1/{cloud}/{image|raw|video}/download?…&expires_at=…&signature=…`, opens the file inline with its real content type, and returns `401` once expired. Don't store these links or cache them by URL past that time. Fetch the record again to get a new link. You can't add Cloudinary transformations (such as resizing) to a signed link.  
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them. `APP_UPDATE_PRIVATE_FILE_LINKS.md` covers the 2026-11-05 change to private, expiring links for uploaded documents and evidence (all three apps).  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them. `APP_UPDATE_PRIVATE_FILE_LINKS.md` covers the 2026-11-05 change to private, expiring links for uploaded documents and evidence (all three apps). `MOBILE_UPDATE_ACCOUNT_DELETION.md` covers the 30-day account deletion grace period (2026-11-05). `FRONTEND_UPDATE_ADMIN_TWO_FACTOR.md` covers admin two-step sign-in (2026-11-05; off until the dashboard ships the code screen).  
 
 ---
 
@@ -92,7 +92,7 @@ All 22 are live: Lagos, Abuja, Port Harcourt, Ibadan, Abeokuta, Ilorin, Ado-Ekit
 
 **Social Login (Direct Token — Alternative):** `POST /auth/social/redirect` → user completes OAuth in browser/webview → app sends token to `POST /auth/social`
 
-**Admins:** `POST /admin/auth/login` with email & password → use bearer token
+**Admins:** `POST /admin/auth/login` with email & password → use bearer token. When two-step sign-in is on (`ADMIN_TWO_FACTOR_ENABLED`), login returns `two_factor_required: true` and a `challenge_token` instead; send it with the emailed code to `POST /admin/auth/login/verify` for the token
 
 ### Static OTP (Non-Production Only)
 
@@ -545,10 +545,24 @@ POST /admin/auth/login
 | email    | string | Yes      | Admin email       |
 | password | string | Yes      | Min 8 characters  |
 
-**Response 200:**
+**Two-step sign-in.** When the server has `ADMIN_TWO_FACTOR_ENABLED=true` (off by default), a correct password does **not** return a token. The API emails a 6-digit code to the admin and returns a challenge instead (**Response 200, two-step**). The dashboard then shows a code screen and calls **Verify Sign-in Code**. Check `two_factor_required` on every login response: `false` means the token is in this response, `true` means a code is needed. Outside production the code is always `123456` (the email is still sent).
+
+**Response 200 (two-step sign-in on):**
+```json
+{
+  "message": "Enter the 6-digit code we sent to your email.",
+  "two_factor_required": true,
+  "challenge_token": "Xq3v…64 characters…9LmZ",
+  "email_hint": "a***n@etigo.com",
+  "expires_at": "2026-11-05T15:10:00+00:00"
+}
+```
+
+**Response 200 (two-step sign-in off):**
 ```json
 {
   "message": "Logged in successfully.",
+  "two_factor_required": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Super",
@@ -579,6 +593,48 @@ POST /admin/auth/login
   "message": "Your account has been deactivated. Contact a system administrator."
 }
 ```
+
+---
+
+#### Verify Sign-in Code
+```
+POST /admin/auth/login/verify
+```
+Second step of the two-step sign-in. Trades the challenge from **Admin Login** and the emailed code for a token. The code lasts **10 minutes** (`ADMIN_TWO_FACTOR_CODE_EXPIRY_MINUTES`) and works once. After **5 wrong codes** the sign-in ends and the admin must enter their password again. Limited to 10 requests a minute per IP, separately from the other auth endpoints.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| challenge_token | string | Yes | 64 characters, from the login response |
+| code | string | Yes | The 6 digits from the email |
+
+**Response 200:** same as **Admin Login** with two-step sign-in off (`two_factor_required: false`, `user`, `token`). The audit log records `admin_logged_in` with `two_factor: true`.
+
+**Response 422:** `"That code is not right. Check the latest email and try again."`, or `"This sign-in code has expired. Sign in again."` (expired, already used, or unknown challenge).
+
+**Response 429:** `"Too many wrong codes. Sign in again."` (6th try: the challenge is cancelled).
+
+**Response 403:** the account was deactivated since the password step.
+
+---
+
+#### Resend Sign-in Code
+```
+POST /admin/auth/login/resend
+```
+Emails a new code for the same challenge; the previous code stops working. Allowed once every **60 seconds** and **3 times** per sign-in. The expiry is not extended. Same 10-a-minute limit as **Verify Sign-in Code**.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| challenge_token | string | Yes | From the login response |
+
+**Response 200:**
+```json
+{ "message": "We sent a new code to your email." }
+```
+
+**Response 429:** `"Wait 42 seconds before asking for another code."` (with a `Retry-After` header), or `"No more codes can be sent for this sign-in. Sign in again."`
+
+**Response 422:** `"This sign-in code has expired. Sign in again."`
 
 ---
 

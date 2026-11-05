@@ -267,6 +267,10 @@
     {
       "key": "repair_attachment_id",
       "value": ""
+    },
+    {
+      "key": "admin_challenge_token",
+      "value": ""
     }
   ],
   "item": [
@@ -1742,6 +1746,9 @@
                       "if (data.token) {",
                       "    pm.collectionVariables.set('admin_token', data.token);",
                       "    if (pm.environment.name) { pm.environment.set('admin_token', data.token); }",
+                      "}",
+                      "if (data.challenge_token) {",
+                      "    pm.collectionVariables.set('admin_challenge_token', data.challenge_token);",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1775,7 +1782,7 @@
                     "login"
                   ]
                 },
-                "description": "Authenticate an admin user with email and password. Returns a bearer token for subsequent admin API calls. Rate-limited to 5 requests/minute."
+                "description": "Authenticate an admin user with email and password. Rate-limited to 5 requests/minute.\n\nWhen the server has `ADMIN_TWO_FACTOR_ENABLED=true` (off by default), this returns `two_factor_required: true` and a `challenge_token` (saved to `{{admin_challenge_token}}`) instead of a token, and emails a 6-digit code. Then call **Verify Sign-in Code**. Outside production the code is `123456`."
               },
               "response": [
                 {
@@ -1788,7 +1795,19 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"user\": {\n    \"id\": \"7a6b5c4d-3e2f-1a0b-2c3d-4e5f6a7b8c9d\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"two_factor_required\": false,\n  \"user\": {\n    \"id\": \"7a6b5c4d-3e2f-1a0b-2c3d-4e5f6a7b8c9d\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
+                },
+                {
+                  "name": "200 \u2014 Two-step Sign-in: Code Sent",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Enter the 6-digit code we sent to your email.\",\n  \"two_factor_required\": true,\n  \"challenge_token\": \"Xq3vT8kLm2Pa9WcR4yNe7HbJ5uQd1ZsF6oGi0VxK3tYp8BnM2rCw4eAj7LhU9LmZ\",\n  \"email_hint\": \"a***n@etigo.com\",\n  \"expires_at\": \"2026-11-05T15:10:00+00:00\"\n}"
                 },
                 {
                   "name": "401 \u2014 Invalid Credentials",
@@ -1801,6 +1820,178 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Invalid credentials.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Verify Sign-in Code",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var data = pm.response.json();",
+                      "if (data.token) {",
+                      "    pm.collectionVariables.set('admin_token', data.token);",
+                      "    if (pm.environment.name) { pm.environment.set('admin_token', data.token); }",
+                      "}",
+                      "if (data.challenge_token) {",
+                      "    pm.collectionVariables.set('admin_challenge_token', data.challenge_token);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"challenge_token\": \"{{admin_challenge_token}}\",\n  \"code\": \"123456\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/auth/login/verify",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "auth",
+                    "login",
+                    "verify"
+                  ]
+                },
+                "description": "Second step of two-step sign-in. Trades the challenge from **Admin Login** and the emailed 6-digit code for a token (saved to `{{admin_token}}`). The code lasts 10 minutes and works once; after 5 wrong codes the sign-in ends. 10 requests/minute per IP."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Signed In",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"two_factor_required\": false,\n  \"user\": {\n    \"id\": \"7a6b5c4d-3e2f-1a0b-2c3d-4e5f6a7b8c9d\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"phone\": null,\n    \"email\": \"admin@etigo.com\",\n    \"type\": \"admin\",\n    \"admin_role\": \"super_admin\",\n    \"phone_verified_at\": null,\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T00:00:00.000000Z\"\n  },\n  \"token\": \"10|admin123def456ghi789jkl012mno345pqr678stu\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Wrong Code",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"That code is not right. Check the latest email and try again.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Expired",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"This sign-in code has expired. Sign in again.\"\n}"
+                },
+                {
+                  "name": "429 \u2014 Too Many Wrong Codes",
+                  "status": "Too Many Requests",
+                  "code": 429,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Too many wrong codes. Sign in again.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resend Sign-in Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"challenge_token\": \"{{admin_challenge_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/auth/login/resend",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "auth",
+                    "login",
+                    "resend"
+                  ]
+                },
+                "description": "Emails a new code for the same sign-in; the previous code stops working. Once every 60 seconds, 3 times per sign-in; the expiry is not extended."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Code Sent",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"We sent a new code to your email.\"\n}"
+                },
+                {
+                  "name": "429 \u2014 Too Soon",
+                  "status": "Too Many Requests",
+                  "code": 429,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Wait 42 seconds before asking for another code.\"\n}"
+                },
+                {
+                  "name": "429 \u2014 No More Codes",
+                  "status": "Too Many Requests",
+                  "code": 429,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"No more codes can be sent for this sign-in. Sign in again.\"\n}"
                 }
               ]
             },
