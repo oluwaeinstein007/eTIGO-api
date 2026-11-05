@@ -21,7 +21,7 @@ Personal data is protected at every stage: it is encrypted while it travels betw
 
 - **Payment cards:** We never store full card numbers or CVVs. Cards are handled by Paystack (PCI-DSS certified). We keep only a payment token, the card brand, the last four digits and the expiry date, to show the card in the app.
 - **Bank accounts:** Driver payout account numbers are masked (only the last four digits shown) wherever they are displayed.
-- **Documents and photos:** Driver documents, vehicle papers, dispute evidence and other uploads are kept in private cloud storage (Cloudinary), not on the phone. They have no permanent public address: the app gives a signed link only to people allowed to see the file, and anyone holding that link can open it until it expires 30 minutes later. Profile photos are the only public images.
+- **Documents and photos:** Driver documents, vehicle papers, dispute evidence and other uploads are kept in private cloud storage (Cloudinary), not on the phone. They have no public address: each file opens only through our servers, for a signed-in person it was shared with (for example the driver who uploaded a document, or the staff reviewing it). A copied link does not work for anyone else, and it stops working once that person's sign-in ends. Profile photos are the only public images.
 - **Secrets:** API keys and passwords for our services are kept in protected server configuration, never in the app code.
 - **Database:** **[TO CONFIRM: the production database accepts connections only from our application servers, not the public internet.]**
 

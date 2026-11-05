@@ -72,7 +72,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     public function read(string $path): string
     {
-        $url = $this->buildUrl($path);
+        $url = $this->readUrl($path);
 
         $contents = @file_get_contents($url);
 
@@ -88,7 +88,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
      */
     public function readStream(string $path): mixed
     {
-        $url = $this->buildUrl($path);
+        $url = $this->readUrl($path);
 
         $stream = @fopen($url, 'rb');
 
@@ -312,6 +312,35 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
     private function deliveryType(string $path): string
     {
         return $this->isPublic($path) ? self::PUBLIC_TYPE : self::PRIVATE_TYPE;
+    }
+
+    /**
+     * Where the server itself fetches a file (for GET /files/{ref}). Private
+     * images, audio and video come from the CDN through a signed delivery
+     * URL that only the server sees. PDFs and other raw files use the
+     * download API instead, because the account blocks raw PDF delivery
+     * from the CDN.
+     */
+    private function readUrl(string $path): string
+    {
+        if ($this->isPublic($path)) {
+            return $this->buildUrl($path);
+        }
+
+        $resourceType = $this->detectResourceType($path);
+
+        if ($resourceType === 'raw') {
+            return $this->signedDownloadUrl($path, now()->addMinutes(5));
+        }
+
+        $asset = $resourceType === 'video'
+            ? $this->cloudinary->video($this->pathToPublicId($path))
+            : $this->cloudinary->image($this->pathToPublicId($path));
+
+        return (string) $asset->deliveryType(self::PRIVATE_TYPE)
+            ->extension(strtolower(pathinfo($path, PATHINFO_EXTENSION)))
+            ->signUrl()
+            ->toUrl();
     }
 
     private function signedDownloadUrl(string $path, DateTimeInterface $expiration): string
