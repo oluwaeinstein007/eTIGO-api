@@ -32,6 +32,7 @@ use App\Services\PhotonGateway;
 use App\Services\QoreIdKycGateway;
 use App\Services\SendchampGateway;
 use App\Support\CloudinaryAdapter;
+use App\Support\PhoneNumber;
 use Cloudinary\Cloudinary;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Filesystem\FilesystemAdapter;
@@ -81,6 +82,32 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('mail', fn () => Limit::perSecond(max(1, (int) config('mail.rate_limit_per_second'))));
 
         RateLimiter::for('admin-login-code', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
+
+        // Rider and driver sign-in is limited per phone number, with only a
+        // loose limit per IP: Nigerian mobile networks put many users behind
+        // one address (carrier-grade NAT), so a tight IP limit would lock out
+        // strangers. Sending is capped hardest, since each code costs an SMS.
+        // OtpService adds the 60-second resend cooldown and 5 guesses a code.
+        RateLimiter::for('otp-send', fn (Request $request) => [
+            Limit::perMinutes(10, 5)->by('phone:'.$this->signInPhone($request)),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
+        ]);
+        RateLimiter::for('otp-verify', fn (Request $request) => [
+            Limit::perMinute(10)->by('phone:'.$this->signInPhone($request)),
+            Limit::perMinute(30)->by('ip:'.$request->ip()),
+        ]);
+        RateLimiter::for('auth', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
+    }
+
+    /**
+     * The phone a sign-in request is for, in the form the request will
+     * validate it in, so 0803… and +234803… share one limit.
+     */
+    private function signInPhone(Request $request): string
+    {
+        $phone = $request->input('phone');
+
+        return is_string($phone) ? PhoneNumber::normalize($phone) : '';
     }
 
     private function registerCloudinaryDriver(): void

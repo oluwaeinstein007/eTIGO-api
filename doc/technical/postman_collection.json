@@ -927,7 +927,7 @@
                     "send"
                   ]
                 },
-                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone.\" 60-second cooldown between requests. Code expires after 5 minutes.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
+                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone.\" 60-second cooldown between codes; at most 5 codes per phone in 10 minutes and 20 requests a minute per IP (429 \"Too Many Attempts.\"). Code expires after 5 minutes. Nigerian numbers are normalised (`+2340803\u2026`, `0803\u2026`, spaces) to `+234803\u2026`.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
               },
               "response": [
                 {
@@ -1013,7 +1013,7 @@
                     "verify"
                   ]
                 },
-                "description": "Requires `type` to identify which account to log into (a phone can have both a passenger and driver account). If user exists for that type: returns token. If new user: returns is_new_user: true."
+                "description": "Requires `type` to identify which account to log into (a phone can have both a passenger and driver account). If user exists for that type: returns token. If new user: returns is_new_user: true. Any of the phone's last 3 unexpired codes works (a late SMS after a resend is still accepted); 5 wrong guesses cancel them. 422 `message` says which: invalid code, no active code, too many attempts, or a validation error such as \"The phone field is required.\" Limits: 10 a minute per phone, 30 per IP."
               },
               "response": [
                 {
@@ -1472,7 +1472,7 @@
                     "redirect"
                   ]
                 },
-                "description": "Returns the OAuth redirect URL for the given provider. The mobile app opens this URL in a system browser (not a WebView). After the user authorizes, the backend redirects to the app deep link: `etigo-{type}:///auth/callback?code=...&state=...`.\n\nThe app then calls `POST /auth/social/exchange` with the received `code` to get the session token.\n\n**Parameters:**\n- `provider` \u2014 One of: `google`, `apple`, `facebook`\n- `type` \u2014 Must be `passenger` or `driver`. Determines the deep link scheme for the callback.\n- `state` \u2014 A random CSRF-protection string (min 16 characters) that the app generates and verifies on callback.\n\nNo auth required. Rate-limited to 5 requests/minute."
+                "description": "Returns the OAuth redirect URL for the given provider. The mobile app opens this URL in a system browser (not a WebView). After the user authorizes, the backend redirects to the app deep link: `etigo-{type}:///auth/callback?code=...&state=...`.\n\nThe app then calls `POST /auth/social/exchange` with the received `code` to get the session token.\n\n**Parameters:**\n- `provider` \u2014 One of: `google`, `apple`, `facebook`\n- `type` \u2014 Must be `passenger` or `driver`. Determines the deep link scheme for the callback.\n- `state` \u2014 A random CSRF-protection string (min 16 characters) that the app generates and verifies on callback.\n\nNo auth required. Rate-limited to 30 requests a minute per IP."
               },
               "response": [
                 {

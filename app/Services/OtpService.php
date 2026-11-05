@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Contracts\SmsGateway;
 use App\Models\OtpCode;
-use Illuminate\Database\Eloquent\Collection;
 
 class OtpService
 {
@@ -115,7 +114,7 @@ class OtpService
         }
 
         if ($otpCode->hasExceededMaxAttempts(self::AUTH_MAX_ATTEMPTS)) {
-            $this->expire($activeCodes);
+            $this->expireActiveCodes($phone, $purpose);
 
             return ['valid' => false, 'phone' => null, 'error' => 'Too many attempts. Please request a new code.'];
         }
@@ -136,7 +135,7 @@ class OtpService
         }
 
         $matched->markAsVerified($forType);
-        $this->expire($activeCodes->reject(fn (OtpCode $candidate) => $candidate->is($matched)));
+        $this->expireActiveCodes($phone, $purpose);
 
         return ['valid' => true, 'phone' => $phone, 'error' => null];
     }
@@ -211,13 +210,15 @@ class OtpService
     }
 
     /**
-     * @param  Collection<int, OtpCode>  $codes
+     * Every unexpired code for the phone, not only the ones a guess was
+     * checked against, so an older code cannot outlive a lockout or a sign-in.
      */
-    private function expire(Collection $codes): void
+    private function expireActiveCodes(string $phone, string $purpose): void
     {
-        if ($codes->isNotEmpty()) {
-            OtpCode::whereKey($codes->modelKeys())->update(['expires_at' => now()]);
-        }
+        OtpCode::forPhone($phone)
+            ->where('purpose', $purpose)
+            ->active()
+            ->update(['expires_at' => now()]);
     }
 
     private function generateCode(int $length): string

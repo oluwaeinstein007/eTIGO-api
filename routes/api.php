@@ -177,9 +177,11 @@ Route::get('/rides/{ride}/share/{token}', [RideShareController::class, 'show'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::middleware('throttle:5,1')->group(function () {
-        Route::post('/otp/send', [AuthController::class, 'sendOtp']);
-        Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+    // Limits are per phone, and loose per IP; see AppServiceProvider.
+    Route::post('/otp/send', [AuthController::class, 'sendOtp'])->middleware('throttle:otp-send');
+    Route::post('/otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:otp-verify');
+
+    Route::middleware('throttle:auth')->group(function () {
         Route::post('/register/complete', [AuthController::class, 'completeRegistration']);
         Route::post('/social/redirect', [AuthController::class, 'socialRedirect']);
         Route::post('/social', [AuthController::class, 'socialAuth']);
