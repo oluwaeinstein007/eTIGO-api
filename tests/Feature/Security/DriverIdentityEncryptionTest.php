@@ -4,6 +4,8 @@ use App\Enums\KycVerificationStatus;
 use App\Enums\KycVerificationType;
 use App\Models\Driver;
 use App\Models\KycVerification;
+use App\Support\IdentityNumberEncryption;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
@@ -55,4 +57,26 @@ it('encrypts identity numbers saved before encryption existed', function () {
     expect($driver->fresh()->licence_number)->toBe('DL-55555')
         ->and($verification->fresh()->id_number)->toBe('00012345678')
         ->and($verification->fresh()->match_data)->toBe(['firstname' => 'Ada']);
+});
+
+it('encrypts plain values the old release wrote during the deploy', function () {
+    $driver = Driver::factory()->create(['licence_number' => 'LAG-1']);
+    $plain = Driver::factory()->create();
+    DB::table('drivers')->where('id', $plain->id)->update(['licence_number' => 'LAG-2']);
+
+    $this->artisan('drivers:encrypt-identity-numbers')
+        ->expectsOutput('1 row(s) encrypted.')
+        ->assertSuccessful();
+
+    expect($plain->fresh()->licence_number)->toBe('LAG-2')
+        ->and($driver->fresh()->licence_number)->toBe('LAG-1');
+});
+
+it('refuses to treat a value encrypted with another key as plain text', function () {
+    $driver = Driver::factory()->create();
+    $otherKey = new Encrypter(random_bytes(32), 'AES-256-CBC');
+    DB::table('drivers')->where('id', $driver->id)->update(['licence_number' => $otherKey->encryptString('LAG-3')]);
+
+    expect(fn () => IdentityNumberEncryption::encryptAll())
+        ->toThrow(RuntimeException::class, 'different APP_KEY');
 });
