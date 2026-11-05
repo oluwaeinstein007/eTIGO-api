@@ -158,6 +158,7 @@ POST /auth/otp/verify
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -173,6 +174,8 @@ POST /auth/otp/verify
   "token": "1|abc123def456ghi789jkl012mno345pqr678stu901"
 }
 ```
+
+`account_restored` (existing accounts only) is `true` when this login cancelled a pending account deletion (see Delete Account), otherwise `false`.
 
 **Response 200 (new user — needs registration):**
 ```json
@@ -334,6 +337,7 @@ The mobile app can either:
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -411,6 +415,7 @@ Exchanges a one-time authorization code (received via the deep link callback) fo
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -480,6 +485,49 @@ POST /auth/logout
 {
   "message": "Logged out successfully."
 }
+```
+
+---
+
+### Delete Account
+
+```
+DELETE /auth/account
+```
+**Auth required.** Passengers and drivers only (admins get 403). Asks for the account to be deleted. Nothing is erased straight away: the user is logged out on every device, push notifications stop, a driver is taken offline and any EV reservation not yet charging is cancelled. The account is kept for a **30-day grace period** (`ACCOUNT_DELETION_GRACE_DAYS`).
+
+- **Logging in again within the grace period cancels the deletion.** Login responses for an existing account (`is_new_user: false`) from `/auth/otp/verify`, `/auth/social` and `/auth/social/exchange` carry `account_restored`: `true` when that login cancelled a pending deletion, so the app can say "Welcome back, your account will not be deleted." Sign-up responses (`is_new_user: true`) do not have the field. A login still restores the account after `deletion_scheduled_for` until the daily job has actually erased it.
+- `deletion_scheduled_for` is fixed when the request is made; changing the grace period later does not move it. While a driver's deletion is pending, operations cannot assign them a scheduled ride.
+- **After the grace period** a daily job (03:00 Lagos) erases the account. With no rides it is deleted outright; with rides it is anonymised (name becomes "Deleted User", phone, email, password and photo cleared, saved places, cards, social logins, notification preferences and rewards deleted, driver unassigned from their vehicle) so trip and payment records stay intact. If something blocks deletion by then (for example a new outstanding balance) the job tries again the next day.
+
+**Response 200:**
+```json
+{
+  "message": "Your account will be deleted on 5 December 2026. Log in again before then to keep it.",
+  "deletion_scheduled_for": "2026-12-05T10:00:00+00:00",
+  "grace_days": 30
+}
+```
+
+**Response 422** (one of):
+```json
+{ "message": "Cannot delete account while you have an active ride." }
+{ "message": "Cannot delete account while you have an active scheduled ride." }
+{ "message": "Cannot delete account while you have an outstanding balance." }
+{ "message": "Cannot delete account while you have an active trip." }
+{ "message": "Cannot delete account while you have an assigned scheduled ride." }
+{ "message": "Cannot delete account while an EV charging session is active." }
+{ "message": "Cannot delete account while your wallet has ₦2,500.00. Use it on a ride or contact support for a refund first." }
+{ "message": "Cannot delete account while you have a fleet vehicle agreement. Ask your fleet manager to end it first." }
+{ "message": "Cannot delete account while you have ₦1,500.00 in earnings. Withdraw them first (earnings still settling become available within a few hours)." }
+{ "message": "Cannot delete account while you owe E-tiGo ₦300.00. Settle it first." }
+```
+
+The same checks run again at the purge; an account that fails one then is kept and retried the next day.
+
+**Response 403:**
+```json
+{ "message": "Admin accounts cannot be deleted through this endpoint." }
 ```
 
 ---

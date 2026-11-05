@@ -16,6 +16,7 @@ use App\Jobs\ProcessLostItemsJob;
 use App\Jobs\ProcessScheduledRidesJob;
 use App\Jobs\ProcessVehicleMaintenanceJob;
 use App\Jobs\ProcessWeeklyAutoPayoutJob;
+use App\Jobs\PurgeDeletedAccountsJob;
 use App\Jobs\ReconcilePayoutsJob;
 use App\Jobs\RemittanceShortfallAlertJob;
 use App\Jobs\SettleDriverEarningsJob;
@@ -58,6 +59,8 @@ Schedule::job(new ProcessDisputeTargetsJob)->everyFifteenMinutes()->withoutOverl
 Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlapping();
 // Vehicle maintenance: due dates, reminders, the expired-papers block.
 Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
+// Account deletion: erase accounts whose grace period has ended.
+Schedule::job(new PurgeDeletedAccountsJob)->dailyAt('03:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Admin overview: point-in-time counts for the "vs. this time yesterday" figures.
 Schedule::job(new CaptureOperationsSnapshotJob)->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('model:prune', ['--model' => [Notification::class, OperationsSnapshot::class]])->daily();

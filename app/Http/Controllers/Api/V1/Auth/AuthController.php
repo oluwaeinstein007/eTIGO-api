@@ -2,10 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
-use App\Enums\BalanceDueStatus;
 use App\Enums\DriverStatus;
-use App\Enums\EvReservationStatus;
-use App\Enums\RideStatus;
 use App\Enums\SocialProvider;
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
@@ -16,28 +13,23 @@ use App\Http\Requests\Auth\VerifyOtpRequest;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\Driver;
-use App\Models\EvReservation;
 use App\Models\OtpCode;
-use App\Models\PassengerBalanceDue;
-use App\Models\Ride;
-use App\Models\ScheduledRide;
 use App\Models\SocialAccount;
 use App\Models\SocialAuthCode;
 use App\Models\User;
-use App\Models\Vehicle;
-use App\Services\DriverLocationService;
+use App\Services\AccountDeletionService;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
     public function __construct(
         private OtpService $otpService,
         private SocialAuthService $socialAuthService,
+        private AccountDeletionService $accountDeletion,
     ) {}
 
     public function sendOtp(SendOtpRequest $request): JsonResponse
@@ -82,6 +74,8 @@ class AuthController extends Controller
 
             $user->update(['phone_verified_at' => now()]);
 
+            $restored = $this->accountDeletion->cancelDeletion($user);
+
             AuditLog::record($user, 'logged_in');
 
             $token = $user->createToken(
@@ -93,6 +87,7 @@ class AuthController extends Controller
                 'message' => 'Logged in successfully.',
                 'is_new_user' => false,
                 'user' => new UserResource($user),
+                'account_restored' => $restored,
                 'token' => $token,
             ]);
         }
@@ -245,6 +240,8 @@ class AuthController extends Controller
                 ], 403);
             }
 
+            $restored = $this->accountDeletion->cancelDeletion($user);
+
             AuditLog::record($user, 'logged_in');
 
             $token = $user->createToken(
@@ -256,6 +253,7 @@ class AuthController extends Controller
                 'message' => 'Logged in successfully.',
                 'is_new_user' => false,
                 'user' => new UserResource($user),
+                'account_restored' => $restored,
                 'token' => $token,
             ]);
         }
@@ -278,6 +276,8 @@ class AuthController extends Controller
                     'provider_id' => $socialUser['id'],
                 ]);
 
+                $restored = $this->accountDeletion->cancelDeletion($existingUser);
+
                 AuditLog::record($existingUser, 'logged_in');
 
                 $token = $existingUser->createToken(
@@ -289,6 +289,7 @@ class AuthController extends Controller
                     'message' => 'Logged in successfully.',
                     'is_new_user' => false,
                     'user' => new UserResource($existingUser),
+                    'account_restored' => $restored,
                     'token' => $token,
                 ]);
             }
@@ -344,6 +345,10 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Ask for the account to be deleted. The user is logged out and the
+     * account is erased after the grace period unless they log in again.
+     */
     public function deleteAccount(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -354,137 +359,17 @@ class AuthController extends Controller
             ], 403);
         }
 
-        if ($user->type === UserType::Passenger) {
-            $hasActiveRide = Ride::where('passenger_id', $user->id)
-                ->whereIn('status', RideStatus::activeStatuses())
-                ->exists();
-
-            if ($hasActiveRide) {
-                return response()->json([
-                    'message' => 'Cannot delete account while you have an active ride.',
-                ], 422);
-            }
-
-            $hasActiveScheduledRide = ScheduledRide::whereHas('ride', fn ($q) => $q->where('passenger_id', $user->id))
-                ->whereNull('dispatched_at')
-                ->whereNull('cancelled_at')
-                ->exists();
-
-            if ($hasActiveScheduledRide) {
-                return response()->json([
-                    'message' => 'Cannot delete account while you have an active scheduled ride.',
-                ], 422);
-            }
-
-            $hasOutstandingBalance = PassengerBalanceDue::where('passenger_id', $user->id)
-                ->where('status', BalanceDueStatus::Outstanding)
-                ->exists();
-
-            if ($hasOutstandingBalance) {
-                return response()->json([
-                    'message' => 'Cannot delete account while you have an outstanding balance.',
-                ], 422);
-            }
-        } elseif ($user->type === UserType::Driver) {
-            $hasActiveTrip = Ride::where('driver_id', $user->id)
-                ->whereIn('status', RideStatus::activeStatuses())
-                ->exists();
-
-            if ($hasActiveTrip) {
-                return response()->json([
-                    'message' => 'Cannot delete account while you have an active trip.',
-                ], 422);
-            }
-
-            $hasAssignedScheduledRide = ScheduledRide::where('reserved_driver_id', $user->id)
-                ->whereNull('dispatched_at')
-                ->whereNull('cancelled_at')
-                ->exists();
-
-            if ($hasAssignedScheduledRide) {
-                return response()->json([
-                    'message' => 'Cannot delete account while you have an assigned scheduled ride.',
-                ], 422);
-            }
-
-            $hasActiveEvCharging = EvReservation::where('driver_id', $user->id)
-                ->where('status', EvReservationStatus::Active)
-                ->exists();
-
-            if ($hasActiveEvCharging) {
-                return response()->json([
-                    'message' => 'Cannot delete account while an EV charging session is active.',
-                ], 422);
-            }
-
-            EvReservation::where('driver_id', $user->id)
-                ->whereIn('status', [
-                    EvReservationStatus::PendingReview,
-                    EvReservationStatus::Confirmed,
-                    EvReservationStatus::Reserved,
-                    EvReservationStatus::Queued,
-                ])
-                ->update(['status' => EvReservationStatus::Cancelled]);
+        if ($reason = $this->accountDeletion->blockingReason($user)) {
+            return response()->json(['message' => $reason], 422);
         }
 
-        DB::transaction(function () use ($user) {
-            $user->tokens()->delete();
-            $user->deviceTokens()->delete();
-            $user->savedPlaces()->delete();
-            $user->paymentMethods()->delete();
-            $user->socialAccounts()->delete();
-            $user->notificationPreferences()->delete();
-            $user->gamificationProfile()?->delete();
-
-            if ($user->type === UserType::Driver) {
-                $driver = $user->driver;
-                if ($driver) {
-                    $driver->update([
-                        'is_online' => false,
-                        'status' => DriverStatus::Suspended,
-                    ]);
-                    Vehicle::where('driver_id', $driver->id)->update(['driver_id' => null]);
-                    try {
-                        app(DriverLocationService::class)->removeDriver($driver->id, $user->id);
-                    } catch (\Throwable $e) {}
-                }
-            }
-
-            if ($user->profile_photo_path) {
-                try {
-                    Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
-                } catch (\Throwable $e) {}
-            }
-
-            $hasHistory = Ride::where('passenger_id', $user->id)
-                ->orWhere('driver_id', $user->id)
-                ->exists();
-
-            if (! $hasHistory) {
-                try {
-                    $user->delete();
-                    return;
-                } catch (\Throwable $e) {
-                    // Fall back to anonymization
-                }
-            }
-
-            $user->update([
-                'first_name' => 'Deleted',
-                'last_name' => 'User',
-                'phone' => null,
-                'email' => null,
-                'password' => null,
-                'profile_photo_path' => null,
-                'is_active' => false,
-                'suspension_reason' => 'Account deleted by user.',
-            ]);
-
-            AuditLog::record($user, 'account_deleted');
-        });
+        $scheduledFor = $this->accountDeletion->requestDeletion($user);
 
         return response()->json([
-            'message' => 'Account deleted successfully.',
+            'message' => 'Your account will be deleted on '.$scheduledFor->copy()->timezone('Africa/Lagos')->format('j F Y')
+                .'. Log in again before then to keep it.',
+            'deletion_scheduled_for' => $scheduledFor->toIso8601String(),
+            'grace_days' => AccountDeletionService::graceDays(),
         ]);
     }
 
@@ -521,6 +406,8 @@ class AuthController extends Controller
                 ], 403);
             }
 
+            $restored = $this->accountDeletion->cancelDeletion($user);
+
             AuditLog::record($user, 'logged_in');
 
             $token = $user->createToken(
@@ -532,6 +419,7 @@ class AuthController extends Controller
                 'message' => 'Logged in successfully.',
                 'is_new_user' => false,
                 'user' => new UserResource($user),
+                'account_restored' => $restored,
                 'token' => $token,
             ]);
         }
@@ -554,6 +442,8 @@ class AuthController extends Controller
                     'provider_id' => $authCode->provider_id,
                 ]);
 
+                $restored = $this->accountDeletion->cancelDeletion($existingUser);
+
                 AuditLog::record($existingUser, 'logged_in');
 
                 $token = $existingUser->createToken(
@@ -565,6 +455,7 @@ class AuthController extends Controller
                     'message' => 'Logged in successfully.',
                     'is_new_user' => false,
                     'user' => new UserResource($existingUser),
+                    'account_restored' => $restored,
                     'token' => $token,
                 ]);
             }

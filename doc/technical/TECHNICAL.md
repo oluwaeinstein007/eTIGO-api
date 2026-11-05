@@ -138,6 +138,12 @@ Admins are seeded or invited by a super admin (`/admin/admins/invite` → emaile
 
 The rule lives in `PersonalAccessToken::hasOutlivedSession()` and is applied by the Sanctum guard (`Sanctum::authenticateAccessTokensUsing`) and by the telemetry gateway, so an expired token is refused on every channel. Deactivating an admin or passenger account deletes its tokens.
 
+### Account deletion
+
+`DELETE /auth/account` (passengers and drivers) is refused with 422 while the user has an active ride or trip, an undispatched scheduled ride, an outstanding balance or money in the wallet (passengers), an assigned scheduled ride, an EV charge in progress, an active or paused fleet agreement, or non-zero earnings (pending, available or owed) (drivers). Otherwise `AccountDeletionService::requestDeletion` stamps `users.deletion_requested_at` and `deletion_scheduled_for` (fixed at request time), deletes the user's tokens and device tokens, takes a driver offline and out of the location index, and cancels EV reservations that are not charging through `ReservationService::cancel` (stall released to the queue, in-window fee refunded). Nothing else is removed during the grace period (`ACCOUNT_DELETION_GRACE_DAYS`, whole days ≥ 1; anything else falls back to 30). A driver with a pending deletion cannot be given a scheduled ride (`ScheduledRideReservationService::reservationErrors`).
+
+Any login before the account is erased clears both stamps (`cancelDeletion`, audited `account_deletion_cancelled`) and the login response carries `account_restored: true`. `PurgeDeletedAccountsJob` (daily, 03:00 Lagos) pages due accounts by id and erases each in its own transaction under a row lock (the same lock `cancelDeletion` takes), rechecking that the request still stands: removes saved places, cards, social logins, notification preferences, rewards and the photo, unassigns a driver's vehicle, then deletes the user when they have no rides or anonymises them ("Deleted User", no phone, email or password, inactive) so rides and ledger entries stay intact. An account that is blocked again by then, or whose purge fails (a photo that cannot be deleted rolls the purge back), is logged and retried the next day.
+
 ### Roles and gates
 
 | Middleware | Purpose |

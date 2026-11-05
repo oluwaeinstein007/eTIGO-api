@@ -1022,7 +1022,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"1|abc123def456ghi789jkl012mno345pqr678stu901\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"account_restored\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"1|abc123def456ghi789jkl012mno345pqr678stu901\"\n}"
                 },
                 {
                   "name": "200 \u2014 New User (Needs Registration)",
@@ -1265,7 +1265,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"4|social123def456ghi789jkl012mno345pqr678stu\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"account_restored\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"phone\": \"+2348100000001\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"type\": \"passenger\",\n    \"phone_verified_at\": \"2026-10-06T14:00:00.000000Z\",\n    \"is_active\": true,\n    \"profile_photo_url\": null,\n    \"created_at\": \"2026-10-01T10:00:00.000000Z\"\n  },\n  \"token\": \"4|social123def456ghi789jkl012mno345pqr678stu\"\n}"
                 },
                 {
                   "name": "201 \u2014 New User Created",
@@ -1350,7 +1350,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"5|apple123def456...\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"account_restored\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"5|apple123def456...\"\n}"
                 },
                 {
                   "name": "422 \u2014 Invalid Token",
@@ -1423,7 +1423,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"6|fb123def456...\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"account_restored\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": \"+2348100000001\",\n    \"type\": \"passenger\"\n  },\n  \"token\": \"6|fb123def456...\"\n}"
                 },
                 {
                   "name": "422 \u2014 Invalid Token",
@@ -1539,7 +1539,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": null,\n    \"type\": \"passenger\"\n  },\n  \"token\": \"1|abc123...\"\n}"
+                  "body": "{\n  \"message\": \"Logged in successfully.\",\n  \"is_new_user\": false,\n  \"account_restored\": false,\n  \"user\": {\n    \"id\": \"9e1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c\",\n    \"first_name\": \"Ade\",\n    \"last_name\": \"Ogunleye\",\n    \"email\": \"ade@demo.etigo.com\",\n    \"phone\": null,\n    \"type\": \"passenger\"\n  },\n  \"token\": \"1|abc123...\"\n}"
                 },
                 {
                   "name": "201 \u2014 New User Created",
@@ -1646,6 +1646,83 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Logged out successfully.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Account",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{passenger_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/account",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "account"
+                  ]
+                },
+                "description": "Passengers and drivers. Logs the user out everywhere and schedules the account for deletion after a 30-day grace period. Logging in again within the period cancels it (login responses then carry `account_restored: true`). Afterwards a daily job deletes the account, or anonymises it when it has rides. 422 while an active ride/trip, pending scheduled ride, outstanding balance, wallet money, active EV charge, fleet agreement or non-zero driver earnings exists; 403 for admins."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Deletion Scheduled",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Your account will be deleted on 5 December 2026. Log in again before then to keep it.\",\n  \"deletion_scheduled_for\": \"2026-12-05T10:00:00+00:00\",\n  \"grace_days\": 30\n}"
+                },
+                {
+                  "name": "422 \u2014 Active Ride",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot delete account while you have an active ride.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Wallet Has Money",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot delete account while your wallet has \\u20a62,500.00. Use it on a ride or contact support for a refund first.\"\n}"
+                },
+                {
+                  "name": "403 \u2014 Admin",
+                  "status": "Forbidden",
+                  "code": 403,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Admin accounts cannot be deleted through this endpoint.\"\n}"
                 }
               ]
             }
