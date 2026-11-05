@@ -70,7 +70,7 @@ Every login response now has an extra field, `account_restored`:
 }
 ```
 
-`true` means this login cancelled a pending deletion. Show something like "Welcome back. Your account will not be deleted." It is `false` on every ordinary login, and absent on new-account responses (`is_new_user: true`).
+`true` means this login cancelled a pending deletion (this works until the account is actually erased, at most a day after the date given). Show something like "Welcome back. Your account will not be deleted." It is `false` on every ordinary login, and absent on new-account responses (`is_new_user: true`).
 
 ---
 

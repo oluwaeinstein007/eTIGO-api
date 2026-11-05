@@ -14,6 +14,8 @@
 
 return [
 
-    'deletion_grace_days' => (int) env('ACCOUNT_DELETION_GRACE_DAYS', 30),
+    // Whole days, at least 1. Anything else (empty, text, 0) is ignored and
+    // 30 is used, so a typo can never erase accounts early.
+    'deletion_grace_days' => env('ACCOUNT_DELETION_GRACE_DAYS', 30),
 
 ];

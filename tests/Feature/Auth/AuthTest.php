@@ -3,11 +3,16 @@
 use App\Contracts\SmsGateway;
 use App\Enums\BalanceDueReason;
 use App\Enums\BalanceDueStatus;
+use App\Enums\DriverStatus;
+use App\Enums\EvReservationStatus;
+use App\Enums\EvStallStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\PurgeDeletedAccountsJob;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\EvChargingStall;
+use App\Models\EvReservation;
 use App\Models\OtpCode;
 use App\Models\PassengerBalanceDue;
 use App\Models\Ride;
@@ -15,6 +20,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AccountDeletionService;
 use App\Services\OtpService;
+use App\Services\ScheduledRideReservationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -494,4 +500,63 @@ it('takes a driver offline on request and frees their vehicle at the purge', fun
 
     expect(User::find($driverUser->id))->toBeNull()
         ->and($vehicle->fresh()->driver_id)->toBeNull();
+});
+
+it('keeps the date promised at request time when the grace setting changes', function () {
+    $user = User::factory()->passenger()->create();
+    $scheduledFor = app(AccountDeletionService::class)->requestDeletion($user);
+    expect($scheduledFor->toDateString())->toBe(now()->addDays(30)->toDateString());
+
+    config(['accounts.deletion_grace_days' => 1]);
+    $this->travel(2)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    expect(User::find($user->id))->not->toBeNull();
+});
+
+it('uses 30 days when the grace setting is not a whole number of at least 1', function (mixed $value) {
+    config(['accounts.deletion_grace_days' => $value]);
+
+    expect(AccountDeletionService::graceDays())->toBe(30);
+})->with(['', 'abc', 0, -5, '7.5']);
+
+it('does not purge an account restored after the purge loaded it', function () {
+    $user = User::factory()->passenger()->create();
+    $service = app(AccountDeletionService::class);
+    $service->requestDeletion($user);
+    $this->travel(31)->days();
+
+    $stale = User::find($user->id);
+    $service->cancelDeletion(User::find($user->id));
+
+    expect($service->purge($stale))->toBeFalse()
+        ->and(User::find($user->id))->not->toBeNull();
+});
+
+it('releases a reserved EV stall when a driver asks for deletion', function () {
+    $driverUser = User::factory()->driver()->create();
+    Driver::factory()->create(['user_id' => $driverUser->id]);
+    $stall = EvChargingStall::factory()->reserved()->create();
+    $reservation = EvReservation::factory()->create([
+        'driver_id' => $driverUser->id,
+        'station_id' => $stall->station_id,
+        'stall_id' => $stall->id,
+        'status' => EvReservationStatus::Reserved,
+    ]);
+
+    app(AccountDeletionService::class)->requestDeletion($driverUser);
+
+    expect($reservation->fresh()->status)->toBe(EvReservationStatus::Cancelled)
+        ->and($stall->fresh()->status)->toBe(EvStallStatus::Available);
+});
+
+it('cannot reserve a scheduled ride for a driver pending deletion', function () {
+    $driverUser = User::factory()->driver()->create();
+    Driver::factory()->create(['user_id' => $driverUser->id, 'status' => DriverStatus::Approved]);
+    $driverUser->forceFill(['deletion_requested_at' => now(), 'deletion_scheduled_for' => now()->addDays(30)])->save();
+    $ride = Ride::factory()->create(['status' => RideStatus::Scheduled]);
+
+    $errors = app(ScheduledRideReservationService::class)->reservationErrors($driverUser, $ride, byAdmin: true);
+
+    expect($errors)->toBe(['This driver has asked for their account to be deleted.']);
 });

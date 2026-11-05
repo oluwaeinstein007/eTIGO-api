@@ -175,7 +175,7 @@ POST /auth/otp/verify
 }
 ```
 
-`account_restored` is `true` when this login cancelled a pending account deletion (see Delete Account), otherwise `false`.
+`account_restored` (existing accounts only) is `true` when this login cancelled a pending account deletion (see Delete Account), otherwise `false`.
 
 **Response 200 (new user — needs registration):**
 ```json
@@ -496,7 +496,8 @@ DELETE /auth/account
 ```
 **Auth required.** Passengers and drivers only (admins get 403). Asks for the account to be deleted. Nothing is erased straight away: the user is logged out on every device, push notifications stop, a driver is taken offline and any EV reservation not yet charging is cancelled. The account is kept for a **30-day grace period** (`ACCOUNT_DELETION_GRACE_DAYS`).
 
-- **Logging in again within the grace period cancels the deletion.** Every login response (`/auth/otp/verify`, `/auth/social`, `/auth/social/exchange`) carries `account_restored`: `true` when that login cancelled a pending deletion, so the app can say "Welcome back, your account will not be deleted."
+- **Logging in again within the grace period cancels the deletion.** Login responses for an existing account (`is_new_user: false`) from `/auth/otp/verify`, `/auth/social` and `/auth/social/exchange` carry `account_restored`: `true` when that login cancelled a pending deletion, so the app can say "Welcome back, your account will not be deleted." Sign-up responses (`is_new_user: true`) do not have the field. A login still restores the account after `deletion_scheduled_for` until the daily job has actually erased it.
+- `deletion_scheduled_for` is fixed when the request is made; changing the grace period later does not move it. While a driver's deletion is pending, operations cannot assign them a scheduled ride.
 - **After the grace period** a daily job (03:00 Lagos) erases the account. With no rides it is deleted outright; with rides it is anonymised (name becomes "Deleted User", phone, email, password and photo cleared, saved places, cards, social logins, notification preferences and rewards deleted, driver unassigned from their vehicle) so trip and payment records stay intact. If something blocks deletion by then (for example a new outstanding balance) the job tries again the next day.
 
 **Response 200:**

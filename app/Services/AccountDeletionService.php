@@ -27,11 +27,30 @@ use Illuminate\Support\Facades\Storage;
  */
 class AccountDeletionService
 {
-    public function __construct(private DriverLocationService $driverLocations) {}
+    public const DEFAULT_GRACE_DAYS = 30;
 
+    public function __construct(
+        private DriverLocationService $driverLocations,
+        private ReservationService $evReservations,
+    ) {}
+
+    /**
+     * The grace period in whole days. A setting that is not a whole number
+     * of at least 1 is ignored, so a bad value can never erase accounts early.
+     */
     public static function graceDays(): int
     {
-        return max(0, (int) config('accounts.deletion_grace_days', 30));
+        $days = filter_var(config('accounts.deletion_grace_days'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        if ($days === false) {
+            Log::warning('ACCOUNT_DELETION_GRACE_DAYS is not a whole number of at least 1; using the default.', [
+                'value' => config('accounts.deletion_grace_days'),
+            ]);
+
+            return self::DEFAULT_GRACE_DAYS;
+        }
+
+        return $days;
     }
 
     /**
@@ -94,7 +113,10 @@ class AccountDeletionService
     public function requestDeletion(User $user): Carbon
     {
         DB::transaction(function () use ($user) {
-            $user->forceFill(['deletion_requested_at' => now()])->save();
+            $user->forceFill([
+                'deletion_requested_at' => now(),
+                'deletion_scheduled_for' => now()->addDays(self::graceDays()),
+            ])->save();
             $user->tokens()->delete();
             $user->deviceTokens()->delete();
 
@@ -114,8 +136,10 @@ class AccountDeletionService
     }
 
     /**
-     * Cancel a pending deletion, as when the user logs in again within the
-     * grace period. Returns true when there was one to cancel.
+     * Cancel a pending deletion, as when the user logs in again. This works
+     * until the account is actually erased, which can be up to a day after
+     * the scheduled date (the purge runs once a day). Returns true when
+     * there was one to cancel.
      */
     public function cancelDeletion(User $user): bool
     {
@@ -123,15 +147,31 @@ class AccountDeletionService
             return false;
         }
 
-        $user->forceFill(['deletion_requested_at' => null])->save();
-        AuditLog::record($user, 'account_deletion_cancelled', $user);
+        $cancelled = DB::transaction(function () use ($user) {
+            // The same row lock as purge(), so a login and a purge never
+            // both act on the account.
+            $locked = User::lockForUpdate()->find($user->id);
 
-        return true;
+            if ($locked === null || $locked->deletion_requested_at === null) {
+                return false;
+            }
+
+            $locked->forceFill(['deletion_requested_at' => null, 'deletion_scheduled_for' => null])->save();
+            AuditLog::record($locked, 'account_deletion_cancelled', $locked);
+
+            return true;
+        });
+
+        if ($cancelled) {
+            $user->forceFill(['deletion_requested_at' => null, 'deletion_scheduled_for' => null])->syncOriginal();
+        }
+
+        return $cancelled;
     }
 
     public function scheduledFor(User $user): ?Carbon
     {
-        return $user->deletion_requested_at?->copy()->addDays(self::graceDays());
+        return $user->deletion_scheduled_for;
     }
 
     /**
@@ -143,33 +183,51 @@ class AccountDeletionService
     {
         $purged = 0;
 
-        User::whereNotNull('deletion_requested_at')
-            ->where('deletion_requested_at', '<=', now()->subDays(self::graceDays()))
+        // By id, not offset: purged accounts leave the result, and offset
+        // pages would then skip some.
+        User::whereNotNull('deletion_scheduled_for')
+            ->where('deletion_scheduled_for', '<=', now())
             ->where('type', '!=', UserType::Admin)
-            ->each(function (User $user) use (&$purged) {
-                if ($reason = $this->blockingReason($user)) {
-                    Log::warning('Account deletion postponed.', ['user_id' => $user->id, 'reason' => $reason]);
-
-                    return;
+            ->chunkById(200, function ($users) use (&$purged) {
+                foreach ($users as $user) {
+                    try {
+                        if ($this->purge($user)) {
+                            $purged++;
+                        }
+                    } catch (\Throwable $e) {
+                        // Nothing was committed for this account; the next run retries it.
+                        Log::error('Account deletion failed; will retry.', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+                    }
                 }
-
-                $this->purge($user);
-                $purged++;
             });
 
         return $purged;
     }
 
     /**
-     * Remove the account's personal data now.
+     * Remove the account's personal data now. Returns false, changing
+     * nothing, when the request was cancelled in the meantime or something
+     * still blocks deletion (tried again on the next run).
      */
-    public function purge(User $user): void
+    public function purge(User $user): bool
     {
-        if ($user->type === UserType::Driver) {
-            $this->cancelPendingEvReservations($user);
-        }
+        return DB::transaction(function () use ($user) {
+            $user = User::lockForUpdate()->find($user->id);
 
-        DB::transaction(function () use ($user) {
+            if ($user === null || $user->deletion_requested_at === null) {
+                return false;
+            }
+
+            if ($reason = $this->blockingReason($user)) {
+                Log::warning('Account deletion postponed.', ['user_id' => $user->id, 'reason' => $reason]);
+
+                return false;
+            }
+
+            if ($user->type === UserType::Driver) {
+                $this->cancelPendingEvReservations($user);
+            }
+
             $user->tokens()->delete();
             $user->deviceTokens()->delete();
             $user->savedPlaces()->delete();
@@ -187,11 +245,10 @@ class AccountDeletionService
                 $this->removeFromLocations($driver->id, $user->id);
             }
 
+            // A failed delete throws and rolls the purge back, so the photo
+            // is never left behind on an account marked as erased.
             if ($user->profile_photo_path) {
-                try {
-                    Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
-                } catch (\Throwable) {
-                }
+                Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
             }
 
             $hasHistory = Ride::where('passenger_id', $user->id)
@@ -204,7 +261,7 @@ class AccountDeletionService
                     // transaction usable (Postgres aborts it otherwise).
                     DB::transaction(fn () => $user->delete());
 
-                    return;
+                    return true;
                 } catch (\Throwable) {
                     // Other records still point at the user: anonymise instead.
                 }
@@ -220,12 +277,20 @@ class AccountDeletionService
                 'is_active' => false,
                 'suspension_reason' => 'Account deleted by user.',
                 'deletion_requested_at' => null,
+                'deletion_scheduled_for' => null,
             ])->save();
 
             AuditLog::record($user, 'account_deleted');
+
+            return true;
         });
     }
 
+    /**
+     * Cancel each open EV request or reservation the way a driver's own
+     * cancel does: the stall is released and offered to the queue, the queue
+     * is renumbered and an in-window fee is refunded.
+     */
     private function cancelPendingEvReservations(User $user): void
     {
         EvReservation::where('driver_id', $user->id)
@@ -235,7 +300,8 @@ class AccountDeletionService
                 EvReservationStatus::Reserved,
                 EvReservationStatus::Queued,
             ])
-            ->update(['status' => EvReservationStatus::Cancelled]);
+            ->get()
+            ->each(fn (EvReservation $reservation) => $this->evReservations->cancel($reservation));
     }
 
     private function removeFromLocations(string $driverId, string $userId): void
