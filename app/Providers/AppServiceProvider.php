@@ -35,6 +35,7 @@ use App\Support\CloudinaryAdapter;
 use Cloudinary\Cloudinary;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
@@ -78,6 +79,8 @@ class AppServiceProvider extends ServiceProvider
         // Queued email stays under the provider's limit (Resend allows 10 a
         // second); see App\Notifications\Concerns\ThrottlesMail.
         RateLimiter::for('mail', fn () => Limit::perSecond(max(1, (int) config('mail.rate_limit_per_second'))));
+
+        RateLimiter::for('admin-login-code', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
     }
 
     private function registerCloudinaryDriver(): void

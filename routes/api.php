@@ -199,6 +199,13 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('admin/auth')->group(function () {
+    // Two-step sign-in has its own limit: the shared 5 a minute would be
+    // spent by the password step and a couple of mistyped codes.
+    Route::middleware('throttle:admin-login-code')->group(function () {
+        Route::post('/login/verify', [AdminAuthController::class, 'verifyCode']);
+        Route::post('/login/resend', [AdminAuthController::class, 'resendCode']);
+    });
+
     Route::middleware('throttle:5,1')->group(function () {
         Route::post('/login', [AdminAuthController::class, 'login']);
 
