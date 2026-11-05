@@ -158,6 +158,7 @@ POST /auth/otp/verify
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -173,6 +174,8 @@ POST /auth/otp/verify
   "token": "1|abc123def456ghi789jkl012mno345pqr678stu901"
 }
 ```
+
+`account_restored` is `true` when this login cancelled a pending account deletion (see Delete Account), otherwise `false`.
 
 **Response 200 (new user — needs registration):**
 ```json
@@ -334,6 +337,7 @@ The mobile app can either:
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
@@ -411,6 +415,7 @@ Exchanges a one-time authorization code (received via the deep link callback) fo
 {
   "message": "Logged in successfully.",
   "is_new_user": false,
+  "account_restored": false,
   "user": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "first_name": "Ade",
