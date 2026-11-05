@@ -67,6 +67,10 @@ return [
             'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
             'api_key' => env('CLOUDINARY_API_KEY'),
             'api_secret' => env('CLOUDINARY_API_SECRET'),
+            // Everything else (driver and vehicle documents, dispute evidence,
+            // lost-item photos, repair attachments) is private and served
+            // through signed links that expire.
+            'public_prefixes' => ['profile-photos/'],
             'throw' => false,
             'report' => false,
         ],
