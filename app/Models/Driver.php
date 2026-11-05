@@ -83,6 +83,7 @@ class Driver extends Model
     {
         return [
             'status' => DriverStatus::class,
+            'licence_number' => 'encrypted',
             'kyc_status' => KycStatus::class,
             'vehicle_ownership_type' => VehicleOwnershipType::class,
             'payout_preference' => PayoutPreference::class,

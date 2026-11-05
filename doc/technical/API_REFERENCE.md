@@ -6,8 +6,9 @@
 **Rate Limiting:** Auth endpoints (`/auth/*`, `/admin/auth/*`) are limited to 5 requests/minute per IP — exceeding returns `429 Too Many Requests` with a `Retry-After` header (seconds)  
 **Resource IDs:** All resource IDs (users, drivers, cities, vehicle classes, rides, documents, etc.) are UUIDs (e.g. `"9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b"`). Parameters referencing an ID field accept `string (UUID)` format; a malformed id in a filter returns `422`.  
 **Pagination:** List endpoints accept `per_page`; it is clamped to the endpoint's range (minimum 1), so zero, negative or oversized values never disable pagination.  
-**Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.
-**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them.  
+**Sessions:** Admin dashboard tokens expire after `SANCTUM_TOKEN_EXPIRATION` minutes (default 480 — 8 hours). Passenger and driver app tokens expire after `SANCTUM_APP_TOKEN_EXPIRATION` minutes (default 43,200 — 30 days). Expired tokens return `401 UNAUTHENTICATED`; sign in again.  
+**File links:** Profile photos (`profile_photo_url`) are public links that do not expire. Every other uploaded file is private: driver and vehicle documents, dispute evidence, lost-item photos, repair attachments and maintenance proofs. Its link (`file_url`, `url`, `proof_url`, `photos`, `evidence_photos`, `evidence_audio`) is a signed link that **expires 30 minutes** after the response was sent. It looks like `https://api.cloudinary.com/v1_1/{cloud}/{image|raw|video}/download?…&expires_at=…&signature=…`, opens the file inline with its real content type, and returns `401` once expired. Don't store these links or cache them by URL past that time. Fetch the record again to get a new link. You can't add Cloudinary transformations (such as resizing) to a signed link.  
+**What changed for the apps:** `FRONTEND_UPDATE_PAYMENTS_EV_SURGE.md` summarises the October 2026 changes (payouts, tips, EV, fuel type, surge) per app, with the breaking ones first. `FRONTEND_UPDATE_SCHEDULED_RIDES.md` covers scheduled rides (new `scheduled` ride status, booking, driver reservations). `FRONTEND_UPDATE_LOST_AND_FOUND.md` covers Lost & Found (report, driver answer, return, support queue). `FRONTEND_UPDATE_ADVANCED_DISPUTES.md` covers advanced disputes (evidence, appeals, tiers, refund approvals). `FRONTEND_UPDATE_DRIVER_SCHEDULING_MAINTENANCE.md` covers driver shifts, availability plans and vehicle maintenance. `EV-Charging-and-Vehicle-Maintenance-Guide.pdf` walks design and frontend through EV charging, vehicle maintenance and repair requests screen by screen. `FRONTEND_UPDATE_ADMIN_API_DISCREPANCIES.md` covers the admin dashboard fixes of 2026-10-29 (SOS take, references, fleet, finance, settings) and `MOBILE_UPDATE_ADMIN_API_DISCREPANCIES.md` what the driver app may show from them. `APP_UPDATE_PRIVATE_FILE_LINKS.md` covers the 2026-11-05 change to private, expiring links for uploaded documents and evidence (all three apps).  
 
 ---
 
@@ -2440,7 +2441,7 @@ GET /admin/drivers
           "type": "driving_licence",
           "original_filename": "licence.pdf",
           "file_size": 245000,
-          "file_url": "https://res.cloudinary.com/etigo/raw/upload/driver-documents/7/licence.pdf",
+          "file_url": "https://api.cloudinary.com/v1_1/etigo/raw/download?api_key=…&expires_at=1762354800&public_id=driver-documents%2F7%2Flicence.pdf&signature=…&timestamp=…&type=authenticated",
           "expires_at": null,
           "status": "approved",
           "rejection_reason": null,
@@ -10563,12 +10564,12 @@ audio: <audio file (optional)>
     "category": "route_deviation",
     "category_label": "Wrong route taken",
     "description": "The driver took a longer route through Maryland instead of Third Mainland Bridge.",
-    "evidence_photos": ["https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg"],
+    "evidence_photos": ["https://api.cloudinary.com/v1_1/etigo/image/download?…&expires_at=1762354800&format=jpg&public_id=disputes%2Fride-uuid%2Fphoto1&signature=…&type=authenticated"],
     "evidence": [
       {
         "id": "01a10e6f-...",
         "type": "photo",
-        "url": "https://res.cloudinary.com/etigo/image/upload/disputes/ride-uuid/photo1.jpg",
+        "url": "https://api.cloudinary.com/v1_1/etigo/image/download?…&expires_at=1762354800&format=jpg&public_id=disputes%2Fride-uuid%2Fphoto1&signature=…&type=authenticated",
         "file_type": "image/jpeg",
         "file_size_bytes": 482113,
         "original_name": "IMG_2041.jpg",

@@ -95,6 +95,8 @@ sudo supervisorctl restart etigo-worker:*
 php artisan reverb:restart
 ```
 
+After the switch, `deploy.sh` also runs `php artisan uploads:make-private`. It moves any upload still public on Cloudinary (driver and vehicle documents, dispute evidence, lost-item photos, repair and maintenance files) to private delivery, because the API now links to those files only through signed links that expire. It is safe to repeat, and a failure only prints a warning. If you see the warning, rerun it by hand from `current` (`--dry-run` lists the files without moving them).
+
 `ReferenceDataSeeder` is idempotent: it creates the ledger system accounts, the default commission rate, loyalty tiers and point multipliers only when they are missing, and never overwrites values an admin has changed. Payments, settlements and refunds fail without the system accounts, so it runs on every deploy.
 
 ## Background Processes

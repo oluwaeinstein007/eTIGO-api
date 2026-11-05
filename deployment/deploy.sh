@@ -53,6 +53,12 @@ chmod g+s "${SHARED_DIR}/storage/logs" 2>/dev/null || true
 echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 
+echo "==> Making older uploads private on Cloudinary..."
+# The new release serves documents and evidence only through signed links;
+# this moves any file still uploaded as public. Safe to repeat; a failure
+# here must not fail the deploy (rerun it by hand).
+php artisan uploads:make-private || echo "WARNING: uploads:make-private failed; run it by hand."
+
 echo "==> Restarting services..."
 # Reload whichever PHP-FPM version is running, so the server can move to a
 # new PHP version without this script changing in step.

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Cloudinary\Api\Upload\UploadApi;
 use Cloudinary\Cloudinary;
+use DateTimeInterface;
 use League\Flysystem\Config;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
@@ -15,13 +16,28 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
 use League\Flysystem\UrlGeneration\PublicUrlGenerator;
 
+/**
+ * Files are private ("authenticated" on Cloudinary) unless their path starts
+ * with one of the public prefixes, such as profile photos. A private file is
+ * only reachable through a signed download link that expires.
+ */
 class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 {
+    private const PRIVATE_TYPE = 'authenticated';
+
+    private const PUBLIC_TYPE = 'upload';
+
+    /** How long the link from url() lasts for a private file. */
+    private const PRIVATE_URL_MINUTES = 30;
+
     private UploadApi $uploadApi;
 
     private string $baseUrl;
 
-    public function __construct(private Cloudinary $cloudinary)
+    /**
+     * @param  list<string>  $publicPrefixes
+     */
+    public function __construct(private Cloudinary $cloudinary, private array $publicPrefixes = [])
     {
         $this->uploadApi = new UploadApi($cloudinary->configuration);
         $this->baseUrl = 'https://res.cloudinary.com/'.$cloudinary->configuration->cloud->cloudName;
@@ -88,7 +104,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType]);
+            $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType, 'type' => $this->deliveryType($path)]);
         } catch (\Throwable $e) {
             throw UnableToDeleteFile::atLocation($path, $e->getMessage(), $e);
         }
@@ -108,7 +124,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     public function visibility(string $path): FileAttributes
     {
-        return new FileAttributes($path, null, 'public');
+        return new FileAttributes($path, null, $this->isPublic($path) ? 'public' : 'private');
     }
 
     public function mimeType(string $path): FileAttributes
@@ -161,6 +177,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
             $this->uploadApi->upload($this->buildUrl($source), [
                 'public_id' => $dstPublicId,
                 'resource_type' => $resourceType,
+                'type' => $this->deliveryType($destination),
                 'overwrite' => true,
             ]);
         } catch (\Throwable $e) {
@@ -174,7 +191,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType]);
+            $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType, 'type' => $this->deliveryType($path)]);
 
             return true;
         } catch (\Throwable) {
@@ -197,8 +214,104 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         return $this->buildUrl($path);
     }
 
+    /**
+     * Called by Storage::temporaryUrl(). A public file's link never expires.
+     */
+    public function getTemporaryUrl(string $path, DateTimeInterface $expiration, array $options = []): string
+    {
+        if ($this->isPublic($path)) {
+            return $this->buildUrl($path);
+        }
+
+        return $this->signedDownloadUrl($path, $expiration);
+    }
+
+    public function isPublic(string $path): bool
+    {
+        foreach ($this->publicPrefixes as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Moves files uploaded as public before private delivery existed. Returns
+     * the paths moved (or, on a dry run, that would be moved).
+     *
+     * @param  list<string>  $prefixes  Folders to move, such as "driver-documents/"
+     * @return list<string>
+     */
+    public function movePublicFilesToPrivate(array $prefixes, bool $dryRun = false): array
+    {
+        $moved = [];
+
+        foreach ($prefixes as $prefix) {
+            if ($this->isPublic($prefix)) {
+                continue;
+            }
+
+            foreach (['image', 'video', 'raw'] as $resourceType) {
+                $cursor = null;
+
+                do {
+                    $page = $this->cloudinary->adminApi()->assets(array_filter([
+                        'resource_type' => $resourceType,
+                        'type' => self::PUBLIC_TYPE,
+                        'prefix' => $prefix,
+                        'max_results' => 500,
+                        'next_cursor' => $cursor,
+                    ]));
+
+                    foreach ($page['resources'] ?? [] as $asset) {
+                        $publicId = $asset['public_id'];
+
+                        if (! $dryRun) {
+                            // invalidate clears the old public link from the CDN cache.
+                            $this->uploadApi->rename($publicId, $publicId, [
+                                'resource_type' => $resourceType,
+                                'type' => self::PUBLIC_TYPE,
+                                'to_type' => self::PRIVATE_TYPE,
+                                'invalidate' => true,
+                            ]);
+                        }
+
+                        $moved[] = $resourceType === 'raw' ? $publicId : $publicId.'.'.$asset['format'];
+                    }
+
+                    $cursor = $page['next_cursor'] ?? null;
+                } while ($cursor);
+            }
+        }
+
+        return $moved;
+    }
+
+    private function deliveryType(string $path): string
+    {
+        return $this->isPublic($path) ? self::PUBLIC_TYPE : self::PRIVATE_TYPE;
+    }
+
+    private function signedDownloadUrl(string $path, DateTimeInterface $expiration): string
+    {
+        $resourceType = $this->detectResourceType($path);
+        $format = $resourceType === 'raw' ? '' : strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return $this->uploadApi->privateDownloadUrl($this->pathToPublicId($path), $format, [
+            'resource_type' => $resourceType,
+            'type' => self::PRIVATE_TYPE,
+            'expires_at' => $expiration->getTimestamp(),
+        ]);
+    }
+
     private function buildUrl(string $path): string
     {
+        if (! $this->isPublic($path)) {
+            return $this->signedDownloadUrl($path, now()->addMinutes(self::PRIVATE_URL_MINUTES));
+        }
+
         $publicId = $this->pathToPublicId($path);
         $resourceType = $this->detectResourceType($path);
 
@@ -220,6 +333,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
             $this->uploadApi->upload($filePath, [
                 'public_id' => $publicId,
                 'resource_type' => $resourceType,
+                'type' => $this->deliveryType($storagePath),
                 'overwrite' => true,
                 'use_filename' => false,
                 'unique_filename' => false,

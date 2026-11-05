@@ -30,8 +30,11 @@ class KycVerification extends Model
         return [
             'type' => KycVerificationType::class,
             'status' => KycVerificationStatus::class,
+            // The ID number and the personal details the provider matched
+            // (name, phone, NIN) are encrypted at rest, like the raw response.
+            'id_number' => 'encrypted',
             'provider_response' => 'encrypted:array',
-            'match_data' => 'array',
+            'match_data' => 'encrypted:array',
             'verified_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
