@@ -95,7 +95,14 @@ sudo supervisorctl restart etigo-worker:*
 php artisan reverb:restart
 ```
 
-After the switch, `deploy.sh` also runs `php artisan uploads:make-private`. It moves any upload still public on Cloudinary (driver and vehicle documents, dispute evidence, lost-item photos, repair and maintenance files) to private delivery, because the API now links to those files only through signed links that expire. It is safe to repeat, and a failure only prints a warning. If you see the warning, rerun it by hand from `current` (`--dry-run` lists the files without moving them).
+After PHP-FPM and the workers have restarted on the new release, `deploy.sh` runs two more commands. They wait until then because, up to the reload, the old code is still serving and could write plain ID numbers or hand out public links.
+
+- `php artisan drivers:encrypt-identity-numbers` encrypts any KYC ID number, KYC match detail or licence number the old release wrote after the migration ran.
+- `php artisan uploads:make-private` moves any upload still public on Cloudinary (driver and vehicle documents, dispute evidence, lost-item photos, repair and maintenance files) to private delivery, because the API now links to those files only through signed links that expire. The first run can take several minutes. Until a file is moved, its signed link does not open; deleting it and checking it exists still work.
+
+Both are safe to repeat, and a failure only prints a warning. `uploads:make-private` lists every file it could not move and exits with an error; rerun it by hand from `current` until it reports none (`--dry-run` lists the files without moving them).
+
+**`APP_KEY` must never be lost or replaced casually.** KYC ID numbers, licence numbers and SOS incident data are encrypted with it. Keep a copy of the production key somewhere safe outside the server. To rotate it, put the old key in `APP_PREVIOUS_KEYS` so existing values stay readable, and keep it there. A database copied to another environment (for example production to staging) is only readable with the same key. `drivers:encrypt-identity-numbers` and the migration stop with an error, without changing anything, if they meet a value encrypted with a different key.
 
 `ReferenceDataSeeder` is idempotent: it creates the ledger system accounts, the default commission rate, loyalty tiers and point multipliers only when they are missing, and never overwrites values an admin has changed. Payments, settlements and refunds fail without the system accounts, so it runs on every deploy.
 

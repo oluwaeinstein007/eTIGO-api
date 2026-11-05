@@ -1,6 +1,9 @@
 <?php
 
 use App\Support\CloudinaryAdapter;
+use Cloudinary\Api\Admin\AdminApi;
+use Cloudinary\Api\ApiResponse;
+use Cloudinary\Api\Upload\UploadApi;
 use Cloudinary\Cloudinary;
 
 function cloudinaryAdapter(): CloudinaryAdapter
@@ -42,4 +45,62 @@ it('never hands out a public link for a private file', function () {
     expect($url)->not->toContain('/upload/')
         ->and($url)->toContain('type=authenticated')
         ->and($url)->toContain('expires_at=');
+});
+
+function apiResponse(array $body): ApiResponse
+{
+    return new ApiResponse($body, []);
+}
+
+function mockedCloudinaryAdapter(?AdminApi $adminApi = null, ?UploadApi $uploadApi = null): CloudinaryAdapter
+{
+    $cloudinary = Mockery::mock(Cloudinary::class, [[
+        'cloud' => ['cloud_name' => 'demo-cloud', 'api_key' => '123', 'api_secret' => 'secret'],
+        'url' => ['secure' => true],
+    ]])->makePartial();
+
+    if ($adminApi) {
+        $cloudinary->shouldReceive('adminApi')->andReturn($adminApi);
+    }
+
+    return new CloudinaryAdapter($cloudinary, ['profile-photos/'], $uploadApi ?? Mockery::mock(UploadApi::class));
+}
+
+it('deletes a private file that has not been moved yet from public delivery', function () {
+    $upload = Mockery::mock(UploadApi::class);
+    $upload->shouldReceive('destroy')->once()->with('driver-documents/d1/licence', ['resource_type' => 'image', 'type' => 'authenticated'])
+        ->andReturn(apiResponse(['result' => 'not found']));
+    $upload->shouldReceive('destroy')->once()->with('driver-documents/d1/licence', ['resource_type' => 'image', 'type' => 'upload'])
+        ->andReturn(apiResponse(['result' => 'ok']));
+
+    mockedCloudinaryAdapter(uploadApi: $upload)->delete('driver-documents/d1/licence.jpg');
+});
+
+it('finds a private file that is still on public delivery', function () {
+    $admin = Mockery::mock(AdminApi::class);
+    $admin->shouldReceive('asset')->with('disputes/r1/photo', ['resource_type' => 'image', 'type' => 'authenticated'])
+        ->andThrow(new RuntimeException('Resource not found'));
+    $admin->shouldReceive('asset')->with('disputes/r1/photo', ['resource_type' => 'image', 'type' => 'upload'])
+        ->andReturn(apiResponse(['public_id' => 'disputes/r1/photo']));
+
+    expect(mockedCloudinaryAdapter($admin)->fileExists('disputes/r1/photo.png'))->toBeTrue();
+});
+
+it('keeps moving files when one cannot be made private', function () {
+    $admin = Mockery::mock(AdminApi::class);
+    $admin->shouldReceive('assets')->andReturnUsing(fn (array $options) => $options['resource_type'] === 'image'
+        ? apiResponse(['resources' => [
+            ['public_id' => 'repairs/a/one', 'format' => 'jpg'],
+            ['public_id' => 'repairs/a/two', 'format' => 'jpg'],
+        ]])
+        : apiResponse(['resources' => []]));
+
+    $upload = Mockery::mock(UploadApi::class);
+    $upload->shouldReceive('rename')->with('repairs/a/one', 'repairs/a/one', Mockery::any())->andThrow(new RuntimeException('Rate limited'));
+    $upload->shouldReceive('rename')->with('repairs/a/two', 'repairs/a/two', Mockery::any())->andReturn(apiResponse([]));
+
+    $result = mockedCloudinaryAdapter($admin, $upload)->movePublicFilesToPrivate(['repairs/']);
+
+    expect($result['moved'])->toBe(['repairs/a/two.jpg'])
+        ->and($result['failed'])->toBe(['repairs/a/one.jpg' => 'Rate limited']);
 });

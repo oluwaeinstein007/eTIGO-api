@@ -36,10 +36,11 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
     /**
      * @param  list<string>  $publicPrefixes
+     * @param  UploadApi|null  $uploadApi  Passed in by tests; built from $cloudinary otherwise
      */
-    public function __construct(private Cloudinary $cloudinary, private array $publicPrefixes = [])
+    public function __construct(private Cloudinary $cloudinary, private array $publicPrefixes = [], ?UploadApi $uploadApi = null)
     {
-        $this->uploadApi = new UploadApi($cloudinary->configuration);
+        $this->uploadApi = $uploadApi ?? new UploadApi($cloudinary->configuration);
         $this->baseUrl = 'https://res.cloudinary.com/'.$cloudinary->configuration->cloud->cloudName;
     }
 
@@ -104,7 +105,13 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $resourceType = $this->detectResourceType($path);
 
         try {
-            $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType, 'type' => $this->deliveryType($path)]);
+            $result = $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType, 'type' => $this->deliveryType($path)]);
+
+            // A private file uploaded before private delivery existed may
+            // not have been moved yet (uploads:make-private).
+            if (($result['result'] ?? null) === 'not found' && ! $this->isPublic($path)) {
+                $this->uploadApi->destroy($publicId, ['resource_type' => $resourceType, 'type' => self::PUBLIC_TYPE]);
+            }
         } catch (\Throwable $e) {
             throw UnableToDeleteFile::atLocation($path, $e->getMessage(), $e);
         }
@@ -190,13 +197,18 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
         $publicId = $this->pathToPublicId($path);
         $resourceType = $this->detectResourceType($path);
 
-        try {
-            $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType, 'type' => $this->deliveryType($path)]);
+        $types = $this->isPublic($path) ? [self::PUBLIC_TYPE] : [self::PRIVATE_TYPE, self::PUBLIC_TYPE];
 
-            return true;
-        } catch (\Throwable) {
-            return false;
+        foreach ($types as $type) {
+            try {
+                $this->cloudinary->adminApi()->asset($publicId, ['resource_type' => $resourceType, 'type' => $type]);
+
+                return true;
+            } catch (\Throwable) {
+            }
         }
+
+        return false;
     }
 
     public function directoryExists(string $path): bool
@@ -238,15 +250,16 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
     }
 
     /**
-     * Moves files uploaded as public before private delivery existed. Returns
-     * the paths moved (or, on a dry run, that would be moved).
+     * Moves files uploaded as public before private delivery existed. A file
+     * that cannot be moved is reported and the rest carry on.
      *
      * @param  list<string>  $prefixes  Folders to move, such as "driver-documents/"
-     * @return list<string>
+     * @return array{moved: list<string>, failed: array<string, string>} Paths moved (or, on a dry run, that would be moved), and failures by path
      */
     public function movePublicFilesToPrivate(array $prefixes, bool $dryRun = false): array
     {
         $moved = [];
+        $failed = [];
 
         foreach ($prefixes as $prefix) {
             if ($this->isPublic($prefix)) {
@@ -267,18 +280,25 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
 
                     foreach ($page['resources'] ?? [] as $asset) {
                         $publicId = $asset['public_id'];
+                        $path = $resourceType === 'raw' ? $publicId : $publicId.'.'.$asset['format'];
 
                         if (! $dryRun) {
-                            // invalidate clears the old public link from the CDN cache.
-                            $this->uploadApi->rename($publicId, $publicId, [
-                                'resource_type' => $resourceType,
-                                'type' => self::PUBLIC_TYPE,
-                                'to_type' => self::PRIVATE_TYPE,
-                                'invalidate' => true,
-                            ]);
+                            try {
+                                // invalidate clears the old public link from the CDN cache.
+                                $this->uploadApi->rename($publicId, $publicId, [
+                                    'resource_type' => $resourceType,
+                                    'type' => self::PUBLIC_TYPE,
+                                    'to_type' => self::PRIVATE_TYPE,
+                                    'invalidate' => true,
+                                ]);
+                            } catch (\Throwable $e) {
+                                $failed[$path] = $e->getMessage();
+
+                                continue;
+                            }
                         }
 
-                        $moved[] = $resourceType === 'raw' ? $publicId : $publicId.'.'.$asset['format'];
+                        $moved[] = $path;
                     }
 
                     $cursor = $page['next_cursor'] ?? null;
@@ -286,7 +306,7 @@ class CloudinaryAdapter implements FilesystemAdapter, PublicUrlGenerator
             }
         }
 
-        return $moved;
+        return ['moved' => $moved, 'failed' => $failed];
     }
 
     private function deliveryType(string $path): string
