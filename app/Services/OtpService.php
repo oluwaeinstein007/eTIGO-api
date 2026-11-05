@@ -15,6 +15,13 @@ class OtpService
 
     private const AUTH_MAX_ATTEMPTS = 5;
 
+    /**
+     * How many unexpired codes for a phone are accepted at once. With the
+     * cooldown and expiry, at most 5 can exist; the last 3 cover an SMS that
+     * arrives late after one or two resends.
+     */
+    private const AUTH_ACTIVE_CODES = 3;
+
     private const STATIC_OTP = '123456';
 
     private const PIN_LENGTH = 4;
@@ -51,11 +58,8 @@ class OtpService
             ];
         }
 
-        OtpCode::forPhone($phone)
-            ->where('purpose', $purpose)
-            ->active()
-            ->update(['expires_at' => now()]);
-
+        // Earlier codes stay valid until they expire: an SMS can arrive after
+        // the user has given up and asked again, and that code must still work.
         $useStaticOtp = ! app()->isProduction();
         $plainCode = $useStaticOtp ? self::STATIC_OTP : $this->generateCode(self::AUTH_OTP_LENGTH);
 
@@ -94,18 +98,23 @@ class OtpService
      */
     public function verifyAuthOtp(string $phone, string $code, ?string $forType = null, string $purpose = 'login'): array
     {
-        $otpCode = OtpCode::forPhone($phone)
+        $activeCodes = OtpCode::forPhone($phone)
             ->where('purpose', $purpose)
             ->active()
             ->latest()
-            ->first();
+            ->limit(self::AUTH_ACTIVE_CODES)
+            ->get();
+
+        // Attempts are counted on the newest code, which every guess checks
+        // all the active codes against.
+        $otpCode = $activeCodes->first();
 
         if (! $otpCode) {
             return ['valid' => false, 'phone' => null, 'error' => 'No active verification code found. Please request a new one.'];
         }
 
         if ($otpCode->hasExceededMaxAttempts(self::AUTH_MAX_ATTEMPTS)) {
-            $otpCode->update(['expires_at' => now()]);
+            $this->expireActiveCodes($phone, $purpose);
 
             return ['valid' => false, 'phone' => null, 'error' => 'Too many attempts. Please request a new code.'];
         }
@@ -118,11 +127,15 @@ class OtpService
             return ['valid' => false, 'phone' => null, 'error' => 'Too many attempts. Please request a new code.'];
         }
 
-        if (! hash_equals($otpCode->code, hash('sha256', $code))) {
+        $hashed = hash('sha256', $code);
+        $matched = $activeCodes->first(fn (OtpCode $candidate) => hash_equals($candidate->code, $hashed));
+
+        if (! $matched) {
             return ['valid' => false, 'phone' => null, 'error' => 'Invalid verification code.'];
         }
 
-        $otpCode->markAsVerified($forType);
+        $matched->markAsVerified($forType);
+        $this->expireActiveCodes($phone, $purpose);
 
         return ['valid' => true, 'phone' => $phone, 'error' => null];
     }
@@ -194,6 +207,18 @@ class OtpService
         };
 
         return "Your E-tiGo {$what} is {$code}. It expires in ".self::AUTH_OTP_EXPIRY_MINUTES.' minutes. Do not share it with anyone.';
+    }
+
+    /**
+     * Every unexpired code for the phone, not only the ones a guess was
+     * checked against, so an older code cannot outlive a lockout or a sign-in.
+     */
+    private function expireActiveCodes(string $phone, string $purpose): void
+    {
+        OtpCode::forPhone($phone)
+            ->where('purpose', $purpose)
+            ->active()
+            ->update(['expires_at' => now()]);
     }
 
     private function generateCode(int $length): string
