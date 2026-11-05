@@ -1,6 +1,6 @@
 # E-tiGo — Data Security Measures
 
-**Prepared by:** Lanre Sanni, Engineering  
+**Prepared by:** Engineering Lead  
 **Date:** 5 November 2026  
 **Purpose:** Answer to question 7 (data security) for the privacy policy. Covers the Passenger App, Driver App, Admin Dashboard and backend.
 
