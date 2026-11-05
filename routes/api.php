@@ -82,6 +82,7 @@ use App\Http\Controllers\Api\V1\Driver\NearbyRidesController;
 use App\Http\Controllers\Api\V1\Driver\OnboardingController;
 use App\Http\Controllers\Api\V1\Driver\PayoutController;
 use App\Http\Controllers\Api\V1\EvStationController;
+use App\Http\Controllers\Api\V1\FileController;
 use App\Http\Controllers\Api\V1\GamificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\LookupController;
@@ -249,6 +250,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/{transactionId}/verify', [PaymentMethodController::class, 'verify']);
     Route::patch('/payment-methods/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
     Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
+
+    // Private uploads (documents, evidence, photos): the link only opens for
+    // the signed-in user it was issued to. See App\Support\UploadLinks.
+    Route::get('/files/{ref}', [FileController::class, 'show'])
+        ->where('ref', '[A-Za-z0-9_\-]+\.[a-f0-9]{32}')
+        ->middleware('throttle:240,1')
+        ->name('files.show');
 
     Route::middleware('throttle:60,1')->prefix('places')->group(function () {
         Route::get('/search', [PlaceController::class, 'search']);

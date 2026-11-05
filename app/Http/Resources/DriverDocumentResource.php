@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\UploadLinks;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class DriverDocumentResource extends JsonResource
 {
@@ -18,15 +18,7 @@ class DriverDocumentResource extends JsonResource
             'type' => $this->type,
             'original_filename' => $this->original_filename,
             'file_size' => $this->file_size,
-            'file_url' => $this->when($this->file_path, function () {
-                $disk = Storage::disk(config('filesystems.uploads'));
-
-                try {
-                    return $disk->temporaryUrl($this->file_path, now()->addMinutes(30));
-                } catch (\RuntimeException) {
-                    return $disk->url($this->file_path);
-                }
-            }),
+            'file_url' => $this->when($this->file_path, fn () => UploadLinks::url($this->file_path)),
             'expires_at' => $this->expires_at,
             'status' => $this->status,
             'rejection_reason' => $this->rejection_reason,

@@ -17,6 +17,11 @@ return [
 
     'uploads' => env('UPLOADS_DISK', env('FILESYSTEM_DISK', 'public')),
 
+    // Uploads under these folders are public (profile photos). Every other
+    // upload is private: the API links to it through GET /files/{ref},
+    // which needs the signed-in user it was issued to.
+    'public_upload_prefixes' => ['profile-photos/'],
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
@@ -67,9 +72,8 @@ return [
             'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
             'api_key' => env('CLOUDINARY_API_KEY'),
             'api_secret' => env('CLOUDINARY_API_SECRET'),
-            // Everything else (driver and vehicle documents, dispute evidence,
-            // lost-item photos, repair attachments) is private and served
-            // through signed links that expire.
+            // Everything outside public_upload_prefixes is uploaded as
+            // private ("authenticated") on Cloudinary.
             'public_prefixes' => ['profile-photos/'],
             'throw' => false,
             'report' => false,
