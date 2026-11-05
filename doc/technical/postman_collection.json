@@ -1673,7 +1673,7 @@
                     "account"
                   ]
                 },
-                "description": "Passengers and drivers. Logs the user out everywhere and schedules the account for deletion after a 30-day grace period. Logging in again within the period cancels it (login responses then carry `account_restored: true`). Afterwards a daily job deletes the account, or anonymises it when it has rides. 422 while an active ride/trip, pending scheduled ride, outstanding balance or active EV charge exists; 403 for admins."
+                "description": "Passengers and drivers. Logs the user out everywhere and schedules the account for deletion after a 30-day grace period. Logging in again within the period cancels it (login responses then carry `account_restored: true`). Afterwards a daily job deletes the account, or anonymises it when it has rides. 422 while an active ride/trip, pending scheduled ride, outstanding balance, wallet money, active EV charge, fleet agreement or non-zero driver earnings exists; 403 for admins."
               },
               "response": [
                 {
@@ -1699,6 +1699,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Cannot delete account while you have an active ride.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Wallet Has Money",
+                  "status": "Unprocessable Content",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot delete account while your wallet has \\u20a62,500.00. Use it on a ride or contact support for a refund first.\"\n}"
                 },
                 {
                   "name": "403 \u2014 Admin",

@@ -517,7 +517,13 @@ DELETE /auth/account
 { "message": "Cannot delete account while you have an active trip." }
 { "message": "Cannot delete account while you have an assigned scheduled ride." }
 { "message": "Cannot delete account while an EV charging session is active." }
+{ "message": "Cannot delete account while your wallet has ₦2,500.00. Use it on a ride or contact support for a refund first." }
+{ "message": "Cannot delete account while you have a fleet vehicle agreement. Ask your fleet manager to end it first." }
+{ "message": "Cannot delete account while you have ₦1,500.00 in earnings. Withdraw them first (earnings still settling become available within a few hours)." }
+{ "message": "Cannot delete account while you owe E-tiGo ₦300.00. Settle it first." }
 ```
+
+The same checks run again at the purge; an account that fails one then is kept and retried the next day.
 
 **Response 403:**
 ```json

@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\AccountType;
 use App\Enums\BalanceDueStatus;
 use App\Enums\DriverStatus;
 use App\Enums\EvReservationStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
+use App\Models\Account;
 use App\Models\AuditLog;
 use App\Models\EvReservation;
 use App\Models\PassengerBalanceDue;
@@ -79,6 +81,15 @@ class AccountDeletionService
             if ($hasOutstandingBalance) {
                 return 'Cannot delete account while you have an outstanding balance.';
             }
+
+            // Money in the wallet would be lost at the purge, so it has to
+            // be spent or refunded by support first.
+            $wallet = Account::forOwner($user)->ofType(AccountType::PassengerWallet)->sum('balance');
+
+            if ($wallet > 0) {
+                return 'Cannot delete account while your wallet has '.self::naira($wallet)
+                    .'. Use it on a ride or contact support for a refund first.';
+            }
         } elseif ($user->type === UserType::Driver) {
             if (Ride::where('driver_id', $user->id)->whereIn('status', RideStatus::activeStatuses())->exists()) {
                 return 'Cannot delete account while you have an active trip.';
@@ -100,9 +111,35 @@ class AccountDeletionService
             if ($hasActiveEvCharging) {
                 return 'Cannot delete account while an EV charging session is active.';
             }
+
+            if ($driver = $user->driver) {
+                // The purge frees the car; an active or paused agreement
+                // would keep charging remittance on a car nobody drives.
+                if ($driver->currentFleetAgreement()->exists()) {
+                    return 'Cannot delete account while you have a fleet vehicle agreement. Ask your fleet manager to end it first.';
+                }
+
+                $earnings = Account::forOwner($driver)
+                    ->whereIn('type', [AccountType::DriverEarningsPending, AccountType::DriverEarningsAvailable])
+                    ->sum('balance');
+
+                if ($earnings > 0) {
+                    return 'Cannot delete account while you have '.self::naira($earnings)
+                        .' in earnings. Withdraw them first (earnings still settling become available within a few hours).';
+                }
+
+                if ($earnings < 0) {
+                    return 'Cannot delete account while you owe E-tiGo '.self::naira(-$earnings).'. Settle it first.';
+                }
+            }
         }
 
         return null;
+    }
+
+    private static function naira(int|string $kobo): string
+    {
+        return '₦'.number_format((int) $kobo / 100, 2);
     }
 
     /**

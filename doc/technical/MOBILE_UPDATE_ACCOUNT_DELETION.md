@@ -14,8 +14,8 @@ Request and response details are in `API_REFERENCE.md` (Delete Account). Base UR
 
 | App | Must do | Should do | Nice to have |
 |---|---|---|---|
-| Passenger | Nothing | 1. Show the message the delete returns; 2. Update the confirmation text | 3. Show "welcome back" when `account_restored` is `true` |
-| Driver | Nothing | 1. Show the message the delete returns; 2. Update the confirmation text | 3. Show "welcome back" when `account_restored` is `true` |
+| Passenger | Nothing | 1. Show the message the delete returns (and the new 422 reasons); 2. Update the confirmation text | 3. Show "welcome back" when `account_restored` is `true` |
+| Driver | Nothing | 1. Show the message the delete returns (and the new 422 reasons); 2. Update the confirmation text | 3. Show "welcome back" when `account_restored` is `true` |
 
 ---
 
@@ -40,7 +40,7 @@ Request and response details are in `API_REFERENCE.md` (Delete Account). Base UR
 - Drivers are taken offline by the backend; stop sending location updates as you would on logout.
 - Device push tokens are removed, so the user gets no pushes during the 30 days. After logging back in, register the device token again as you do after any login.
 
-The 422 errors are unchanged: an active ride or trip, a scheduled ride that has not been dispatched, an outstanding balance (passengers), an assigned scheduled ride or an EV charge in progress (drivers). Show `message` as sent.
+The delete is refused with 422 when the user has an active ride or trip, a scheduled ride that has not been dispatched, an outstanding balance (passengers), an assigned scheduled ride or an EV charge in progress (drivers), as before. **New 422 reasons:** money in the passenger wallet; for drivers, a fleet vehicle agreement that is active or paused, earnings not yet withdrawn (pending or available) or money owed to E-tiGo. Show `message` as sent, for example "Cannot delete account while your wallet has ₦2,500.00. Use it on a ride or contact support for a refund first."
 
 ## 2. Update the confirmation text (should do)
 
@@ -50,7 +50,7 @@ The confirmation dialog shown before calling the endpoint should say what now ha
 > You will be logged out on all your devices. Your account will be deleted permanently after 30 days. If you change your mind, just log in again before then and your account will be kept.
 > Your trip and payment history is kept without your name or contact details, as the law requires.
 
-If the app says anything about wallet money: a balance left in the wallet is **not** refunded when the account is deleted. Ask users to use it first.
+The backend refuses the delete while the wallet holds money (passengers) or there are earnings to withdraw (drivers), so no money is lost. The app can mention this in the dialog: "Spend or withdraw any balance first."
 
 ## 3. "Welcome back" after a cancelled deletion (nice to have)
 

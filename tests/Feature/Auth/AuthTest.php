@@ -9,10 +9,12 @@ use App\Enums\EvStallStatus;
 use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\PurgeDeletedAccountsJob;
+use App\Models\Account;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\EvChargingStall;
 use App\Models\EvReservation;
+use App\Models\FleetAgreement;
 use App\Models\OtpCode;
 use App\Models\PassengerBalanceDue;
 use App\Models\Ride;
@@ -559,4 +561,87 @@ it('cannot reserve a scheduled ride for a driver pending deletion', function () 
     $errors = app(ScheduledRideReservationService::class)->reservationErrors($driverUser, $ride, byAdmin: true);
 
     expect($errors)->toBe(['This driver has asked for their account to be deleted.']);
+});
+
+it('uses a configured grace period for the date, the response and the purge', function () {
+    config(['accounts.deletion_grace_days' => 7]);
+    $this->travelTo(Carbon\Carbon::parse('2026-11-05 10:00:00'));
+    $user = User::factory()->passenger()->create();
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    $this->withToken($token)->deleteJson('/api/v1/auth/account')
+        ->assertOk()
+        ->assertJson(['grace_days' => 7])
+        ->assertJsonPath('deletion_scheduled_for', '2026-11-12T10:00:00+00:00');
+
+    $this->travelTo(Carbon\Carbon::parse('2026-11-12 09:59:59'));
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+    expect(User::find($user->id))->not->toBeNull();
+
+    // Purged on the scheduled moment itself.
+    $this->travelTo(Carbon\Carbon::parse('2026-11-12 10:00:00'));
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+    expect(User::find($user->id))->toBeNull();
+});
+
+it('anonymises instead when other records refuse the delete', function () {
+    $driverUser = User::factory()->driver()->create();
+    Driver::factory()->create(['user_id' => $driverUser->id]);
+    // No rides, but an old EV reservation still points at the user.
+    EvReservation::factory()->create([
+        'driver_id' => $driverUser->id,
+        'status' => EvReservationStatus::Cancelled,
+    ]);
+    app(AccountDeletionService::class)->requestDeletion($driverUser);
+
+    $this->travel(31)->days();
+    (new PurgeDeletedAccountsJob)->handle(app(AccountDeletionService::class));
+
+    $fresh = User::find($driverUser->id);
+    expect($fresh)->not->toBeNull()
+        ->and($fresh->first_name)->toBe('Deleted')
+        ->and($fresh->phone)->toBeNull()
+        ->and($fresh->deletion_scheduled_for)->toBeNull();
+});
+
+it('refuses deletion while the passenger wallet holds money', function () {
+    $user = User::factory()->passenger()->create();
+    Account::factory()->passengerWallet()->withBalance(250000)->create(['owner_id' => $user->id]);
+    $token = $user->createToken('test', ['passenger'])->plainTextToken;
+
+    $this->withToken($token)->deleteJson('/api/v1/auth/account')
+        ->assertStatus(422)
+        ->assertJson(['message' => 'Cannot delete account while your wallet has ₦2,500.00. Use it on a ride or contact support for a refund first.']);
+});
+
+it('refuses deletion while a driver has earnings or owes money', function (int $pending, int $available, string $message) {
+    $driverUser = User::factory()->driver()->create();
+    $driver = Driver::factory()->create(['user_id' => $driverUser->id]);
+    $owner = ['owner_type' => $driver->getMorphClass(), 'owner_id' => $driver->id];
+    Account::factory()->driverEarningsPending()->withBalance($pending)->create($owner);
+    Account::factory()->driverEarningsAvailable()->withBalance($available)->create($owner);
+
+    expect(app(AccountDeletionService::class)->blockingReason($driverUser))->toBe($message);
+})->with([
+    'pending earnings' => [150000, 0, 'Cannot delete account while you have ₦1,500.00 in earnings. Withdraw them first (earnings still settling become available within a few hours).'],
+    'available earnings' => [0, 50000, 'Cannot delete account while you have ₦500.00 in earnings. Withdraw them first (earnings still settling become available within a few hours).'],
+    'money owed' => [0, -30000, 'Cannot delete account while you owe E-tiGo ₦300.00. Settle it first.'],
+]);
+
+it('refuses deletion while a driver has an active or paused fleet agreement', function (string $state) {
+    $driverUser = User::factory()->driver()->create();
+    $driver = Driver::factory()->create(['user_id' => $driverUser->id]);
+    $factory = FleetAgreement::factory();
+    ($state === 'paused' ? $factory->paused() : $factory)->create(['driver_id' => $driver->id]);
+
+    expect(app(AccountDeletionService::class)->blockingReason($driverUser))
+        ->toBe('Cannot delete account while you have a fleet vehicle agreement. Ask your fleet manager to end it first.');
+})->with(['active', 'paused']);
+
+it('allows deletion once a driver fleet agreement has ended', function () {
+    $driverUser = User::factory()->driver()->create();
+    $driver = Driver::factory()->create(['user_id' => $driverUser->id]);
+    FleetAgreement::factory()->terminated()->create(['driver_id' => $driver->id]);
+
+    expect(app(AccountDeletionService::class)->blockingReason($driverUser))->toBeNull();
 });
