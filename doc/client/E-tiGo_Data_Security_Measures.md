@@ -14,14 +14,14 @@ Personal data is protected at every stage: it is encrypted while it travels betw
 
 - **In transit:** All traffic between the Passenger App, Driver App, Admin Dashboard and our servers uses HTTPS (TLS). Live trip and location updates use secure WebSockets (WSS).
 - **SSL pinning:** The mobile apps use SSL (certificate) pinning, so they only talk to E-tiGo's genuine servers. This blocks 'man-in-the-middle' interception, even on public Wi-Fi.
-- **At rest:** Especially sensitive records are encrypted in the database with AES-256: driver ID numbers (NIN, driver's licence and plate numbers), the personal details and results of identity verification (KYC), and SOS emergency incident data (vehicle details and telemetry).
-- **Passwords and codes:** Staff passwords are stored only as one-way hashes (bcrypt). Login OTPs and trip PINs are stored hashed too, so they cannot be read back even by us.
+- **At rest:** Especially sensitive records are encrypted in the database with AES-256: driver ID numbers (NIN, driver's licence, and plate numbers submitted for verification), the personal details and results of identity verification (KYC), and SOS emergency incident data (vehicle details and telemetry).
+- **Passwords and codes:** Staff passwords are stored only as one-way hashes (bcrypt), and login codes (OTPs) are stored hashed too, so they cannot be read back even by us. Trip PINs are stored hashed as well; a readable copy is kept for at most six hours so the rider can see their PIN, and it is deleted as soon as the driver enters it.
 
 ## 2. Secure data storage
 
 - **Payment cards:** We never store full card numbers or CVVs. Cards are handled by Paystack (PCI-DSS certified). We keep only a payment token, the card brand, the last four digits and the expiry date, to show the card in the app.
 - **Bank accounts:** Driver payout account numbers are masked (only the last four digits shown) wherever they are displayed.
-- **Documents and photos:** Driver documents, vehicle papers, dispute evidence and other uploads are kept in private cloud storage (Cloudinary), not on the phone. They are not publicly reachable: each file opens only through a signed link that expires after 30 minutes, given only to people allowed to see it. Profile photos are the only public images.
+- **Documents and photos:** Driver documents, vehicle papers, dispute evidence and other uploads are kept in private cloud storage (Cloudinary), not on the phone. They have no permanent public address: the app gives a signed link only to people allowed to see the file, and anyone holding that link can open it until it expires 30 minutes later. Profile photos are the only public images.
 - **Secrets:** API keys and passwords for our services are kept in protected server configuration, never in the app code.
 - **Database:** **[TO CONFIRM: the production database accepts connections only from our application servers, not the public internet.]**
 

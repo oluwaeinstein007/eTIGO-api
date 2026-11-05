@@ -235,8 +235,9 @@ class DriverRepairService
             'title' => $title,
             'file_type' => $fileType,
             'subtitle' => $subtitle,
+            // Only the path is stored: a signed link would expire. The
+            // resource builds a fresh link from it.
             'path' => $path,
-            'file_url' => $this->resolveUploadUrl($path),
             'uploaded_by' => $uploadedBy,
             'created_at' => now()->toIso8601String(),
         ];

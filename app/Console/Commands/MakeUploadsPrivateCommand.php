@@ -38,13 +38,23 @@ class MakeUploadsPrivateCommand extends Command
         }
 
         $dryRun = (bool) $this->option('dry-run');
-        $moved = $adapter->movePublicFilesToPrivate(self::PRIVATE_FOLDERS, $dryRun);
+        ['moved' => $moved, 'failed' => $failed] = $adapter->movePublicFilesToPrivate(self::PRIVATE_FOLDERS, $dryRun);
 
         foreach ($moved as $path) {
             $this->line($path);
         }
 
         $this->info(sprintf($dryRun ? '%d file(s) would be made private.' : '%d file(s) made private.', count($moved)));
+
+        foreach ($failed as $path => $error) {
+            $this->error("Could not move {$path}: {$error}");
+        }
+
+        if ($failed !== []) {
+            $this->error(count($failed).' file(s) are still public. Run this command again.');
+
+            return self::FAILURE;
+        }
 
         return self::SUCCESS;
     }

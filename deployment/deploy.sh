@@ -53,12 +53,6 @@ chmod g+s "${SHARED_DIR}/storage/logs" 2>/dev/null || true
 echo "==> Switching symlink to new release..."
 ln -nfs "${RELEASE_DIR}" "${APP_DIR}/current"
 
-echo "==> Making older uploads private on Cloudinary..."
-# The new release serves documents and evidence only through signed links;
-# this moves any file still uploaded as public. Safe to repeat; a failure
-# here must not fail the deploy (rerun it by hand).
-php artisan uploads:make-private || echo "WARNING: uploads:make-private failed; run it by hand."
-
 echo "==> Restarting services..."
 # Reload whichever PHP-FPM version is running, so the server can move to a
 # new PHP version without this script changing in step.
@@ -123,6 +117,18 @@ if telemetry_port_held; then
     exit 1
 fi
 sudo supervisorctl start etigo-telemetry 2>/dev/null || true
+
+# These two run only now that every process serves the new release: until
+# the reload above, the old code could still write plain ID numbers and
+# hand out public links to files being moved. Both are safe to repeat.
+echo "==> Encrypting ID numbers the old release wrote during the deploy..."
+php artisan drivers:encrypt-identity-numbers || echo "WARNING: drivers:encrypt-identity-numbers failed; run it by hand before drivers are reviewed." >&2
+
+echo "==> Making older uploads private on Cloudinary..."
+# The new release serves documents and evidence only through signed links;
+# this moves any file still uploaded as public. It can take a while the
+# first time. Files it cannot move are listed; rerun it by hand.
+php artisan uploads:make-private || echo "WARNING: uploads:make-private did not move every file; run it by hand." >&2
 
 echo "==> Ensuring the scheduler cron entry..."
 # Every scheduled job (earnings settlement, hold expiry, reconciliation,
