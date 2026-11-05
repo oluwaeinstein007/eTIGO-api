@@ -193,6 +193,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::delete('/account', [AuthController::class, 'deleteAccount']);
+        Route::post('/social/link', [AuthController::class, 'linkSocialAccount']);
     });
 });
 

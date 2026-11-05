@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Driver;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
+use App\Enums\UserType;
 use App\Enums\VehicleOwnershipType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Driver\StoreVehicleRequest;
@@ -18,6 +19,7 @@ use App\Http\Resources\VehicleResource;
 use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use App\Models\Driver;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -129,13 +131,37 @@ class OnboardingController extends Controller
             ], 422);
         }
 
-        $driver->update($request->validated());
+        $userFields = $request->only(['first_name', 'last_name', 'phone']);
+        if (! empty($userFields)) {
+            if (isset($userFields['phone']) && $userFields['phone'] !== $user->phone) {
+                $phoneExists = User::where('phone', $userFields['phone'])
+                    ->where('type', UserType::Driver)
+                    ->where('id', '!=', $user->id)
+                    ->exists();
+
+                if ($phoneExists) {
+                    return response()->json([
+                        'message' => 'A driver account with this phone number already exists.',
+                    ], 409);
+                }
+            }
+            $user->update($userFields);
+        }
+
+        $driverFields = array_filter(
+            $request->only(['licence_number', 'city_id']),
+            fn ($value) => $value !== null,
+        );
+        if (! empty($driverFields)) {
+            $driver->update($driverFields);
+        }
 
         AuditLog::record($driver, 'profile_updated', $user);
 
         return response()->json([
             'message' => 'Driver profile updated successfully.',
             'driver' => new DriverResource($driver->fresh(['documents', 'vehicle.vehicleClass', 'city'])),
+            'user' => new UserResource($user->fresh()),
         ]);
     }
 

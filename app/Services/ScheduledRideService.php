@@ -524,6 +524,9 @@ class ScheduledRideService
             $body .= ' Your wallet balance is too low for this trip. Top up before then or the booking will be cancelled.';
         }
 
+        $settings = AppSetting::scheduledRides();
+        $reminderMinutes = (int) ($settings['reminder_minutes'] ?? 60);
+
         try {
             $this->notificationService->send(
                 userId: $ride->passenger_id,
@@ -532,7 +535,11 @@ class ScheduledRideService
                 body: $body,
                 data: [
                     'ride_id' => (string) $ride->id,
+                    'scheduled_ride_id' => (string) $scheduled->id,
                     'scheduled_pickup_at' => $scheduled->scheduled_pickup_at->toIso8601String(),
+                    'pickup_address' => (string) $ride->pickup_address,
+                    'destination_address' => (string) $ride->destination_address,
+                    'reminder_minutes' => (string) $reminderMinutes,
                 ],
             );
         } catch (\Throwable $e) {

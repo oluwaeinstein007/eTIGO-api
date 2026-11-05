@@ -19,7 +19,10 @@ class UpdateDriverProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'licence_number' => ['sometimes', 'required', 'string', 'max:50'],
+            'first_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'phone' => ['sometimes', 'required', 'string', 'regex:/^\+234[789][01]\d{8}$/'],
+            'licence_number' => ['sometimes', 'nullable', 'string', 'max:50'],
             // A new city must be open to sign-ups; the driver's current city
             // is accepted as is, so a form that sends it back still saves.
             'city_id' => [

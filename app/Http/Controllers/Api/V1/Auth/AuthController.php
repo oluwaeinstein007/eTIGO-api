@@ -397,6 +397,60 @@ class AuthController extends Controller
             ->whereHas('user', fn ($q) => $q->where('type', $userType))
             ->first();
 
+        $currentUser = $request->user('sanctum');
+        if ($currentUser) {
+            if ($currentUser->type !== $userType) {
+                return response()->json([
+                    'message' => 'Cannot link a '.$userType->value.' social account to a '.$currentUser->type->value.' account.',
+                ], 422);
+            }
+
+            if ($socialAccount) {
+                if ($socialAccount->user_id !== $currentUser->id) {
+                    return response()->json([
+                        'message' => 'This '.ucfirst($provider->value).' account is already linked to another account.',
+                    ], 409);
+                }
+
+                return response()->json([
+                    'message' => ucfirst($provider->value).' account is already linked.',
+                    'is_new_user' => false,
+                    'user' => new UserResource($currentUser->fresh(['socialAccounts'])),
+                    'token' => $currentUser->createToken(
+                        $currentUser->type->value.'-auth',
+                        [$currentUser->type->value],
+                    )->plainTextToken,
+                ]);
+            }
+
+            SocialAccount::create([
+                'user_id' => $currentUser->id,
+                'provider' => $provider->value,
+                'provider_id' => $authCode->provider_id,
+            ]);
+
+            if (! $currentUser->email && $authCode->email) {
+                $emailTaken = User::where('email', $authCode->email)->where('type', $userType)->where('id', '!=', $currentUser->id)->exists();
+                if (! $emailTaken) {
+                    $currentUser->update(['email' => $authCode->email]);
+                }
+            }
+
+            AuditLog::record($currentUser, 'social_account_linked', $currentUser, ['provider' => $provider->value]);
+
+            $token = $currentUser->createToken(
+                $currentUser->type->value.'-auth',
+                [$currentUser->type->value],
+            )->plainTextToken;
+
+            return response()->json([
+                'message' => ucfirst($provider->value).' account linked successfully.',
+                'is_new_user' => false,
+                'user' => new UserResource($currentUser->fresh(['socialAccounts'])),
+                'token' => $token,
+            ]);
+        }
+
         if ($socialAccount) {
             $user = $socialAccount->user;
 
@@ -494,6 +548,15 @@ class AuthController extends Controller
             'user' => new UserResource($user),
             'token' => $token,
         ], 201);
+    }
+
+    public function linkSocialAccount(Request $request): JsonResponse
+    {
+        $request->validate([
+            'code' => ['required', 'string', 'size:64'],
+        ]);
+
+        return $this->socialExchange($request);
     }
 
     public function me(): JsonResponse

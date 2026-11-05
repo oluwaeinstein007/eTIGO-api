@@ -34,6 +34,9 @@ class UserResource extends JsonResource
                 $this->isDriver() && $this->relationLoaded('driver') && $this->driver?->relationLoaded('vehicle'),
                 fn () => $this->driver?->vehicle ? new VehicleResource($this->driver->vehicle) : null,
             ),
+            'linked_providers' => $this->relationLoaded('socialAccounts')
+                ? $this->socialAccounts->pluck('provider')->values()->all()
+                : $this->socialAccounts()->pluck('provider')->values()->all(),
             'created_at' => $this->created_at,
         ];
     }

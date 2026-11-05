@@ -239,3 +239,72 @@ it('cancels a pending deletion on social code exchange matched by email', functi
 
     expect($user->fresh()->deletion_requested_at)->toBeNull();
 });
+
+it('links a google account to an authenticated driver via social exchange', function () {
+    $driverUser = User::factory()->driver()->create([
+        'phone' => '+2348012345678',
+        'email' => null,
+    ]);
+
+    $authCode = \App\Models\SocialAuthCode::create([
+        'code' => str_repeat('a', 64),
+        'provider' => 'google',
+        'provider_id' => 'google-uid-12345',
+        'email' => 'driver.google@example.com',
+        'first_name' => 'Driver',
+        'last_name' => 'Google',
+        'user_type' => 'driver',
+        'state' => 'some-state',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $response = $this->actingAs($driverUser, 'sanctum')->postJson('/api/v1/auth/social/exchange', [
+        'code' => $authCode->code,
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Google account linked successfully.',
+            'is_new_user' => false,
+            'user' => [
+                'id' => $driverUser->id,
+                'email' => 'driver.google@example.com',
+                'linked_providers' => ['google'],
+            ],
+        ]);
+
+    expect(SocialAccount::where('user_id', $driverUser->id)->where('provider', 'google')->exists())->toBeTrue();
+});
+
+it('updates driver phone number during onboarding profile update', function () {
+    $city = \App\Models\City::factory()->create([
+        'launch_status' => \App\Enums\CityLaunchStatus::Live,
+    ]);
+    $driverUser = User::factory()->driver()->create([
+        'phone' => null,
+        'first_name' => 'Google',
+        'last_name' => 'Driver',
+    ]);
+    $driverUser->driver()->create([
+        'city_id' => $city->id,
+        'status' => \App\Enums\DriverStatus::Onboarding,
+    ]);
+
+    $response = $this->actingAs($driverUser, 'sanctum')->putJson('/api/v1/driver/profile', [
+        'phone' => '+2348098765432',
+        'first_name' => 'Updated',
+        'last_name' => 'Driver',
+        'city_id' => $city->id,
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Driver profile updated successfully.',
+            'user' => [
+                'phone' => '+2348098765432',
+                'first_name' => 'Updated',
+            ],
+        ]);
+
+    expect($driverUser->fresh()->phone)->toBe('+2348098765432');
+});
