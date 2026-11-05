@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminSosController;
 use App\Http\Controllers\Api\V1\Admin\AdminSurgeRuleController;
 use App\Http\Controllers\Api\V1\Admin\AdminThirdPartySettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminTipSettingsController;
+use App\Http\Controllers\Api\V1\Admin\AdminVehicleCatalogController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleClassController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleMaintenanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminVehicleMaintenanceSettingsController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
+use App\Http\Controllers\Api\V1\VehicleCatalogController;
 use App\Http\Controllers\Api\V1\CityWaitlistController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
@@ -137,6 +139,10 @@ Route::get('/lookup/cancellation-reasons', [RideCancellationReasonController::cl
 Route::get('/cities', [CityController::class, 'index']);
 Route::get('/cities/detect', [CityController::class, 'detect']);
 Route::get('/cities/{city}/vehicle-classes', [CityVehicleClassController::class, 'index']);
+Route::get('/vehicle-makes', [VehicleCatalogController::class, 'index']);
+Route::get('/vehicle-makes/{vehicleMake}/models', [VehicleCatalogController::class, 'models']);
+Route::get('/vehicles/makes', [VehicleCatalogController::class, 'index']);
+Route::get('/lookup/vehicle-makes', [VehicleCatalogController::class, 'index']);
 
 Route::middleware(['auth:sanctum', 'user.type:passenger'])->prefix('cities/{city}/waitlist')->group(function () {
     Route::get('/', [CityWaitlistController::class, 'show']);
@@ -561,6 +567,15 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         Route::post('/', [AdminVehicleClassController::class, 'store'])->middleware('admin.role:operations');
         Route::get('/{vehicleClass}', [AdminVehicleClassController::class, 'show']);
         Route::put('/{vehicleClass}', [AdminVehicleClassController::class, 'update'])->middleware('admin.role:operations');
+    });
+
+    Route::middleware('admin.role:operations')->prefix('vehicle-catalog')->group(function () {
+        Route::post('/makes', [AdminVehicleCatalogController::class, 'storeMake']);
+        Route::put('/makes/{vehicleMake}', [AdminVehicleCatalogController::class, 'updateMake']);
+        Route::delete('/makes/{vehicleMake}', [AdminVehicleCatalogController::class, 'destroyMake']);
+        Route::post('/makes/{vehicleMake}/models', [AdminVehicleCatalogController::class, 'storeModel']);
+        Route::put('/models/{vehicleModel}', [AdminVehicleCatalogController::class, 'updateModel']);
+        Route::delete('/models/{vehicleModel}', [AdminVehicleCatalogController::class, 'destroyModel']);
     });
 
     Route::middleware('admin.role:operations,finance')->prefix('pricing')->group(function () {

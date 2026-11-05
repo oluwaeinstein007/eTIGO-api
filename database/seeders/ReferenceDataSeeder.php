@@ -19,6 +19,7 @@ class ReferenceDataSeeder extends Seeder
             CommissionConfigSeeder::class,
             TierConfigSeeder::class,
             PointMultiplierConfigSeeder::class,
+            VehicleCatalogSeeder::class,
         ]);
     }
 }
