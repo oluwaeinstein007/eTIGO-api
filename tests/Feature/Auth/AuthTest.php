@@ -140,6 +140,113 @@ it('rejects OTP verification with wrong code', function () {
         ->assertJson(['message' => 'Invalid verification code.']);
 });
 
+it('sends and checks the code on the same number however the app formats it', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+
+    $sentCode = null;
+    $this->smsGateway->shouldReceive('sendOtp')->once()
+        ->withArgs(function (string $phone, string $code) use (&$sentCode) {
+            $sentCode = $code;
+
+            return $phone === '+2348076512144';
+        })
+        ->andReturnTrue();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+23408076512144'])->assertOk();
+
+    $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '0807 651 2144',
+        'code' => $sentCode,
+        'type' => 'passenger',
+    ])->assertOk()->assertJson(['is_new_user' => true, 'phone' => '+2348076512144']);
+});
+
+it('still accepts a code that arrives after the user asked for another', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+
+    $codes = [];
+    $this->smsGateway->shouldReceive('sendOtp')->twice()
+        ->withArgs(function (string $phone, string $code) use (&$codes) {
+            $codes[] = $code;
+
+            return true;
+        })
+        ->andReturnTrue();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
+    $this->travel(61)->seconds();
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
+
+    $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2348076512144',
+        'code' => $codes[0],
+        'type' => 'passenger',
+    ])->assertOk();
+
+    // Signing in used up the phone's other code too.
+    expect(OtpCode::forPhone('+2348076512144')->active()->exists())->toBeFalse();
+});
+
+it('does not accept an earlier code once it has expired', function () {
+    OtpCode::create([
+        'phone' => '+2348076512144',
+        'code' => hash('sha256', '111111'),
+        'purpose' => 'login',
+        'expires_at' => now()->subSecond(),
+    ]);
+    OtpCode::create([
+        'phone' => '+2348076512144',
+        'code' => hash('sha256', '222222'),
+        'purpose' => 'login',
+        'expires_at' => now()->addMinutes(5),
+    ]);
+
+    $this->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2348076512144',
+        'code' => '111111',
+        'type' => 'passenger',
+    ])->assertUnprocessable()->assertJson(['message' => 'Invalid verification code.']);
+});
+
+it('counts wrong guesses across all of a phone\'s codes', function () {
+    foreach (['111111', '222222'] as $i => $code) {
+        OtpCode::create([
+            'phone' => '+2348076512144',
+            'code' => hash('sha256', $code),
+            'purpose' => 'login',
+            'expires_at' => now()->addMinutes(5),
+            'created_at' => now()->subMinutes(2 - $i),
+        ]);
+    }
+
+    foreach (range(1, 5) as $attempt) {
+        $this->postJson('/api/v1/auth/otp/verify', ['phone' => '+2348076512144', 'code' => '000000', 'type' => 'passenger'])
+            ->assertJson(['message' => 'Invalid verification code.']);
+    }
+
+    // Past the route's per-minute limit, still inside the codes' 5 minutes.
+    $this->travel(61)->seconds();
+
+    $this->postJson('/api/v1/auth/otp/verify', ['phone' => '+2348076512144', 'code' => '111111', 'type' => 'passenger'])
+        ->assertUnprocessable()->assertJson(['message' => 'Too many attempts. Please request a new code.']);
+
+    expect(OtpCode::forPhone('+2348076512144')->active()->exists())->toBeFalse();
+});
+
+it('fixes accounts opened with the local 0 after the country code', function () {
+    $migration = require database_path('migrations/2026_11_05_130000_normalize_nigerian_phones_with_trunk_zero.php');
+    $broken = User::factory()->passenger()->create(['phone' => '+23408076512144']);
+    $duplicate = User::factory()->passenger()->create(['phone' => '+23409011112222']);
+    User::factory()->passenger()->create(['phone' => '+2349011112222']);
+    $seeded = User::factory()->passenger()->create(['phone' => '+2340000000001']);
+
+    $migration->up();
+
+    expect($broken->fresh()->phone)->toBe('+2348076512144')
+        ->and($duplicate->fresh()->phone)->toBe('+23409011112222')
+        ->and($seeded->fresh()->phone)->toBe('+2340000000001');
+});
+
 it('rejects OTP verification for deactivated user', function () {
     User::factory()->passenger()->inactive()->create([
         'phone' => '+2341234567890',
