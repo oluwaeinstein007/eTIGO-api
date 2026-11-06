@@ -26,19 +26,19 @@ Authorization: Bearer {admin token}
 ## What happens on the backend
 
 1. The current password is checked first. A wrong one returns `422` on `current_password` and changes nothing.
-2. The new password must be 8-128 characters, match the confirmation, and differ from the current one.
+2. The new password must be 8-72 bytes (bcrypt ignores the rest; set `maxlength` accordingly), match the confirmation, and differ from the current one.
 3. **This device stays signed in.** Do not log the admin out or ask for a new token after success.
 4. Every **other** session (other browsers, other devices) is signed out, so a stolen session cannot outlive the change. Those devices get `401` on their next call.
 5. Any pending forgot-password link stops working.
 6. The admin gets a "your password was changed" email with a reset link, in case it was not them.
-7. The change and failed attempts are written to the audit log.
+7. The change and wrong-current-password attempts are written to the audit log.
 
 ## Errors to handle
 
 | Status | When | Show |
 |---|---|---|
 | 422 `current_password` | Wrong current password | Under the current-password field |
-| 422 `password` | Too short/long, not confirmed, same as current | Under the new-password field |
+| 422 `password` | Too short, over 72 bytes, not confirmed, same as current | Under the new-password field |
 | 429 | More than 5 attempts a minute | Use the `Retry-After` header |
 | 401 | Session expired or signed out elsewhere | Send to login |
 | 403 | Not an admin token (cannot happen from the dashboard) | Generic error |

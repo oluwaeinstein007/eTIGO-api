@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\AdminPasswordChangedNotification;
 use App\Services\AdminLoginChallengeService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
@@ -146,16 +147,19 @@ class AdminAuthController extends Controller
             ]);
         }
 
-        $user->update(['password' => $request->validated('password')]);
-
         $current = $user->currentAccessToken();
-        $user->tokens()
-            ->when($current instanceof PersonalAccessToken, fn ($query) => $query->where('id', '!=', $current->id))
-            ->delete();
 
-        Password::broker()->deleteToken($user);
+        DB::transaction(function () use ($user, $request, $current) {
+            $user->update(['password' => $request->validated('password')]);
 
-        AuditLog::record($user, 'admin_password_changed', $user);
+            $user->tokens()
+                ->when($current instanceof PersonalAccessToken, fn ($query) => $query->where('id', '!=', $current->id))
+                ->delete();
+
+            Password::broker()->deleteToken($user);
+
+            AuditLog::record($user, 'admin_password_changed', $user);
+        });
 
         $user->notify(new AdminPasswordChangedNotification);
 

@@ -90,7 +90,7 @@ it('validates the new password', function (array $overrides, string $field) {
     'too short' => [['password' => 'short', 'password_confirmation' => 'short'], 'password'],
     'not confirmed' => [['password_confirmation' => 'Different3'], 'password'],
     'missing current' => [['current_password' => ''], 'current_password'],
-    'too long' => [['password' => str_repeat('a', 129), 'password_confirmation' => str_repeat('a', 129)], 'password'],
+    'longer than 72 bytes' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
 ]);
 
 it('requires authentication', function () {
@@ -124,4 +124,12 @@ it('limits repeated attempts per admin', function () {
     }
 
     $this->withToken($token)->postJson(CHANGE_PASSWORD_URL, changePasswordPayload())->assertStatus(429);
+
+    // Real requests start fresh; the test app would otherwise keep the first admin signed in.
+    app('auth')->forgetGuards();
+
+    $other = User::factory()->admin(AdminRole::Finance)->create(['password' => 'OldPassword1']);
+    $this->withToken($other->createToken('admin-auth', ['admin'])->plainTextToken)
+        ->postJson(CHANGE_PASSWORD_URL, changePasswordPayload())
+        ->assertOk();
 });

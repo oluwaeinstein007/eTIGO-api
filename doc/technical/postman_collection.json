@@ -2127,7 +2127,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"current_password\": \"OldPassword1\",\n  \"password\": \"NewPassword2\",\n  \"password_confirmation\": \"NewPassword2\"\n}",
+                  "raw": "{\n  \"current_password\": \"Qwer!234\",\n  \"password\": \"NewPassword2!\",\n  \"password_confirmation\": \"NewPassword2!\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2145,7 +2145,7 @@
                     "change-password"
                   ]
                 },
-                "description": "Changes the signed-in admin's password. Send the current password and the new one (min 8 characters, confirmed, different from the current one). On success every other session is signed out and any pending reset link stops working; this session stays signed in. A security email is sent to the admin. Limited to 5 requests a minute per admin. Admin accounts only."
+                "description": "Changes the signed-in admin's password. Send the current password and the new one (8 to 72 bytes, confirmed, different from the current one). On success every other session is signed out and any pending reset link stops working; this session stays signed in. A security email is sent to the admin. Limited to 5 requests a minute per admin. Admin accounts only."
               },
               "response": [
                 {
@@ -2194,7 +2194,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The current password is incorrect.\",\n  \"errors\": {\n    \"current_password\": [\n      \"The current password is incorrect.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"The current password is incorrect.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"current_password\": [\n      \"The current password is incorrect.\"\n    ]\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -2206,7 +2206,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"The new password must be different from your current password.\",\n  \"errors\": {\n    \"password\": [\n      \"The new password must be different from your current password.\"\n    ]\n  }\n}"
+                  "body": "{\n  \"message\": \"The new password must be different from your current password.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"password\": [\n      \"The new password must be different from your current password.\"\n    ]\n  }\n}"
                 },
                 {
                   "name": "429 \u2014 Too Many Attempts",

@@ -696,7 +696,7 @@ POST /admin/auth/change-password
 | Field                  | Type   | Required | Description                                              |
 |------------------------|--------|----------|----------------------------------------------------------|
 | current_password       | string | Yes      | The admin's current password                             |
-| password               | string | Yes      | New password (8-128 characters, different from current)  |
+| password               | string | Yes      | New password (8-72 bytes, different from current)  |
 | password_confirmation  | string | Yes      | Must match password                                      |
 
 On success the admin stays signed in on this device; every **other** session is signed out and any pending reset link stops working. A security email goes to the admin. Limit: 5 requests a minute per admin.
