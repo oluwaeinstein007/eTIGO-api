@@ -191,12 +191,11 @@ class OnboardingController extends Controller
         }
 
         // An approved vehicle paper stays valid until its replacement is
-        // approved, so renewing never leaves the car without papers; only a
-        // pending upload of the same type is replaced.
+        // approved, so renewing never leaves the car without papers; a
+        // pending or rejected upload of the same type is replaced.
         $existing = $driver->documents()
             ->where('type', $type)
-            ->whereIn('status', $vehicleId !== null ? ['pending'] : ['pending', 'approved'])
-            // Includes a pending paper uploaded before papers were linked to cars.
+            ->whereIn('status', $vehicleId !== null ? ['pending', 'rejected'] : ['pending', 'approved', 'rejected'])
             ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
             ->first();
 

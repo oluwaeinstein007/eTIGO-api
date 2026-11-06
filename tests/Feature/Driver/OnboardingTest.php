@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -162,4 +164,43 @@ it('prevents passenger from accessing driver routes', function () {
         ->getJson('/api/v1/driver/onboarding/status');
 
     $response->assertForbidden();
+});
+
+it('replaces a rejected document when re-uploading', function () {
+    Storage::fake(config('filesystems.uploads'));
+
+    $driver = Driver::factory()->create();
+    $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
+
+    $oldDoc = $driver->documents()->create([
+        'uploaded_by' => $driver->user_id,
+        'type' => DocumentType::DrivingLicence,
+        'file_path' => 'driver-documents/old_licence.jpg',
+        'original_filename' => 'old_licence.jpg',
+        'mime_type' => 'image/jpeg',
+        'file_size' => 1024,
+        'status' => DocumentStatus::Rejected,
+        'rejection_reason' => 'Blurry image',
+    ]);
+    Storage::disk(config('filesystems.uploads'))->put('driver-documents/old_licence.jpg', 'old');
+
+    $file = UploadedFile::fake()->image('new_licence.jpg');
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/driver/documents', [
+            'type' => 'driving_licence',
+            'document' => $file,
+        ]);
+
+    $response->assertCreated();
+
+    $this->assertDatabaseMissing('driver_documents', [
+        'id' => $oldDoc->id,
+    ]);
+    $this->assertDatabaseHas('driver_documents', [
+        'driver_id' => $driver->id,
+        'type' => 'driving_licence',
+        'original_filename' => 'new_licence.jpg',
+        'status' => 'pending',
+    ]);
 });
