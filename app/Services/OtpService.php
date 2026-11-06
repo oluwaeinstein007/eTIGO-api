@@ -22,6 +22,9 @@ class OtpService
 
     private const AUTH_OTP_WINDOW_MINUTES = 10;
 
+    /** Purposes whose codes are texted to a phone and share its allowance. */
+    private const AUTH_PURPOSES = ['login', 'bank_account_change'];
+
     private const AUTH_MAX_ATTEMPTS = 5;
 
     /**
@@ -67,10 +70,11 @@ class OtpService
             ];
         }
 
-        // Counted on codes actually created, so taps refused by the cooldown
-        // above do not use up the allowance.
+        // Counted on codes actually sent, for every purpose together, so taps
+        // refused by the cooldown above and failed sends (deleted below) do
+        // not use up the allowance.
         $recentCodes = OtpCode::forPhone($phone)
-            ->where('purpose', $purpose)
+            ->whereIn('purpose', self::AUTH_PURPOSES)
             ->where('created_at', '>', now()->subMinutes(self::AUTH_OTP_WINDOW_MINUTES))
             ->count();
 
@@ -98,7 +102,9 @@ class OtpService
             $sent = $this->smsGateway->sendOtp($phone, $plainCode, $this->authOtpMessage($plainCode, $purpose));
 
             if (! $sent) {
-                $otp->update(['expires_at' => now()]);
+                // Nothing reached the phone, so the code is dropped rather
+                // than kept: it must not count towards the per-phone cap.
+                $otp->delete();
 
                 return [
                     'sent' => false,

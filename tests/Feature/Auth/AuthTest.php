@@ -240,6 +240,37 @@ it('does not count resend taps refused by the cooldown towards the per-phone cap
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
 });
 
+it('does not count failed sends towards the per-phone cap', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+    $this->smsGateway->shouldReceive('sendOtp')->times(5)->andReturnFalse();
+    $this->smsGateway->shouldReceive('sendOtp')->once()->andReturnTrue();
+
+    foreach (range(1, 5) as $attempt) {
+        $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])
+            ->assertStatus(429)->assertJson(['message' => 'Failed to send verification code. Please try again.']);
+    }
+
+    // The gateway has recovered: the rider is not locked out.
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
+});
+
+it('shares the per-phone cap between sign-in and bank-account codes', function () {
+    $otp = app(OtpService::class);
+
+    foreach (range(1, 3) as $i) {
+        expect($otp->sendAuthOtp('+2348076512144')['sent'])->toBeTrue();
+        $this->travel(61)->seconds();
+    }
+
+    foreach (range(1, 2) as $i) {
+        expect($otp->sendAuthOtp('+2348076512144', 'bank_account_change')['sent'])->toBeTrue();
+        $this->travel(61)->seconds();
+    }
+
+    expect($otp->sendAuthOtp('+2348076512144', 'bank_account_change'))
+        ->toMatchArray(['sent' => false, 'error' => 'Too many codes requested. Please try again in a few minutes.']);
+});
+
 it('still accepts a code that arrives after the user asked for another', function () {
     $this->app->detectEnvironment(fn () => 'production');
 
