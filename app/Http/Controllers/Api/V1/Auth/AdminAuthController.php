@@ -4,15 +4,21 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AdminChangePasswordRequest;
 use App\Http\Requests\Auth\AdminLoginCodeRequest;
 use App\Http\Requests\Auth\AdminLoginRequest;
 use App\Http\Requests\Auth\AdminLoginResendRequest;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Notifications\AdminPasswordChangedNotification;
 use App\Services\AdminLoginChallengeService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AdminAuthController extends Controller
 {
@@ -119,6 +125,45 @@ class AdminAuthController extends Controller
         return response()->json([
             'message' => 'Logged out successfully.',
         ]);
+    }
+
+    /**
+     * Change the signed-in admin's password. Every other session is signed
+     * out and any pending reset link is voided; this one stays signed in.
+     */
+    public function changePassword(AdminChangePasswordRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->type !== UserType::Admin) {
+            return response()->json(['message' => 'This action is for admin accounts only.'], 403);
+        }
+
+        if (! Hash::check($request->validated('current_password'), $user->password)) {
+            AuditLog::record($user, 'admin_password_change_failed', $user);
+
+            throw ValidationException::withMessages([
+                'current_password' => 'The current password is incorrect.',
+            ]);
+        }
+
+        $current = $user->currentAccessToken();
+
+        DB::transaction(function () use ($user, $request, $current) {
+            $user->update(['password' => $request->validated('password')]);
+
+            $user->tokens()
+                ->when($current instanceof PersonalAccessToken, fn ($query) => $query->where('id', '!=', $current->id))
+                ->delete();
+
+            Password::broker()->deleteToken($user);
+
+            AuditLog::record($user, 'admin_password_changed', $user);
+        });
+
+        $user->notify(new AdminPasswordChangedNotification);
+
+        return response()->json(['message' => 'Password changed successfully.']);
     }
 
     public function me(): JsonResponse

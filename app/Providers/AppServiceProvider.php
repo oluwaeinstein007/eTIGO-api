@@ -81,6 +81,10 @@ class AppServiceProvider extends ServiceProvider
         // second); see App\Notifications\Concerns\ThrottlesMail.
         RateLimiter::for('mail', fn () => Limit::perSecond(max(1, (int) config('mail.rate_limit_per_second'))));
 
+        // Guessing the current password needs a live session, so the limit is
+        // per admin rather than per IP.
+        RateLimiter::for('admin-password-change', fn (Request $request) => Limit::perMinute(5)->by('admin:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         RateLimiter::for('admin-login-code', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
 
         // Rider and driver sign-in is limited per phone number, with only a
