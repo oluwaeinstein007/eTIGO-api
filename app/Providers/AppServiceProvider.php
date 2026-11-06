@@ -88,10 +88,10 @@ class AppServiceProvider extends ServiceProvider
         // one address (carrier-grade NAT), so a tight IP limit would lock out
         // strangers. Sending is capped hardest, since each code costs an SMS.
         // OtpService adds the 60-second resend cooldown and 5 guesses a code.
-        RateLimiter::for('otp-send', fn (Request $request) => [
-            Limit::perMinutes(10, 5)->by('phone:'.$this->signInPhone($request)),
-            Limit::perMinute(20)->by('ip:'.$request->ip()),
-        ]);
+        // The per-phone cap on codes sent is in OtpService, which counts only
+        // codes actually sent: a limit here would also count taps the cooldown
+        // refused and lock a rider out for 10 minutes after a few quick taps.
+        RateLimiter::for('otp-send', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
         RateLimiter::for('otp-verify', fn (Request $request) => [
             Limit::perMinute(10)->by('phone:'.$this->signInPhone($request)),
             Limit::perMinute(30)->by('ip:'.$request->ip()),

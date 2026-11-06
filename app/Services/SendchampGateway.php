@@ -85,13 +85,25 @@ class SendchampGateway implements SmsGateway
     public function sendSms(string $phone, string $message): bool
     {
         $number = $this->number($phone);
+        $route = str_starts_with($number, self::NIGERIA_PREFIX) ? $this->smsRoute : 'international';
 
-        return $this->request('post', '/sms/send', [
+        $data = $this->request('post', '/sms/send', [
             'to' => [$number],
             'message' => strtr($message, self::GSM_REPLACEMENTS),
             'sender_name' => $this->senderName,
-            'route' => str_starts_with($number, self::NIGERIA_PREFIX) ? $this->smsRoute : 'international',
-        ], ['channel' => 'sms', 'phone' => $phone]) !== null;
+            'route' => $route,
+        ], ['channel' => 'sms', 'phone' => $phone, 'route' => $route]);
+
+        // Sendchamp answers "success" even when it drops the number as
+        // invalid; valid_count says how many recipients it actually queued.
+        if ($data !== null && ($data['valid_count'] ?? 1) === 0) {
+            $this->lastError = 'Sendchamp rejected the number as invalid';
+            Log::error('Sendchamp queued no SMS: the number was rejected as invalid', ['phone' => $phone]);
+
+            return false;
+        }
+
+        return $data !== null;
     }
 
     /**
@@ -192,8 +204,11 @@ class SendchampGateway implements SmsGateway
 
         Log::info('Sendchamp request accepted', $context + [
             'reference' => $response->json('data.reference') ?? $response->json('data.provider_reference'),
-            'id' => $response->json('data.id') ?? $response->json('data.0.id'),
-            'delivery_status' => $response->json('data.status') ?? $response->json('data.0.status'),
+            // SMS sends return only a batch record (business_id, valid_count),
+            // with no message id: delivery can be checked only in the dashboard.
+            'batch' => $response->json('data.business_id'),
+            'valid_count' => $response->json('data.valid_count'),
+            'delivery_status' => $response->json('data.status'),
         ]);
 
         return (array) ($response->json('data') ?? []);

@@ -217,9 +217,25 @@ it('limits code requests per phone, not per shared IP', function () {
     }
 
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])
-        ->assertStatus(429)->assertJson(['message' => 'Too Many Attempts.']);
+        ->assertStatus(429)->assertJson(['message' => 'Too many codes requested. Please try again in a few minutes.']);
 
     $this->travel(10)->minutes();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
+});
+
+it('does not count resend taps refused by the cooldown towards the per-phone cap', function () {
+    $this->smsGateway->shouldReceive('sendOtp')->never();
+
+    $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
+
+    // An impatient rider taps Resend over and over while waiting for the SMS.
+    foreach (range(1, 10) as $tap) {
+        $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])
+            ->assertStatus(429)->assertJson(['message' => 'Please wait before requesting another code.']);
+    }
+
+    $this->travel(61)->seconds();
 
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2348076512144'])->assertOk();
 });
@@ -450,7 +466,7 @@ it('sends a random code with readable SMS text in production', function () {
     $this->smsGateway->shouldReceive('sendOtp')->once()
         ->withArgs(fn (string $phone, string $code, string $message) => $phone === '+2341234567890'
             && preg_match('/^\d{6}$/', $code) === 1
-            && $message === "Your E-tiGo verification code is {$code}. It expires in 5 minutes. Do not share it with anyone.")
+            && $message === "Your E-tiGo verification code is {$code}. It expires in 10 minutes. Do not share it with anyone.")
         ->andReturnTrue();
 
     $this->postJson('/api/v1/auth/otp/send', ['phone' => '+2341234567890'])
