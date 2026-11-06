@@ -57,7 +57,6 @@ use App\Http\Controllers\Api\V1\Auth\AdminInvitationController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
-use App\Http\Controllers\Api\V1\VehicleCatalogController;
 use App\Http\Controllers\Api\V1\CityWaitlistController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
@@ -114,6 +113,7 @@ use App\Http\Controllers\Api\V1\RideTipController;
 use App\Http\Controllers\Api\V1\ScheduledRideController;
 use App\Http\Controllers\Api\V1\SosController;
 use App\Http\Controllers\Api\V1\TipSettingsController;
+use App\Http\Controllers\Api\V1\VehicleCatalogController;
 use App\Http\Controllers\Api\V1\Webhook\FlutterwaveWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\KycWebhookController;
 use App\Http\Controllers\Api\V1\Webhook\PaystackTransferApprovalController;
@@ -229,6 +229,8 @@ Route::prefix('admin/auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::post('/change-password', [AdminAuthController::class, 'changePassword'])
+            ->middleware('throttle:admin-password-change');
     });
 });
 

@@ -687,6 +687,42 @@ GET /admin/auth/me
 
 ---
 
+#### Change Password
+```
+POST /admin/auth/change-password
+```
+**Auth required (admin).** For an admin who is already signed in. Signed-out admins use Forgot Password.
+
+| Field                  | Type   | Required | Description                                              |
+|------------------------|--------|----------|----------------------------------------------------------|
+| current_password       | string | Yes      | The admin's current password                             |
+| password               | string | Yes      | New password (8-128 characters, different from current)  |
+| password_confirmation  | string | Yes      | Must match password                                      |
+
+On success the admin stays signed in on this device; every **other** session is signed out and any pending reset link stops working. A security email goes to the admin. Limit: 5 requests a minute per admin.
+
+**Response 200:**
+```json
+{
+  "message": "Password changed successfully."
+}
+```
+
+**Response 422** (wrong current password, new password too short or the same as the current one, confirmation mismatch):
+```json
+{
+  "message": "The current password is incorrect.",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "current_password": ["The current password is incorrect."]
+  }
+}
+```
+
+**Response 403:** `"This action is for admin accounts only."` (a passenger or driver token). **Response 429:** `"Too Many Attempts."` with a `Retry-After` header.
+
+---
+
 #### Verify Invitation Token
 ```
 GET /admin/auth/invite/verify/{token}

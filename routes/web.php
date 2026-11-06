@@ -49,6 +49,16 @@ if (app()->environment('local')) {
                 'requestedAt' => '13 October 2026 · 10:00 WAT',
                 'expiresAt' => '10:30 WAT on 13 October 2026',
             ],
+            'admin-password-changed' => [
+                'preheader' => 'Your Etigo admin password was changed',
+                'preheaderLabel' => 'Security notice',
+                'preheaderTitle' => 'Your Etigo admin password was changed',
+                'preheaderSub' => 'If this was not you, reset your password now.',
+                'userName' => 'Amara',
+                'resetUrl' => url('/admin/forgot-password'),
+                'recipientEmail' => 'amara@example.com',
+                'changedAt' => '6 November 2026 · 16:20 WAT',
+            ],
             'admin-welcome' => [
                 'preheader' => 'Welcome to your Etigo workspace',
                 'preheaderLabel' => 'Admin welcome',
