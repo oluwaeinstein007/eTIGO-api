@@ -49,11 +49,16 @@ Every error has a `message` written for the rider. Show it as it is:
 | 422 | A validation message, e.g. `The phone field is required.` (with `error_code: "VALIDATION_ERROR"`) |
 | 429 | `Please wait before requesting another code.` |
 | 429 | `Failed to send verification code. Please try again.` |
+| 429 | `Too many codes requested. Please try again in a few minutes.` (5 codes sent in 10 minutes) |
 | 429 | `Too Many Attempts.` (rate limit; a `Retry-After` header gives the seconds to wait) |
 
 ## 4. Resend countdown (should do)
 
 A phone can get one code every 60 seconds and 5 codes in 10 minutes. Disable Resend for 60 seconds after each send and show the countdown. SMS can take a minute to arrive, so the screen could also say "Codes can take up to a minute to arrive".
+
+**Update, 6 November:** between 08:52 and 09:32 the app called `POST /auth/otp/send` 47 times, often seconds apart, from several IPs. The countdown matters: every refused tap is a wasted request, and a rider who keeps tapping never sees a clear message. After 5 codes **sent** to a phone in 10 minutes, the server answers `429` "Too many codes requested. Please try again in a few minutes." Taps refused by the 60-second cooldown don't count towards that.
+
+**Testing:** use a real SIM. Seeded demo numbers such as `+2348100000001` belong to nobody, so their code never arrives. Codes now last 10 minutes.
 
 ## 5. `code` as a string (should do)
 

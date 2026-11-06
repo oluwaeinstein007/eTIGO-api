@@ -9,9 +9,21 @@ class OtpService
 {
     private const AUTH_OTP_LENGTH = 6;
 
-    private const AUTH_OTP_EXPIRY_MINUTES = 5;
+    /**
+     * SMS in Nigeria can take minutes to arrive, so a code lives long enough
+     * to still be usable when it does.
+     */
+    private const AUTH_OTP_EXPIRY_MINUTES = 10;
 
     private const AUTH_OTP_COOLDOWN_SECONDS = 60;
+
+    /** At most this many codes per phone in the window, against SMS abuse. */
+    private const AUTH_OTP_MAX_PER_WINDOW = 5;
+
+    private const AUTH_OTP_WINDOW_MINUTES = 10;
+
+    /** Purposes whose codes are texted to a phone and share its allowance. */
+    private const AUTH_PURPOSES = ['login', 'bank_account_change'];
 
     private const AUTH_MAX_ATTEMPTS = 5;
 
@@ -58,6 +70,22 @@ class OtpService
             ];
         }
 
+        // Counted on codes actually sent, for every purpose together, so taps
+        // refused by the cooldown above and failed sends (deleted below) do
+        // not use up the allowance.
+        $recentCodes = OtpCode::forPhone($phone)
+            ->whereIn('purpose', self::AUTH_PURPOSES)
+            ->where('created_at', '>', now()->subMinutes(self::AUTH_OTP_WINDOW_MINUTES))
+            ->count();
+
+        if ($recentCodes >= self::AUTH_OTP_MAX_PER_WINDOW) {
+            return [
+                'sent' => false,
+                'error' => 'Too many codes requested. Please try again in a few minutes.',
+                'expires_at' => null,
+            ];
+        }
+
         // Earlier codes stay valid until they expire: an SMS can arrive after
         // the user has given up and asked again, and that code must still work.
         $useStaticOtp = ! app()->isProduction();
@@ -74,7 +102,9 @@ class OtpService
             $sent = $this->smsGateway->sendOtp($phone, $plainCode, $this->authOtpMessage($plainCode, $purpose));
 
             if (! $sent) {
-                $otp->update(['expires_at' => now()]);
+                // Nothing reached the phone, so the code is dropped rather
+                // than kept: it must not count towards the per-phone cap.
+                $otp->delete();
 
                 return [
                     'sent' => false,

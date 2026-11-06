@@ -931,7 +931,7 @@
                     "send"
                   ]
                 },
-                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone.\" 60-second cooldown between codes; at most 5 codes per phone in 10 minutes and 20 requests a minute per IP (429 \"Too Many Attempts.\"). Code expires after 5 minutes. Nigerian numbers are normalised (`+2340803\u2026`, `0803\u2026`, spaces) to `+234803\u2026`.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
+                "description": "Sends a 6-digit OTP through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads \"Your E-tiGo verification code is 482910. It expires in 10 minutes. Do not share it with anyone.\" 60-second cooldown between codes; at most 5 codes sent per phone in 10 minutes, shared with bank-account codes (429 \"Too many codes requested. Please try again in a few minutes.\"; cooldown refusals and failed sends do not count) and 20 requests a minute per IP (429 \"Too Many Attempts.\"). Code expires after 10 minutes. Nigerian numbers are normalised (`+2340803\u2026`, `0803\u2026`, spaces) to `+234803\u2026`.\n\nIf neither channel accepts the code (production only), the response is `429` \"Failed to send verification code. Please try again.\" and the code is cancelled.\n\n**Non-production:** OTP is always `123456` and message delivery is skipped. Use this code in Verify OTP."
               },
               "response": [
                 {
@@ -12039,7 +12039,7 @@
                     "otp"
                   ]
                 },
-                "description": "Sends a 6-digit code to the driver's phone through Sendchamp (WhatsApp with SMS fallback; `123456` in non-production). The SMS reads \"Your E-tiGo code to change your payout bank account is 482910. It expires in 5 minutes. Do not share it with anyone.\" The code is required to **add or replace** the payout account, the first one included, so a stolen session cannot direct payouts to another account. Rate limited to 3 requests per minute; 60-second cooldown between codes; codes expire after 5 minutes. `429` \"Failed to send verification code. Please try again.\" when neither channel accepted the code."
+                "description": "Sends a 6-digit code to the driver's phone through Sendchamp (WhatsApp with SMS fallback; `123456` in non-production). The SMS reads \"Your E-tiGo code to change your payout bank account is 482910. It expires in 10 minutes. Do not share it with anyone.\" The code is required to **add or replace** the payout account, the first one included, so a stolen session cannot direct payouts to another account. Rate limited to 3 requests per minute; 60-second cooldown between codes (`429` \"Please wait before requesting another code.\"); at most 5 codes per phone in 10 minutes, counting sign-in codes (`429` \"Too many codes requested. Please try again in a few minutes.\"; failed sends don't count); codes expire after 10 minutes, so use the returned `expires_at`. `429` \"Failed to send verification code. Please try again.\" when neither channel accepted the code."
               },
               "response": [
                 {

@@ -102,7 +102,7 @@ Whenever `APP_ENV` is not `production` (local and testing), all OTP codes are se
 1. `POST /auth/otp/send` with any valid phone number → returns success immediately
 2. `POST /auth/otp/verify` with the same phone and code `123456` → logs in or prompts registration
 
-This static OTP is **disabled in production**. The staging server runs with `APP_ENV=production`, so it sends real codes too. Production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
+This static OTP is **disabled in production**. The staging server runs with `APP_ENV=production`, so it sends real codes too. Production always generates random 6-digit codes and sends them through Sendchamp: WhatsApp (approved OTP template) first, SMS fallback. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 10 minutes. Do not share it with anyone."* If no channel accepts the code, `POST /auth/otp/send` returns `429` with *"Failed to send verification code. Please try again."* and the code is cancelled.
 
 ### Dual Account Support
 
@@ -130,7 +130,7 @@ POST /auth/otp/send
 
 Nigerian numbers are normalised before anything else: `+2340803…` (local 0 kept after the country code), `0803…`, `234803…`, `00234803…` and numbers with spaces, dashes or brackets all become `+234803…`. Send, Verify and Complete Registration all do this, so the code goes to a deliverable number and an account always gets the normalised one. The app should still send `+234` and the 10 digits.
 
-**Limits:** 60 seconds between codes for a phone, at most 5 codes per phone in 10 minutes, and 20 requests a minute per IP (loose, because Nigerian mobile networks put many users behind one IP). Over a limit → `429` `"Too Many Attempts."` with a `Retry-After` header.
+**Limits:** 60 seconds between codes for a phone, at most 5 codes sent per phone in 10 minutes, shared with bank-account codes (`429` "Too many codes requested. Please try again in a few minutes."; taps refused by the cooldown and codes that failed to send do not count), and 20 requests a minute per IP (loose, because Nigerian mobile networks put many users behind one IP). Over the IP limit → `429` `"Too Many Attempts."` with a `Retry-After` header. Codes expire after 10 minutes.
 
 **Response 200:**
 ```json
@@ -142,7 +142,7 @@ Nigerian numbers are normalised before anything else: `+2340803…` (local 0 kep
 
 **Response 429:** `"Please wait before requesting another code."` (60-second cooldown), or `"Failed to send verification code. Please try again."` when neither WhatsApp nor SMS accepted the code (production only; the code is cancelled, so request a new one).
 
-The code goes by WhatsApp (approved OTP template) first, then by SMS, through Sendchamp. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 5 minutes. Do not share it with anyone."*
+The code goes by WhatsApp (approved OTP template) first, then by SMS, through Sendchamp. The SMS reads *"Your E-tiGo verification code is 482910. It expires in 10 minutes. Do not share it with anyone."*
 
 ---
 
@@ -14299,7 +14299,7 @@ POST /driver/bank-account/otp
 Authorization: Bearer {driver_token}
 ```
 
-Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback through Sendchamp; always `123456` in local/staging). The SMS names its purpose: *"Your E-tiGo code to change your payout bank account is 482910. It expires in 5 minutes. Do not share it with anyone."* The code is required to **add or replace** the payout account, including the first one, so a stolen session cannot direct payouts to another account. Codes expire after 5 minutes; a new code can be requested every 60 seconds. Rate limited to 3 requests per minute.
+Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback through Sendchamp; always `123456` when `APP_ENV` is not `production`, which staging is). The SMS names its purpose: *"Your E-tiGo code to change your payout bank account is 482910. It expires in 10 minutes. Do not share it with anyone."* The code is required to **add or replace** the payout account, including the first one, so a stolen session cannot direct payouts to another account. Codes expire after 10 minutes; use the returned `expires_at` rather than a fixed time. A new code can be requested every 60 seconds, and a phone gets at most 5 codes in 10 minutes, counting sign-in codes too (codes that failed to send don't count). Rate limited to 3 requests per minute.
 
 **Response 200:**
 ```json
@@ -14310,7 +14310,7 @@ Sends a 6-digit code to the driver's phone (WhatsApp with SMS fallback through S
 ```
 
 **Response 422:** `"Add a phone number to your account before adding bank details."`
-**Response 429:** `"Please wait before requesting another code."`, or `"Failed to send verification code. Please try again."` when neither WhatsApp nor SMS accepted the code.
+**Response 429:** `"Please wait before requesting another code."` (cooldown), `"Too many codes requested. Please try again in a few minutes."` (5 codes in 10 minutes), or `"Failed to send verification code. Please try again."` when neither WhatsApp nor SMS accepted the code.
 
 ### Add Bank Account
 

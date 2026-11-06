@@ -201,3 +201,15 @@ it('sends a test SMS from the console', function () {
 
     $this->artisan('sendchamp:test', ['phone' => '08012345678'])->assertFailed();
 });
+
+it('treats an SMS Sendchamp queued for no recipient as not sent', function () {
+    // The real send response: a batch record with no message id.
+    $batch = fn (int $valid) => ['code' => 200, 'data' => ['business_id' => 'b-1', 'total_contacts' => 1, 'valid_count' => $valid], 'errors' => null, 'message' => 'sent', 'status' => 'success'];
+    Http::fakeSequence(SENDCHAMP_SMS)->push($batch(1))->push($batch(0));
+
+    $gateway = new SendchampGateway;
+
+    expect($gateway->sendSms('+2348012345678', 'Hello'))->toBeTrue()
+        ->and($gateway->sendSms('+2348012345678', 'Hello'))->toBeFalse()
+        ->and($gateway->lastError())->toBe('Sendchamp rejected the number as invalid');
+});
