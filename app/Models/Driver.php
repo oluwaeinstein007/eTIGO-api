@@ -9,6 +9,7 @@ use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
+use App\Events\DriverStatusUpdated;
 use App\Services\DriverShiftService;
 use App\Services\ScheduledRideReservationService;
 use App\Traits\HasReferenceNumber;
@@ -57,11 +58,20 @@ class Driver extends Model
             }
         });
 
-        // A driver who can no longer drive (suspended by operations or by an
-        // automatic sanction, deactivated, rejected) gives up their reserved
-        // scheduled pickups and fleet shifts at once, so passengers and
-        // operations are not left waiting for pickup time to find out.
         static::updated(function (Driver $driver) {
+            if ($driver->wasChanged('status') || $driver->wasChanged('kyc_status')) {
+                $previousStatus = $driver->getOriginal('status');
+                if (is_string($previousStatus)) {
+                    $previousStatus = DriverStatus::tryFrom($previousStatus);
+                }
+
+                event(DriverStatusUpdated::fromDriver($driver, $previousStatus));
+            }
+
+            // A driver who can no longer drive (suspended by operations or by an
+            // automatic sanction, deactivated, rejected) gives up their reserved
+            // scheduled pickups and fleet shifts at once, so passengers and
+            // operations are not left waiting for pickup time to find out.
             if (! $driver->wasChanged('status') || $driver->getOriginal('status') !== DriverStatus::Approved || $driver->status === DriverStatus::Approved) {
                 return;
             }
