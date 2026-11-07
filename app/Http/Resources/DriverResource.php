@@ -29,6 +29,11 @@ class DriverResource extends JsonResource
             'is_profile_complete' => $this->resource->isProfileComplete(),
             'approved_at' => $this->approved_at,
             'suspended_at' => $this->suspended_at,
+            // An expired (past the grace period) or withdrawn driving licence:
+            // no going online and no offers until a renewal is approved.
+            'documents_blocked' => $this->documents_blocked_at !== null,
+            'documents_blocked_at' => $this->documents_blocked_at,
+            'documents_block_reason' => $this->documents_block_reason,
             'documents' => DriverDocumentResource::collection($this->whenLoaded('documents')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),
             'bank_account' => new BankAccountResource($this->whenLoaded('primaryBankAccount')),

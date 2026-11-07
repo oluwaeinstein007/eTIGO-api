@@ -515,6 +515,15 @@ class RideService
                 ]);
             }
 
+            // An expired or withdrawn driving licence, likewise.
+            $driverProfile = $driver->driver;
+
+            if ($driverProfile?->isDocumentsBlocked()) {
+                throw ValidationException::withMessages([
+                    'driver_id' => ["This driver can't drive until a renewed licence is approved: {$driverProfile->documents_block_reason}"],
+                ]);
+            }
+
             $meta = ['assigned_driver_id' => $driver->id, 'manual_assignment' => true];
 
             if ($ride->status === RideStatus::NoDriverFound) {

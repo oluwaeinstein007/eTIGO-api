@@ -40,8 +40,8 @@ Artisan::command('vehicles:check-maintenance', function () {
 
 Artisan::command('drivers:check-document-expiry', function () {
     ProcessDriverDocumentExpiryJob::dispatchSync();
-    $this->info('Driver document expiry checked: reminders sent for documents expiring within 7 days.');
-})->purpose('Run the driver document expiry check now (documents expiring within 7 days or already expired)');
+    $this->info('Driver documents checked: expired-licence blocks updated and renewal reminders sent.');
+})->purpose('Run the daily driver document check now (expired-licence block, renewal reminders at 30/14/7/1 days, on the day and once expired)');
 
 Schedule::job(new ExpireStaleHoldsJob)->hourly();
 Schedule::job(new ExpireAbandonedTopupsJob)->everyFifteenMinutes();
@@ -65,7 +65,7 @@ Schedule::job(new ProcessDisputeTargetsJob)->everyFifteenMinutes()->withoutOverl
 Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlapping();
 // Vehicle maintenance: due dates, reminders, the expired-papers block.
 Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
-// Driver documents: one reminder email per document expiring within 7 days.
+// Driver documents: expired-licence block, then renewal reminders (push, in-app, email).
 Schedule::job(new ProcessDriverDocumentExpiryJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Account deletion: erase accounts whose grace period has ended.
 Schedule::job(new PurgeDeletedAccountsJob)->dailyAt('03:00')->timezone('Africa/Lagos')->withoutOverlapping();

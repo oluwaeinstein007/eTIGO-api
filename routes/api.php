@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeNoteController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeRefundRequestController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeSettingsController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverDocumentController;
+use App\Http\Controllers\Api\V1\Admin\AdminDriverDocumentSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverLedgerController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverRepairController;
 use App\Http\Controllers\Api\V1\Admin\AdminDriverSchedulingSettingsController;
@@ -529,12 +531,17 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     // Finance can look drivers up (read only) to set a driver's own commission rate.
     Route::get('/drivers', [DriverManagementController::class, 'index'])->middleware('admin.role:operations,safety_operator,finance');
+    // Driver papers across drivers: the renewals queue, expiring and expired papers.
+    Route::get('/driver-documents', [AdminDriverDocumentController::class, 'index'])->middleware('admin.role:operations,safety_operator');
 
     Route::middleware('admin.role:operations,safety_operator')->prefix('drivers')->group(function () {
         Route::get('/pending', [DriverManagementController::class, 'pendingReview']);
         Route::get('/{driver}', [DriverManagementController::class, 'show']);
         Route::post('/{driver}/review', [DriverManagementController::class, 'review']);
         Route::post('/{driver}/documents/{document}/review', [DriverManagementController::class, 'reviewDocument']);
+        // Renewals: withdraw an approved paper found invalid; correct its expiry date or number.
+        Route::post('/{driver}/documents/{document}/revoke', [DriverManagementController::class, 'revokeDocument']);
+        Route::patch('/{driver}/documents/{document}', [DriverManagementController::class, 'updateDocument']);
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
         Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);
@@ -656,6 +663,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
         Route::get('/settings/driver-scheduling', [AdminDriverSchedulingSettingsController::class, 'show']);
         Route::put('/settings/driver-scheduling', [AdminDriverSchedulingSettingsController::class, 'update']);
+        Route::get('/settings/driver-documents', [AdminDriverDocumentSettingsController::class, 'show']);
+        Route::put('/settings/driver-documents', [AdminDriverDocumentSettingsController::class, 'update']);
         Route::get('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'show']);
         Route::put('/settings/vehicle-maintenance', [AdminVehicleMaintenanceSettingsController::class, 'update']);
         Route::get('/settings/ev-charging', [AdminEvChargingSettingsController::class, 'show']);

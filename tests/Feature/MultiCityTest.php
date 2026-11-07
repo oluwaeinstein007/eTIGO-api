@@ -803,8 +803,8 @@ it('lets drivers pick onboarding or live cities before they apply, and not after
         ->assertUnprocessable()
         ->assertJsonPath('message', 'Your city can only be changed before you submit your application. Contact support to move city.');
 
-    // Other profile changes still work.
-    ($this->as)($token)->putJson('/api/v1/driver/profile', ['licence_number' => 'ABC123', 'city_id' => $abuja->id])->assertOk();
+    // Other profile changes still work (a licence number now comes with a renewed licence).
+    ($this->as)($token)->putJson('/api/v1/driver/profile', ['first_name' => 'Ade', 'city_id' => $abuja->id])->assertOk();
 });
 
 it('keeps drivers offline until their city launches', function () {

@@ -1485,6 +1485,8 @@ PUT /driver/profile
 | licence_number | string  | No       | Driving licence no.  |
 | city_id        | string (UUID) | No       | An onboarding or live city (the driver's current city is accepted whatever its status) |
 
+**Licence number:** once the driver is approved (or suspended), a *different* `licence_number` returns 422 `To change your licence number, upload your renewed licence with its number. E-tiGo updates it once the licence is approved.` The number comes with the renewed licence instead ([Driver Document Renewals](#driver-document-renewals)). Sending the same number back is accepted.
+
 The city can only be changed while the driver is in `onboarding` or `rejected`. After the application is submitted it returns 422 `Your city can only be changed before you submit your application. Contact support to move city.`; Operations moves drivers with [`PUT /admin/drivers/{driver_id}/city`](#move-driver-to-another-city).
 
 **Response 200:**
@@ -1582,9 +1584,10 @@ Content-Type: multipart/form-data
 |----------|--------|----------|------------------------------------------------------------------------------------|
 | type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`, `government_id` |
 | document | file   | Yes      | JPG, PNG, or PDF. Max 10MB.                                                        |
-| expires_at | date | For `roadworthiness_certificate` and `vehicle_licence` | Expiry on the paper (after today). Optional for the other types |
+| expires_at | date | For `roadworthiness_certificate`, `vehicle_licence`, and a **renewed** `driving_licence` | Expiry on the paper (after today). For a renewed licence (an approved one is on file) it must also be later than the licence on file, else 422 `Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.` Optional otherwise, but send it whenever the paper shows one |
+| document_number | string | No | The number printed on the paper (max 30). On a renewed licence that carries a new number, operations make it the driver's licence number when they approve it. Stored encrypted; the driver sees only the last 4 (`"•••• ZZ09"`) |
 
-Re-uploading a document of the same type replaces the existing one, with one exception: **vehicle papers** (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) belong to the driver's car (Phase 2), and an **approved** vehicle paper stays valid until its renewal is approved, so renewing never leaves the car without papers; only a pending upload of the same type is replaced. Papers uploaded before the car is registered are linked to it when it is. Drivers of a fleet car with no car assigned get 422 (operations manage fleet papers). Insurance, roadworthiness and the vehicle licence decide whether the car may be driven: see [Vehicle Maintenance](#vehicle-maintenance-phase-2).
+Re-uploading a document of the same type replaces a **pending or rejected** upload of that type. An **approved** paper (any type, driver or vehicle) stays valid until its renewal is approved, so renewing early never leaves the driver or the car without papers. A paper operations **withdrew** (`revoked_at` set) is kept, not replaced. See [Driver Document Renewals](#driver-document-renewals). **Vehicle papers** (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) belong to the driver's car (Phase 2). Papers uploaded before the car is registered are linked to it when it is. Drivers of a fleet car with no car assigned get 422 (operations manage fleet papers). Insurance, roadworthiness and the vehicle licence decide whether the car may be driven: see [Vehicle Maintenance](#vehicle-maintenance-phase-2).
 
 **Response 201:**
 ```json
@@ -1593,13 +1596,19 @@ Re-uploading a document of the same type replaces the existing one, with one exc
   "document": {
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "type": "driving_licence",
+    "document_number": "•••• ZZ09",
     "original_filename": "licence.pdf",
-    "expires_at": null,
+    "expires_at": "2031-11-20T00:00:00.000000Z",
     "status": "pending",
+    "rejection_reason": null,
+    "reviewed_at": null,
+    "revoked_at": null,
     "created_at": "2026-10-06T14:00:00.000000Z"
   }
 }
 ```
+
+(`status` is now always returned on upload; it was `null` before.)
 
 ---
 
@@ -1623,8 +1632,17 @@ Returns the complete server-driven checklist of required documents for the authe
       "original_filename": "licence.pdf",
       "file_url": "https://storage.etigo.test/documents/licence.pdf",
       "rejection_reason": null,
-      "requires_expiry": true,
-      "expires_at": "2028-12-31"
+      "requires_expiry": false,
+      "expires_at": "2026-11-20",
+      "expiry_status": "expiring_soon",
+      "days_until_expiry": 13,
+      "renewal": {
+        "document_id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+        "status": "pending",
+        "expires_at": "2031-11-20",
+        "rejection_reason": null,
+        "uploaded_at": "2026-11-07T09:00:00+00:00"
+      }
     },
     {
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
@@ -1636,7 +1654,10 @@ Returns the complete server-driven checklist of required documents for the authe
       "file_url": "https://storage.etigo.test/documents/reg.jpg",
       "rejection_reason": null,
       "requires_expiry": false,
-      "expires_at": null
+      "expires_at": null,
+      "expiry_status": null,
+      "days_until_expiry": null,
+      "renewal": null
     },
     {
       "id": null,
@@ -1647,21 +1668,133 @@ Returns the complete server-driven checklist of required documents for the authe
       "original_filename": null,
       "file_url": null,
       "rejection_reason": null,
-      "requires_expiry": true,
-      "expires_at": null
+      "requires_expiry": false,
+      "expires_at": null,
+      "expiry_status": null,
+      "days_until_expiry": null,
+      "renewal": null
     }
   ],
   "total_required": 4,
   "total_uploaded": 2,
-  "can_submit": false
+  "can_submit": false,
+  "compliance": {
+    "can_drive": true,
+    "block_reason": null,
+    "action_required": false,
+    "documents": [
+      {
+        "type": "driving_licence",
+        "label": "Driving licence",
+        "document_id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
+        "expires_at": "2026-11-20",
+        "expiry_status": "expiring_soon",
+        "days_until_expiry": 13,
+        "blocks_driving": true,
+        "revoked_at": null,
+        "renewal": { "document_id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e", "status": "pending", "expires_at": "2031-11-20", "rejection_reason": null, "uploaded_at": "2026-11-07T09:00:00+00:00" },
+        "action_required": false
+      }
+    ]
+  }
 }
 ```
+
+One item per required type. While a renewal waits for review, the item shows the **approved paper in force** (`status: "approved"`) with the upload under `renewal`; `total_uploaded` counts types, not uploads. `requires_expiry` is `true` only for `roadworthiness_certificate` and `vehicle_licence` at first upload; a renewed `driving_licence` also needs `expires_at`.
+
+- `expiry_status` (approved papers only, else `null`): `no_expiry` (none recorded), `valid`, `expiring_soon` (within the first reminder step, 30 days by default), `expired`.
+- `days_until_expiry`: calendar days in Lagos; `0` on the expiry date (still valid), negative once expired.
+- `compliance`: see [Driver Document Renewals](#driver-document-renewals).
 
 **Status values:**
 - `not_submitted`: Required document has not been uploaded yet.
 - `under_review`: Document was uploaded and is awaiting review.
 - `approved`: Document has been verified and approved.
 - `rejected`: Document was reviewed and rejected. Inspect `rejection_reason` for guidance.
+
+---
+
+### Driver Document Renewals
+
+Papers are renewed when the date printed on them runs out, **not on a yearly clock**. Nigerian licences run 3 or 5 years. Renewing a paper is a **document check by operations, not a new KYC**: identity (NIN, licence verification, selfie) stays settled from onboarding, and the driver keeps their account, ratings, earnings and history.
+
+**Lifecycle of a renewal**
+
+1. The driver uploads the renewed paper (`POST /driver/documents`, same `type`). A renewed licence needs `expires_at` later than the one on file, and its `document_number` if it changed.
+2. The approved paper **stays in force** while the renewal is `pending`. The driver keeps driving.
+3. Operations approve the renewal (the old paper is replaced, the new number copied) or reject it with a reason. Each decision is pushed to the driver.
+
+**What blocks driving.** Only the **driving licence**:
+- **Expired:** valid through its expiry date (Lagos), then blocked from the next day. Operations can set a grace period (`licence_grace_days`, default **0**).
+- **Withdrawn by operations** (a suspended or revoked licence, or a forged paper).
+
+A blocked driver cannot go online (422, reason in `reasons`), gets no offers, cannot be manually assigned or booked on fleet shifts, and loses reserved scheduled pickups (reason `documents_blocked`, passenger told). An idle online driver is set offline. **A trip in progress is never ended.** For a fleet driver, operations get an email alert. The block lifts as soon as a renewed licence is **approved**; a pending upload doesn't lift it. A driver with no licence on file at all is left to the onboarding rules.
+
+**Government ID** expiry only reminds; it never blocks. **Vehicle papers** keep their own grace period and block under [Vehicle Maintenance](#vehicle-maintenance-phase-2); this adds reminder emails for own cars (fleet cars' papers are operations').
+
+**Reminders** (daily at 06:00 Lagos, `ProcessDriverDocumentExpiryJob`; run now with `php artisan drivers:check-document-expiry`): at **30, 14, 7 and 1 days** before expiry, **on the day**, and **once expired**. Channels are **push, in-app and email**. Vehicle legal papers get email only, since their push comes from vehicle maintenance. Each step is sent once. A paper approved late gets only the nearest step, never a backlog. Nothing is sent while a renewal waits for review, or for a paper already replaced by a later one. An expired licence that is blocked gets the block message instead of a reminder. The driver must have an email for the email part.
+
+**`compliance`** (on `GET /driver/documents`, admin `GET /admin/drivers/{id}` as `document_compliance`, and review/revoke/update responses):
+
+| Field | Description |
+|---|---|
+| can_drive | `false` while the driving licence block is on |
+| block_reason | e.g. `"Your driving licence expired on 7 Nov 2026."`, or `null` |
+| action_required | Some paper needs the driver: expiring soon, expired or withdrawn, with no renewal pending (or the renewal was rejected) |
+| documents[] | One per paper type on file (fleet cars' papers left out): `type`, `label`, `document_id` (paper in force), `expires_at`, `expiry_status` (`no_expiry`/`valid`/`expiring_soon`/`expired`), `days_until_expiry`, `blocks_driving` (licence only), `revoked_at` (set when the paper in force was withdrawn and nothing replaced it), `renewal` (latest pending or rejected upload: `document_id`, `status`, `expires_at`, `rejection_reason`, `uploaded_at`), `action_required` |
+
+**On the driver** (`DriverResource`): `documents_blocked` (bool), `documents_blocked_at`, `documents_block_reason`. **On each document**: `document_number` (full for admins, last 4 for the driver) and `revoked_at`.
+
+**Edge cases**
+
+| Case | Behaviour |
+|---|---|
+| Renewed early | The old licence counts until the renewal is approved |
+| Renewal still pending on the day after expiry | Blocked; it lifts on approval |
+| Same or older licence uploaded as a "renewal" | 422 on upload (`expires_at` must be later) |
+| Already expired paper | 422 on upload (`after:today`) and on approval |
+| FRSC temporary licence while the card is printed | Operations approve it with the temporary paper's own (short) expiry date; reminders and the block follow that date. A renewal **payment receipt is not a licence**: reject it |
+| Licence number changed on renewal | Sent as `document_number`; copied to the driver on approval (audit keeps the last 4 of both) |
+| Name differs slightly | Operations review it by hand: reject with a reason, or approve |
+| Licence suspended/revoked by FRSC, or forged | Operations withdraw it (`/revoke`): blocked at once |
+| Licences approved before expiry dates were required | `expiry_status: no_expiry`, never blocked; operations add the date with `PATCH` (queue filter `expiry=no_expiry`) |
+| Driver on a trip when the block starts | Finishes the trip; no new offers |
+| Approved driver edits licence number in profile | 422; it comes with the renewed licence |
+
+### Admin — Driver Documents (Renewals Queue)
+```
+GET /admin/driver-documents
+```
+Operations, Safety. Papers across all drivers.
+
+| Query | Description |
+|---|---|
+| status | `pending`, `approved`, `rejected` |
+| type | A document type |
+| expiry | `expiring_soon` (today to the first reminder step), `expired`, `no_expiry`: approved papers in force only, soonest expiry first |
+| renewals_only | `true`: uploads from drivers already working (not onboarding or pending review) |
+| city_id, search | Driver's city; driver name, email, phone or reference |
+| per_page | 1–100 (default 20) |
+
+`status=pending` is oldest first (a queue). Each item is the document plus `vehicle` (`id`, `plate_number`, `is_fleet` or `null`), `expiry_status`, `days_until_expiry`, `is_renewal`, and `driver` (`id`, `reference_number`, `name`, `phone`, `status`, `city`, `documents_blocked`). `summary`: `pending_renewals`, `expiring_soon`, `expired`, `licences_missing_expiry`, `blocked_drivers`. Review with [Review Document](#review-document).
+
+**Typical views:** renewals to check: `?status=pending&renewals_only=1`. Licences expiring: `?type=driving_licence&expiry=expiring_soon`. Backfill: `?type=driving_licence&expiry=no_expiry`.
+
+### Admin — Driver Document Settings
+```
+GET /admin/settings/driver-documents
+PUT /admin/settings/driver-documents
+```
+Operations.
+
+| Field | Default | Description |
+|---|---|---|
+| reminders_enabled | `true` | Off: nothing sent or marked (the block still applies) |
+| reminder_days | `[30, 14, 7, 1]` | 1–6 distinct days (1–90), stored largest first; plus the day itself and once expired |
+| licence_grace_days | `0` | Days after the expiry date before the block (0–30) |
+| block_on_expired_licence | `true` | Off: expired licences only remind |
+
+Changing the grace period or the block re-checks drivers at once. Logged as `driver_document_settings.updated`.
 
 ---
 
@@ -1904,6 +2037,8 @@ Toggle driver online/offline status. No body is required; plug-in cars (`electri
 Vehicle objects now also carry `shift_mode`, `odometer_km`, `estimated_odometer_km`, `battery_level_percent` (plug-in cars), `is_blocked` and `block_reason`, for drivers and admins only (a passenger seeing their driver's car does not get them).
 
 **Phase 2 response fields (going online):** `shift` (the shift being worked on a shared car, else `null`) and `vehicle_notice` (papers expiring soon or in their grace period, e.g. `"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving."`, else `null`).
+
+**`document_notice`** (going online): the driving licence expires within 7 days or is in its grace period, e.g. `"Your driving licence expires tomorrow. Upload the renewed licence now so E-tiGo can check it in time; without it you can't go online after 8 Nov 2026."`, or `"Your renewed driving licence is being checked by E-tiGo."` when a renewal is pending; else `null`. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`, e.g. `"Your driving licence expired on 7 Nov 2026. Upload your renewed licence; you can go online once E-tiGo approves it."`.
 
 **Going offline** is refused with `409` while the driver has an active ride (`matched` → `in_progress`), so passenger tracking and location updates continue until the trip ends.
 
@@ -2544,6 +2679,7 @@ GET /admin/drivers
 | city_id          | string (UUID) | No | Filter by city                                      |
 | vehicle_class_id | string (UUID) | No | Filter by vehicle class                             |
 | fuel_type        | string | No       | Filter by the vehicle's fuel type; `none` lists drivers whose vehicle has no fuel type yet |
+| documents_blocked | boolean | No     | `true`: only drivers off the road on an expired or withdrawn driving licence; `false`: only those who are not |
 | search           | string | No       | Search by driver name, email, or phone               |
 | per_page         | integer | No      | Results per page (default: 20)                       |
 
@@ -2846,9 +2982,14 @@ POST /admin/drivers/{driver_id}/documents/{document_id}/review
 |------------------|--------|-----------------------|----------------------|
 | action           | string | Yes                   | `approve` or `reject` |
 | rejection_reason | string | Yes (when rejecting)  | Reason for rejection |
-| expires_at       | date   | No                    | When approving: the expiry date read from the paper (confirms or corrects what the driver entered) |
+| expires_at       | date   | When approving a `driving_licence`, `roadworthiness_certificate` or `vehicle_licence` without one | When approving: the expiry date read from the paper (confirms or corrects what the driver entered) |
+| document_number  | string | No                    | The number on the paper (confirms or corrects what the driver entered). On an approved driving licence it becomes the driver's `licence_number` |
 
-Approving a renewed vehicle paper replaces the car's earlier approved paper of that type and re-checks the car's maintenance items, which lifts an expired-papers block.
+Approving a renewed vehicle paper replaces the car's earlier approved paper of that type and re-checks the car's maintenance items, which lifts an expired-papers block. Approving a renewed **driving licence or government ID** likewise replaces the driver's earlier approved one (never one that runs longer), records `document_replaced` in the driver's history, and lifts a licence block. A new licence number is copied to the driver (`licence_number_changed`, last 4 only in the log).
+
+**Approval 422s:** `Enter the expiry date printed on the driving licence before approving it.` (no expiry on the paper or in the request), `This driving licence has already expired. Reject it and ask the driver for the renewed one.` (expiry before today).
+
+Approved, active drivers (not onboarding or pending review) get a `document_reviewed` push for each approve/reject. When an approval lifts a licence block, they get `driver_documents_unblocked` instead.
 
 **Response 200:**
 ```json
@@ -2858,11 +2999,12 @@ Approving a renewed vehicle paper replaces the car's earlier approved paper of t
     "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
     "type": "driving_licence",
     "original_filename": "licence.pdf",
-    "expires_at": null,
+    "expires_at": "2031-11-20T00:00:00.000000Z",
     "status": "approved",
     "reviewed_at": "2026-10-06T14:00:00.000000Z",
     "created_at": "2026-10-02T10:00:00.000000Z"
-  }
+  },
+  "compliance": { "can_drive": true, "block_reason": null, "action_required": false, "documents": [] }
 }
 ```
 
@@ -2872,6 +3014,31 @@ Approving a renewed vehicle paper replaces the car's earlier approved paper of t
   "message": "Only pending documents can be reviewed."
 }
 ```
+
+### Withdraw an Approved Document
+```
+POST /admin/drivers/{driver_id}/documents/{document_id}/revoke
+```
+Operations, Safety. For a paper found invalid after approval: a suspended or revoked licence, or a forged paper.
+
+| Field  | Type   | Required | Description |
+|--------|--------|----------|-------------|
+| reason | string | Yes      | Shown to the driver (max 500) |
+
+The paper becomes `rejected` with `rejection_reason` = reason, and `revoked_at` is set. It is **kept** when the driver uploads a new one. A withdrawn **driving licence** blocks the driver at once (`documents_block_reason`: `"Your driving licence was withdrawn by E-tiGo: <reason>"`) until a new licence is approved. A trip in progress is not ended. The driver gets a `document_reviewed` push. 422 `Only approved documents can be withdrawn.` Response: `document` and `compliance`, as for review.
+
+### Correct an Approved Document's Details
+```
+PATCH /admin/drivers/{driver_id}/documents/{document_id}
+```
+Operations, Safety. Mainly to add the expiry date to licences approved before it was required (see `summary.licences_missing_expiry` in the [renewals queue](#admin--driver-documents-renewals-queue)).
+
+| Field           | Type   | Required | Description |
+|-----------------|--------|----------|-------------|
+| expires_at      | date   | One of the two | The expiry on the paper. A changed date restarts the reminders and rechecks the block (a past date blocks a licence at once) |
+| document_number | string | One of the two | On a driving licence, also updates the driver's `licence_number` |
+
+422 `Only approved documents can be corrected. Review pending ones instead.` Logged as `document_details_updated`. Response: `document` and `compliance`.
 
 ---
 
@@ -17249,6 +17416,9 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Car running late | Driver | `shift_handover_delayed` | The previous driver is still on a trip with the shared car |
 | Vehicle check due | Driver | `vehicle_maintenance_due` | Items became due soon, overdue, expired or still need a record; once per change (data: `vehicle_id`). See [Vehicle Maintenance](#vehicle-maintenance-phase-2) |
 | Car off the road / back on | Driver | `vehicle_blocked` / `vehicle_unblocked` | Papers expired past the grace period (bypasses preferences; reserved pickups released) / a renewal was approved |
+| Document expiring / expired | Driver | `document_expiring` | Driving licence or government ID (and other papers that aren't vehicle legal papers): 30, 14, 7 and 1 days before, on the day, and once expired (government ID, or a licence still in its grace period). The same reminder is emailed, and vehicle legal papers get the email only. Never sent while a renewal waits for review (data: `document_id`, `document_type`, `expires_at`). See [Driver Document Renewals](#driver-document-renewals) |
+| Document checked | Driver | `document_reviewed` | Operations approved, rejected or withdrew a paper of a working driver (data: `document_id`, `document_type`, `status`, `revoked` `"true"`/`"false"`) |
+| Can't drive / can drive again (licence) | Driver | `driver_documents_blocked` / `driver_documents_unblocked` | Driving licence expired past the grace period, or withdrawn. Bypasses preferences; the driver is set offline unless on a trip, and reserved pickups are released (reason `documents_blocked`) / a renewed licence was approved |
 | Maintenance record checked | Driver | `maintenance_record_reviewed` | Operations approved or rejected a submitted record (data: `vehicle_id`, `record_id`) |
 | Moved to another city | Driver | `driver_city_changed` | Operations moved the driver (data: `city_id`); says when they were taken offline, and that they can go online from launch day when the city is still onboarding |
 | EV stall ready     | Driver     | `ev_reservation_ready` | Queued reservation promoted, or a confirmed charge request's slot started — stall assigned |

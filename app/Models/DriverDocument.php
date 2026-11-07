@@ -17,27 +17,34 @@ class DriverDocument extends Model
         'vehicle_id',
         'uploaded_by',
         'type',
+        'document_number',
         'file_path',
         'original_filename',
         'mime_type',
         'file_size',
         'expires_at',
         'expiry_reminder_sent_at',
+        'expiry_reminder_stage',
         'status',
         'rejection_reason',
         'reviewed_by',
         'reviewed_at',
+        'revoked_at',
+        'revoked_by',
     ];
 
     protected function casts(): array
     {
         return [
             'type' => DocumentType::class,
+            'document_number' => 'encrypted',
             'status' => DocumentStatus::class,
             'file_size' => 'integer',
             'expires_at' => 'date',
             'expiry_reminder_sent_at' => 'datetime',
+            'expiry_reminder_stage' => 'integer',
             'reviewed_at' => 'datetime',
+            'revoked_at' => 'datetime',
         ];
     }
 

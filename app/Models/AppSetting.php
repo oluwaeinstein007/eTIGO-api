@@ -301,6 +301,29 @@ class AppSetting extends Model
     }
 
     /**
+     * Driver document renewals: the admin's runtime overrides
+     * (PUT /admin/settings/driver-documents) over config/driver_documents.php.
+     *
+     * @return array{reminders_enabled: bool, reminder_days: list<int>, licence_grace_days: int, block_on_expired_licence: bool}
+     */
+    public static function driverDocuments(): array
+    {
+        $settings = static::where('group', 'driver_documents')->pluck('value', 'key');
+        $value = fn (string $key) => $settings["driver_documents.{$key}"] ?? config("driver_documents.{$key}");
+        $stored = isset($settings['driver_documents.reminder_days']) ? json_decode($settings['driver_documents.reminder_days'], true) : null;
+        $days = is_array($stored) ? $stored : (array) config('driver_documents.reminder_days', []);
+        $days = array_values(array_unique(array_filter(array_map('intval', $days), fn (int $day) => $day > 0)));
+        rsort($days);
+
+        return [
+            'reminders_enabled' => filter_var($value('reminders_enabled'), FILTER_VALIDATE_BOOLEAN),
+            'reminder_days' => $days,
+            'licence_grace_days' => max(0, (int) $value('licence_grace_days')),
+            'block_on_expired_licence' => filter_var($value('block_on_expired_licence'), FILTER_VALIDATE_BOOLEAN),
+        ];
+    }
+
+    /**
      * Advanced dispute settings (Phase 2, OQ-21): the admin's runtime
      * overrides (PUT /admin/settings/disputes) over config/disputes.php.
      *

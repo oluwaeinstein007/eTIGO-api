@@ -41,6 +41,8 @@ class Driver extends Model
         'approved_at',
         'suspended_at',
         'suspension_reason',
+        'documents_blocked_at',
+        'documents_block_reason',
         'reference_number',
     ];
 
@@ -101,6 +103,7 @@ class Driver extends Model
             'online_since' => 'datetime',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
+            'documents_blocked_at' => 'datetime',
             'kyc_verified_at' => 'datetime',
         ];
     }
@@ -198,6 +201,15 @@ class Driver extends Model
             ->whereNull('resolved_at');
     }
 
+    /**
+     * An expired or withdrawn driving licence keeps the driver off the road
+     * until a renewed one is approved.
+     */
+    public function isDocumentsBlocked(): bool
+    {
+        return $this->documents_blocked_at !== null;
+    }
+
     public function isApproved(): bool
     {
         return $this->status === DriverStatus::Approved;
@@ -285,13 +297,15 @@ class Driver extends Model
     }
 
     /**
-     * Drivers new ride offers may go to, as far as their car allows: its
-     * papers are not expired past the grace period, and a shared car's
-     * driver is inside their shift (before the offer cut-off).
+     * Drivers new ride offers may go to, as far as their papers allow: the
+     * car's papers and the driver's own driving licence are not expired past
+     * the grace period, and a shared car's driver is inside their shift
+     * (before the offer cut-off).
      */
     public function scopeDispatchable(Builder $query): void
     {
-        $query->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
+        $query->whereNull('documents_blocked_at')
+            ->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
         app(DriverShiftService::class)->constrainDispatchable($query);
     }
 
@@ -303,6 +317,7 @@ class Driver extends Model
     public function scopeShiftEligible(Builder $query): void
     {
         $query->where('status', DriverStatus::Approved)
+            ->whereNull('documents_blocked_at')
             ->whereHas('user', fn (Builder $q) => $q->where('is_active', true))
             ->whereDoesntHave('vehicle', fn (Builder $q) => $q->where('shift_mode', false));
     }

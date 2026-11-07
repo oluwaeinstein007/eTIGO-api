@@ -59,6 +59,25 @@ enum DocumentType: string
     }
 
     /**
+     * An expired (past the grace period) or withdrawn paper of this type
+     * keeps the driver off the road. Government ID only reminds: who the
+     * driver is was settled at KYC, and an ID card's date does not change it.
+     */
+    public function blocksDriverWhenExpired(): bool
+    {
+        return $this === self::DrivingLicence;
+    }
+
+    /**
+     * Vehicle papers whose reminders, grace period and block come from
+     * vehicle maintenance (OQ-19), so the document reminder job only emails.
+     */
+    public function isVehicleLegalPaper(): bool
+    {
+        return in_array($this, [self::InsuranceCertificate, self::RoadworthinessCertificate, self::VehicleLicence], true);
+    }
+
+    /**
      * @return list<string>
      */
     public static function vehicleDocumentValues(): array

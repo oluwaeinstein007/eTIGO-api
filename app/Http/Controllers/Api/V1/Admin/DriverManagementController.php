@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
 use App\Enums\FuelType;
 use App\Enums\KycStatus;
@@ -28,6 +29,7 @@ use App\Models\ScheduledRide;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Notifications\DriverApprovedNotification;
+use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverHistoryService;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
@@ -35,6 +37,7 @@ use App\Services\NotificationService;
 use App\Services\VehicleMaintenanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -49,9 +52,15 @@ class DriverManagementController extends Controller
             'kyc_status' => ['sometimes', 'nullable', Rule::enum(KycStatus::class)],
             'city_id' => ['sometimes', 'nullable', 'uuid'],
             'vehicle_class_id' => ['sometimes', 'nullable', 'uuid'],
+            'documents_blocked' => ['sometimes', 'boolean'],
         ]);
 
         $query = Driver::with(['user', 'documents', 'vehicle.vehicleClass', 'city', 'primaryBankAccount']);
+
+        // Off the road on an expired or withdrawn driving licence.
+        if ($request->has('documents_blocked')) {
+            $request->boolean('documents_blocked') ? $query->whereNotNull('documents_blocked_at') : $query->whereNull('documents_blocked_at');
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
@@ -134,6 +143,8 @@ class DriverManagementController extends Controller
         return response()->json([
             'driver' => new DriverResource($driver),
             'performance' => $performance,
+            // Expiry state per paper, renewals waiting for review, and the licence block.
+            'document_compliance' => app(DriverDocumentComplianceService::class)->summary($driver),
             'history' => $history->for($driver),
         ]);
     }
@@ -210,7 +221,7 @@ class DriverManagementController extends Controller
         ]);
     }
 
-    public function reviewDocument(ReviewDocumentRequest $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance): JsonResponse
+    public function reviewDocument(ReviewDocumentRequest $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance, DriverDocumentComplianceService $compliance): JsonResponse
     {
         if ($document->driver_id !== $driver->id) {
             return response()->json(['message' => 'Document does not belong to this driver.'], 404);
@@ -229,6 +240,26 @@ class DriverManagementController extends Controller
             ? DocumentStatus::Approved
             : DocumentStatus::Rejected;
 
+        if ($newStatus === DocumentStatus::Approved) {
+            $expiresAt = array_key_exists('expires_at', $validated) ? $validated['expires_at'] : $document->expires_at?->toDateString();
+
+            // Renewals go by the date on the paper, so a licence (and the
+            // papers that decide whether a car may be driven) needs one.
+            if ($expiresAt === null && ($document->type === DocumentType::DrivingLicence || $document->type->requiresExpiry())) {
+                return response()->json([
+                    'message' => "Enter the expiry date printed on the {$this->lowerLabel($document)} before approving it.",
+                    'errors' => ['expires_at' => ['The expiry date is required to approve this document.']],
+                ], 422);
+            }
+
+            if ($expiresAt !== null && $compliance->today()->toDateString() > Carbon::parse($expiresAt)->toDateString()) {
+                return response()->json([
+                    'message' => "This {$this->lowerLabel($document)} has already expired. Reject it and ask the driver for the renewed one.",
+                    'errors' => ['expires_at' => ['An expired document cannot be approved.']],
+                ], 422);
+            }
+        }
+
         $replacedPaths = [];
 
         DB::transaction(function () use ($document, $driver, $admin, $validated, $newStatus, &$replacedPaths) {
@@ -238,6 +269,7 @@ class DriverManagementController extends Controller
                 'reviewed_by' => $admin->id,
                 'reviewed_at' => now(),
                 ...(array_key_exists('expires_at', $validated) && $newStatus === DocumentStatus::Approved ? ['expires_at' => $validated['expires_at']] : []),
+                ...(array_key_exists('document_number', $validated) ? ['document_number' => $validated['document_number']] : []),
             ]);
 
             $action = $validated['action'] === 'approve' ? 'document_approved' : 'document_rejected';
@@ -264,6 +296,46 @@ class DriverManagementController extends Controller
 
                 $replacedPaths = $replaced->pluck('file_path')->all();
                 $replaced->each->delete();
+            }
+
+            // The driver's own papers likewise: an approved renewal replaces
+            // the earlier licence or ID (never one that runs longer). The
+            // audit entry keeps what it replaced.
+            if ($newStatus === DocumentStatus::Approved && $document->vehicle_id === null) {
+                $expiresAt = $document->expires_at;
+
+                $replaced = DriverDocument::where('driver_id', $driver->id)
+                    ->whereNull('vehicle_id')
+                    ->where('type', $document->type)
+                    ->where('id', '!=', $document->id)
+                    ->where('status', DocumentStatus::Approved)
+                    ->when($expiresAt !== null, fn ($q) => $q->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '<=', $expiresAt)))
+                    ->get();
+
+                foreach ($replaced as $old) {
+                    AuditLog::record($document, 'document_replaced', $admin, [
+                        'document_id' => $old->id,
+                        'expires_at' => $old->expires_at?->toDateString(),
+                        'document_number_last4' => $old->document_number ? mb_substr($old->document_number, -4) : null,
+                    ], [
+                        'expires_at' => $expiresAt?->toDateString(),
+                        'type' => $document->type->value,
+                        'driver_id' => $driver->id,
+                    ]);
+                }
+
+                $replacedPaths = [...$replacedPaths, ...$replaced->pluck('file_path')->all()];
+                $replaced->each->delete();
+
+                // A renewed licence may carry a new number; the old one stays in the audit log (last 4).
+                if ($document->type === DocumentType::DrivingLicence && $document->document_number && $document->document_number !== $driver->licence_number) {
+                    $previous = $driver->licence_number;
+                    $driver->update(['licence_number' => $document->document_number]);
+                    AuditLog::record($driver, 'licence_number_changed', $admin,
+                        ['licence_number_last4' => $previous ? mb_substr($previous, -4) : null],
+                        ['licence_number_last4' => mb_substr($document->document_number, -4), 'document_id' => $document->id],
+                    );
+                }
             }
 
             $lockedDriver = Driver::lockForUpdate()->find($driver->id);
@@ -297,15 +369,168 @@ class DriverManagementController extends Controller
             Storage::disk(config('filesystems.uploads'))->delete($replacedPaths);
         }
 
-        // Vehicle papers decide whether the car may be driven (OQ-19).
+        // Vehicle papers decide whether the car may be driven (OQ-19), the
+        // driving licence whether the driver may.
         if ($document->vehicle_id !== null && ($vehicle = Vehicle::find($document->vehicle_id)) !== null) {
             $maintenance->refresh($vehicle);
+        }
+
+        $wasBlocked = $driver->isDocumentsBlocked();
+        $unblocked = $wasBlocked && ! $compliance->refresh($driver->fresh())->isDocumentsBlocked();
+
+        // Onboarding papers are covered by the application decision; a
+        // renewal from a working driver gets its own answer (unless lifting
+        // the block has just told them).
+        if (! $unblocked && $driver->status !== DriverStatus::Onboarding && $driver->status !== DriverStatus::PendingReview) {
+            $this->notifyDocumentReviewed($driver, $document->fresh());
         }
 
         return response()->json([
             'message' => "Document {$validated['action']}d successfully.",
             'document' => new DriverDocumentResource($document->fresh()),
+            'compliance' => $compliance->summary($driver->fresh()),
         ]);
+    }
+
+    /**
+     * Withdraw an approved paper found to be invalid after approval (a
+     * suspended or revoked licence, a forged paper). The driver is told why;
+     * a withdrawn driving licence keeps them off the road until a renewed
+     * one is approved. A trip in progress is not ended.
+     */
+    public function revokeDocument(Request $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance, DriverDocumentComplianceService $compliance): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        if ($document->driver_id !== $driver->id) {
+            return response()->json(['message' => 'Document does not belong to this driver.'], 404);
+        }
+
+        if ($document->status !== DocumentStatus::Approved || $document->revoked_at !== null) {
+            return response()->json(['message' => 'Only approved documents can be withdrawn.'], 422);
+        }
+
+        DB::transaction(function () use ($document, $request, $validated, $driver) {
+            $document->update([
+                'status' => DocumentStatus::Rejected,
+                'rejection_reason' => $validated['reason'],
+                'revoked_at' => now(),
+                'revoked_by' => $request->user()->id,
+            ]);
+
+            AuditLog::record($document, 'document_revoked', $request->user(), ['status' => DocumentStatus::Approved->value], [
+                'status' => DocumentStatus::Rejected->value,
+                'reason' => $validated['reason'],
+                'type' => $document->type->value,
+                'driver_id' => $driver->id,
+            ]);
+        });
+
+        if ($document->vehicle_id !== null && ($vehicle = Vehicle::find($document->vehicle_id)) !== null) {
+            $maintenance->refresh($vehicle);
+        }
+
+        $compliance->refresh($driver->fresh());
+        $this->notifyDocumentReviewed($driver, $document->fresh());
+
+        return response()->json([
+            'message' => 'Document withdrawn.',
+            'document' => new DriverDocumentResource($document->fresh()),
+            'compliance' => $compliance->summary($driver->fresh()),
+        ]);
+    }
+
+    /**
+     * Correct the expiry date or number on an approved paper, mostly to add
+     * the expiry date to licences approved before it was required. A new
+     * date restarts the reminders and rechecks the block.
+     */
+    public function updateDocument(Request $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance, DriverDocumentComplianceService $compliance): JsonResponse
+    {
+        $validated = $request->validate([
+            'expires_at' => ['sometimes', 'required', 'date'],
+            'document_number' => ['sometimes', 'nullable', 'string', 'max:30'],
+        ]);
+
+        if ($document->driver_id !== $driver->id) {
+            return response()->json(['message' => 'Document does not belong to this driver.'], 404);
+        }
+
+        if ($document->status !== DocumentStatus::Approved || $document->revoked_at !== null) {
+            return response()->json(['message' => 'Only approved documents can be corrected. Review pending ones instead.'], 422);
+        }
+
+        if ($validated === []) {
+            return response()->json(['message' => 'Send expires_at or document_number.', 'errors' => ['expires_at' => ['Nothing to change.']]], 422);
+        }
+
+        $old = ['expires_at' => $document->expires_at?->toDateString(), 'document_number_last4' => $document->document_number ? mb_substr($document->document_number, -4) : null];
+
+        DB::transaction(function () use ($document, $validated, $request, $old, $driver) {
+            $changesDate = array_key_exists('expires_at', $validated) && Carbon::parse($validated['expires_at'])->toDateString() !== $old['expires_at'];
+
+            $document->update([
+                ...$validated,
+                ...($changesDate ? ['expiry_reminder_stage' => null, 'expiry_reminder_sent_at' => null] : []),
+            ]);
+
+            if ($document->type === DocumentType::DrivingLicence && array_key_exists('document_number', $validated) && $validated['document_number'] && $validated['document_number'] !== $driver->licence_number) {
+                $driver->update(['licence_number' => $validated['document_number']]);
+            }
+
+            AuditLog::record($document, 'document_details_updated', $request->user(), $old, [
+                'expires_at' => $document->expires_at?->toDateString(),
+                'document_number_last4' => $document->document_number ? mb_substr($document->document_number, -4) : null,
+                'driver_id' => $driver->id,
+            ]);
+        });
+
+        if ($document->vehicle_id !== null && ($vehicle = Vehicle::find($document->vehicle_id)) !== null) {
+            $maintenance->refresh($vehicle);
+        }
+
+        $compliance->refresh($driver->fresh());
+
+        return response()->json([
+            'message' => 'Document updated.',
+            'document' => new DriverDocumentResource($document->fresh()),
+            'compliance' => $compliance->summary($driver->fresh()),
+        ]);
+    }
+
+    private function notifyDocumentReviewed(Driver $driver, DriverDocument $document): void
+    {
+        $label = $document->type->label();
+
+        $body = match (true) {
+            $document->revoked_at !== null => "E-tiGo withdrew your {$this->lowerLabel($document)}: {$document->rejection_reason} Upload a valid one in the app.",
+            $document->status === DocumentStatus::Approved => "Your {$this->lowerLabel($document)} is approved".($document->expires_at ? ' (valid until '.$document->expires_at->format('j M Y').').' : '.'),
+            default => "Your {$this->lowerLabel($document)} wasn't accepted: {$document->rejection_reason} Upload it again in the app.",
+        };
+
+        try {
+            app(NotificationService::class)->send(
+                userId: $driver->user_id,
+                type: NotificationType::DocumentReviewed,
+                title: $document->status === DocumentStatus::Approved ? "{$label} Approved" : NotificationType::DocumentReviewed->label(),
+                body: $body,
+                data: [
+                    'document_id' => (string) $document->id,
+                    'document_type' => $document->type->value,
+                    'status' => $document->status->value,
+                    'revoked' => $document->revoked_at !== null ? 'true' : 'false',
+                ],
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Document review notification failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function lowerLabel(DriverDocument $document): string
+    {
+        return mb_strtolower($document->type->label());
     }
 
     public function suspend(Request $request, Driver $driver): JsonResponse

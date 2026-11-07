@@ -144,6 +144,10 @@ class ScheduledRideReservationService
             $errors[] = "Your car can't be driven until its papers are renewed: {$vehicle->block_reason}";
         }
 
+        if ($driver->isDocumentsBlocked()) {
+            $errors[] = "You can't drive until your renewed licence is approved: {$driver->documents_block_reason}";
+        }
+
         if ($driver->city_id !== $ride->city_id) {
             $errors[] = 'This ride is in another city.';
         }
@@ -402,6 +406,7 @@ class ScheduledRideReservationService
                 'driver_unavailable' => 'You were offline or on another trip when your reserved pickup started, so it went to another driver.',
                 'pickup_changed' => 'The passenger changed the pickup time or place, so your reservation was released.',
                 'vehicle_blocked' => "Your car's papers have expired, so your reserved pickup was released. Upload the renewed paper to drive again.",
+                'documents_blocked' => "Your driving licence isn't valid on E-tiGo right now, so your reserved pickup was released. Upload your renewed licence to drive again.",
                 'shift_changed' => 'Your shifts changed and this reserved pickup is no longer inside one, so it was released.',
                 'driver_suspended' => 'Your account is not active, so your reserved pickup was released.',
                 default => 'Operations released your reserved pickup.',

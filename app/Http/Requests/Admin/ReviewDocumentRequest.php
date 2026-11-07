@@ -18,6 +18,8 @@ class ReviewDocumentRequest extends FormRequest
             'rejection_reason' => ['required_if:action,reject', 'nullable', 'string', 'max:500'],
             // The reviewer confirms or corrects the expiry date on the paper.
             'expires_at' => ['sometimes', 'nullable', 'date'],
+            // The number on the paper; on a driving licence it becomes the driver's licence number.
+            'document_number' => ['sometimes', 'nullable', 'string', 'max:30'],
         ];
     }
 }
