@@ -10,6 +10,7 @@ use App\Jobs\ProcessPayoutWebhookJob;
 use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\Payment;
 use App\Models\WebhookEvent;
+use App\Notifications\PaymentReceiptNotification;
 use App\Services\FlutterwavePaymentGateway;
 use App\Services\RideSettlementService;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -208,6 +209,22 @@ class FlutterwaveWebhookController extends Controller
                 Log::error('Webhook: failed to settle driver earnings for captured payment', [
                     'payment_id' => $payment->id,
                     'ride_id' => $payment->ride_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                if ($payment->ride->passenger?->email) {
+                    $payment->ride->passenger->notify(new PaymentReceiptNotification(
+                        $payment->ride,
+                        (int) round($payment->amount * 100),
+                        $payment->method->value,
+                        $payment->gateway_transaction_id ?? (string) $payment->id,
+                    ));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Webhook: payment receipt email failed', [
+                    'payment_id' => $payment->id,
                     'error' => $e->getMessage(),
                 ]);
             }

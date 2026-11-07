@@ -11,6 +11,7 @@ use App\Http\Resources\UserResource;
 use App\Models\AdminInvitation;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Notifications\AccountDeactivatedNotification;
 use App\Notifications\AdminInvitationNotification;
 use App\Services\DisputeService;
 use Illuminate\Http\JsonResponse;
@@ -191,6 +192,14 @@ class AdminManagementController extends Controller
         AuditLog::record($admin, 'admin_deactivated', request()->user());
 
         $this->disputes->releaseAssignments($admin, request()->user(), 'Admin deactivated.');
+
+        try {
+            if ($admin->email) {
+                $admin->notify(new AccountDeactivatedNotification('Deactivated by an administrator.'));
+            }
+        } catch (\Throwable) {
+            // Notification failures must not break admin deactivation.
+        }
 
         return response()->json(['message' => 'Admin deactivated successfully.']);
     }

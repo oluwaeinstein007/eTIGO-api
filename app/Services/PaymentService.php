@@ -15,6 +15,7 @@ use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\UserPaymentMethod;
 use App\Notifications\CashChangeWalletCreditNotification;
+use App\Notifications\PaymentReceiptNotification;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
@@ -298,6 +299,14 @@ class PaymentService
             $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
         }
 
+        try {
+            if ($ride->passenger?->email) {
+                $ride->passenger->notify(new PaymentReceiptNotification($ride, (int) round($fareAmount * 100), 'cash', (string) $payment->id));
+            }
+        } catch (\Throwable) {
+            // Notification failures must not break payment confirmation.
+        }
+
         return $payment;
     }
 
@@ -541,7 +550,7 @@ class PaymentService
 
         $status = $result['settled'] ? PaymentStatus::Captured : PaymentStatus::Failed;
 
-        return DB::transaction(function () use ($ride, $finalFareKobo, $status, $result) {
+        $payment = DB::transaction(function () use ($ride, $finalFareKobo, $status, $result) {
             $payment = Payment::updateOrCreate(
                 ['ride_id' => $ride->id],
                 [
@@ -559,6 +568,18 @@ class PaymentService
 
             return $payment;
         });
+
+        if ($status === PaymentStatus::Captured) {
+            try {
+                if ($ride->passenger?->email) {
+                    $ride->passenger->notify(new PaymentReceiptNotification($ride, $finalFareKobo, 'wallet', (string) $payment->id));
+                }
+            } catch (\Throwable) {
+                // Notification failures must not break payment processing.
+            }
+        }
+
+        return $payment;
     }
 
     private function createFailedPayment(Ride $ride, string $reason): Payment

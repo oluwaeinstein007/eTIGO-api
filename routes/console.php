@@ -10,6 +10,7 @@ use App\Jobs\ExpireStaleHoldsJob;
 use App\Jobs\LiftExpiredComplianceSuspensionsJob;
 use App\Jobs\NegativeDriverBalanceReportJob;
 use App\Jobs\ProcessDisputeTargetsJob;
+use App\Jobs\ProcessDriverDocumentExpiryJob;
 use App\Jobs\ProcessDriverShiftsJob;
 use App\Jobs\ProcessEvChargeRequestsJob;
 use App\Jobs\ProcessLostItemsJob;
@@ -37,6 +38,11 @@ Artisan::command('vehicles:check-maintenance', function () {
     $this->info('Vehicle maintenance checked: items updated, reminders and the operations digest sent.');
 })->purpose('Run the daily vehicle maintenance check now (items, reminders, expired-papers block)');
 
+Artisan::command('drivers:check-document-expiry', function () {
+    ProcessDriverDocumentExpiryJob::dispatchSync();
+    $this->info('Driver document expiry checked: reminders sent for documents expiring within 7 days.');
+})->purpose('Run the driver document expiry check now (documents expiring within 7 days or already expired)');
+
 Schedule::job(new ExpireStaleHoldsJob)->hourly();
 Schedule::job(new ExpireAbandonedTopupsJob)->everyFifteenMinutes();
 Schedule::job(new SettleDriverEarningsJob)->hourly()->withoutOverlapping();
@@ -59,6 +65,8 @@ Schedule::job(new ProcessDisputeTargetsJob)->everyFifteenMinutes()->withoutOverl
 Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlapping();
 // Vehicle maintenance: due dates, reminders, the expired-papers block.
 Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
+// Driver documents: one reminder email per document expiring within 7 days.
+Schedule::job(new ProcessDriverDocumentExpiryJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Account deletion: erase accounts whose grace period has ended.
 Schedule::job(new PurgeDeletedAccountsJob)->dailyAt('03:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Admin overview: point-in-time counts for the "vs. this time yesterday" figures.

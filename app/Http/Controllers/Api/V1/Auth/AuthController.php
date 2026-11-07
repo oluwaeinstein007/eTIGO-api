@@ -17,6 +17,8 @@ use App\Models\OtpCode;
 use App\Models\SocialAccount;
 use App\Models\SocialAuthCode;
 use App\Models\User;
+use App\Notifications\DriverOnboardingWelcomeNotification;
+use App\Notifications\PassengerWelcomeNotification;
 use App\Services\AccountDeletionService;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
@@ -177,6 +179,18 @@ class AuthController extends Controller
         }
 
         AuditLog::record($user, 'registered');
+
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable) {
+            // Notification failures must not break registration.
+        }
 
         $token = $user->createToken(
             $userType->value.'-auth',

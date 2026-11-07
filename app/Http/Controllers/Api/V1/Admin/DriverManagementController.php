@@ -27,6 +27,7 @@ use App\Models\Ride;
 use App\Models\ScheduledRide;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Notifications\DriverApprovedNotification;
 use App\Services\DriverHistoryService;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
@@ -175,9 +176,19 @@ class DriverManagementController extends Controller
                 AuditLog::record($driver, 'driver_approved', $admin, ['status' => $oldStatus->value], ['status' => 'approved']);
             });
 
+            $freshDriver = $driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city']);
+
+            try {
+                if ($freshDriver->user?->email) {
+                    $freshDriver->user->notify(new DriverApprovedNotification($freshDriver));
+                }
+            } catch (\Throwable) {
+                // Notification failures must not break driver approval.
+            }
+
             return response()->json([
                 'message' => 'Driver approved successfully.',
-                'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city'])),
+                'driver' => new DriverResource($freshDriver),
             ]);
         }
 
