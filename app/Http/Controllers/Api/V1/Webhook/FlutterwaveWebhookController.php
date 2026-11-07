@@ -219,7 +219,8 @@ class FlutterwaveWebhookController extends Controller
                         $payment->ride,
                         (int) round($payment->amount * 100),
                         $payment->method->value,
-                        $payment->gateway_transaction_id ?? (string) $payment->id,
+                        (string) $payment->id,
+                        paidAt: $payment->updated_at,
                     ));
                 }
             } catch (\Throwable $e) {

@@ -19,7 +19,7 @@ An audit of every email/push notification in the backend found several email tem
 | Payment receipt | A ride payment is captured — cash, wallet, card, or bank transfer | `{FRONTEND_URL}/payments/{reference}` | Passenger app — confirm this route exists |
 | Driver document expiring | New daily job (06:00 Lagos) catches approved documents expiring within 7 days | `{FRONTEND_URL}/driver/documents` | Driver app — confirm this route exists |
 
-`{FRONTEND_URL}` — confirm the actual deployed value with backend/DevOps; it isn't set in `.env.example`.
+`{FRONTEND_URL}` must be set to the deployed frontend origin before these emails go out for real — it isn't set in `.env.example`, and if it's left unset in an environment, every link above falls back to `http://localhost:3000/...`. Confirm the actual deployed value with backend/DevOps.
 
 ---
 

@@ -10,7 +10,11 @@
 {{-- Body --}}
 <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #18181b;">Hi {{ $userName }},</p>
 <p style="margin: 0 0 20px 0; font-size: 15px; color: #4b5563; line-height: 1.6;">
-    Thanks for registering to drive with Etigo. We've received your profile and KYC documents, and our team is reviewing your application.
+    @if($documentsUploaded ?? true)
+        Thanks for registering to drive with Etigo. We've received your profile and KYC documents, and our team is reviewing your application.
+    @else
+        Thanks for registering to drive with Etigo. Your profile is set up — upload your documents to start the review.
+    @endif
 </p>
 
 {{-- Status banner --}}
@@ -23,7 +27,11 @@
             <div style="width: 28px; height: 28px; background-color: #e5e7eb; border-radius: 6px; text-align: center; line-height: 28px; font-size: 14px;">&#128196;</div>
         </td>
         <td valign="middle">
-            <p style="margin: 0; font-size: 14px; font-weight: 700; color: #18181b;">Registration received &middot; Review pending</p>
+            @if($documentsUploaded ?? true)
+                <p style="margin: 0; font-size: 14px; font-weight: 700; color: #18181b;">Registration received &middot; Review pending</p>
+            @else
+                <p style="margin: 0; font-size: 14px; font-weight: 700; color: #18181b;">Registration received &middot; Documents needed</p>
+            @endif
         </td>
     </tr>
     </table>
@@ -45,7 +53,7 @@
         <td class="info-value" style="padding: 6px 0; font-size: 14px; font-weight: 600; color: #18181b;">{{ $submittedDate }}</td>
     </tr>
     <tr>
-        <td class="info-label" style="padding: 6px 0; font-size: 13px; color: #6b7280; width: 140px; vertical-align: top;">Documents received</td>
+        <td class="info-label" style="padding: 6px 0; font-size: 13px; color: #6b7280; width: 140px; vertical-align: top;">{{ ($documentsUploaded ?? true) ? 'Documents received' : 'Documents needed' }}</td>
         <td class="info-value" style="padding: 6px 0; font-size: 14px; font-weight: 600; color: #18181b;">{{ $documentsReceived }}</td>
     </tr>
     </table>
@@ -63,8 +71,13 @@
         <div style="width: 32px; height: 32px; background-color: #0d7c3d; border-radius: 50%; text-align: center; line-height: 32px; font-size: 13px; font-weight: 700; color: #ffffff;">01</div>
     </td>
     <td valign="top">
-        <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">We review your application</p>
-        <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5;">Our team checks your identity and driver documents.</p>
+        @if($documentsUploaded ?? true)
+            <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">We review your application</p>
+            <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5;">Our team checks your identity and driver documents.</p>
+        @else
+            <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">Upload your documents</p>
+            <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5;">Add your identity and driver documents in the app so we can review your application.</p>
+        @endif
     </td>
 </tr>
 </table>

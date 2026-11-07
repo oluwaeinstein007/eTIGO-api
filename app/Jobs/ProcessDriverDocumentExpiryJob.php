@@ -38,9 +38,8 @@ class ProcessDriverDocumentExpiryJob implements ShouldQueue
 
                     if ($driver?->user?->email) {
                         $driver->user->notify(new DriverDocumentExpiringNotification($driver, $document));
+                        $document->update(['expiry_reminder_sent_at' => now()]);
                     }
-
-                    $document->update(['expiry_reminder_sent_at' => now()]);
                 } catch (\Throwable $e) {
                     Log::error('Driver document expiry reminder failed', [
                         'document_id' => $document->id,

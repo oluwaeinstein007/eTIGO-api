@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Carbon;
 
 class PaymentReceiptNotification extends Notification implements ShouldQueue
 {
@@ -20,6 +21,7 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
         public readonly ?string $paymentReference = null,
         public readonly ?string $cardLast4 = null,
         public readonly ?string $cardBrand = null,
+        public readonly ?Carbon $paidAt = null,
     ) {}
 
     public function via(object $notifiable): array
@@ -32,7 +34,7 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
         $currency = $this->ride->fare_currency ?? 'NGN';
         $currencySymbol = $this->currencySymbol($currency);
         $totalAmount = number_format($this->amountKobo / 100, 2);
-        $paymentDate = now();
+        $paymentDate = $this->paidAt ?? now();
         $ref = $this->paymentReference ?? 'PAY-'.now()->format('ymd').'-'.str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
         $methodDetail = match ($this->paymentMethod) {

@@ -29,23 +29,36 @@ class DriverOnboardingWelcomeNotification extends Notification implements Should
         $applicationId = $this->driver->reference_number ?? 'DRV-'.now()->format('ymd').'-'.substr($this->driver->id, 0, 4);
         $submittedDate = $this->driver->created_at?->format('j F Y') ?? now()->format('j F Y');
 
-        $documents = ! empty($this->documentTypes)
+        // Registration creates the driver profile before any document exists
+        // to upload, so an empty list means "nothing uploaded yet" rather
+        // than "received" — the subject and body below branch on that.
+        $hasDocuments = ! empty($this->documentTypes);
+        $documents = $hasDocuments
             ? implode(', ', array_map(fn ($t) => ucwords(str_replace('_', ' ', $t)), $this->documentTypes))
             : 'Identity, driving licence & insurance';
 
+        $subject = $hasDocuments
+            ? "We've received your Etigo driver registration"
+            : "You're almost there — upload your documents to drive with Etigo";
+
         return (new MailMessage)
-            ->subject("We've received your Etigo driver registration")
+            ->subject($subject)
             ->view('emails.driver-onboarding-welcome', [
-                'preheader' => "We've received your Etigo driver registration. Your profile and documents are in review.",
+                'preheader' => $hasDocuments
+                    ? "We've received your Etigo driver registration. Your profile and documents are in review."
+                    : 'Your Etigo driver profile is set up. Upload your documents to start the review.',
                 'preheaderLabel' => 'Driver onboarding welcome',
-                'preheaderTitle' => "We've received your Etigo driver registration",
-                'preheaderSub' => "Your profile and documents are in review. We'll email you with the outcome.",
-                'subject' => "We've received your Etigo driver registration",
+                'preheaderTitle' => $subject,
+                'preheaderSub' => $hasDocuments
+                    ? "Your profile and documents are in review. We'll email you with the outcome."
+                    : "Upload {$documents} to continue your application.",
+                'subject' => $subject,
                 'userName' => $notifiable->first_name,
                 'recipientEmail' => $notifiable->email,
                 'applicationId' => $applicationId,
                 'submittedDate' => $submittedDate,
                 'documentsReceived' => $documents,
+                'documentsUploaded' => $hasDocuments,
                 'applicationUrl' => $applicationUrl,
             ]);
     }

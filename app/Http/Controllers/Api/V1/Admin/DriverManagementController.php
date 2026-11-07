@@ -182,8 +182,8 @@ class DriverManagementController extends Controller
                 if ($freshDriver->user?->email) {
                     $freshDriver->user->notify(new DriverApprovedNotification($freshDriver));
                 }
-            } catch (\Throwable) {
-                // Notification failures must not break driver approval.
+            } catch (\Throwable $e) {
+                Log::warning('Driver approval email failed', ['driver_id' => $freshDriver->id, 'error' => $e->getMessage()]);
             }
 
             return response()->json([
@@ -798,9 +798,19 @@ class DriverManagementController extends Controller
             );
         });
 
+        $freshDriver = $driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications']);
+
+        try {
+            if ($freshDriver->user?->email) {
+                $freshDriver->user->notify(new DriverApprovedNotification($freshDriver));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Driver approval email failed', ['driver_id' => $freshDriver->id, 'error' => $e->getMessage()]);
+        }
+
         return response()->json([
             'message' => 'Driver onboarding and KYC marked as completed successfully.',
-            'driver' => new DriverResource($driver->fresh(['user', 'documents', 'vehicle.vehicleClass', 'city', 'kycVerifications'])),
+            'driver' => new DriverResource($freshDriver),
         ]);
     }
 

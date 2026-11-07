@@ -15,6 +15,7 @@ use App\Notifications\AccountDeactivatedNotification;
 use App\Notifications\AdminInvitationNotification;
 use App\Services\DisputeService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
@@ -186,20 +187,22 @@ class AdminManagementController extends Controller
             return response()->json(['message' => 'You cannot deactivate your own account.'], 403);
         }
 
+        $wasActive = $admin->is_active;
+
         $admin->update(['is_active' => false]);
         $admin->tokens()->delete();
 
         AuditLog::record($admin, 'admin_deactivated', request()->user());
 
-        $this->disputes->releaseAssignments($admin, request()->user(), 'Admin deactivated.');
-
-        try {
-            if ($admin->email) {
+        if ($wasActive && $admin->email) {
+            try {
                 $admin->notify(new AccountDeactivatedNotification('Deactivated by an administrator.'));
+            } catch (\Throwable $e) {
+                Log::warning('Admin deactivation email failed', ['admin_id' => $admin->id, 'error' => $e->getMessage()]);
             }
-        } catch (\Throwable) {
-            // Notification failures must not break admin deactivation.
         }
+
+        $this->disputes->releaseAssignments($admin, request()->user(), 'Admin deactivated.');
 
         return response()->json(['message' => 'Admin deactivated successfully.']);
     }

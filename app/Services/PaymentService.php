@@ -217,6 +217,10 @@ class PaymentService
 
     public function confirmCashCollection(Payment $payment, ?float $amountCollected = null): Payment
     {
+        if ($payment->status === PaymentStatus::Collected) {
+            return $payment;
+        }
+
         $ride = $payment->ride;
         $fareAmount = (float) $payment->amount;
         $changeAmount = null;
@@ -296,15 +300,26 @@ class PaymentService
         $this->broadcastPaymentUpdate($payment->fresh());
 
         if ($changeKobo > 0) {
-            $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
+            try {
+                $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
+            } catch (\Throwable $e) {
+                Log::warning('Cash change wallet credit email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+            }
         }
 
         try {
             if ($ride->passenger?->email) {
-                $ride->passenger->notify(new PaymentReceiptNotification($ride, (int) round($fareAmount * 100), 'cash', (string) $payment->id));
+                $collectedAmount = $amountCollected !== null ? min($amountCollected, $fareAmount) : $fareAmount;
+                $ride->passenger->notify(new PaymentReceiptNotification(
+                    $ride,
+                    (int) round($collectedAmount * 100),
+                    'cash',
+                    (string) $payment->id,
+                    paidAt: $payment->updated_at,
+                ));
             }
-        } catch (\Throwable) {
-            // Notification failures must not break payment confirmation.
+        } catch (\Throwable $e) {
+            Log::warning('Payment receipt email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
         }
 
         return $payment;
@@ -572,10 +587,16 @@ class PaymentService
         if ($status === PaymentStatus::Captured) {
             try {
                 if ($ride->passenger?->email) {
-                    $ride->passenger->notify(new PaymentReceiptNotification($ride, $finalFareKobo, 'wallet', (string) $payment->id));
+                    $ride->passenger->notify(new PaymentReceiptNotification(
+                        $ride,
+                        $finalFareKobo,
+                        'wallet',
+                        (string) $payment->id,
+                        paidAt: $payment->updated_at,
+                    ));
                 }
-            } catch (\Throwable) {
-                // Notification failures must not break payment processing.
+            } catch (\Throwable $e) {
+                Log::warning('Payment receipt email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
             }
         }
 

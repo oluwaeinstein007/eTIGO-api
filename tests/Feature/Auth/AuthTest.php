@@ -20,11 +20,14 @@ use App\Models\PassengerBalanceDue;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Notifications\DriverOnboardingWelcomeNotification;
+use App\Notifications\PassengerWelcomeNotification;
 use App\Services\AccountDeletionService;
 use App\Services\OtpService;
 use App\Services\ScheduledRideReservationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -388,6 +391,8 @@ it('rejects OTP verification for deactivated user', function () {
 });
 
 it('completes registration for a new passenger after OTP verification', function () {
+    Notification::fake();
+
     OtpCode::create([
         'phone' => '+2341234567890',
         'code' => hash('sha256', '123456'),
@@ -418,10 +423,14 @@ it('completes registration for a new passenger after OTP verification', function
         'phone' => '+2341234567890',
         'type' => 'passenger',
     ]);
+
+    $user = User::where('phone', '+2341234567890')->first();
+    Notification::assertSentTo($user, PassengerWelcomeNotification::class);
 });
 
 it('completes registration for a new driver with driver record', function () {
     Storage::fake(config('filesystems.uploads'));
+    Notification::fake();
 
     OtpCode::create([
         'phone' => '+2349876543210',
@@ -437,6 +446,7 @@ it('completes registration for a new driver with driver record', function () {
         'phone' => '+2349876543210',
         'first_name' => 'Jane',
         'last_name' => 'Driver',
+        'email' => 'jane.driver@example.com',
         'type' => 'driver',
         'city_id' => $city->id,
         'profile_photo' => UploadedFile::fake()->create('profile.jpg', 100, 'image/jpeg'),
@@ -453,6 +463,8 @@ it('completes registration for a new driver with driver record', function () {
     expect($user->driver)->not->toBeNull();
     expect($user->driver->status->value)->toBe('onboarding');
     Storage::disk(config('filesystems.uploads'))->assertExists($user->profile_photo_path);
+
+    Notification::assertSentTo($user, DriverOnboardingWelcomeNotification::class);
 });
 
 it('rejects registration without phone verification', function () {

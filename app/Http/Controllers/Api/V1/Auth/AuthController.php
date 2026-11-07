@@ -25,6 +25,7 @@ use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -188,8 +189,8 @@ class AuthController extends Controller
                     $user->notify(new PassengerWelcomeNotification);
                 }
             }
-        } catch (\Throwable) {
-            // Notification failures must not break registration.
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }
 
         $token = $user->createToken(
@@ -330,6 +331,18 @@ class AuthController extends Controller
         }
 
         AuditLog::record($user, 'registered');
+
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
 
         $token = $user->createToken(
             $userType->value.'-auth',
@@ -550,6 +563,18 @@ class AuthController extends Controller
         }
 
         AuditLog::record($user, 'registered');
+
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
 
         $token = $user->createToken(
             $userType->value.'-auth',
