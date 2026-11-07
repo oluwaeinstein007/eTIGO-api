@@ -16,6 +16,7 @@ use App\Http\Requests\OfflineFlag\VerifyCashTakingFormRequest;
 use App\Http\Resources\OfflineFlagResource;
 use App\Models\AuditLog;
 use App\Models\OfflineTripFlag;
+use App\Notifications\AccountDeactivatedNotification;
 use App\Services\DriverLocationService;
 use App\Services\SanctionService;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -315,6 +316,12 @@ class AdminOfflineFlagController extends Controller
             'body' => 'Your driver account has been permanently deactivated following a compliance review.',
             'data' => ['type' => 'compliance_warning', 'deactivated' => true],
         ]));
+
+        rescue(function () use ($driver) {
+            if ($driver->user?->email) {
+                $driver->user->notify(new AccountDeactivatedNotification(SanctionService::DEACTIVATED_REASON));
+            }
+        });
 
         $flag->load(self::DETAIL_RELATIONS);
 

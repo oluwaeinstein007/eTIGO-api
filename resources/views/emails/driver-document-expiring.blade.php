@@ -5,12 +5,22 @@
 <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 700; color: #0d7c3d; text-transform: uppercase; letter-spacing: 0.5px;">Document reminder</p>
 
 {{-- Headline --}}
-<h1 style="margin: 0 0 16px 0; font-size: 26px; font-weight: 700; color: #18181b; line-height: 1.2;">Keep your {{ strtolower($documentType) }} up to date.</h1>
+<h1 style="margin: 0 0 16px 0; font-size: 26px; font-weight: 700; color: #18181b; line-height: 1.2;">
+    @if($isExpired ?? false)
+        Your {{ strtolower($documentType) }} has expired.
+    @else
+        Keep your {{ strtolower($documentType) }} up to date.
+    @endif
+</h1>
 
 {{-- Body --}}
 <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #18181b;">Hi {{ $userName }},</p>
 <p style="margin: 0 0 24px 0; font-size: 15px; color: #4b5563; line-height: 1.6;">
-    The {{ strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} days. Please renew it and upload the updated document before {{ $expiryDate }}.
+    @if($isExpired ?? false)
+        The {{ strtolower($documentType) }} on your Etigo driver profile expired on {{ $expiryDate }}. Please upload the renewed document to keep driving.
+    @else
+        The {{ strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} days. Please renew it and upload the updated document before {{ $expiryDate }}.
+    @endif
 </p>
 
 {{-- Expiry card --}}
@@ -27,8 +37,8 @@
         </td>
     </tr>
     </table>
-    <p style="margin: 12px 0 4px 0; font-size: 16px; font-weight: 700; color: #b45309;">Expires {{ $expiryDate }}</p>
-    <p style="margin: 0; font-size: 13px; color: #92400e;">{{ $daysRemaining }} days remaining @if(!empty($documentEnding))&middot; Ending in {{ $documentEnding }}@endif</p>
+    <p style="margin: 12px 0 4px 0; font-size: 16px; font-weight: 700; color: #b45309;">{{ ($isExpired ?? false) ? 'Expired' : 'Expires' }} {{ $expiryDate }}</p>
+    <p style="margin: 0; font-size: 13px; color: #92400e;">{{ ($isExpired ?? false) ? 'Already expired' : $daysRemaining.' days remaining' }} @if(!empty($documentEnding))&middot; Ending in {{ $documentEnding }}@endif</p>
 </td>
 </tr>
 </table>

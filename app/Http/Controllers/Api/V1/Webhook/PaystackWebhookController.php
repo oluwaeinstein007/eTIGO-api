@@ -10,6 +10,7 @@ use App\Jobs\ProcessPayoutWebhookJob;
 use App\Jobs\ProcessTopupWebhookJob;
 use App\Models\Payment;
 use App\Models\WebhookEvent;
+use App\Notifications\PaymentReceiptNotification;
 use App\Services\RideSettlementService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -190,7 +191,14 @@ class PaystackWebhookController extends Controller
             $newStatus = PaymentStatus::Failed;
         }
 
-        $wasPending = $payment->status === PaymentStatus::Pending;
+        // A payment can reach Captured from Pending (the normal path) or from
+        // Failed (an earlier verification call failed transiently, then a
+        // later webhook event for the same transaction verifies successfully).
+        // Either way it has never been settled or received a receipt yet.
+        // Settlement is idempotent per ride (ledger entries use a per-ride
+        // idempotency key), so re-running it here is safe even if this ever
+        // fires more than once for the same payment.
+        $wasUnsettled = in_array($payment->status, [PaymentStatus::Pending, PaymentStatus::Failed], true);
 
         $payment->update([
             'status' => $newStatus,
@@ -201,13 +209,30 @@ class PaystackWebhookController extends Controller
 
         $payment->ride?->update(['payment_status' => $newStatus]);
 
-        if ($wasPending && $newStatus === PaymentStatus::Captured && $payment->ride) {
+        if ($wasUnsettled && $newStatus === PaymentStatus::Captured && $payment->ride) {
             try {
                 app(RideSettlementService::class)->applyPayment($payment->ride, $payment->fresh());
             } catch (\Throwable $e) {
                 Log::error('Webhook: failed to settle driver earnings for captured payment', [
                     'payment_id' => $payment->id,
                     'ride_id' => $payment->ride_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                if ($payment->ride->passenger?->email) {
+                    $payment->ride->passenger->notify(new PaymentReceiptNotification(
+                        $payment->ride,
+                        (int) round($payment->amount * 100),
+                        $payment->method->value,
+                        (string) $payment->id,
+                        paidAt: $payment->updated_at,
+                    ));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Webhook: payment receipt email failed', [
+                    'payment_id' => $payment->id,
                     'error' => $e->getMessage(),
                 ]);
             }

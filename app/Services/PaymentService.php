@@ -15,6 +15,7 @@ use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\UserPaymentMethod;
 use App\Notifications\CashChangeWalletCreditNotification;
+use App\Notifications\PaymentReceiptNotification;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
@@ -216,6 +217,10 @@ class PaymentService
 
     public function confirmCashCollection(Payment $payment, ?float $amountCollected = null): Payment
     {
+        if ($payment->status === PaymentStatus::Collected) {
+            return $payment;
+        }
+
         $ride = $payment->ride;
         $fareAmount = (float) $payment->amount;
         $changeAmount = null;
@@ -295,7 +300,26 @@ class PaymentService
         $this->broadcastPaymentUpdate($payment->fresh());
 
         if ($changeKobo > 0) {
-            $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
+            try {
+                $ride->passenger->notify(new CashChangeWalletCreditNotification($changeKobo, $ride->id));
+            } catch (\Throwable $e) {
+                Log::warning('Cash change wallet credit email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        try {
+            if ($ride->passenger?->email) {
+                $collectedAmount = $amountCollected !== null ? min($amountCollected, $fareAmount) : $fareAmount;
+                $ride->passenger->notify(new PaymentReceiptNotification(
+                    $ride,
+                    (int) round($collectedAmount * 100),
+                    'cash',
+                    (string) $payment->id,
+                    paidAt: $payment->updated_at,
+                ));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Payment receipt email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
         }
 
         return $payment;
@@ -541,7 +565,7 @@ class PaymentService
 
         $status = $result['settled'] ? PaymentStatus::Captured : PaymentStatus::Failed;
 
-        return DB::transaction(function () use ($ride, $finalFareKobo, $status, $result) {
+        $payment = DB::transaction(function () use ($ride, $finalFareKobo, $status, $result) {
             $payment = Payment::updateOrCreate(
                 ['ride_id' => $ride->id],
                 [
@@ -559,6 +583,24 @@ class PaymentService
 
             return $payment;
         });
+
+        if ($status === PaymentStatus::Captured) {
+            try {
+                if ($ride->passenger?->email) {
+                    $ride->passenger->notify(new PaymentReceiptNotification(
+                        $ride,
+                        $finalFareKobo,
+                        'wallet',
+                        (string) $payment->id,
+                        paidAt: $payment->updated_at,
+                    ));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Payment receipt email failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $payment;
     }
 
     private function createFailedPayment(Ride $ride, string $reason): Payment

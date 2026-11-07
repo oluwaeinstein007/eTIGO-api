@@ -1,8 +1,14 @@
 <?php
 
+use App\Enums\CityLaunchStatus;
+use App\Enums\DriverStatus;
+use App\Models\City;
 use App\Models\SocialAccount;
 use App\Models\SocialAuthCode;
 use App\Models\User;
+use App\Notifications\DriverOnboardingWelcomeNotification;
+use App\Notifications\PassengerWelcomeNotification;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -30,6 +36,8 @@ function mockSocialiteDriver(SocialiteUser $socialiteUser, string $provider = 'g
 }
 
 it('creates a new passenger via Google social login', function () {
+    Notification::fake();
+
     $socialiteUser = fakeSocialiteUser();
     mockSocialiteDriver($socialiteUser);
 
@@ -55,9 +63,14 @@ it('creates a new passenger via Google social login', function () {
         'provider' => 'google',
         'provider_id' => '123456',
     ]);
+
+    $user = User::where('email', 'social@example.com')->first();
+    Notification::assertSentTo($user, PassengerWelcomeNotification::class);
 });
 
 it('creates a new driver via social login with pending_review status', function () {
+    Notification::fake();
+
     $socialiteUser = fakeSocialiteUser('789', 'driver@social.com', 'Social Driver');
     mockSocialiteDriver($socialiteUser);
 
@@ -73,6 +86,8 @@ it('creates a new driver via social login with pending_review status', function 
     $user = User::where('email', 'driver@social.com')->first();
     expect($user->driver)->not->toBeNull();
     expect($user->driver->status->value)->toBe('onboarding');
+
+    Notification::assertSentTo($user, DriverOnboardingWelcomeNotification::class);
 });
 
 it('logs in an existing user via social login', function () {
@@ -240,13 +255,25 @@ it('cancels a pending deletion on social code exchange matched by email', functi
     expect($user->fresh()->deletion_requested_at)->toBeNull();
 });
 
+it('sends a welcome email for a new account created via social code exchange', function () {
+    Notification::fake();
+
+    $response = $this->postJson('/api/v1/auth/social/exchange', ['code' => socialExchangeCode('999', 'newexchange@example.com')]);
+
+    $response->assertCreated()
+        ->assertJson(['is_new_user' => true]);
+
+    $user = User::where('email', 'newexchange@example.com')->first();
+    Notification::assertSentTo($user, PassengerWelcomeNotification::class);
+});
+
 it('links a google account to an authenticated driver via social exchange', function () {
     $driverUser = User::factory()->driver()->create([
         'phone' => '+2348012345678',
         'email' => null,
     ]);
 
-    $authCode = \App\Models\SocialAuthCode::create([
+    $authCode = SocialAuthCode::create([
         'code' => str_repeat('a', 64),
         'provider' => 'google',
         'provider_id' => 'google-uid-12345',
@@ -277,8 +304,8 @@ it('links a google account to an authenticated driver via social exchange', func
 });
 
 it('updates driver phone number during onboarding profile update', function () {
-    $city = \App\Models\City::factory()->create([
-        'launch_status' => \App\Enums\CityLaunchStatus::Live,
+    $city = City::factory()->create([
+        'launch_status' => CityLaunchStatus::Live,
     ]);
     $driverUser = User::factory()->driver()->create([
         'phone' => null,
@@ -287,7 +314,7 @@ it('updates driver phone number during onboarding profile update', function () {
     ]);
     $driverUser->driver()->create([
         'city_id' => $city->id,
-        'status' => \App\Enums\DriverStatus::Onboarding,
+        'status' => DriverStatus::Onboarding,
     ]);
 
     $response = $this->actingAs($driverUser, 'sanctum')->putJson('/api/v1/driver/profile', [

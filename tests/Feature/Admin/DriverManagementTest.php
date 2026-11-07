@@ -11,6 +11,8 @@ use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
+use App\Notifications\DriverApprovedNotification;
+use Illuminate\Support\Facades\Notification;
 
 it('lists all drivers for admin', function () {
     $admin = User::factory()->admin()->create();
@@ -54,6 +56,8 @@ it('shows a single driver with details', function () {
 });
 
 it('allows admin to approve a driver', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $token = $admin->createToken('admin-auth', ['admin'])->plainTextToken;
 
@@ -71,6 +75,8 @@ it('allows admin to approve a driver', function () {
         ->assertJson(['message' => 'Driver approved successfully.']);
 
     expect($driver->fresh()->status)->toBe(DriverStatus::Approved);
+
+    Notification::assertSentTo($driver->user, DriverApprovedNotification::class);
 });
 
 it('allows admin to reject a driver with reason', function () {

@@ -17,12 +17,15 @@ use App\Models\OtpCode;
 use App\Models\SocialAccount;
 use App\Models\SocialAuthCode;
 use App\Models\User;
+use App\Notifications\DriverOnboardingWelcomeNotification;
+use App\Notifications\PassengerWelcomeNotification;
 use App\Services\AccountDeletionService;
 use App\Services\OtpService;
 use App\Services\SocialAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -178,6 +181,18 @@ class AuthController extends Controller
 
         AuditLog::record($user, 'registered');
 
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
+
         $token = $user->createToken(
             $userType->value.'-auth',
             [$userType->value],
@@ -316,6 +331,18 @@ class AuthController extends Controller
         }
 
         AuditLog::record($user, 'registered');
+
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
 
         $token = $user->createToken(
             $userType->value.'-auth',
@@ -536,6 +563,18 @@ class AuthController extends Controller
         }
 
         AuditLog::record($user, 'registered');
+
+        try {
+            if ($user->email) {
+                if ($userType === UserType::Driver) {
+                    $user->notify(new DriverOnboardingWelcomeNotification($user->driver));
+                } else {
+                    $user->notify(new PassengerWelcomeNotification);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
 
         $token = $user->createToken(
             $userType->value.'-auth',
