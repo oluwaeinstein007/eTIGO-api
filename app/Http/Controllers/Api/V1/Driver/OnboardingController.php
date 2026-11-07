@@ -59,8 +59,6 @@ class OnboardingController extends Controller
             'driver' => new DriverResource($driver),
             'onboarding_complete' => $onboardingComplete,
             'can_submit' => $onboardingComplete && \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
-            // The app builds its document checklist from this list, so it
-            // never asks fleet drivers for vehicle papers.
             'required_documents' => $requiredDocTypes,
             'missing_documents' => array_values($missingDocTypes),
             'has_vehicle_ownership_type' => $hasVehicleOwnershipType,

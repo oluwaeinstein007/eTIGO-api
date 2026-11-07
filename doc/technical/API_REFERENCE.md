@@ -1412,7 +1412,7 @@ The `vehicle_ownership_type` must be set (via `POST /driver/onboarding/vehicle-o
   "onboarding_complete": false,
   "can_submit": false,
   "required_documents": ["driving_licence", "government_id", "vehicle_registration", "insurance_certificate"],
-  "missing_documents": ["driving_licence", "vehicle_registration", "insurance_certificate", "government_id"],
+  "missing_documents": ["driving_licence", "government_id", "vehicle_registration", "insurance_certificate"],
   "has_vehicle_ownership_type": false,
   "vehicle_ownership_type": null,
   "has_vehicle": false,
