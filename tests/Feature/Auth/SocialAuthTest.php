@@ -255,6 +255,18 @@ it('cancels a pending deletion on social code exchange matched by email', functi
     expect($user->fresh()->deletion_requested_at)->toBeNull();
 });
 
+it('sends a welcome email for a new account created via social code exchange', function () {
+    Notification::fake();
+
+    $response = $this->postJson('/api/v1/auth/social/exchange', ['code' => socialExchangeCode('999', 'newexchange@example.com')]);
+
+    $response->assertCreated()
+        ->assertJson(['is_new_user' => true]);
+
+    $user = User::where('email', 'newexchange@example.com')->first();
+    Notification::assertSentTo($user, PassengerWelcomeNotification::class);
+});
+
 it('links a google account to an authenticated driver via social exchange', function () {
     $driverUser = User::factory()->driver()->create([
         'phone' => '+2348012345678',

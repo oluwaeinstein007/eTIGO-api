@@ -191,7 +191,14 @@ class PaystackWebhookController extends Controller
             $newStatus = PaymentStatus::Failed;
         }
 
-        $wasPending = $payment->status === PaymentStatus::Pending;
+        // A payment can reach Captured from Pending (the normal path) or from
+        // Failed (an earlier verification call failed transiently, then a
+        // later webhook event for the same transaction verifies successfully).
+        // Either way it has never been settled or received a receipt yet.
+        // Settlement is idempotent per ride (ledger entries use a per-ride
+        // idempotency key), so re-running it here is safe even if this ever
+        // fires more than once for the same payment.
+        $wasUnsettled = in_array($payment->status, [PaymentStatus::Pending, PaymentStatus::Failed], true);
 
         $payment->update([
             'status' => $newStatus,
@@ -202,7 +209,7 @@ class PaystackWebhookController extends Controller
 
         $payment->ride?->update(['payment_status' => $newStatus]);
 
-        if ($wasPending && $newStatus === PaymentStatus::Captured && $payment->ride) {
+        if ($wasUnsettled && $newStatus === PaymentStatus::Captured && $payment->ride) {
             try {
                 app(RideSettlementService::class)->applyPayment($payment->ride, $payment->fresh());
             } catch (\Throwable $e) {
