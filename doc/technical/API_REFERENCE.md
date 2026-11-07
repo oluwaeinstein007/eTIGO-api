@@ -1411,6 +1411,7 @@ The `vehicle_ownership_type` must be set (via `POST /driver/onboarding/vehicle-o
   },
   "onboarding_complete": false,
   "can_submit": false,
+  "required_documents": ["driving_licence", "government_id", "vehicle_registration", "insurance_certificate"],
   "missing_documents": ["driving_licence", "vehicle_registration", "insurance_certificate", "government_id"],
   "has_vehicle_ownership_type": false,
   "vehicle_ownership_type": null,
@@ -1427,6 +1428,7 @@ The `vehicle_ownership_type` must be set (via `POST /driver/onboarding/vehicle-o
 - Documents with `rejected` status are excluded from the uploaded count — a rejected document must be re-uploaded before it counts toward onboarding completion.
 - `needs_vehicle_registration` is `true` only for `own_vehicle` drivers. Fleet drivers do not register vehicles.
 - `missing_documents` is conditional: fleet drivers only need `driving_licence` and `government_id`.
+- `required_documents` lists every document this driver must upload: `driving_licence` and `government_id` for `fleet_vehicle`, plus `vehicle_registration` and `insurance_certificate` for `own_vehicle` (and before a type is chosen). Build the document upload checklist from this list rather than a fixed set, and fetch the status again after `POST /driver/onboarding/vehicle-ownership`, since the list changes with the choice. Show the submit step once `can_submit` is `true`.
 - Onboarding is considered complete when: `vehicle_ownership_type` is set, all required documents uploaded, licence number set, city selected, and vehicle registered (own_vehicle drivers only).
 
 ---

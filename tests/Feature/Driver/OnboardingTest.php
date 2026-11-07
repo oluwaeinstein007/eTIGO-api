@@ -2,6 +2,9 @@
 
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
+use App\Enums\DriverStatus;
+use App\Enums\VehicleOwnershipType;
+use App\Models\City;
 use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -21,11 +24,54 @@ it('returns driver onboarding status', function () {
             'driver',
             'onboarding_complete',
             'can_submit',
+            'required_documents',
             'missing_documents',
             'has_vehicle',
             'has_licence_number',
             'has_city',
         ]);
+});
+
+it('asks fleet drivers for only their licence and government ID', function () {
+    $driver = Driver::factory()->create([
+        'status' => DriverStatus::Onboarding,
+        'vehicle_ownership_type' => VehicleOwnershipType::FleetVehicle,
+        'city_id' => City::factory(),
+    ]);
+    foreach ([DocumentType::DrivingLicence, DocumentType::GovernmentId] as $type) {
+        $driver->documents()->create([
+            'type' => $type,
+            'file_path' => "driver-documents/{$driver->id}/{$type->value}.jpg",
+            'original_filename' => "{$type->value}.jpg",
+            'mime_type' => 'image/jpeg',
+            'file_size' => 1024,
+        ]);
+    }
+    $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
+
+    $this->withToken($token)
+        ->getJson('/api/v1/driver/onboarding/status')
+        ->assertOk()
+        ->assertJsonPath('required_documents', ['driving_licence', 'government_id'])
+        ->assertJsonPath('missing_documents', [])
+        ->assertJsonPath('onboarding_complete', true)
+        ->assertJsonPath('can_submit', true);
+
+    $this->withToken($token)
+        ->postJson('/api/v1/driver/onboarding/submit')
+        ->assertOk();
+});
+
+it('asks own-vehicle drivers for their vehicle papers too', function () {
+    $driver = Driver::factory()->create([
+        'vehicle_ownership_type' => VehicleOwnershipType::OwnVehicle,
+    ]);
+    $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
+
+    $this->withToken($token)
+        ->getJson('/api/v1/driver/onboarding/status')
+        ->assertOk()
+        ->assertJsonPath('required_documents', ['driving_licence', 'government_id', 'vehicle_registration', 'insurance_certificate']);
 });
 
 it('allows driver to update their profile', function () {
