@@ -23,6 +23,18 @@ enum DocumentType: string
         };
     }
 
+    public function description(): string
+    {
+        return match ($this) {
+            self::DrivingLicence => 'Front and back, clear and valid',
+            self::GovernmentId => 'NIN slip, passport or voter’s card',
+            self::VehicleRegistration => 'Proof of ownership or registration',
+            self::InsuranceCertificate => 'Valid commercial insurance certificate',
+            self::RoadworthinessCertificate => 'Valid roadworthiness inspection certificate',
+            self::VehicleLicence => 'Valid state vehicle licence',
+        };
+    }
+
     /**
      * Papers that belong to the car, not the driver, so they stay with a
      * car that changes hands. Driving licence and government ID stay with
