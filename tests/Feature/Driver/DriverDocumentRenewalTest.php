@@ -4,6 +4,7 @@ use App\Enums\AdminRole;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\NotificationType;
+use App\Enums\RideStatus;
 use App\Enums\UserType;
 use App\Jobs\ProcessDriverDocumentExpiryJob;
 use App\Models\AppSetting;
@@ -20,11 +21,15 @@ use App\Models\VehicleClass;
 use App\Notifications\DriverDocumentExpiringNotification;
 use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverLocationService;
+use App\Services\NotificationService;
 use App\Services\RideService;
+use App\Services\RideStateMachine;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -457,6 +462,77 @@ it('stops a blocked driver accepting an offer', function () {
 
     expect($result['success'])->toBeFalse()
         ->and($result['error'])->toBe("You can't take rides until your renewed driving licence is approved.");
+});
+
+it('keeps withdrawals and blocks through a rollback of the migration', function () {
+    $licence = ($this->paper)(DocumentType::DrivingLicence, '2029-01-01');
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->driver->id}/documents/{$licence->id}/revoke", ['reason' => 'Forged.'])->assertOk();
+    $migration = require database_path('migrations/2026_11_07_180000_add_document_renewals_to_driver_documents_and_drivers.php');
+
+    $migration->down();
+
+    // The release without the feature keeps the driver off the road by suspension.
+    $row = DB::table('drivers')->where('id', $this->driver->id)->first();
+    expect($row->status)->toBe('suspended')
+        ->and($row->suspension_reason)->toBe('Driving licence not valid on E-tiGo (held during a rollback).')
+        ->and(Schema::hasColumn('drivers', 'documents_blocked_at'))->toBeFalse();
+
+    $migration->up();
+
+    $driver = $this->driver->fresh();
+    expect($driver->status->value)->toBe('approved')
+        ->and($driver->documents_block_reason)->toBe('Your driving licence was withdrawn by E-tiGo: Forged.')
+        ->and($licence->fresh()->revoked_at)->not->toBeNull()
+        ->and(Schema::hasTable('driver_document_renewals_rollback'))->toBeFalse();
+});
+
+it('stops offers the moment a licence lapses, before any block check runs', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-07');
+    expect(Driver::whereKey($this->driver->id)->dispatchable()->exists())->toBeTrue();
+
+    // Past midnight in Lagos, no job has run yet.
+    $this->travelTo(Carbon::parse('2026-11-07 23:30:00', 'UTC'));
+
+    expect($this->driver->fresh()->isDocumentsBlocked())->toBeFalse()
+        ->and(Driver::whereKey($this->driver->id)->dispatchable()->exists())->toBeFalse();
+});
+
+it('takes a blocked driver offline as soon as their ride ends', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    $this->driver->update(['is_online' => true]);
+    $ride = Ride::factory()->inProgress()->create(['driver_id' => $this->user->id]);
+    ($this->runJob)();
+    expect($this->driver->fresh()->is_online)->toBeTrue();
+
+    app(RideStateMachine::class)->transitionTo($ride, RideStatus::Completed);
+
+    expect($this->driver->fresh()->is_online)->toBeFalse();
+});
+
+it('retries only the reminder channel that failed', function () {
+    $licence = ($this->paper)(DocumentType::DrivingLicence, '2026-11-10');
+    $pushes = 0;
+    $service = Mockery::mock(NotificationService::class);
+    $service->shouldReceive('send')->andReturnUsing(function () use (&$pushes) {
+        if (++$pushes === 1) {
+            throw new RuntimeException('push store down');
+        }
+
+        return null;
+    });
+    $this->app->instance(NotificationService::class, $service);
+
+    // First run: the push fails, the email goes.
+    ($this->runJob)();
+    expect($licence->fresh()->expiry_reminder_stage)->toBe(7)
+        ->and($licence->fresh()->expiry_reminder_retry)->toBe(['push']);
+    NotificationFacade::assertSentToTimes($this->user, DriverDocumentExpiringNotification::class, 1);
+
+    // Next run: only the push again.
+    ($this->runJob)();
+    expect($licence->fresh()->expiry_reminder_retry)->toBeNull()
+        ->and($pushes)->toBe(2);
+    NotificationFacade::assertSentToTimes($this->user, DriverDocumentExpiringNotification::class, 1);
 });
 
 it('does not block drivers with no licence on file', function () {

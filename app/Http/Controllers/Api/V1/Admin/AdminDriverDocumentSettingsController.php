@@ -18,11 +18,17 @@ use Illuminate\Support\Facades\DB;
  */
 class AdminDriverDocumentSettingsController extends Controller
 {
+    /**
+     * The driver document settings in force (overrides over config/driver_documents.php).
+     */
     public function show(): JsonResponse
     {
         return response()->json(['settings' => AppSetting::driverDocuments()]);
     }
 
+    /**
+     * Change some settings; a new grace period or block switch rechecks drivers at once.
+     */
     public function update(Request $request, DriverDocumentComplianceService $compliance): JsonResponse
     {
         $validated = $request->validate([

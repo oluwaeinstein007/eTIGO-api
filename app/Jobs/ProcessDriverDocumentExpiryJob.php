@@ -20,6 +20,9 @@ class ProcessDriverDocumentExpiryJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * Update licence blocks, then send the reminders due today.
+     */
     public function handle(DriverDocumentComplianceService $compliance): void
     {
         $compliance->refreshDue();

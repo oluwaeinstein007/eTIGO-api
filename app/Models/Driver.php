@@ -4,12 +4,14 @@ namespace App\Models;
 
 use App\Enums\DisputeOutcome;
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
 use App\Events\DriverStatusUpdated;
+use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverShiftService;
 use App\Services\ScheduledRideReservationService;
 use App\Traits\HasReferenceNumber;
@@ -305,8 +307,36 @@ class Driver extends Model
     public function scopeDispatchable(Builder $query): void
     {
         $query->whereNull('documents_blocked_at')
+            ->licenceInDate()
             ->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
         app(DriverShiftService::class)->constrainDispatchable($query);
+    }
+
+    /**
+     * Leaves out drivers whose driving licence has run out past the grace
+     * period, checked against today's date rather than the stored block, so
+     * offers stop the moment the licence lapses and not at the next block
+     * check. Same rule as DriverDocumentComplianceService::blockReason();
+     * drivers with no dated licence are left in.
+     */
+    public function scopeLicenceInDate(Builder $query): void
+    {
+        $settings = AppSetting::driverDocuments();
+
+        if (! $settings['block_on_expired_licence']) {
+            return;
+        }
+
+        // In date while the expiry date is on or after this (blocked from
+        // the day after expiry plus the grace days).
+        $validFrom = app(DriverDocumentComplianceService::class)->today()->subDays($settings['licence_grace_days'])->toDateString();
+        $licences = fn (Builder $d) => $d->where('type', DocumentType::DrivingLicence)
+            ->where('status', DocumentStatus::Approved)
+            ->whereNull('revoked_at');
+
+        $query->where(fn (Builder $q) => $q
+            ->whereDoesntHave('documents', fn (Builder $d) => $licences($d)->whereNotNull('expires_at'))
+            ->orWhereHas('documents', fn (Builder $d) => $licences($d)->where(fn (Builder $d) => $d->whereNull('expires_at')->orWhereDate('expires_at', '>=', $validFrom))));
     }
 
     /**

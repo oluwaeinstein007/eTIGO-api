@@ -24,6 +24,9 @@ use Illuminate\Validation\Rule;
  */
 class AdminDriverDocumentController extends Controller
 {
+    /**
+     * Papers across drivers, filtered for the renewals queue, with a summary of counts for the tab badges.
+     */
     public function index(Request $request, DriverDocumentComplianceService $compliance): JsonResponse
     {
         $validated = $request->validate([

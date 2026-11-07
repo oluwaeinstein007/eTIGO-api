@@ -39,6 +39,9 @@ class DriverDocumentComplianceService
     /** The reminder step stored once a paper has expired. */
     public const STAGE_EXPIRED = -1;
 
+    /**
+     * Push and in-app messages for drivers; email alerts for operations.
+     */
     public function __construct(
         private NotificationService $notifications,
         private OperationsAlertService $operations,
@@ -237,7 +240,10 @@ class DriverDocumentComplianceService
             ->whereNull('revoked_at')
             ->whereNotNull('expires_at')
             ->whereDate('expires_at', '<=', $horizon)
-            ->where(fn ($q) => $q->whereNull('expiry_reminder_stage')->orWhere('expiry_reminder_stage', '>', self::STAGE_EXPIRED))
+            // Not yet at the last step, or a channel of the current step to retry.
+            ->where(fn ($q) => $q->whereNull('expiry_reminder_stage')
+                ->orWhere('expiry_reminder_stage', '>', self::STAGE_EXPIRED)
+                ->orWhereNotNull('expiry_reminder_retry'))
             ->with(['driver.user', 'vehicle'])
             ->lazyById()
             ->each(function (DriverDocument $document) use ($settings, &$sent) {
@@ -353,6 +359,9 @@ class DriverDocumentComplianceService
         return $this->localDate($expiresAt)->addDays($settings['licence_grace_days'] + 1);
     }
 
+    /**
+     * Today in Lagos, at the start of the day: the calendar every expiry date is read against.
+     */
     public function today(): Carbon
     {
         return now()->setTimezone(self::TIMEZONE)->startOfDay();
@@ -425,15 +434,15 @@ class DriverDocumentComplianceService
         }
 
         $stage = $this->stageFor($this->daysUntilExpiry($document), $settings['reminder_days']);
+        $retry = $document->expiry_reminder_retry ?? [];
+        // The current step went out, but a channel failed: send that one again.
+        $retrying = $stage !== null && $stage === $document->expiry_reminder_stage && $retry !== [];
 
-        if ($stage === null || ($document->expiry_reminder_stage !== null && $stage >= $document->expiry_reminder_stage)) {
+        if ($stage === null || (! $retrying && $document->expiry_reminder_stage !== null && $stage >= $document->expiry_reminder_stage)) {
             return false;
         }
 
-        $mark = fn () => $document->forceFill(['expiry_reminder_stage' => $stage, 'expiry_reminder_sent_at' => now()])->saveQuietly();
-
-        // Replaced by a longer-running paper, or a renewal is already in:
-        // the driver has done their part.
+        // Replaced by a longer-running paper: the driver has done their part.
         $superseded = $this->sameSlot($document)
             ->where('status', DocumentStatus::Approved)
             ->whereNull('revoked_at')
@@ -441,7 +450,7 @@ class DriverDocumentComplianceService
             ->exists();
 
         if ($superseded) {
-            $mark();
+            $document->forceFill(['expiry_reminder_stage' => $stage, 'expiry_reminder_sent_at' => now(), 'expiry_reminder_retry' => null])->saveQuietly();
 
             return false;
         }
@@ -459,8 +468,13 @@ class DriverDocumentComplianceService
             : $this->reminderLine($document, $settings);
 
         // Vehicle legal papers get their push from vehicle maintenance.
-        if (! $document->type->isVehicleLegalPaper() && ! $toldByBlock) {
-            $this->safely(fn () => $this->notifications->send(
+        $channels = $retrying ? $retry : array_values(array_filter([
+            ! $document->type->isVehicleLegalPaper() && ! $toldByBlock ? 'push' : null,
+            $driver->user->email ? 'email' : null,
+        ]));
+
+        $send = [
+            'push' => fn () => $this->notifications->send(
                 userId: $driver->user_id,
                 type: NotificationType::DocumentExpiring,
                 title: $stage === self::STAGE_EXPIRED ? "{$document->type->label()} Expired" : NotificationType::DocumentExpiring->label(),
@@ -470,18 +484,26 @@ class DriverDocumentComplianceService
                     'document_type' => $document->type->value,
                     'expires_at' => $document->expires_at->toDateString(),
                 ],
-            ));
-        }
+            ),
+            'email' => fn () => $driver->user->notify(new DriverDocumentExpiringNotification($driver, $document, $line)),
+        ];
 
-        if ($driver->user->email) {
-            $this->safely(fn () => $driver->user->notify(new DriverDocumentExpiringNotification($driver, $document, $line)));
-        }
+        // Each channel on its own: one that fails is tried again on the next
+        // run, without repeating the one that went out.
+        $failed = array_values(array_filter($channels, fn (string $channel) => ! $this->attempt($send[$channel] ?? fn () => null)));
 
-        $mark();
+        $document->forceFill([
+            'expiry_reminder_stage' => $stage,
+            'expiry_reminder_sent_at' => now(),
+            'expiry_reminder_retry' => $failed === [] ? null : $failed,
+        ])->saveQuietly();
 
-        return true;
+        return count($failed) < count($channels);
     }
 
+    /**
+     * A block has just started: tell the driver, take them offline unless on a trip, release their reserved pickups and fleet shifts, and alert operations for fleet drivers.
+     */
     private function blockStarted(Driver $driver): void
     {
         $this->safely(fn () => $this->notifications->sendCritical(
@@ -512,6 +534,9 @@ class DriverDocumentComplianceService
         }
     }
 
+    /**
+     * The block has been lifted: tell the driver they can go online.
+     */
     private function blockLifted(Driver $driver): void
     {
         $this->safely(fn () => $this->notifications->send(
@@ -524,6 +549,23 @@ class DriverDocumentComplianceService
         ));
     }
 
+    /**
+     * A ride has ended: a driver blocked while on it goes offline now
+     * (unless they are on another trip) instead of waiting for the next
+     * block check.
+     */
+    public function rideEnded(string $driverUserId): void
+    {
+        $driver = Driver::where('user_id', $driverUserId)->whereNotNull('documents_blocked_at')->first();
+
+        if ($driver !== null) {
+            $this->safely(fn () => $this->takeOfflineUnlessOnTrip($driver));
+        }
+    }
+
+    /**
+     * Set an online driver offline (and off the map) unless they are on a trip; a no-op when already offline.
+     */
     private function takeOfflineUnlessOnTrip(Driver $driver): void
     {
         $setOffline = DB::transaction(function () use ($driver) {
@@ -576,21 +618,49 @@ class DriverDocumentComplianceService
             : 'a valid driving licence';
     }
 
+    /**
+     * An approved paper that operations haven't withdrawn.
+     */
     private function isCurrent(DriverDocument $document): bool
     {
         return $document->status === DocumentStatus::Approved && $document->revoked_at === null;
     }
 
+    /**
+     * A calendar date as the start of that day in Lagos, to compare with today().
+     */
     private function localDate(Carbon $date): Carbon
     {
         return Carbon::parse($date->toDateString(), self::TIMEZONE)->startOfDay();
     }
 
+    /**
+     * A document label inside a sentence.
+     */
     private function lower(string $label): string
     {
         return mb_strtolower($label);
     }
 
+    /**
+     * Run one side effect; false (and a log line) when it fails.
+     */
+    private function attempt(\Closure $send): bool
+    {
+        try {
+            $send();
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Driver document reminder channel failed', ['error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Run a side effect that must never fail the caller; failures are logged.
+     */
     private function safely(\Closure $send): void
     {
         try {

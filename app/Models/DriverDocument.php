@@ -25,6 +25,7 @@ class DriverDocument extends Model
         'expires_at',
         'expiry_reminder_sent_at',
         'expiry_reminder_stage',
+        'expiry_reminder_retry',
         'status',
         'rejection_reason',
         'reviewed_by',
@@ -43,6 +44,7 @@ class DriverDocument extends Model
             'expires_at' => 'date',
             'expiry_reminder_sent_at' => 'datetime',
             'expiry_reminder_stage' => 'integer',
+            'expiry_reminder_retry' => 'array',
             'reviewed_at' => 'datetime',
             'revoked_at' => 'datetime',
         ];

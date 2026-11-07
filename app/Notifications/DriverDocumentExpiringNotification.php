@@ -15,6 +15,9 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
 {
     use Queueable, ThrottlesMail;
 
+    /**
+     * The driver, the expiring paper and, from the reminder job, the reminder in the push's words.
+     */
     public function __construct(
         public readonly Driver $driver,
         public readonly DriverDocument $document,
@@ -22,11 +25,17 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
         public readonly ?string $line = null,
     ) {}
 
+    /**
+     * @return list<string>
+     */
     public function via(object $notifiable): array
     {
         return ['mail'];
     }
 
+    /**
+     * The reminder email: expiring, due today, or expired.
+     */
     public function toMail(object $notifiable): MailMessage
     {
         $updateDocumentUrl = config('app.frontend_url', config('app.url')).'/driver/documents';

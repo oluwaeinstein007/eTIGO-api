@@ -12,6 +12,9 @@ use Illuminate\Validation\Validator;
 
 class UploadDocumentRequest extends FormRequest
 {
+    /**
+     * Any signed-in driver; the controller scopes the upload to their own profile.
+     */
     public function authorize(): bool
     {
         return true;
@@ -49,6 +52,11 @@ class UploadDocumentRequest extends FormRequest
                 ->exists();
     }
 
+    /**
+     * A renewed licence must run past the licence on file.
+     *
+     * @return list<\Closure(Validator): void>
+     */
     public function after(): array
     {
         return [

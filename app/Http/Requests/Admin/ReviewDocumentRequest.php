@@ -6,11 +6,17 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class ReviewDocumentRequest extends FormRequest
 {
+    /**
+     * Route middleware limits reviews to operations and safety.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [

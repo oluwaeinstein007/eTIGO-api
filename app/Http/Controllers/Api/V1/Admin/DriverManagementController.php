@@ -243,6 +243,9 @@ class DriverManagementController extends Controller
         ]);
     }
 
+    /**
+     * Approve or reject one pending paper. Approving a renewal replaces the earlier paper and can lift a block; every review rechecks the driver's licence block.
+     */
     public function reviewDocument(ReviewDocumentRequest $request, Driver $driver, DriverDocument $document, VehicleMaintenanceService $maintenance, DriverDocumentComplianceService $compliance): JsonResponse
     {
         if ($document->driver_id !== $driver->id) {
@@ -591,6 +594,9 @@ class DriverManagementController extends Controller
         ]);
     }
 
+    /**
+     * Tell a working driver what happened to their paper (approved, rejected or withdrawn).
+     */
     private function notifyDocumentReviewed(Driver $driver, DriverDocument $document): void
     {
         $label = $document->type->label();
@@ -619,6 +625,9 @@ class DriverManagementController extends Controller
         }
     }
 
+    /**
+     * The document's label inside a sentence.
+     */
     private function lowerLabel(DriverDocument $document): string
     {
         return mb_strtolower($document->type->label());

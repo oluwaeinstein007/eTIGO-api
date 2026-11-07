@@ -198,6 +198,16 @@ class RideStateMachine
             }
         }
 
+        // A driver whose licence block started during this ride goes offline
+        // once it is over.
+        if ($newStatus->isTerminal() && $ride->driver_id !== null) {
+            try {
+                app(DriverDocumentComplianceService::class)->rideEnded((string) $ride->driver_id);
+            } catch (\Throwable) {
+                // The next block check sets them offline instead.
+            }
+        }
+
         if ($newStatus === RideStatus::NoDriverFound) {
             try {
                 event(new RideNoDriverFound(
