@@ -1617,7 +1617,7 @@ Re-uploading a document of the same type replaces a **pending or rejected** uplo
 GET /driver/documents
 ```
 
-Returns the complete server-driven checklist of required documents for the authenticated driver based on their `vehicle_ownership_type` (`fleet_vehicle` requires 2 personal documents; `own_vehicle` requires 4 personal and vehicle documents). Each item represents a required document slot with its current submission, review, or rejection status.
+Returns the complete server-driven checklist of required documents for the authenticated driver based on their `vehicle_ownership_type` (`fleet_vehicle` requires 2 personal documents; `own_vehicle` requires 4 personal and vehicle documents). Fleet: `driving_licence`, `government_id`. Own car: those plus `vehicle_registration`, `insurance_certificate`, in that order. `can_submit` covers documents only; `POST /driver/onboarding/submit` also checks ownership type, vehicle, licence number and city. Each item represents a required document slot with its current submission, review, or rejection status.
 
 **Response 200:**
 ```json
@@ -1648,7 +1648,7 @@ Returns the complete server-driven checklist of required documents for the authe
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "type": "vehicle_registration",
       "name": "Vehicle registration",
-      "description": "Logbook or registration certificate showing ownership/plate",
+      "description": "Proof of ownership or registration",
       "status": "under_review",
       "original_filename": "reg.jpg",
       "file_url": "https://storage.etigo.test/documents/reg.jpg",
@@ -1663,7 +1663,7 @@ Returns the complete server-driven checklist of required documents for the authe
       "id": null,
       "type": "insurance_certificate",
       "name": "Insurance certificate",
-      "description": "Valid commercial or passenger comprehensive/third-party policy",
+      "description": "Valid commercial insurance certificate",
       "status": "not_submitted",
       "original_filename": null,
       "file_url": null,
