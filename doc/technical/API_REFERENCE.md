@@ -1608,6 +1608,8 @@ Re-uploading a document of the same type replaces the existing one, with one exc
 GET /driver/documents
 ```
 
+Returns the complete server-driven checklist of required documents for the authenticated driver based on their `vehicle_ownership_type` (`fleet_vehicle` requires 2 personal documents; `own_vehicle` requires 4 personal and vehicle documents). Each item represents a required document slot with its current submission, review, or rejection status.
+
 **Response 200:**
 ```json
 {
@@ -1615,24 +1617,51 @@ GET /driver/documents
     {
       "id": "9f3a7c2e-1b4d-4e5f-8a6b-0c9d2e3f4a5b",
       "type": "driving_licence",
-      "original_filename": "licence.pdf",
-      "expires_at": null,
+      "name": "Driving licence",
+      "description": "Front and back, clear and valid",
       "status": "approved",
-      "reviewed_at": "2026-10-06T15:00:00.000000Z",
-      "created_at": "2026-10-06T14:00:00.000000Z"
+      "original_filename": "licence.pdf",
+      "file_url": "https://storage.etigo.test/documents/licence.pdf",
+      "rejection_reason": null,
+      "requires_expiry": true,
+      "expires_at": "2028-12-31"
     },
     {
       "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "type": "vehicle_registration",
+      "name": "Vehicle registration",
+      "description": "Logbook or registration certificate showing ownership/plate",
+      "status": "under_review",
       "original_filename": "reg.jpg",
-      "expires_at": null,
-      "status": "pending",
-      "reviewed_at": null,
-      "created_at": "2026-10-06T14:02:00.000000Z"
+      "file_url": "https://storage.etigo.test/documents/reg.jpg",
+      "rejection_reason": null,
+      "requires_expiry": false,
+      "expires_at": null
+    },
+    {
+      "id": null,
+      "type": "insurance_certificate",
+      "name": "Insurance certificate",
+      "description": "Valid commercial or passenger comprehensive/third-party policy",
+      "status": "not_submitted",
+      "original_filename": null,
+      "file_url": null,
+      "rejection_reason": null,
+      "requires_expiry": true,
+      "expires_at": null
     }
-  ]
+  ],
+  "total_required": 4,
+  "total_uploaded": 2,
+  "can_submit": false
 }
 ```
+
+**Status values:**
+- `not_submitted`: Required document has not been uploaded yet.
+- `under_review`: Document was uploaded and is awaiting review.
+- `approved`: Document has been verified and approved.
+- `rejected`: Document was reviewed and rejected. Inspect `rejection_reason` for guidance.
 
 ---
 

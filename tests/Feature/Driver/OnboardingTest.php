@@ -155,7 +155,7 @@ it('replaces existing document of same type on re-upload', function () {
     expect($driver->documents()->where('type', 'driving_licence')->count())->toBe(1);
 });
 
-it('lists driver documents', function () {
+it('lists driver documents as a complete required checklist', function () {
     Storage::fake(config('filesystems.uploads'));
 
     $driver = Driver::factory()->create();
@@ -171,7 +171,59 @@ it('lists driver documents', function () {
         ->getJson('/api/v1/driver/documents');
 
     $response->assertOk()
-        ->assertJsonCount(1, 'documents');
+        ->assertJsonCount(4, 'documents')
+        ->assertJsonPath('total_required', 4)
+        ->assertJsonPath('total_uploaded', 1)
+        ->assertJsonPath('can_submit', false)
+        ->assertJsonPath('documents.0.type', 'driving_licence')
+        ->assertJsonPath('documents.0.name', 'Driving licence')
+        ->assertJsonPath('documents.0.status', 'under_review')
+        ->assertJsonPath('documents.0.original_filename', 'licence.pdf')
+        ->assertJsonPath('documents.1.type', 'government_id')
+        ->assertJsonPath('documents.1.status', 'not_submitted')
+        ->assertJsonPath('documents.1.id', null);
+});
+
+it('lists only 2 required documents for a fleet vehicle driver', function () {
+    $driver = Driver::factory()->create([
+        'vehicle_ownership_type' => VehicleOwnershipType::FleetVehicle,
+    ]);
+    $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->getJson('/api/v1/driver/documents');
+
+    $response->assertOk()
+        ->assertJsonCount(2, 'documents')
+        ->assertJsonPath('total_required', 2)
+        ->assertJsonPath('documents.0.type', 'driving_licence')
+        ->assertJsonPath('documents.1.type', 'government_id');
+});
+
+it('shows rejected status and rejection reason in the checklist', function () {
+    $driver = Driver::factory()->create();
+    $driver->documents()->create([
+        'type' => DocumentType::DrivingLicence,
+        'file_path' => 'driver-documents/test.jpg',
+        'original_filename' => 'license.jpg',
+        'mime_type' => 'image/jpeg',
+        'file_size' => 1024,
+        'status' => DocumentStatus::Rejected,
+        'rejection_reason' => 'Blurry photo, please retake',
+        'uploaded_by' => $driver->user_id,
+    ]);
+    $token = $driver->user->createToken('test', ['driver'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->getJson('/api/v1/driver/documents');
+
+    $response->assertOk()
+        ->assertJsonCount(4, 'documents')
+        ->assertJsonPath('documents.0.type', 'driving_licence')
+        ->assertJsonPath('documents.0.status', 'rejected')
+        ->assertJsonPath('documents.0.rejection_reason', 'Blurry photo, please retake')
+        ->assertJsonPath('total_uploaded', 0)
+        ->assertJsonPath('can_submit', false);
 });
 
 it('allows driver to register a vehicle', function () {

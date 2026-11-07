@@ -20,6 +20,7 @@ use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\User;
+use App\Support\UploadLinks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -246,8 +247,50 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'Driver profile not found.'], 404);
         }
 
+        $driver->loadMissing(['documents']);
+        $requiredTypes = $this->getRequiredDocumentTypes($driver);
+        $uploaded = $driver->documents->keyBy(fn ($doc) => $doc->type->value);
+
+        $checklist = array_map(function (string $typeValue) use ($uploaded) {
+            $type = DocumentType::from($typeValue);
+            $doc = $uploaded->get($typeValue);
+
+            $status = match ($doc?->status) {
+                DocumentStatus::Approved => 'approved',
+                DocumentStatus::Pending => 'under_review',
+                DocumentStatus::Rejected => 'rejected',
+                default => 'not_submitted',
+            };
+
+            return [
+                'id' => $doc?->id,
+                'type' => $type->value,
+                'name' => $type->label(),
+                'description' => $type->description(),
+                'status' => $status,
+                'original_filename' => $doc?->original_filename,
+                'file_url' => $doc?->file_path ? UploadLinks::url($doc->file_path) : null,
+                'rejection_reason' => $doc?->rejection_reason,
+                'requires_expiry' => $type->requiresExpiry(),
+                'expires_at' => $doc?->expires_at?->toDateString(),
+            ];
+        }, $requiredTypes);
+
+        $validUploadsCount = $driver->documents
+            ->where('status', '!==', DocumentStatus::Rejected)
+            ->whereIn('type', array_map(fn ($t) => DocumentType::from($t), $requiredTypes))
+            ->count();
+
+        $missingDocTypes = array_diff(
+            $requiredTypes,
+            $driver->documents->where('status', '!==', DocumentStatus::Rejected)->pluck('type.value')->toArray()
+        );
+
         return response()->json([
-            'documents' => DriverDocumentResource::collection($driver->documents),
+            'documents' => $checklist,
+            'total_required' => count($requiredTypes),
+            'total_uploaded' => $validUploadsCount,
+            'can_submit' => empty($missingDocTypes),
         ]);
     }
 
