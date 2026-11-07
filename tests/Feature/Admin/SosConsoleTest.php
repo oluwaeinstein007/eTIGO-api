@@ -101,7 +101,9 @@ it('searches by reference, ride reference, name and phone', function () {
     $otherRide = Ride::factory()->inProgress()->create();
     sosIncident(['ride_id' => $otherRide->id, 'triggered_by_user_id' => $otherRide->passenger_id]);
 
-    foreach ([$incident->reference_number, $this->ride->reference_number, 'amaka obi', '2222'] as $term) {
+    // Part of Amaka's phone, long enough that the other incident's random
+    // phones and 6-digit references can't contain it ('2222' sometimes did).
+    foreach ([$incident->reference_number, $this->ride->reference_number, 'amaka obi', '11112222'] as $term) {
         $this->withToken($this->token)
             ->getJson('/api/v1/admin/sos/active?search='.urlencode($term))
             ->assertOk()
