@@ -1732,7 +1732,9 @@ A blocked driver cannot go online (422, reason in `reasons`), gets no offers, ca
 
 **Government ID** expiry only reminds; it never blocks. **Vehicle papers** keep their own grace period and block under [Vehicle Maintenance](#vehicle-maintenance-phase-2); this adds reminder emails for own cars (fleet cars' papers are operations').
 
-**Reminders** (daily at 06:00 Lagos, `ProcessDriverDocumentExpiryJob`; run now with `php artisan drivers:check-document-expiry`): at **30, 14, 7 and 1 days** before expiry, **on the day**, and **once expired**. Channels are **push, in-app and email**. Vehicle legal papers get email only, since their push comes from vehicle maintenance. Each step is sent once. A paper approved late gets only the nearest step, never a backlog. Nothing is sent while a renewal waits for review, or for a paper already replaced by a later one. An expired licence that is blocked gets the block message instead of a reminder. The driver must have an email for the email part.
+**Block checks** run at 00:05 Lagos (so a licence that ran out yesterday stops offers from midnight) and again with the reminders. Each run also re-does the clean-up for drivers still blocked: an idle online driver is set offline (for example, once the trip they were on when the block started has ended), and reserved pickups are released. A block that starts also frees the driver's upcoming fleet shifts (operations are emailed which slots to fill), and an offer can't be accepted while blocked.
+
+**Reminders** (daily at 06:00 Lagos, `ProcessDriverDocumentExpiryJob`; run now with `php artisan drivers:check-document-expiry`): at **30, 14, 7 and 1 days** before expiry, **on the day**, and **once expired**. Channels are **push, in-app and email**. Vehicle legal papers get email only, since their push comes from vehicle maintenance. Each step is sent once. A paper approved late gets only the nearest step, never a backlog. Nothing is sent while a renewal waits for review, or for a paper already replaced by a later one. An expired licence that is blocked gets the block push instead of a reminder push; the expiry email still goes. A step held back because a renewal is pending stays open, so it is sent if that renewal is rejected. The driver must have an email for the email part.
 
 **`compliance`** (on `GET /driver/documents`, admin `GET /admin/drivers/{id}` as `document_compliance`, and review/revoke/update responses):
 
@@ -1792,7 +1794,7 @@ Operations.
 | reminders_enabled | `true` | Off: nothing sent or marked (the block still applies) |
 | reminder_days | `[30, 14, 7, 1]` | 1–6 distinct days (1–90), stored largest first; plus the day itself and once expired |
 | licence_grace_days | `0` | Days after the expiry date before the block (0–30) |
-| block_on_expired_licence | `true` | Off: expired licences only remind |
+| block_on_expired_licence | `true` | Off: expired licences only remind (a withdrawn licence still blocks) |
 
 Changing the grace period or the block re-checks drivers at once. Logged as `driver_document_settings.updated`.
 
@@ -2038,7 +2040,7 @@ Vehicle objects now also carry `shift_mode`, `odometer_km`, `estimated_odometer_
 
 **Phase 2 response fields (going online):** `shift` (the shift being worked on a shared car, else `null`) and `vehicle_notice` (papers expiring soon or in their grace period, e.g. `"Insurance expired on 13 Oct 2026; upload the renewed paper by 20 Oct 2026 to keep driving."`, else `null`).
 
-**`document_notice`** (going online): the driving licence expires within 7 days or is in its grace period, e.g. `"Your driving licence expires tomorrow. Upload the renewed licence now so E-tiGo can check it in time; without it you can't go online after 8 Nov 2026."`, or `"Your renewed driving licence is being checked by E-tiGo."` when a renewal is pending; else `null`. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`, e.g. `"Your driving licence expired on 7 Nov 2026. Upload your renewed licence; you can go online once E-tiGo approves it."`.
+**`document_notice`** (going online): the driving licence expires within 7 days or is in its grace period, e.g. `"Your driving licence expires tomorrow. Upload the renewed licence now so E-tiGo can check it in time; without it you can't go online after 8 Nov 2026."`, or, in that same window, `"Your renewed driving licence is being checked by E-tiGo."` when a renewal is pending; else `null` (also `null` further out or with no expiry date, even with a renewal pending: read `renewal` on `GET /driver/documents`). An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`, e.g. `"Your driving licence expired on 7 Nov 2026. Upload your renewed licence; you can go online once E-tiGo approves it."`.
 
 **Going offline** is refused with `409` while the driver has an active ride (`matched` → `in_progress`), so passenger tracking and location updates continue until the trip ends.
 
@@ -2931,6 +2933,8 @@ POST /admin/drivers/{driver_id}/review
 
 > **KYC Requirement:** A driver cannot be approved unless their KYC verification is complete (`kyc_status` = `verified`). If KYC is incomplete, the approval request will be rejected with a 422 error.
 
+> **Document expiry:** approving also approves the driver's pending papers, so each must pass the [Review Document](#review-document) rules: 422 `Review these documents before approving the driver.` with `errors.documents` (e.g. `"Driving licence: enter its expiry date (approve the document with expires_at)."`) when a licence, roadworthiness certificate or vehicle licence has no expiry date, or a paper has already expired.
+
 **Response 200 (approved):**
 ```json
 {
@@ -2987,7 +2991,9 @@ POST /admin/drivers/{driver_id}/documents/{document_id}/review
 
 Approving a renewed vehicle paper replaces the car's earlier approved paper of that type and re-checks the car's maintenance items, which lifts an expired-papers block. Approving a renewed **driving licence or government ID** likewise replaces the driver's earlier approved one (never one that runs longer), records `document_replaced` in the driver's history, and lifts a licence block. A new licence number is copied to the driver (`licence_number_changed`, last 4 only in the log).
 
-**Approval 422s:** `Enter the expiry date printed on the driving licence before approving it.` (no expiry on the paper or in the request), `This driving licence has already expired. Reject it and ask the driver for the renewed one.` (expiry before today).
+**Approval 422s:** `Enter the expiry date printed on the driving licence before approving it.` (no expiry on the paper or in the request), `This driving licence has already expired. Reject it and ask the driver for the renewed one.` (expiry before today), `The licence on file is valid until 20 Nov 2026. Check the date: a renewed licence expires later.` (a renewal that doesn't outlast the licence in force). **409** `This document was reviewed by someone else. Reload it.` when another admin reviewed it first.
+
+**Approving the application** ([Review Driver](#review-driver-approvereject)) applies the same expiry rules to the pending papers it approves: 422 `Review these documents before approving the driver.` with `errors.documents`, one line per paper (missing expiry date on a licence, roadworthiness or vehicle licence; or already expired).
 
 Approved, active drivers (not onboarding or pending review) get a `document_reviewed` push for each approve/reject. When an approval lifts a licence block, they get `driver_documents_unblocked` instead.
 
@@ -3025,7 +3031,7 @@ Operations, Safety. For a paper found invalid after approval: a suspended or rev
 |--------|--------|----------|-------------|
 | reason | string | Yes      | Shown to the driver (max 500) |
 
-The paper becomes `rejected` with `rejection_reason` = reason, and `revoked_at` is set. It is **kept** when the driver uploads a new one. A withdrawn **driving licence** blocks the driver at once (`documents_block_reason`: `"Your driving licence was withdrawn by E-tiGo: <reason>"`) until a new licence is approved. A trip in progress is not ended. The driver gets a `document_reviewed` push. 422 `Only approved documents can be withdrawn.` Response: `document` and `compliance`, as for review.
+**Driver papers only** (`driving_licence`, `government_id`): vehicle papers return 422 (upload the car's replacement instead, since a car with no paper on file isn't blocked). The paper becomes `rejected` with `rejection_reason` = reason, and `revoked_at` is set. A withdrawn licence blocks even when `block_on_expired_licence` is off. 409 if the document changed meanwhile. It is **kept** when the driver uploads a new one. A withdrawn **driving licence** blocks the driver at once (`documents_block_reason`: `"Your driving licence was withdrawn by E-tiGo: <reason>"`) until a new licence is approved. A trip in progress is not ended. The driver gets a `document_reviewed` push. 422 `Only approved documents can be withdrawn.` Response: `document` and `compliance`, as for review.
 
 ### Correct an Approved Document's Details
 ```
@@ -3035,7 +3041,7 @@ Operations, Safety. Mainly to add the expiry date to licences approved before it
 
 | Field           | Type   | Required | Description |
 |-----------------|--------|----------|-------------|
-| expires_at      | date   | One of the two | The expiry on the paper. A changed date restarts the reminders and rechecks the block (a past date blocks a licence at once) |
+| expires_at      | date   | One of the two | The expiry on the paper. A changed date restarts the reminders and rechecks the block under the settings (a licence date past the grace period blocks at once, unless expiry blocking is off) |
 | document_number | string | One of the two | On a driving licence, also updates the driver's `licence_number` |
 
 422 `Only approved documents can be corrected. Review pending ones instead.` Logged as `document_details_updated`. Response: `document` and `compliance`.

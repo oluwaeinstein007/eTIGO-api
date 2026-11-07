@@ -393,6 +393,12 @@ class RideService
                 return 'You already have an active ride. Complete it before accepting another.';
             }
 
+            // Checked under the driver lock taken above: a licence withdrawn
+            // while the offer was out stops the accept.
+            if (Driver::where('user_id', $driver->id)->whereNotNull('documents_blocked_at')->exists()) {
+                return "You can't take rides until your renewed driving licence is approved.";
+            }
+
             $ride->driver_id = $driver->id;
             $ride->save();
 

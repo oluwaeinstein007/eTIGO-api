@@ -72,19 +72,23 @@ class DriverDocumentComplianceService
      * Why the driver cannot drive on their papers, or null. A driver with no
      * licence on file at all is left to the onboarding rules; this only
      * catches a licence that was valid and no longer is.
+     *
+     * block_on_expired_licence only switches off the expiry block: a
+     * withdrawn licence (suspended, forged) blocks until a new one is
+     * approved whatever the setting.
      */
     public function blockReason(Driver $driver): ?string
     {
         $settings = AppSetting::driverDocuments();
 
-        if (! $settings['block_on_expired_licence']) {
-            return null;
-        }
-
         $licences = $driver->documents()->where('type', DocumentType::DrivingLicence)->get();
         $approved = $licences->filter(fn (DriverDocument $document) => $this->isCurrent($document));
 
-        if ($approved->contains(fn (DriverDocument $document) => $document->expires_at === null || $this->blocksFrom($document->expires_at, $settings)->gt($this->today()))) {
+        $valid = fn (DriverDocument $document) => $document->expires_at === null
+            || ! $settings['block_on_expired_licence']
+            || $this->blocksFrom($document->expires_at, $settings)->gt($this->today());
+
+        if ($approved->contains($valid)) {
             return null;
         }
 
@@ -154,10 +158,15 @@ class DriverDocumentComplianceService
     {
         $settings = AppSetting::driverDocuments();
         $documents = $driver->documents()->with('vehicle:id,is_fleet')->get();
+        $currentVehicleId = $driver->vehicle()->value('id');
         $entries = [];
 
         foreach (DocumentType::cases() as $type) {
-            $ofType = $documents->filter(fn (DriverDocument $document) => $document->type === $type && ! ($document->vehicle?->is_fleet ?? false));
+            // Vehicle papers: the car the driver has now (a former car's
+            // papers stay with that car), never a fleet car's.
+            $ofType = $documents->filter(fn (DriverDocument $document) => $document->type === $type
+                && ! ($document->vehicle?->is_fleet ?? false)
+                && ($document->vehicle_id === null || $document->vehicle_id === $currentVehicleId));
 
             if ($ofType->isEmpty()) {
                 continue;
@@ -257,14 +266,22 @@ class DriverDocumentComplianceService
         Driver::query()
             ->where(fn ($q) => $q->whereNotNull('documents_blocked_at')
                 ->orWhereHas('documents', fn ($d) => $d->where('type', DocumentType::DrivingLicence)
-                    ->where('status', DocumentStatus::Approved)
-                    ->whereNull('revoked_at')
-                    ->whereDate('expires_at', '<', $today)))
+                    ->where(fn ($d) => $d->whereNotNull('revoked_at')
+                        ->orWhere(fn ($d) => $d->where('status', DocumentStatus::Approved)->whereDate('expires_at', '<', $today)))))
             ->lazyById()
             ->each(function (Driver $driver) use (&$count) {
                 try {
+                    $wasBlocked = $driver->isDocumentsBlocked();
                     $this->refresh($driver);
                     $count++;
+
+                    // Still blocked from an earlier run: redo the clean-up
+                    // in case part of it failed, or the driver was on a trip
+                    // then (both steps do nothing when already done).
+                    if ($wasBlocked && $driver->isDocumentsBlocked()) {
+                        $this->safely(fn () => $this->takeOfflineUnlessOnTrip($driver));
+                        $this->safely(fn () => app(ScheduledRideReservationService::class)->releaseAllFor($driver->user_id, 'documents_blocked'));
+                    }
                 } catch (\Throwable $e) {
                     Log::error('Driver document block check failed', ['driver_id' => $driver->id, 'error' => $e->getMessage()]);
                 }
@@ -423,19 +440,26 @@ class DriverDocumentComplianceService
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhereDate('expires_at', '>', $document->expires_at->toDateString()))
             ->exists();
 
-        // Blocked: the block message has told the driver already.
-        $toldByBlock = $stage === self::STAGE_EXPIRED && $document->type->blocksDriverWhenExpired() && $driver->isDocumentsBlocked();
-
-        if ($superseded || $toldByBlock || $this->pendingRenewal($document) !== null) {
+        if ($superseded) {
             $mark();
 
             return false;
         }
 
-        $line = $this->reminderLine($document, $settings);
+        // A renewal is in: nothing to say, but the step stays open, so the
+        // driver hears about it if operations reject the renewal.
+        if ($this->pendingRenewal($document) !== null) {
+            return false;
+        }
+
+        // Blocked: the block push has told the driver; the email still goes.
+        $toldByBlock = $stage === self::STAGE_EXPIRED && $document->type->blocksDriverWhenExpired() && $driver->isDocumentsBlocked();
+        $line = $toldByBlock
+            ? "{$driver->documents_block_reason} Upload {$this->licenceToUpload($driver)}; you can go online again once E-tiGo approves it."
+            : $this->reminderLine($document, $settings);
 
         // Vehicle legal papers get their push from vehicle maintenance.
-        if (! $document->type->isVehicleLegalPaper()) {
+        if (! $document->type->isVehicleLegalPaper() && ! $toldByBlock) {
             $this->safely(fn () => $this->notifications->send(
                 userId: $driver->user_id,
                 type: NotificationType::DocumentExpiring,
@@ -470,6 +494,9 @@ class DriverDocumentComplianceService
 
         $this->safely(fn () => $this->takeOfflineUnlessOnTrip($driver));
         $this->safely(fn () => app(ScheduledRideReservationService::class)->releaseAllFor($driver->user_id, 'documents_blocked'));
+        // Shared fleet cars: free the driver's upcoming shifts so operations
+        // can book someone else on the car.
+        $this->safely(fn () => app(DriverShiftService::class)->withdrawDriver($driver, 'driving licence not valid'));
 
         if ($driver->isFleetVehicle()) {
             $name = trim(($driver->user?->first_name ?? '').' '.($driver->user?->last_name ?? ''));
@@ -491,7 +518,8 @@ class DriverDocumentComplianceService
             userId: $driver->user_id,
             type: NotificationType::DriverDocumentsUnblocked,
             title: NotificationType::DriverDocumentsUnblocked->label(),
-            body: 'Your driving licence is approved. You can go online again.',
+            // Also lifted by a settings change (longer grace, block off), not only an approval.
+            body: 'Your driving licence is valid on E-tiGo again. You can go online.',
             data: ['driver_id' => (string) $driver->id],
         ));
     }
@@ -526,7 +554,7 @@ class DriverDocumentComplianceService
      *
      * @return Builder<DriverDocument>
      */
-    private function sameSlot(DriverDocument $document)
+    private function sameSlot(DriverDocument $document): Builder
     {
         return DriverDocument::query()
             ->where('type', $document->type)

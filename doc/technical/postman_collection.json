@@ -8724,7 +8724,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).\n\n**Driving licence:** `document_notice` warns when the licence expires within 7 days, is in its grace period, or a renewal is pending. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`.",
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).\n\n**Driving licence:** `document_notice` warns only when the licence expires within 7 days or is in its grace period (in that window it says the renewal is being checked if one is pending); otherwise `null`, even with a renewal pending. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"battery_level_percent\": 64\n}"
@@ -13937,7 +13937,7 @@
                     }
                   ]
                 },
-                "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status."
+                "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status.\n\n**Document expiry (PR #162):** approving the application also approves its pending papers, so they must meet the single-approval rules: 422 `Review these documents before approving the driver.` with `errors.documents` (a licence, roadworthiness or vehicle licence without an expiry date, or a paper already expired). Approve the licence with `expires_at` first."
               },
               "response": [
                 {
@@ -13963,6 +13963,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Driver is not in a reviewable state.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Documents Need Review",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Review these documents before approving the driver.\",\n  \"errors\": {\n    \"documents\": [\n      \"Driving licence: enter its expiry date (approve the document with expires_at).\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -14084,7 +14096,7 @@
                     }
                   ]
                 },
-                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n`expires_at` confirms or corrects the expiry date on the paper and is **required** for a driving licence, roadworthiness certificate or vehicle licence that has none; an already-expired date is refused. `document_number` confirms or corrects the number; on a driving licence it becomes the driver's licence number.\n\nApproving a renewal replaces the earlier approved paper of that type (vehicle or driver papers; never one that runs longer) and lifts an expired-papers or expired-licence block. Working drivers get a `document_reviewed` push. The response adds `compliance`."
+                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n`expires_at` confirms or corrects the expiry date on the paper and is **required** for a driving licence, roadworthiness certificate or vehicle licence that has none; an already-expired date is refused, and a renewed licence must expire after the licence on file (422). 409 if another admin reviewed it first. `document_number` confirms or corrects the number; on a driving licence it becomes the driver's licence number.\n\nApproving a renewal replaces the earlier approved paper of that type (vehicle or driver papers; never one that runs longer) and lifts an expired-papers or expired-licence block. Working drivers get a `document_reviewed` push. The response adds `compliance`."
               },
               "response": [
                 {
@@ -14250,7 +14262,7 @@
                     }
                   ]
                 },
-                "description": "Operations, Safety. Withdraw an **approved** paper found invalid after approval (suspended/revoked licence, forged paper). It becomes `rejected` with `revoked_at` set and is kept on re-upload. A withdrawn driving licence blocks the driver at once until a new licence is approved; a trip in progress is not ended. The driver gets a `document_reviewed` push. 422 `Only approved documents can be withdrawn.`"
+                "description": "Operations, Safety. Withdraw an **approved** driver paper (`driving_licence`, `government_id`; vehicle papers return 422) found invalid after approval (suspended/revoked licence, forged paper). It becomes `rejected` with `revoked_at` set and is kept on re-upload. A withdrawn driving licence blocks the driver at once until a new licence is approved; a trip in progress is not ended. Blocks even when `block_on_expired_licence` is off. The driver gets a `document_reviewed` push. 409 if the document changed meanwhile. 422 `Only approved documents can be withdrawn.`"
               },
               "response": [
                 {
@@ -14314,7 +14326,7 @@
                     }
                   ]
                 },
-                "description": "Operations, Safety. Correct `expires_at` and/or `document_number` on an **approved** paper, mainly to add expiry dates to licences approved before they were required. A changed date restarts reminders and rechecks the block (a past date blocks a licence at once). Logged as `document_details_updated`."
+                "description": "Operations, Safety. Correct `expires_at` and/or `document_number` on an **approved** paper, mainly to add expiry dates to licences approved before they were required. A changed date restarts reminders and rechecks the block under the configured expiry-blocking setting and grace period. 409 if another admin changed the document first. Logged as `document_details_updated`."
               },
               "response": [
                 {

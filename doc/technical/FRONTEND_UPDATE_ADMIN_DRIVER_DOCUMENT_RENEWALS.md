@@ -24,6 +24,8 @@ Details: `API_REFERENCE.md` → **Driver Document Renewals**, **Review Document*
 
 - **`expires_at` is required** for a `driving_licence` (and, as before, roadworthiness and vehicle licence) when the paper has none. Without it: 422 `Enter the expiry date printed on the driving licence before approving it.` Put a date field, prefilled from `document.expires_at`, on the approve dialog.
 - An **expired date** is refused: 422 `This driving licence has already expired. Reject it and ask the driver for the renewed one.`
+- A renewed licence must **expire after the licence on file**: 422 `The licence on file is valid until 20 Nov 2026. Check the date: a renewed licence expires later.`
+- **Approving the application** (`POST /admin/drivers/{driver}/review`, approve) now applies the same rules to its pending papers: 422 `Review these documents before approving the driver.` with `errors.documents` listing each one (e.g. `Driving licence: enter its expiry date (approve the document with expires_at).`). Approve the licence with its date first. **Breaking.**
 - New optional **`document_number`**: prefilled from `document.document_number` (admins see the full number). On a licence it becomes the driver's `licence_number`.
 - Approving a renewal **replaces** the earlier approved paper of that type and lifts a licence block. The response adds `compliance` (same shape as the driver page's `document_compliance`).
 
@@ -63,9 +65,9 @@ Also `type`, `city_id`, `search` (driver name, email, phone, reference), `per_pa
 On an **approved** paper:
 
 - **Withdraw**: `POST /admin/drivers/{driver}/documents/{document}/revoke` `{ "reason": "FRSC reports this licence as suspended." }`. Confirm first, since a withdrawn licence blocks the driver at once and they are told the reason. The paper becomes `rejected` with `revoked_at` set.
-- **Correct**: `PATCH /admin/drivers/{driver}/documents/{document}` `{ "expires_at": "2030-05-31" }` and/or `{ "document_number": "..." }`. A changed date restarts the reminders; a past date on a licence blocks at once.
+- **Correct**: `PATCH /admin/drivers/{driver}/documents/{document}` `{ "expires_at": "2030-05-31" }` and/or `{ "document_number": "..." }`. A changed date restarts the reminders and rechecks the block under the settings: a licence date past the grace period blocks at once (unless expiry blocking is off).
 
-Both: Operations and Safety. 422 for papers that aren't approved.
+Both: Operations and Safety. 422 for papers that aren't approved. **Withdraw is for the driver's own papers** (licence, government ID): vehicle papers return 422; upload the car's replacement instead. Both return **409** `This document changed while you were looking at it. Reload it.` if another admin changed it first (review returns 409 the same way).
 
 ## 5. Settings (should do)
 

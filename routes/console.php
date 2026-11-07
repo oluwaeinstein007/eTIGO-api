@@ -24,6 +24,7 @@ use App\Jobs\SettleDriverEarningsJob;
 use App\Jobs\StuckTransactionSweeperJob;
 use App\Models\Notification;
 use App\Models\OperationsSnapshot;
+use App\Services\DriverDocumentComplianceService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
@@ -67,6 +68,11 @@ Schedule::job(new ProcessDriverShiftsJob)->everyFiveMinutes()->withoutOverlappin
 Schedule::job(new ProcessVehicleMaintenanceJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Driver documents: expired-licence block, then renewal reminders (push, in-app, email).
 Schedule::job(new ProcessDriverDocumentExpiryJob)->dailyAt('06:00')->timezone('Africa/Lagos')->withoutOverlapping();
+// Licence blocks start at Lagos midnight, not at the 06:00 run, so drivers
+// whose licence ran out yesterday get no offers overnight.
+Schedule::call(fn () => app(DriverDocumentComplianceService::class)->refreshDue())
+    ->name('drivers:document-blocks-midnight')
+    ->dailyAt('00:05')->timezone('Africa/Lagos')->withoutOverlapping();
 // Account deletion: erase accounts whose grace period has ended.
 Schedule::job(new PurgeDeletedAccountsJob)->dailyAt('03:00')->timezone('Africa/Lagos')->withoutOverlapping();
 // Admin overview: point-in-time counts for the "vs. this time yesterday" figures.

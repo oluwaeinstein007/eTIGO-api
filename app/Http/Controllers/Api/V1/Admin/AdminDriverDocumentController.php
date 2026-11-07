@@ -30,7 +30,7 @@ class AdminDriverDocumentController extends Controller
             'status' => ['sometimes', 'nullable', Rule::enum(DocumentStatus::class)],
             'type' => ['sometimes', 'nullable', Rule::enum(DocumentType::class)],
             'expiry' => ['sometimes', 'nullable', Rule::in(['expiring_soon', 'expired', 'no_expiry'])],
-            'renewals_only' => ['sometimes', 'boolean'],
+            'renewals_only' => ['sometimes', 'in:true,false,1,0'],
             'city_id' => ['sometimes', 'nullable', 'uuid'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],

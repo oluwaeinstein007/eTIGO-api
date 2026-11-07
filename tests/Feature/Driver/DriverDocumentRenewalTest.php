@@ -11,13 +11,16 @@ use App\Models\AuditLog;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverDocument;
+use App\Models\DriverShift;
 use App\Models\Notification;
+use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleClass;
 use App\Notifications\DriverDocumentExpiringNotification;
 use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverLocationService;
+use App\Services\RideService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -260,8 +263,46 @@ it('sends nothing and marks nothing while reminders are off', function () {
 
     ($this->runJob)();
 
-    expect($licence->fresh()->expiry_reminder_stage)->toBeNull();
+    expect($licence->fresh()->expiry_reminder_stage)->toBeNull()
+        ->and(($this->pushes)(NotificationType::DocumentExpiring))->toBe(0);
     NotificationFacade::assertNothingSentTo($this->user);
+});
+
+it('keeps a reminder step open while a renewal waits, and sends it if the renewal is rejected', function () {
+    $id = ($this->paper)(DocumentType::GovernmentId, '2026-11-05');
+    $renewal = ($this->paper)(DocumentType::GovernmentId, '2031-11-05', DocumentStatus::Pending);
+
+    ($this->runJob)();
+    expect($id->fresh()->expiry_reminder_stage)->toBeNull();
+
+    $renewal->update(['status' => DocumentStatus::Rejected, 'rejection_reason' => 'Blurry.']);
+    ($this->runJob)();
+
+    expect($id->fresh()->expiry_reminder_stage)->toBe(-1)
+        ->and(($this->pushes)(NotificationType::DocumentExpiring))->toBe(1);
+});
+
+it('still emails about an expired licence when the block push has told the driver', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-06');
+
+    ($this->runJob)();
+
+    expect($this->driver->fresh()->isDocumentsBlocked())->toBeTrue()
+        ->and(($this->pushes)(NotificationType::DocumentExpiring))->toBe(0)
+        ->and(($this->pushes)(NotificationType::DriverDocumentsBlocked))->toBe(1);
+    NotificationFacade::assertSentTo($this->user, DriverDocumentExpiringNotification::class,
+        fn ($n) => str_starts_with($n->line, 'Your driving licence expired on 6 Nov 2026.'));
+});
+
+it('says a government ID does not stop rides in its email', function () {
+    $user = $this->user;
+    $id = ($this->paper)(DocumentType::GovernmentId, '2026-11-01');
+    $html = (string) (new DriverDocumentExpiringNotification($this->driver, $id))->toMail($user)->render();
+    $licence = ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    $licenceHtml = (string) (new DriverDocumentExpiringNotification($this->driver, $licence))->toMail($user)->render();
+
+    expect($html)->not->toContain("won't be able to accept rides")
+        ->and($licenceHtml)->toContain("won't be able to accept rides");
 });
 
 // === BLOCK ===
@@ -356,6 +397,68 @@ it('blocks on a withdrawn licence, keeps it through a re-upload, and lifts on th
     expect($this->driver->fresh()->isDocumentsBlocked())->toBeFalse();
 });
 
+it('keeps a withdrawn licence blocking when expiry blocking is off, and re-blocks when it is turned back on', function () {
+    $licence = ($this->paper)(DocumentType::DrivingLicence, '2029-01-01');
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/driver-documents', ['block_on_expired_licence' => false])->assertOk();
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->driver->id}/documents/{$licence->id}/revoke", ['reason' => str_repeat('Suspended by FRSC. ', 26)])
+        ->assertOk()
+        ->assertJsonPath('compliance.can_drive', false);
+
+    // The full reason fits (500 characters plus the wording).
+    expect(mb_strlen($this->driver->fresh()->documents_block_reason))->toBeGreaterThan(500);
+
+    // Lifted by hand, then a settings change rechecks it (revoked licences included).
+    $this->driver->forceFill(['documents_blocked_at' => null, 'documents_block_reason' => null])->save();
+    ($this->as)($this->adminToken)->putJson('/api/v1/admin/settings/driver-documents', ['block_on_expired_licence' => true])->assertOk();
+
+    expect($this->driver->fresh()->isDocumentsBlocked())->toBeTrue();
+});
+
+it('does not withdraw vehicle papers', function () {
+    $insurance = ($this->paper)(DocumentType::InsuranceCertificate, '2026-11-01', vehicle: $this->vehicle);
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->driver->id}/documents/{$insurance->id}/revoke", ['reason' => 'Forged.'])
+        ->assertUnprocessable();
+
+    expect($insurance->fresh()->status)->toBe(DocumentStatus::Approved);
+});
+
+it('frees the upcoming shifts of a driver whose licence block starts', function () {
+    $shift = DriverShift::factory()->create(['driver_id' => $this->driver->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHours(8)]);
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+
+    ($this->runJob)();
+
+    expect($shift->fresh()->status->value)->toBe('cancelled');
+});
+
+it('takes a blocked driver offline on the next check once their trip is over', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    $this->driver->update(['is_online' => true]);
+    $ride = Ride::factory()->inProgress()->create(['driver_id' => $this->user->id]);
+
+    ($this->runJob)();
+    expect($this->driver->fresh()->isDocumentsBlocked())->toBeTrue()
+        ->and($this->driver->fresh()->is_online)->toBeTrue();
+
+    $ride->update(['status' => 'completed']);
+    ($this->runJob)();
+
+    expect($this->driver->fresh()->is_online)->toBeFalse();
+});
+
+it('stops a blocked driver accepting an offer', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    ($this->runJob)();
+    $ride = Ride::factory()->create(['status' => 'searching']);
+
+    $result = app(RideService::class)->acceptRide($ride, $this->user);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['error'])->toBe("You can't take rides until your renewed driving licence is approved.");
+});
+
 it('does not block drivers with no licence on file', function () {
     ($this->runJob)();
 
@@ -364,10 +467,16 @@ it('does not block drivers with no licence on file', function () {
 });
 
 it('keeps blocked drivers out of the shift booking list', function () {
-    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    // A driver with no car of their own, so only the licence decides.
+    $user = User::factory()->create(['type' => UserType::Driver]);
+    $shiftDriver = Driver::factory()->approved()->create(['user_id' => $user->id]);
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01', driver: $shiftDriver);
+
+    expect(Driver::whereKey($shiftDriver->id)->shiftEligible()->exists())->toBeTrue();
+
     ($this->runJob)();
 
-    expect(Driver::whereKey($this->driver->id)->shiftEligible()->exists())->toBeFalse();
+    expect(Driver::whereKey($shiftDriver->id)->shiftEligible()->exists())->toBeFalse();
 });
 
 // === ADMIN ===
@@ -383,6 +492,44 @@ it('lets operations add a missing expiry date to an approved licence, restarting
 
     expect($licence->fresh()->expiry_reminder_stage)->toBeNull()
         ->and(AuditLog::where('event', 'document_details_updated')->count())->toBe(1);
+});
+
+it('refuses a renewal that does not outlast the licence on file', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2028-05-01');
+    $renewal = ($this->paper)(DocumentType::DrivingLicence, '2031-05-01', DocumentStatus::Pending);
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$this->driver->id}/documents/{$renewal->id}/review", ['action' => 'approve', 'expires_at' => '2027-05-01'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'The licence on file is valid until 1 May 2028. Check the date: a renewed licence expires later.');
+});
+
+it('will not approve an application whose pending licence has no expiry date', function () {
+    $applicant = Driver::factory()->create(['kyc_status' => 'verified', 'kyc_verified_at' => now()]);
+    ($this->paper)(DocumentType::DrivingLicence, null, DocumentStatus::Pending, $applicant);
+
+    ($this->as)($this->adminToken)->postJson("/api/v1/admin/drivers/{$applicant->id}/review", ['action' => 'approve'])
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.documents.0', 'Driving licence: enter its expiry date (approve the document with expires_at).');
+
+    expect($applicant->fresh()->status->value)->toBe('pending_review');
+});
+
+it('accepts true and false for the drivers list block filter', function () {
+    ($this->paper)(DocumentType::DrivingLicence, '2026-11-01');
+    ($this->runJob)();
+
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/drivers?documents_blocked=true')
+        ->assertOk()
+        ->assertJsonPath('drivers.0.id', $this->driver->id);
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/drivers?documents_blocked=false')->assertOk();
+    ($this->as)($this->adminToken)->getJson('/api/v1/admin/driver-documents?renewals_only=true')->assertOk();
+});
+
+it('saves nothing when an approved driver sends a new licence number with other changes', function () {
+    ($this->as)($this->token)->putJson('/api/v1/driver/profile', ['first_name' => 'Changed', 'licence_number' => 'NEW00001'])
+        ->assertUnprocessable();
+
+    expect($this->user->fresh()->first_name)->toBe('Bayo');
 });
 
 it('lists the renewals queue with expiry filters and a summary', function () {

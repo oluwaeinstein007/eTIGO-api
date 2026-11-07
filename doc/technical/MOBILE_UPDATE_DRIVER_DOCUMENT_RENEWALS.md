@@ -80,7 +80,7 @@ Collect the date with a date picker that only allows future dates. The response'
 `POST /driver/toggle-online`:
 
 - **Blocked** → 422 with the reason in `reasons`, e.g. `"Your driving licence expired on 7 Nov 2026. Upload your renewed licence; you can go online once E-tiGo approves it."` For a withdrawn licence: `"Your driving licence was withdrawn by E-tiGo: <reason> Upload a valid driving licence; …"`. Show it with a button to the upload screen.
-- **Allowed, with a warning** → 200 with a new **`document_notice`** (string or `null`). It's set when the licence expires within 7 days, is in a grace period, or has a renewal waiting. Show it like `vehicle_notice`.
+- **Allowed, with a warning** → 200 with a new **`document_notice`** (string or `null`). It's set only when the licence expires within 7 days or is in a grace period; in that window, a pending renewal changes it to "Your renewed driving licence is being checked by E-tiGo." Further out, or with no expiry date on file, it's `null` even if a renewal is pending, so read pending renewals from `GET /driver/documents` (`renewal`). Show it like `vehicle_notice`.
 
 The driver object (`DriverResource`) also has `documents_blocked` (bool), `documents_blocked_at` and `documents_block_reason`.
 

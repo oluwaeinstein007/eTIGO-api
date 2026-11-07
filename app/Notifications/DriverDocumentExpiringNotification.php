@@ -65,6 +65,9 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
                 'daysRemaining' => $daysRemaining,
                 'isExpired' => $isExpired,
                 'reminderLine' => $this->line,
+                // The licence stops the driver, and insurance, roadworthiness and
+                // the vehicle licence stop the car; government ID never does.
+                'blocksDriving' => $this->document->type->blocksDriverWhenExpired() || $this->document->type->isVehicleLegalPaper(),
                 'documentEnding' => $number ? mb_substr($number, -4) : null,
                 'driverName' => $driverName,
                 'driverId' => $driverId,

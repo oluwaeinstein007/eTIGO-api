@@ -134,6 +134,17 @@ class OnboardingController extends Controller
             ], 422);
         }
 
+        // Checked before anything is saved. After approval a new licence number comes with the renewed
+        // licence (POST /driver/documents), so operations check it.
+        $changesLicence = $request->filled('licence_number') && $request->input('licence_number') !== $driver->licence_number;
+
+        if ($changesLicence && ! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected, DriverStatus::PendingReview])) {
+            return response()->json([
+                'message' => 'To change your licence number, upload your renewed licence with its number. E-tiGo updates it once the licence is approved.',
+                'errors' => ['licence_number' => ['Upload the renewed licence to change the number.']],
+            ], 422);
+        }
+
         $userFields = $request->only(['first_name', 'last_name', 'phone']);
         if (! empty($userFields)) {
             if (isset($userFields['phone']) && $userFields['phone'] !== $user->phone) {
@@ -149,17 +160,6 @@ class OnboardingController extends Controller
                 }
             }
             $user->update($userFields);
-        }
-
-        // After approval a new licence number comes with the renewed
-        // licence (POST /driver/documents), so operations check it.
-        $changesLicence = $request->filled('licence_number') && $request->input('licence_number') !== $driver->licence_number;
-
-        if ($changesLicence && ! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected, DriverStatus::PendingReview])) {
-            return response()->json([
-                'message' => 'To change your licence number, upload your renewed licence with its number. E-tiGo updates it once the licence is approved.',
-                'errors' => ['licence_number' => ['Upload the renewed licence to change the number.']],
-            ], 422);
         }
 
         $driverFields = array_filter(
@@ -208,20 +208,24 @@ class OnboardingController extends Controller
         // so renewing never leaves the driver or the car without papers; a
         // pending or rejected upload of the same type is replaced. A paper
         // operations withdrew is kept: it is why the driver is blocked.
-        $existing = $driver->documents()
-            ->where('type', $type)
-            ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Rejected])
-            ->whereNull('revoked_at')
-            ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
-            ->first();
-
-        $oldFilePath = $existing?->file_path;
+        $oldFilePaths = [];
 
         try {
-            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing, $type, $vehicleId) {
-                if ($existing) {
-                    $existing->delete();
-                }
+            $document = DB::transaction(function () use ($driver, $request, $path, $file, $type, $vehicleId, &$oldFilePaths) {
+                // One upload per driver at a time, so two quick uploads can't
+                // both stay pending; every earlier pending or rejected upload
+                // for the slot goes.
+                Driver::lockForUpdate()->find($driver->id);
+
+                $superseded = $driver->documents()
+                    ->where('type', $type)
+                    ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Rejected])
+                    ->whereNull('revoked_at')
+                    ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
+                    ->get();
+
+                $oldFilePaths = $superseded->pluck('file_path')->filter()->all();
+                $superseded->each->delete();
 
                 return $driver->documents()->create([
                     'vehicle_id' => $vehicleId,
@@ -242,8 +246,8 @@ class OnboardingController extends Controller
             throw $e;
         }
 
-        if ($oldFilePath) {
-            Storage::disk(config('filesystems.uploads'))->delete($oldFilePath);
+        if ($oldFilePaths !== []) {
+            Storage::disk(config('filesystems.uploads'))->delete($oldFilePaths);
         }
 
         AuditLog::record($document, 'document_uploaded', $user);

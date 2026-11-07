@@ -804,7 +804,9 @@ it('lets drivers pick onboarding or live cities before they apply, and not after
         ->assertJsonPath('message', 'Your city can only be changed before you submit your application. Contact support to move city.');
 
     // Other profile changes still work (a licence number now comes with a renewed licence).
+    $driver->user->update(['first_name' => 'Before']);
     ($this->as)($token)->putJson('/api/v1/driver/profile', ['first_name' => 'Ade', 'city_id' => $abuja->id])->assertOk();
+    expect($driver->user->fresh()->first_name)->toBe('Ade');
 });
 
 it('keeps drivers offline until their city launches', function () {

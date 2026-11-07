@@ -119,8 +119,8 @@
             <div style="width: 28px; height: 28px; background-color: #fee2e2; border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;">&#9888;</div>
         </td>
         <td>
-            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Don't let an expired document pause your rides</p>
-            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.</p>
+            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">{{ ($blocksDriving ?? false) ? "Don't let an expired document pause your rides" : 'Keep your profile up to date' }}</p>
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">@if($blocksDriving ?? false)You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.@else Keep your records up to date: upload the renewed document in time for review.@endif</p>
         </td>
     </tr>
     </table>

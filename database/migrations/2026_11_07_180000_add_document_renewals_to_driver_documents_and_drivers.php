@@ -25,15 +25,23 @@ return new class extends Migration
 
         Schema::table('drivers', function (Blueprint $table) {
             $table->timestamp('documents_blocked_at')->nullable()->after('suspension_reason');
-            $table->string('documents_block_reason', 500)->nullable()->after('documents_blocked_at');
+            // A withdrawal's reason is up to 500 characters on top of the wording.
+            $table->text('documents_block_reason')->nullable()->after('documents_blocked_at');
             $table->index('documents_blocked_at');
         });
 
-        // Papers that already got the one-off reminder (PR #160) carry on
-        // from the step it stood for, so nobody is told twice.
+        // Papers that already got the one-off reminder (PR #160, sent from 7
+        // days before expiry) carry on from the step it stood for, counted
+        // in Lagos days, so nobody is told the same thing twice.
+        $sentOn = "DATE(expiry_reminder_sent_at AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Lagos')";
         DB::table('driver_documents')
             ->whereNotNull('expiry_reminder_sent_at')
-            ->update(['expiry_reminder_stage' => DB::raw('CASE WHEN expires_at < DATE(expiry_reminder_sent_at) THEN -1 ELSE 7 END')]);
+            ->whereNotNull('expires_at')
+            ->update(['expiry_reminder_stage' => DB::raw("CASE
+                WHEN expires_at < {$sentOn} THEN -1
+                WHEN expires_at = {$sentOn} THEN 0
+                WHEN expires_at = {$sentOn} + 1 THEN 1
+                ELSE 7 END")]);
     }
 
     public function down(): void
