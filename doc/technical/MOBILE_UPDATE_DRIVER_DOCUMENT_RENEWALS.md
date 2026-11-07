@@ -1,7 +1,7 @@
 # Driver Document Renewals: Driver App Updates
 
 **Date:** November 7, 2026  
-**Backend:** branch `feature/driver-document-renewals`; live on staging once merged  
+**Backend:** PR #162 (`feature/driver-document-renewals`); live on staging once merged  
 **Prepared for:** Driver app team. **Passenger app: no changes.**
 
 Drivers renew their papers when the date printed on them runs out, not every year. Nigerian licences run 3 or 5 years. A renewal is a document check by E-tiGo operations, **not a new KYC**: the driver doesn't redo NIN, licence verification or the selfie, and keeps their account, ratings and earnings.

@@ -1,7 +1,7 @@
 # Driver Document Renewals: Admin Dashboard Updates
 
 **Date:** November 7, 2026  
-**Backend:** branch `feature/driver-document-renewals`; live on staging once merged  
+**Backend:** PR #162 (`feature/driver-document-renewals`); live on staging once merged  
 **Prepared for:** Admin dashboard team.
 
 Drivers now renew papers when the date on them runs out, not yearly. A renewal is a **document check, not a new KYC**. While a renewal is checked, the approved paper stays in force. An **expired driving licence takes the driver off the road** from the day after expiry, until operations approve the renewed licence. Operations can also **withdraw** a licence found invalid, which blocks at once. Government ID expiry only reminds.
