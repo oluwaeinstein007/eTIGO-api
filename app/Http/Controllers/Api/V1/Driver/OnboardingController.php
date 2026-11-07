@@ -59,6 +59,7 @@ class OnboardingController extends Controller
             'driver' => new DriverResource($driver),
             'onboarding_complete' => $onboardingComplete,
             'can_submit' => $onboardingComplete && \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected]),
+            'required_documents' => $requiredDocTypes,
             'missing_documents' => array_values($missingDocTypes),
             'has_vehicle_ownership_type' => $hasVehicleOwnershipType,
             'vehicle_ownership_type' => $driver->vehicle_ownership_type,
