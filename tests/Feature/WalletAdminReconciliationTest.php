@@ -25,6 +25,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 beforeEach(function () {
+    // Midday, so "yesterday" is the same calendar day in UTC and in Lagos
+    // (reports cover Lagos days). Run between 23:00 and 00:00 UTC, an event
+    // stamped yesterday in UTC fell on today in Lagos and the report missed it.
+    $this->now = now()->setTime(12, 0);
+    $this->travelTo($this->now);
+
     $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\SystemAccountSeeder']);
     CommissionConfig::factory()->create(['rate' => 0.2000]);
 
@@ -87,7 +93,7 @@ test('DailyReconciliationJob reports a clean day when every top-up and payout we
             'x-paystack-signature' => hash_hmac('sha512', json_encode($payload), 'test_secret_key'),
         ])->assertOk();
     }
-    $this->travelBack();
+    $this->travelTo($this->now);
 
     (new DailyReconciliationJob(now()->subDay()->toDateString()))->handle();
 
@@ -153,7 +159,7 @@ test('DailyReconciliationJob does not ask Paystack about a payout whose webhook 
     $this->postJson('/api/v1/webhooks/paystack', $payload, [
         'x-paystack-signature' => hash_hmac('sha512', json_encode($payload), 'test_secret_key'),
     ])->assertOk();
-    $this->travelBack();
+    $this->travelTo($this->now);
 
     $gateway = Mockery::mock(WalletGateway::class);
     $gateway->shouldNotReceive('verifyTransfer');
