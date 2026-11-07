@@ -17,7 +17,7 @@ An audit of every email/push notification in the backend found several email tem
 | Driver onboarding received | Driver completes registration (if they gave an email) | `{FRONTEND_URL}/driver/application` | Driver app — confirm this route exists |
 | Account deactivated | Admin deactivates an admin account, **or** a driver is permanently deactivated after a compliance review | No link (informational only) | None — no action needed |
 | Payment receipt | A ride payment is captured — cash, wallet, card, or bank transfer | `{FRONTEND_URL}/payments/{reference}` | Passenger app — confirm this route exists |
-| Driver document expiring | New daily job (06:00 Lagos) catches approved documents expiring within 7 days | `{FRONTEND_URL}/driver/documents` | Driver app — confirm this route exists |
+| Driver document expiring | Daily job (06:00 Lagos): 30, 14, 7 and 1 days before expiry, on the day, and once expired, with a matching push (updated 7 Nov 2026, see `MOBILE_UPDATE_DRIVER_DOCUMENT_RENEWALS.md`) | `{FRONTEND_URL}/driver/documents` | Driver app — confirm this route exists |
 
 `{FRONTEND_URL}` must be set to the deployed frontend origin before these emails go out for real — it isn't set in `.env.example`, and if it's left unset in an environment, every link above falls back to `http://localhost:3000/...`. Confirm the actual deployed value with backend/DevOps.
 

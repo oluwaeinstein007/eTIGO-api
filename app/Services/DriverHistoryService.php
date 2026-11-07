@@ -30,6 +30,9 @@ class DriverHistoryService
         'driver_reactivated' => 'Reactivated',
         'driver_onboarding_and_kyc_completed_by_admin' => 'Onboarding and KYC completed by an admin',
         'driver_city_changed' => 'City changed',
+        'driver_documents_blocked' => "Can't drive: driving licence not valid",
+        'driver_documents_unblocked' => 'Can drive again: driving licence approved',
+        'licence_number_changed' => 'Licence number changed',
     ];
 
     private const VEHICLE_EVENTS = [
@@ -42,6 +45,9 @@ class DriverHistoryService
     private const DOCUMENT_EVENTS = [
         'document_approved' => 'Document approved',
         'document_rejected' => 'Document rejected',
+        'document_revoked' => 'Document withdrawn',
+        'document_replaced' => 'Document renewed',
+        'document_details_updated' => 'Document details corrected',
     ];
 
     /**
@@ -149,6 +155,7 @@ class DriverHistoryService
             'vehicle_unmarked_fleet' => [['is_fleet' => true], ['is_fleet' => false]],
             'document_approved' => [['status' => 'pending'], ['status' => 'approved']],
             'document_rejected' => [['status' => 'pending'], ['status' => 'rejected']],
+            'document_revoked' => [['status' => 'approved'], ['status' => 'rejected']],
             default => [[], []],
         };
 
@@ -166,7 +173,7 @@ class DriverHistoryService
      */
     private function present(array $values, Collection $cities, Collection $classes): ?array
     {
-        $shown = array_intersect_key($values, array_flip(['status', 'kyc_status', 'fuel_type', 'is_fleet']));
+        $shown = array_intersect_key($values, array_flip(['status', 'kyc_status', 'fuel_type', 'is_fleet', 'expires_at', 'licence_number_last4', 'document_number_last4']));
 
         if (array_key_exists('city_id', $values)) {
             $shown['city'] = $values['city_id'] === null ? null : [
@@ -199,7 +206,13 @@ class DriverHistoryService
             $event === 'driver_city_changed' && isset($new['city']['name']) => 'City changed'.$from('city')." to {$new['city']['name']}",
             $event === 'vehicle_class_changed' && isset($new['vehicle_class']['name']) => 'Vehicle class changed'.$from('vehicle_class')." to {$new['vehicle_class']['name']}",
             $event === 'vehicle_fuel_type_changed' && $fuel($new) !== null => 'Fuel type changed'.($fuel($old) !== null ? " from {$fuel($old)}" : '')." to {$fuel($new)}",
-            isset(self::DOCUMENT_EVENTS[$event]) && isset($document['type_label']) => $document['type_label'].($event === 'document_approved' ? ' approved' : ' rejected'),
+            isset(self::DOCUMENT_EVENTS[$event]) && isset($document['type_label']) => $document['type_label'].' '.match ($event) {
+                'document_approved' => 'approved',
+                'document_revoked' => 'withdrawn',
+                'document_replaced' => 'renewed',
+                'document_details_updated' => 'details corrected',
+                default => 'rejected',
+            },
             default => self::DRIVER_EVENTS[$event] ?? self::VEHICLE_EVENTS[$event] ?? self::DOCUMENT_EVENTS[$event],
         };
     }

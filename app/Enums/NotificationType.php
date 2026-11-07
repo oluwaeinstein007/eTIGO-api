@@ -74,6 +74,12 @@ enum NotificationType: string
     case VehicleUnblocked = 'vehicle_unblocked';
     case MaintenanceRecordReviewed = 'maintenance_record_reviewed';
 
+    // Driver document renewals
+    case DocumentExpiring = 'document_expiring';
+    case DocumentReviewed = 'document_reviewed';
+    case DriverDocumentsBlocked = 'driver_documents_blocked';
+    case DriverDocumentsUnblocked = 'driver_documents_unblocked';
+
     // Repair and service requests
     case RepairRequestScheduled = 'repair_request_scheduled';
     case RepairRequestCompleted = 'repair_request_completed';
@@ -145,6 +151,10 @@ enum NotificationType: string
             self::VehicleBlocked => 'You Can\'t Go Online',
             self::VehicleUnblocked => 'You Can Go Online Again',
             self::MaintenanceRecordReviewed => 'Maintenance Record Checked',
+            self::DocumentExpiring => 'Document Expiring',
+            self::DocumentReviewed => 'Document Checked',
+            self::DriverDocumentsBlocked => 'You Can\'t Go Online',
+            self::DriverDocumentsUnblocked => 'You Can Go Online Again',
             self::RepairRequestScheduled => 'Workshop Visit Booked',
             self::RepairRequestCompleted => 'Vehicle Service Complete',
             self::RepairRequestCancelled => 'Service Request Cancelled',
@@ -207,7 +217,11 @@ enum NotificationType: string
             self::VehicleMaintenanceDue,
             self::VehicleBlocked,
             self::VehicleUnblocked,
-            self::MaintenanceRecordReviewed => NotificationCategory::Compliance,
+            self::MaintenanceRecordReviewed,
+            self::DocumentExpiring,
+            self::DocumentReviewed,
+            self::DriverDocumentsBlocked,
+            self::DriverDocumentsUnblocked => NotificationCategory::Compliance,
 
             self::TierUpgrade => NotificationCategory::Gamification,
 

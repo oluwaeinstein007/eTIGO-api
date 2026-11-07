@@ -16,10 +16,14 @@
 {{-- Body --}}
 <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #18181b;">Hi {{ $userName }},</p>
 <p style="margin: 0 0 24px 0; font-size: 15px; color: #4b5563; line-height: 1.6;">
-    @if($isExpired ?? false)
+    @if(!empty($reminderLine))
+        {{ $reminderLine }}
+    @elseif($isExpired ?? false)
         The {{ strtolower($documentType) }} on your Etigo driver profile expired on {{ $expiryDate }}. Please upload the renewed document to keep driving.
+    @elseif(($daysRemaining ?? 0) === 0)
+        The {{ strtolower($documentType) }} on your Etigo driver profile expires today. Please upload the renewed document now.
     @else
-        The {{ strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} days. Please renew it and upload the updated document before {{ $expiryDate }}.
+        The {{ strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} {{ $daysRemaining === 1 ? 'day' : 'days' }}. Please renew it and upload the updated document before {{ $expiryDate }}.
     @endif
 </p>
 
@@ -38,7 +42,7 @@
     </tr>
     </table>
     <p style="margin: 12px 0 4px 0; font-size: 16px; font-weight: 700; color: #b45309;">{{ ($isExpired ?? false) ? 'Expired' : 'Expires' }} {{ $expiryDate }}</p>
-    <p style="margin: 0; font-size: 13px; color: #92400e;">{{ ($isExpired ?? false) ? 'Already expired' : $daysRemaining.' days remaining' }} @if(!empty($documentEnding))&middot; Ending in {{ $documentEnding }}@endif</p>
+    <p style="margin: 0; font-size: 13px; color: #92400e;">{{ ($isExpired ?? false) ? 'Already expired' : (($daysRemaining ?? 0) === 0 ? 'Last day' : $daysRemaining.' '.($daysRemaining === 1 ? 'day' : 'days').' remaining') }} @if(!empty($documentEnding))&middot; Ending in {{ $documentEnding }}@endif</p>
 </td>
 </tr>
 </table>
@@ -115,8 +119,8 @@
             <div style="width: 28px; height: 28px; background-color: #fee2e2; border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;">&#9888;</div>
         </td>
         <td>
-            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">Don't let an expired document pause your rides</p>
-            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.</p>
+            <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">{{ ($blocksDriving ?? false) ? "Don't let an expired document pause your rides" : 'Keep your profile up to date' }}</p>
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">@if($blocksDriving ?? false)You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.@else Keep your records up to date: upload the renewed document in time for review.@endif</p>
         </td>
     </tr>
     </table>

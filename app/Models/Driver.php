@@ -4,12 +4,14 @@ namespace App\Models;
 
 use App\Enums\DisputeOutcome;
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\DriverStatus;
 use App\Enums\FleetAgreementStatus;
 use App\Enums\KycStatus;
 use App\Enums\PayoutPreference;
 use App\Enums\VehicleOwnershipType;
 use App\Events\DriverStatusUpdated;
+use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverShiftService;
 use App\Services\ScheduledRideReservationService;
 use App\Traits\HasReferenceNumber;
@@ -41,6 +43,8 @@ class Driver extends Model
         'approved_at',
         'suspended_at',
         'suspension_reason',
+        'documents_blocked_at',
+        'documents_block_reason',
         'reference_number',
     ];
 
@@ -101,6 +105,7 @@ class Driver extends Model
             'online_since' => 'datetime',
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
+            'documents_blocked_at' => 'datetime',
             'kyc_verified_at' => 'datetime',
         ];
     }
@@ -198,6 +203,15 @@ class Driver extends Model
             ->whereNull('resolved_at');
     }
 
+    /**
+     * An expired or withdrawn driving licence keeps the driver off the road
+     * until a renewed one is approved.
+     */
+    public function isDocumentsBlocked(): bool
+    {
+        return $this->documents_blocked_at !== null;
+    }
+
     public function isApproved(): bool
     {
         return $this->status === DriverStatus::Approved;
@@ -285,14 +299,44 @@ class Driver extends Model
     }
 
     /**
-     * Drivers new ride offers may go to, as far as their car allows: its
-     * papers are not expired past the grace period, and a shared car's
-     * driver is inside their shift (before the offer cut-off).
+     * Drivers new ride offers may go to, as far as their papers allow: the
+     * car's papers and the driver's own driving licence are not expired past
+     * the grace period, and a shared car's driver is inside their shift
+     * (before the offer cut-off).
      */
     public function scopeDispatchable(Builder $query): void
     {
-        $query->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
+        $query->whereNull('documents_blocked_at')
+            ->licenceInDate()
+            ->whereHas('vehicle', fn (Builder $v) => $v->whereNull('blocked_at'));
         app(DriverShiftService::class)->constrainDispatchable($query);
+    }
+
+    /**
+     * Leaves out drivers whose driving licence has run out past the grace
+     * period, checked against today's date rather than the stored block, so
+     * offers stop the moment the licence lapses and not at the next block
+     * check. Same rule as DriverDocumentComplianceService::blockReason();
+     * drivers with no dated licence are left in.
+     */
+    public function scopeLicenceInDate(Builder $query): void
+    {
+        $settings = AppSetting::driverDocuments();
+
+        if (! $settings['block_on_expired_licence']) {
+            return;
+        }
+
+        // In date while the expiry date is on or after this (blocked from
+        // the day after expiry plus the grace days).
+        $validFrom = app(DriverDocumentComplianceService::class)->today()->subDays($settings['licence_grace_days'])->toDateString();
+        $licences = fn (Builder $d) => $d->where('type', DocumentType::DrivingLicence)
+            ->where('status', DocumentStatus::Approved)
+            ->whereNull('revoked_at');
+
+        $query->where(fn (Builder $q) => $q
+            ->whereDoesntHave('documents', fn (Builder $d) => $licences($d)->whereNotNull('expires_at'))
+            ->orWhereHas('documents', fn (Builder $d) => $licences($d)->where(fn (Builder $d) => $d->whereNull('expires_at')->orWhereDate('expires_at', '>=', $validFrom))));
     }
 
     /**
@@ -303,6 +347,7 @@ class Driver extends Model
     public function scopeShiftEligible(Builder $query): void
     {
         $query->where('status', DriverStatus::Approved)
+            ->whereNull('documents_blocked_at')
             ->whereHas('user', fn (Builder $q) => $q->where('is_active', true))
             ->whereDoesntHave('vehicle', fn (Builder $q) => $q->where('shift_mode', false));
     }

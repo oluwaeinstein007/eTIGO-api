@@ -9,6 +9,7 @@ use App\Http\Resources\DriverResource;
 use App\Http\Resources\DriverShiftResource;
 use App\Models\AuditLog;
 use App\Models\Ride;
+use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverEarningsService;
 use App\Services\DriverLocationService;
 use App\Services\DriverShiftService;
@@ -24,6 +25,7 @@ class DriverController extends Controller
         private DriverEarningsService $earningsService,
         private DriverShiftService $shiftService,
         private VehicleMaintenanceService $maintenanceService,
+        private DriverDocumentComplianceService $documentCompliance,
     ) {}
 
     public function toggleOnline(Request $request): JsonResponse
@@ -36,6 +38,7 @@ class DriverController extends Controller
         $user = $request->user();
         $driver = $user->driver;
         $shift = null;
+        $documentNotice = null;
         $vehicleNotice = null;
 
         if (! $driver) {
@@ -76,7 +79,11 @@ class DriverController extends Controller
             $vehicleCheck = $driver->vehicle !== null ? $this->maintenanceService->goOnlineCheck($driver->vehicle) : ['blocked' => null, 'notice' => null];
             $vehicleNotice = $vehicleCheck['notice'];
 
-            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance || $cityNotLaunched || $shiftCheck['errors'] !== [] || $vehicleCheck['blocked'] !== null) {
+            // An expired (past the grace period) or withdrawn driving licence.
+            $documentCheck = $this->documentCompliance->goOnlineCheck($driver);
+            $documentNotice = $documentCheck['notice'];
+
+            if (! $driver->canGoOnline() || $hasExcessiveNegativeBalance || $cityNotLaunched || $shiftCheck['errors'] !== [] || $vehicleCheck['blocked'] !== null || $documentCheck['blocked'] !== null) {
                 $reasons = $shiftCheck['errors'];
 
                 if (! $driver->isApproved()) {
@@ -101,6 +108,10 @@ class DriverController extends Controller
 
                 if ($vehicleCheck['blocked'] !== null) {
                     $reasons[] = $vehicleCheck['blocked'];
+                }
+
+                if ($documentCheck['blocked'] !== null) {
+                    $reasons[] = $documentCheck['blocked'];
                 }
 
                 if ($hasExcessiveNegativeBalance) {
@@ -167,6 +178,8 @@ class DriverController extends Controller
             'shift' => $shift !== null ? new DriverShiftResource($shift->fresh('vehicle')) : null,
             // Papers expiring or in their grace period.
             'vehicle_notice' => $vehicleNotice,
+            // Driving licence expiring within 7 days or in its grace period.
+            'document_notice' => $documentNotice,
             // Paused city: only trips already booked come through.
             'city_notice' => match (true) {
                 ! $cityPaused => null,

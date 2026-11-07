@@ -393,6 +393,12 @@ class RideService
                 return 'You already have an active ride. Complete it before accepting another.';
             }
 
+            // Checked under the driver lock taken above: a licence withdrawn
+            // while the offer was out stops the accept.
+            if (Driver::where('user_id', $driver->id)->whereNotNull('documents_blocked_at')->exists()) {
+                return "You can't take rides until your renewed driving licence is approved.";
+            }
+
             $ride->driver_id = $driver->id;
             $ride->save();
 
@@ -512,6 +518,15 @@ class RideService
             if ($blockedVehicle !== null) {
                 throw ValidationException::withMessages([
                     'driver_id' => ["This driver's car can't be driven: {$blockedVehicle->block_reason}"],
+                ]);
+            }
+
+            // An expired or withdrawn driving licence, likewise.
+            $driverProfile = $driver->driver;
+
+            if ($driverProfile?->isDocumentsBlocked()) {
+                throw ValidationException::withMessages([
+                    'driver_id' => ["This driver can't drive until a renewed licence is approved: {$driverProfile->documents_block_reason}"],
                 ]);
             }
 

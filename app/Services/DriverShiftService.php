@@ -635,6 +635,10 @@ class DriverShiftService
             throw ValidationException::withMessages(['driver_id' => ['Only approved drivers can be given shifts.']]);
         }
 
+        if ($driver->isDocumentsBlocked()) {
+            throw ValidationException::withMessages(['driver_id' => ["This driver can't drive until a renewed licence is approved: {$driver->documents_block_reason}"]]);
+        }
+
         if ($driver->user?->is_active === false) {
             throw ValidationException::withMessages(['driver_id' => ["This driver's account is suspended, so they can't sign in to work a shift."]]);
         }

@@ -20,6 +20,7 @@ use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\User;
+use App\Services\DriverDocumentComplianceService;
 use App\Support\UploadLinks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -133,6 +134,17 @@ class OnboardingController extends Controller
             ], 422);
         }
 
+        // Checked before anything is saved. After approval a new licence number comes with the renewed
+        // licence (POST /driver/documents), so operations check it.
+        $changesLicence = $request->filled('licence_number') && $request->input('licence_number') !== $driver->licence_number;
+
+        if ($changesLicence && ! \in_array($driver->status, [DriverStatus::Onboarding, DriverStatus::Rejected, DriverStatus::PendingReview])) {
+            return response()->json([
+                'message' => 'To change your licence number, upload your renewed licence with its number. E-tiGo updates it once the licence is approved.',
+                'errors' => ['licence_number' => ['Upload the renewed licence to change the number.']],
+            ], 422);
+        }
+
         $userFields = $request->only(['first_name', 'last_name', 'phone']);
         if (! empty($userFields)) {
             if (isset($userFields['phone']) && $userFields['phone'] !== $user->phone) {
@@ -192,22 +204,28 @@ class OnboardingController extends Controller
             return response()->json(['message' => 'File upload failed. Please try again.'], 503);
         }
 
-        // An approved vehicle paper stays valid until its replacement is
-        // approved, so renewing never leaves the car without papers; a
-        // pending or rejected upload of the same type is replaced.
-        $existing = $driver->documents()
-            ->where('type', $type)
-            ->whereIn('status', $vehicleId !== null ? ['pending', 'rejected'] : ['pending', 'approved', 'rejected'])
-            ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
-            ->first();
-
-        $oldFilePath = $existing?->file_path;
+        // An approved paper stays valid until its replacement is approved,
+        // so renewing never leaves the driver or the car without papers; a
+        // pending or rejected upload of the same type is replaced. A paper
+        // operations withdrew is kept: it is why the driver is blocked.
+        $oldFilePaths = [];
 
         try {
-            $document = DB::transaction(function () use ($driver, $request, $path, $file, $existing, $type, $vehicleId) {
-                if ($existing) {
-                    $existing->delete();
-                }
+            $document = DB::transaction(function () use ($driver, $request, $path, $file, $type, $vehicleId, &$oldFilePaths) {
+                // One upload per driver at a time, so two quick uploads can't
+                // both stay pending; every earlier pending or rejected upload
+                // for the slot goes.
+                Driver::lockForUpdate()->find($driver->id);
+
+                $superseded = $driver->documents()
+                    ->where('type', $type)
+                    ->whereIn('status', [DocumentStatus::Pending, DocumentStatus::Rejected])
+                    ->whereNull('revoked_at')
+                    ->when($vehicleId !== null, fn ($q) => $q->where(fn ($v) => $v->where('vehicle_id', $vehicleId)->orWhereNull('vehicle_id')))
+                    ->get();
+
+                $oldFilePaths = $superseded->pluck('file_path')->filter()->all();
+                $superseded->each->delete();
 
                 return $driver->documents()->create([
                     'vehicle_id' => $vehicleId,
@@ -218,6 +236,8 @@ class OnboardingController extends Controller
                     'mime_type' => $file->getMimeType(),
                     'file_size' => $file->getSize(),
                     'expires_at' => $request->validated('expires_at'),
+                    'document_number' => $request->validated('document_number'),
+                    'status' => DocumentStatus::Pending,
                 ]);
             });
         } catch (\Throwable $e) {
@@ -226,8 +246,8 @@ class OnboardingController extends Controller
             throw $e;
         }
 
-        if ($oldFilePath) {
-            Storage::disk(config('filesystems.uploads'))->delete($oldFilePath);
+        if ($oldFilePaths !== []) {
+            Storage::disk(config('filesystems.uploads'))->delete($oldFilePaths);
         }
 
         AuditLog::record($document, 'document_uploaded', $user);
@@ -249,11 +269,24 @@ class OnboardingController extends Controller
 
         $driver->loadMissing(['documents']);
         $requiredTypes = $this->getRequiredDocumentTypes($driver);
-        $uploaded = $driver->documents->keyBy(fn ($doc) => $doc->type->value);
+        $compliance = app(DriverDocumentComplianceService::class)->summary($driver);
+        $renewals = collect($compliance['documents'])->keyBy('type');
 
-        $checklist = array_map(function (string $typeValue) use ($uploaded) {
+        // One paper per type: the approved one in force while a renewal
+        // waits, otherwise the latest upload. A withdrawn paper shows only
+        // until a new one is uploaded.
+        $uploaded = $driver->documents
+            ->sortBy(fn ($doc) => [
+                $doc->status === DocumentStatus::Approved && $doc->revoked_at === null ? 1 : 0,
+                $doc->revoked_at === null ? 1 : 0,
+                $doc->created_at?->timestamp ?? 0,
+            ])
+            ->keyBy(fn ($doc) => $doc->type->value);
+
+        $checklist = array_map(function (string $typeValue) use ($uploaded, $renewals) {
             $type = DocumentType::from($typeValue);
             $doc = $uploaded->get($typeValue);
+            $entry = $renewals->get($typeValue);
 
             $status = match ($doc?->status) {
                 DocumentStatus::Approved => 'approved',
@@ -273,12 +306,19 @@ class OnboardingController extends Controller
                 'rejection_reason' => $doc?->rejection_reason,
                 'requires_expiry' => $type->requiresExpiry(),
                 'expires_at' => $doc?->expires_at?->toDateString(),
+                // Renewals: no_expiry, valid, expiring_soon or expired, and the
+                // renewed paper waiting for review (null when none).
+                'expiry_status' => $doc?->status === DocumentStatus::Approved ? ($entry['expiry_status'] ?? null) : null,
+                'days_until_expiry' => $doc?->status === DocumentStatus::Approved ? ($entry['days_until_expiry'] ?? null) : null,
+                'renewal' => $doc?->status === DocumentStatus::Approved ? ($entry['renewal'] ?? null) : null,
             ];
         }, $requiredTypes);
 
+        // Types, not rows: a renewal waiting next to its approved paper counts once.
         $validUploadsCount = $driver->documents
             ->where('status', '!==', DocumentStatus::Rejected)
             ->whereIn('type', array_map(fn ($t) => DocumentType::from($t), $requiredTypes))
+            ->unique(fn ($doc) => $doc->type->value)
             ->count();
 
         $missingDocTypes = array_diff(
@@ -291,6 +331,8 @@ class OnboardingController extends Controller
             'total_required' => count($requiredTypes),
             'total_uploaded' => $validUploadsCount,
             'can_submit' => empty($missingDocTypes),
+            // Expiry state per paper, renewals waiting for review, and the block.
+            'compliance' => $compliance,
         ]);
     }
 

@@ -7461,7 +7461,7 @@
                     "profile"
                   ]
                 },
-                "description": "Update the driver's profile information including licence number and operating city. Requires driver authentication. Only available during onboarding or when profile changes are allowed.\n\n**Multi-city:** `city_id` must be an onboarding or live city. The city can only change while the driver is in `onboarding` or `rejected`; afterwards 422 (Operations moves drivers with `PUT /admin/drivers/{driver}/city`)."
+                "description": "Update the driver's profile information including licence number and operating city. Requires driver authentication. Only available during onboarding or when profile changes are allowed.\n\n**Multi-city:** `city_id` must be an onboarding or live city. The city can only change while the driver is in `onboarding` or `rejected`; afterwards 422 (Operations moves drivers with `PUT /admin/drivers/{driver}/city`).\n\n**Licence number:** once approved (or suspended), a different `licence_number` returns 422; the number comes with the renewed licence (`POST /driver/documents` with `document_number`)."
               },
               "response": [
                 {
@@ -7630,7 +7630,7 @@
                       "key": "type",
                       "value": "driving_licence",
                       "type": "text",
-                      "description": "Required. One of: driving_licence, vehicle_registration, insurance_certificate, government_id"
+                      "description": "Required. One of: driving_licence, vehicle_registration, insurance_certificate, roadworthiness_certificate, vehicle_licence, government_id"
                     },
                     {
                       "key": "document",
@@ -7639,9 +7639,15 @@
                     },
                     {
                       "key": "expires_at",
-                      "value": "2027-12-31",
+                      "value": "2031-11-20",
                       "type": "text",
-                      "description": "Optional. Document expiry date (YYYY-MM-DD). Must be a future date."
+                      "description": "Expiry on the paper (YYYY-MM-DD, after today). Required for roadworthiness_certificate, vehicle_licence and a renewed driving_licence (must be later than the licence on file)."
+                    },
+                    {
+                      "key": "document_number",
+                      "value": "LAG99999ZZ09",
+                      "type": "text",
+                      "description": "Optional. Number printed on the paper (max 30). A renewed licence's new number becomes the driver's licence number on approval."
                     }
                   ]
                 },
@@ -7655,11 +7661,11 @@
                     "documents"
                   ]
                 },
-                "description": "Upload a KYC document (driver's licence, vehicle insurance, etc.) as multipart/form-data. Accepted formats: JPEG, PNG, PDF. Max file size: 5MB. Requires driver authentication.\n\n**Phase 2:** new types `roadworthiness_certificate` and `vehicle_licence` (send `expires_at`, required for both). Vehicle papers (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) are linked to the driver's car, and an approved one stays valid until its renewal is approved (only a pending duplicate is replaced)."
+                "description": "Upload a KYC document (driver's licence, vehicle insurance, etc.) as multipart/form-data. Accepted formats: JPEG, PNG, PDF. Max file size: 5MB. Requires driver authentication.\n\n**Phase 2:** new types `roadworthiness_certificate` and `vehicle_licence` (send `expires_at`, required for both). Vehicle papers (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) are linked to the driver's car, and an approved one stays valid until its renewal is approved (only a pending duplicate is replaced).\n\n**Renewals:** an approved paper of any type (driver or vehicle) stays valid until its renewal is approved; only a pending or rejected upload of the same type is replaced, and a withdrawn paper (`revoked_at`) is kept. A renewed `driving_licence` needs `expires_at` later than the licence on file. `document_number` comes back as the last 4 for the driver. See API_REFERENCE \"Driver Document Renewals\"."
               },
               "response": [
                 {
-                  "name": "201 \u2014 Document Uploaded",
+                  "name": "201 \u2014 Renewal Uploaded",
                   "status": "Created",
                   "code": 201,
                   "header": [
@@ -7668,7 +7674,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Document uploaded successfully.\",\n  \"document\": {\n    \"id\": \"01a14224-1649-72bd-bf93-2a336da0ac04\",\n    \"type\": \"driving_licence\",\n    \"original_filename\": \"licence.pdf\",\n    \"file_size\": 245760,\n    \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy9leGFtcGxlLnBkZg.3f9c2a7e5b1d4c8e9a0b6f2d7e4c1a95\",\n    \"expires_at\": \"2028-10-16T00:00:00.000000Z\",\n    \"status\": null,\n    \"rejection_reason\": null,\n    \"reviewed_at\": null,\n    \"created_at\": \"2026-10-16T00:37:03.000000Z\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Document uploaded successfully.\",\n  \"document\": {\n    \"id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n    \"type\": \"driving_licence\",\n    \"document_number\": \"\u2022\u2022\u2022\u2022 ZZ09\",\n    \"original_filename\": \"renewed-licence.pdf\",\n    \"file_size\": 245760,\n    \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8wMWExYjgyNC1kM2RiLTcxYWMtOTI0Yy1jODg2MGFmZTdhODUvTFRCdk1WSmhoVWl2clVvd3FRM1I1Z21xR0lIMTM4S1prMDVwaG9QaC5wZGY.2a541bce827eccab028326f82df4e99d\",\n    \"expires_at\": \"2031-11-20T00:00:00.000000Z\",\n    \"status\": \"pending\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": null,\n    \"revoked_at\": null,\n    \"created_at\": \"2026-11-07T08:00:00.000000Z\"\n  }\n}"
                 },
                 {
                   "name": "422 \u2014 Validation Error",
@@ -7681,6 +7687,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"The document field must be a file of type: jpeg, png, pdf.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"document\": [\n      \"The document field must be a file of type: jpeg, png, pdf.\"\n    ]\n  }\n}"
+                },
+                {
+                  "name": "422 \u2014 Renewal Not Later Than Licence On File",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": {\n    \"expires_at\": [\n      \"Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -7708,11 +7726,11 @@
                     "documents"
                   ]
                 },
-                "description": "List all uploaded KYC documents for the authenticated driver, with their review status. Requires driver authentication."
+                "description": "Server-driven checklist of the documents the driver must upload, set by `vehicle_ownership_type` (PR #161): `fleet_vehicle` needs 2 (driving_licence, government_id), `own_vehicle` 4 (adds vehicle_registration, insurance_certificate). One item per required type, in that order, whether uploaded or not. Driver token.\n\n**Item fields:** `id` (null until uploaded), `type`, `name`, `description` (help text for the upload screen), `status` (`not_submitted`, `under_review`, `approved`, `rejected`), `original_filename`, `file_url` (authenticated link), `rejection_reason`, `requires_expiry` (true only for `roadworthiness_certificate` and `vehicle_licence`), `expires_at` (YYYY-MM-DD).\n\n**Top level:** `total_required`, `total_uploaded` (types uploaded and not rejected), `can_submit` (every required type uploaded and not rejected; the app can enable Submit from this, and `POST /driver/onboarding/submit` still checks the rest: ownership type, vehicle, licence number, city).\n\n**Renewals (PR #162):** each item adds `expiry_status` (`no_expiry`/`valid`/`expiring_soon`/`expired`), `days_until_expiry` and `renewal` (the upload waiting for review), set for approved papers only. While a renewal waits, the item shows the approved paper in force. Top-level `compliance` gives `can_drive`, `block_reason`, `action_required` and per-paper entries. See API_REFERENCE \"Driver Document Renewals\"."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Documents List",
+                  "name": "200 \u2014 Licence Expiring, Renewal Pending",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -7721,7 +7739,31 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a14224-1649-72bd-bf93-2a336da0ac04\",\n      \"type\": \"driving_licence\",\n      \"original_filename\": \"licence.pdf\",\n      \"file_size\": 245760,\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy9leGFtcGxlLnBkZg.3f9c2a7e5b1d4c8e9a0b6f2d7e4c1a95\",\n      \"expires_at\": \"2028-10-16T00:00:00.000000Z\",\n      \"status\": \"pending\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"created_at\": \"2026-10-16T00:37:03.000000Z\"\n    }\n  ]\n}"
+                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a1b824-d3e8-729f-9ce6-5a45e6e8143e\",\n      \"type\": \"driving_licence\",\n      \"name\": \"Driving licence\",\n      \"description\": \"Front and back, clear and valid\",\n      \"status\": \"approved\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8yYjA2YmQ2Yy0xMTdmLTNkOWYtOGVmMC1mOGRhOWFkMWM5OTMucGRm.4f6098a91e553459aca27383394ab971\",\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": \"2026-11-20\",\n      \"expiry_status\": \"expiring_soon\",\n      \"days_until_expiry\": 13,\n      \"renewal\": {\n        \"document_id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n        \"status\": \"pending\",\n        \"expires_at\": \"2031-11-20\",\n        \"rejection_reason\": null,\n        \"uploaded_at\": \"2026-11-07T08:00:00+00:00\"\n      }\n    },\n    {\n      \"id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n      \"type\": \"government_id\",\n      \"name\": \"Government ID\",\n      \"description\": \"NIN slip, passport or voter\u2019s card\",\n      \"status\": \"approved\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8zZmZkZTA1NS1hZjY3LTM3ZWQtODQ0OC0xZjExOGU0OWY3MDYucGRm.4209fb7432da61a272b86cd0a3537f1e\",\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": \"no_expiry\",\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    },\n    {\n      \"id\": null,\n      \"type\": \"vehicle_registration\",\n      \"name\": \"Vehicle registration\",\n      \"description\": \"Proof of ownership or registration\",\n      \"status\": \"not_submitted\",\n      \"original_filename\": null,\n      \"file_url\": null,\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    },\n    {\n      \"id\": null,\n      \"type\": \"insurance_certificate\",\n      \"name\": \"Insurance certificate\",\n      \"description\": \"Valid commercial insurance certificate\",\n      \"status\": \"not_submitted\",\n      \"original_filename\": null,\n      \"file_url\": null,\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    }\n  ],\n  \"total_required\": 4,\n  \"total_uploaded\": 2,\n  \"can_submit\": false,\n  \"compliance\": {\n    \"can_drive\": true,\n    \"block_reason\": null,\n    \"action_required\": false,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": \"01a1b824-d3e8-729f-9ce6-5a45e6e8143e\",\n        \"expires_at\": \"2026-11-20\",\n        \"expiry_status\": \"expiring_soon\",\n        \"days_until_expiry\": 13,\n        \"blocks_driving\": true,\n        \"revoked_at\": null,\n        \"renewal\": {\n          \"document_id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n          \"status\": \"pending\",\n          \"expires_at\": \"2031-11-20\",\n          \"rejection_reason\": null,\n          \"uploaded_at\": \"2026-11-07T08:00:00+00:00\"\n        },\n        \"action_required\": false\n      },\n      {\n        \"type\": \"government_id\",\n        \"label\": \"Government ID\",\n        \"document_id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n        \"expires_at\": null,\n        \"expiry_status\": \"no_expiry\",\n        \"days_until_expiry\": null,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      }\n    ]\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Fleet Driver Onboarding (2 Required)",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a1b83a-eb15-71cb-9d66-78c8dda088aa\",\n      \"type\": \"driving_licence\",\n      \"name\": \"Driving licence\",\n      \"description\": \"Front and back, clear and valid\",\n      \"status\": \"under_review\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy85M2QyMDU5MS03NTk5LTM2NWYtOTcyOC0zNGNmMWIyODg5ODQucGRm.8a5136b91fa6834f9e0d1d4d864a927d\",\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    },\n    {\n      \"id\": null,\n      \"type\": \"government_id\",\n      \"name\": \"Government ID\",\n      \"description\": \"NIN slip, passport or voter\u2019s card\",\n      \"status\": \"not_submitted\",\n      \"original_filename\": null,\n      \"file_url\": null,\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    }\n  ],\n  \"total_required\": 2,\n  \"total_uploaded\": 1,\n  \"can_submit\": false,\n  \"compliance\": {\n    \"can_drive\": true,\n    \"block_reason\": null,\n    \"action_required\": false,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": null,\n        \"expires_at\": null,\n        \"expiry_status\": null,\n        \"days_until_expiry\": null,\n        \"blocks_driving\": true,\n        \"revoked_at\": null,\n        \"renewal\": {\n          \"document_id\": \"01a1b83a-eb15-71cb-9d66-78c8dda088aa\",\n          \"status\": \"pending\",\n          \"expires_at\": null,\n          \"rejection_reason\": null,\n          \"uploaded_at\": \"2026-11-07T08:00:00+00:00\"\n        },\n        \"action_required\": false\n      }\n    ]\n  }\n}"
+                },
+                {
+                  "name": "200 \u2014 Own Car, Registration Rejected",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a1b83a-eb3d-70d2-b030-bf32afb4f844\",\n      \"type\": \"driving_licence\",\n      \"name\": \"Driving licence\",\n      \"description\": \"Front and back, clear and valid\",\n      \"status\": \"approved\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy84NWFhYmUxZi04ZDEwLTM0MzItYjgyMy0zNTFkMjg5ZjFlNTAucGRm.9143aac321072929953dd3d40f080a6c\",\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": \"2029-03-31\",\n      \"expiry_status\": \"valid\",\n      \"days_until_expiry\": 875,\n      \"renewal\": null\n    },\n    {\n      \"id\": \"01a1b83a-eb3e-72d1-84ca-92e573c80e45\",\n      \"type\": \"government_id\",\n      \"name\": \"Government ID\",\n      \"description\": \"NIN slip, passport or voter\u2019s card\",\n      \"status\": \"approved\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8wNWFlMDAzMC0yMjk5LTM3YzUtOWY4ZS03ZTQ0YmJlZmQyZGEucGRm.b261dbcbf21dc953783ccc4dd1ecc3fa\",\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": \"no_expiry\",\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    },\n    {\n      \"id\": \"01a1b83a-eb3f-70c0-90b6-98a80c34f3cf\",\n      \"type\": \"vehicle_registration\",\n      \"name\": \"Vehicle registration\",\n      \"description\": \"Proof of ownership or registration\",\n      \"status\": \"rejected\",\n      \"original_filename\": \"paper.pdf\",\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy9lZWZiOWMyMy0wODFiLTM1MWYtOGNhMy1kYjhmYWIyMTBmYzYucGRm.c47a592626c8e88f732c29c16d0ecada\",\n      \"rejection_reason\": \"The plate number is not readable.\",\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    },\n    {\n      \"id\": null,\n      \"type\": \"insurance_certificate\",\n      \"name\": \"Insurance certificate\",\n      \"description\": \"Valid commercial insurance certificate\",\n      \"status\": \"not_submitted\",\n      \"original_filename\": null,\n      \"file_url\": null,\n      \"rejection_reason\": null,\n      \"requires_expiry\": false,\n      \"expires_at\": null,\n      \"expiry_status\": null,\n      \"days_until_expiry\": null,\n      \"renewal\": null\n    }\n  ],\n  \"total_required\": 4,\n  \"total_uploaded\": 2,\n  \"can_submit\": false,\n  \"compliance\": {\n    \"can_drive\": true,\n    \"block_reason\": null,\n    \"action_required\": true,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": \"01a1b83a-eb3d-70d2-b030-bf32afb4f844\",\n        \"expires_at\": \"2029-03-31\",\n        \"expiry_status\": \"valid\",\n        \"days_until_expiry\": 875,\n        \"blocks_driving\": true,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      },\n      {\n        \"type\": \"vehicle_registration\",\n        \"label\": \"Vehicle registration\",\n        \"document_id\": null,\n        \"expires_at\": null,\n        \"expiry_status\": null,\n        \"days_until_expiry\": null,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": {\n          \"document_id\": \"01a1b83a-eb3f-70c0-90b6-98a80c34f3cf\",\n          \"status\": \"rejected\",\n          \"expires_at\": null,\n          \"rejection_reason\": \"The plate number is not readable.\",\n          \"uploaded_at\": \"2026-11-07T08:00:00+00:00\"\n        },\n        \"action_required\": true\n      },\n      {\n        \"type\": \"government_id\",\n        \"label\": \"Government ID\",\n        \"document_id\": \"01a1b83a-eb3e-72d1-84ca-92e573c80e45\",\n        \"expires_at\": null,\n        \"expiry_status\": \"no_expiry\",\n        \"days_until_expiry\": null,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      }\n    ]\n  }\n}"
                 }
               ]
             },
@@ -8682,7 +8724,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).",
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).\n\n**Driving licence:** `document_notice` warns only when the licence expires within 7 days or is in its grace period (in that window it says the renewal is being checked if one is pending); otherwise `null`, even with a renewal pending. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"battery_level_percent\": 64\n}"
@@ -8748,6 +8790,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Cannot go online.\",\n  \"reasons\": [\n    \"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it.\"\n  ]\n}"
+                },
+                {
+                  "name": "422 \u2014 Driving Licence Not Valid",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Cannot go online.\",\n  \"reasons\": [\n    \"Your driving licence was withdrawn by E-tiGo: FRSC reports this licence as suspended. Upload your renewed licence; you can go online once E-tiGo approves it.\"\n  ]\n}"
                 }
               ]
             },
@@ -13883,7 +13937,7 @@
                     }
                   ]
                 },
-                "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status."
+                "description": "Returns 422 with message 'Driver can only be reviewed when in pending review status.' if the driver is not in pending_review status.\n\n**Document expiry (PR #162):** approving the application also approves its pending papers, so they must meet the single-approval rules: 422 `Review these documents before approving the driver.` with `errors.documents` (a licence, roadworthiness or vehicle licence without an expiry date, or a paper already expired). Approve the licence with `expires_at` first."
               },
               "response": [
                 {
@@ -13909,6 +13963,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Driver is not in a reviewable state.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Documents Need Review",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Review these documents before approving the driver.\",\n  \"errors\": {\n    \"documents\": [\n      \"Driving licence: enter its expiry date (approve the document with expires_at).\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -14002,7 +14068,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"action\": \"approve\",\n  \"expires_at\": \"2027-10-23\"\n}"
+                  "raw": "{\n  \"action\": \"approve\",\n  \"expires_at\": \"2031-11-20\",\n  \"document_number\": \"LAG99999ZZ09\"\n}"
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/drivers/:driverId/documents/:documentId/review",
@@ -14030,11 +14096,11 @@
                     }
                   ]
                 },
-                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n**Phase 2:** `expires_at` (optional) confirms or corrects the expiry date on the paper. Approving a renewed vehicle paper replaces the car's earlier one and lifts an expired-papers block."
+                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n`expires_at` confirms or corrects the expiry date on the paper and is **required** for a driving licence, roadworthiness certificate or vehicle licence that has none; an already-expired date is refused, and a renewed licence must expire after the licence on file (422). 409 if another admin reviewed it first. `document_number` confirms or corrects the number; on a driving licence it becomes the driver's licence number.\n\nApproving a renewal replaces the earlier approved paper of that type (vehicle or driver papers; never one that runs longer) and lifts an expired-papers or expired-licence block. Working drivers get a `document_reviewed` push. The response adds `compliance`."
               },
               "response": [
                 {
-                  "name": "200 \u2014 Document Approved",
+                  "name": "200 \u2014 Renewal Approved",
                   "status": "OK",
                   "code": 200,
                   "header": [
@@ -14043,7 +14109,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Document approved.\",\n  \"document\": {\n    \"id\": \"f6a7b8c9-d0e1-2345-fabc-456789012345\",\n    \"type\": \"drivers_licence\",\n    \"status\": \"approved\"\n  }\n}"
+                  "body": "{\n  \"message\": \"Document approved successfully.\",\n  \"document\": {\n    \"id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n    \"type\": \"driving_licence\",\n    \"document_number\": \"LAG99999ZZ09\",\n    \"original_filename\": \"renewed-licence.pdf\",\n    \"file_size\": 245760,\n    \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8wMWExYjgyNC1kM2RiLTcxYWMtOTI0Yy1jODg2MGFmZTdhODUvTFRCdk1WSmhoVWl2clVvd3FRM1I1Z21xR0lIMTM4S1prMDVwaG9QaC5wZGY.b094a4dd6ab81ad154fb69ddb59b4444\",\n    \"expires_at\": \"2031-11-20T00:00:00.000000Z\",\n    \"status\": \"approved\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": \"2026-11-07T08:00:00.000000Z\",\n    \"revoked_at\": null,\n    \"created_at\": \"2026-11-07T08:00:00.000000Z\"\n  },\n  \"compliance\": {\n    \"can_drive\": true,\n    \"block_reason\": null,\n    \"action_required\": false,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n        \"expires_at\": \"2031-11-20\",\n        \"expiry_status\": \"valid\",\n        \"days_until_expiry\": 1839,\n        \"blocks_driving\": true,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      },\n      {\n        \"type\": \"government_id\",\n        \"label\": \"Government ID\",\n        \"document_id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n        \"expires_at\": null,\n        \"expiry_status\": \"no_expiry\",\n        \"days_until_expiry\": null,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      }\n    ]\n  }\n}"
                 },
                 {
                   "name": "404 \u2014 Not Found",
@@ -14056,6 +14122,18 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Document not found.\"\n}"
+                },
+                {
+                  "name": "422 \u2014 Expiry Date Required",
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Enter the expiry date printed on the driving licence before approving it.\",\n  \"errors\": {\n    \"expires_at\": [\n      \"The expiry date is required to approve this document.\"\n    ]\n  }\n}"
                 }
               ]
             },
@@ -14133,6 +14211,306 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Document not found.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Withdraw Document",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"FRSC reports this licence as suspended.\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/:driverId/documents/:documentId/revoke",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    ":driverId",
+                    "documents",
+                    ":documentId",
+                    "revoke"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driverId",
+                      "value": "{{driver_id}}",
+                      "description": "The UUID of the driver"
+                    },
+                    {
+                      "key": "documentId",
+                      "value": "{{document_id}}",
+                      "description": "The UUID of the document"
+                    }
+                  ]
+                },
+                "description": "Operations, Safety. Withdraw an **approved** driver paper (`driving_licence`, `government_id`; vehicle papers return 422) found invalid after approval (suspended/revoked licence, forged paper). It becomes `rejected` with `revoked_at` set and is kept on re-upload. A withdrawn driving licence blocks the driver at once until a new licence is approved; a trip in progress is not ended. Blocks even when `block_on_expired_licence` is off. The driver gets a `document_reviewed` push. 409 if the document changed meanwhile. 422 `Only approved documents can be withdrawn.`"
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Licence Withdrawn",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Document withdrawn.\",\n  \"document\": {\n    \"id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n    \"type\": \"driving_licence\",\n    \"document_number\": \"LAG99999ZZ09\",\n    \"original_filename\": \"renewed-licence.pdf\",\n    \"file_size\": 245760,\n    \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8wMWExYjgyNC1kM2RiLTcxYWMtOTI0Yy1jODg2MGFmZTdhODUvTFRCdk1WSmhoVWl2clVvd3FRM1I1Z21xR0lIMTM4S1prMDVwaG9QaC5wZGY.b094a4dd6ab81ad154fb69ddb59b4444\",\n    \"expires_at\": \"2031-11-20T00:00:00.000000Z\",\n    \"status\": \"rejected\",\n    \"rejection_reason\": \"FRSC reports this licence as suspended.\",\n    \"reviewed_at\": \"2026-11-07T08:00:00.000000Z\",\n    \"revoked_at\": \"2026-11-07T08:00:00.000000Z\",\n    \"created_at\": \"2026-11-07T08:00:00.000000Z\"\n  },\n  \"compliance\": {\n    \"can_drive\": false,\n    \"block_reason\": \"Your driving licence was withdrawn by E-tiGo: FRSC reports this licence as suspended.\",\n    \"action_required\": true,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": null,\n        \"expires_at\": null,\n        \"expiry_status\": null,\n        \"days_until_expiry\": null,\n        \"blocks_driving\": true,\n        \"revoked_at\": \"2026-11-07T08:00:00+00:00\",\n        \"renewal\": null,\n        \"action_required\": true\n      },\n      {\n        \"type\": \"government_id\",\n        \"label\": \"Government ID\",\n        \"document_id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n        \"expires_at\": \"2030-05-31\",\n        \"expiry_status\": \"valid\",\n        \"days_until_expiry\": 1301,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Correct Document Details",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expires_at\": \"2030-05-31\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/:driverId/documents/:documentId",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    ":driverId",
+                    "documents",
+                    ":documentId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driverId",
+                      "value": "{{driver_id}}",
+                      "description": "The UUID of the driver"
+                    },
+                    {
+                      "key": "documentId",
+                      "value": "{{document_id}}",
+                      "description": "The UUID of the document"
+                    }
+                  ]
+                },
+                "description": "Operations, Safety. Correct `expires_at` and/or `document_number` on an **approved** paper, mainly to add expiry dates to licences approved before they were required. A changed date restarts reminders and rechecks the block under the configured expiry-blocking setting and grace period. 409 if another admin changed the document first. Logged as `document_details_updated`."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Expiry Date Added",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Document updated.\",\n  \"document\": {\n    \"id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n    \"type\": \"government_id\",\n    \"original_filename\": \"paper.pdf\",\n    \"file_size\": 1000,\n    \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8zZmZkZTA1NS1hZjY3LTM3ZWQtODQ0OC0xZjExOGU0OWY3MDYucGRm.9571b6384cbc15e33edaa35b047f498b\",\n    \"expires_at\": \"2030-05-31T00:00:00.000000Z\",\n    \"status\": \"approved\",\n    \"rejection_reason\": null,\n    \"reviewed_at\": \"2026-11-07T08:00:00.000000Z\",\n    \"revoked_at\": null,\n    \"created_at\": \"2026-11-07T08:00:00.000000Z\"\n  },\n  \"compliance\": {\n    \"can_drive\": true,\n    \"block_reason\": null,\n    \"action_required\": false,\n    \"documents\": [\n      {\n        \"type\": \"driving_licence\",\n        \"label\": \"Driving licence\",\n        \"document_id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n        \"expires_at\": \"2031-11-20\",\n        \"expiry_status\": \"valid\",\n        \"days_until_expiry\": 1839,\n        \"blocks_driving\": true,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      },\n      {\n        \"type\": \"government_id\",\n        \"label\": \"Government ID\",\n        \"document_id\": \"01a1b824-d3ea-72ff-b3d7-e42a21a74a07\",\n        \"expires_at\": \"2030-05-31\",\n        \"expiry_status\": \"valid\",\n        \"days_until_expiry\": 1301,\n        \"blocks_driving\": false,\n        \"revoked_at\": null,\n        \"renewal\": null,\n        \"action_required\": false\n      }\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Driver Documents (Renewals Queue)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/driver-documents?status=pending&renewals_only=1&expiry=&type=driving_licence&city_id=&search=&per_page=20",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "driver-documents"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending",
+                      "description": "pending, approved, rejected"
+                    },
+                    {
+                      "key": "renewals_only",
+                      "value": "1",
+                      "description": "Only uploads from working drivers"
+                    },
+                    {
+                      "key": "expiry",
+                      "value": "",
+                      "description": "expiring_soon, expired, no_expiry (approved papers in force)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "type",
+                      "value": "driving_licence",
+                      "disabled": true
+                    },
+                    {
+                      "key": "city_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "search",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Operations, Safety. Papers across all drivers: renewals waiting for review (oldest first), papers expiring soon or expired (soonest first), licences missing an expiry date. `summary` counts pending renewals, expiring, expired, licences missing expiry, and blocked drivers."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Pending Renewals",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"documents\": [\n    {\n      \"id\": \"01a1b824-d40d-71f9-8283-632962475cb6\",\n      \"type\": \"driving_licence\",\n      \"document_number\": \"LAG99999ZZ09\",\n      \"original_filename\": \"renewed-licence.pdf\",\n      \"file_size\": 245760,\n      \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy8wMWExYjgyNC1kM2RiLTcxYWMtOTI0Yy1jODg2MGFmZTdhODUvTFRCdk1WSmhoVWl2clVvd3FRM1I1Z21xR0lIMTM4S1prMDVwaG9QaC5wZGY.b094a4dd6ab81ad154fb69ddb59b4444\",\n      \"expires_at\": \"2031-11-20T00:00:00.000000Z\",\n      \"status\": \"pending\",\n      \"rejection_reason\": null,\n      \"reviewed_at\": null,\n      \"revoked_at\": null,\n      \"created_at\": \"2026-11-07T08:00:00.000000Z\",\n      \"vehicle\": null,\n      \"expiry_status\": \"valid\",\n      \"days_until_expiry\": 1839,\n      \"is_renewal\": true,\n      \"driver\": {\n        \"id\": \"01a1b824-d3db-71ac-924c-c8860afe7a85\",\n        \"reference_number\": \"D-000001\",\n        \"name\": \"Bayo Hintz\",\n        \"phone\": \"+16514526893\",\n        \"status\": \"approved\",\n        \"city\": {\n          \"id\": \"01a1b824-d3d6-71ae-8847-08c17e85e4bb\",\n          \"name\": \"Koreyland\"\n        },\n        \"documents_blocked\": false\n      }\n    }\n  ],\n  \"summary\": {\n    \"pending_renewals\": 1,\n    \"expiring_soon\": 1,\n    \"expired\": 0,\n    \"licences_missing_expiry\": 0,\n    \"blocked_drivers\": 0\n  },\n  \"meta\": {\n    \"current_page\": 1,\n    \"last_page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Driver Document Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/driver-documents",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "driver-documents"
+                  ]
+                },
+                "description": "Operations. Reminder steps (days before expiry), reminders on/off, the grace period after a licence expires (default 0), and whether an expired licence blocks."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Settings",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"settings\": {\n    \"reminders_enabled\": true,\n    \"reminder_days\": [\n      30,\n      14,\n      7,\n      1\n    ],\n    \"licence_grace_days\": 0,\n    \"block_on_expired_licence\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Driver Document Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"licence_grace_days\": 3\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/driver-documents",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "driver-documents"
+                  ]
+                },
+                "description": "Operations. Any of `reminders_enabled` (bool), `reminder_days` (1\u20136 distinct days, 1\u201390), `licence_grace_days` (0\u201330), `block_on_expired_licence` (bool). Changing the grace period or block re-checks drivers at once."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Grace Period Set",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"message\": \"Driver document settings updated.\",\n  \"settings\": {\n    \"reminders_enabled\": true,\n    \"reminder_days\": [\n      30,\n      14,\n      7,\n      1\n    ],\n    \"licence_grace_days\": 3,\n    \"block_on_expired_licence\": true\n  }\n}"
                 }
               ]
             },
