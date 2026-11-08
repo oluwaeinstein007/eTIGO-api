@@ -14096,7 +14096,7 @@
                     }
                   ]
                 },
-                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n`expires_at` confirms or corrects the expiry date on the paper and is **required** for a driving licence, roadworthiness certificate or vehicle licence that has none; an already-expired date is refused, and a renewed licence must expire after the licence on file (422). 409 if another admin reviewed it first. `document_number` confirms or corrects the number; on a driving licence it becomes the driver's licence number.\n\nApproving a renewal replaces the earlier approved paper of that type (vehicle or driver papers; never one that runs longer) and lifts an expired-papers or expired-licence block. Working drivers get a `document_reviewed` push. The response adds `compliance`."
+                "description": "Approve a single driver document. Only pending documents can be reviewed.\n\n`expires_at` confirms or corrects the expiry date on the paper and is **required** for a driving licence, roadworthiness certificate or vehicle licence that has none; an already-expired date is refused, and a renewed licence must expire after the licence on file (422). 409 if another admin reviewed it first. `document_number` confirms or corrects the number; on a driving licence it becomes the driver's licence number.\n\nApproving a renewal replaces the earlier approved paper of that type (vehicle or driver papers; never one that runs longer) and lifts an expired-papers or expired-licence block. Working drivers get a `document_reviewed` push. The response adds `compliance`.\n\n**FRSC:** licences carry `frsc_check`. With no `expires_at` on the paper or in the request, FRSC's `frsc_expires_at` is used."
               },
               "response": [
                 {
@@ -14211,6 +14211,63 @@
                     }
                   ],
                   "body": "{\n  \"message\": \"Document not found.\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Re-run FRSC Licence Check",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/drivers/:driverId/documents/:documentId/frsc-check",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "drivers",
+                    ":driverId",
+                    "documents",
+                    ":documentId",
+                    "frsc-check"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driverId",
+                      "value": "{{driver_id}}",
+                      "description": "The UUID of the driver"
+                    },
+                    {
+                      "key": "documentId",
+                      "value": "{{document_id}}",
+                      "description": "The UUID of the document"
+                    }
+                  ]
+                },
+                "description": "Operations, Safety (10/min). Look a **pending driving licence** up in FRSC records again (QoreID, the onboarding licence lookup; a paid call), e.g. when the provider was down at upload. Working drivers' renewed licences are looked up automatically after upload. The result is `document.frsc_check` (`status` matched/name_mismatch/unavailable, `frsc_expires_at`, `expiry_matches`, `number_last4`, `source`). Not a new KYC: `kyc_status` is untouched. 422 for anything but a pending licence."
+              },
+              "response": [
+                {
+                  "name": "200 \u2014 Matched, Expiry Differs",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n    \"message\": \"Licence checked against FRSC records.\",\n    \"document\": {\n        \"id\": \"01a1b887-0bbd-7083-9f18-f0cf02d55c77\",\n        \"type\": \"driving_licence\",\n        \"document_number\": \"LAG99999ZZ09\",\n        \"original_filename\": \"licence.pdf\",\n        \"file_size\": 1000,\n        \"file_url\": \"https://api.etigo.ng/api/v1/files/ZHJpdmVyLWRvY3VtZW50cy84NThjNzg5NS0xNzdkLTMxNjAtYjBjMy0xYzllZTBjZjM3YmQucGRm.6f97b9d8f835c20b6edf11d0dd595097\",\n        \"expires_at\": \"2031-12-20T00:00:00.000000Z\",\n        \"status\": \"pending\",\n        \"rejection_reason\": null,\n        \"reviewed_at\": null,\n        \"revoked_at\": null,\n        \"frsc_check\": {\n            \"frsc_expires_at\": \"2031-11-20\",\n            \"number_last4\": \"ZZ09\",\n            \"provider_reference\": \"qid_123\",\n            \"status\": \"matched\",\n            \"note\": null,\n            \"checked_at\": \"2026-11-08T09:00:00+00:00\",\n            \"source\": \"renewal_check\",\n            \"expiry_matches\": false\n        },\n        \"created_at\": \"2026-11-08T09:00:00.000000Z\"\n    }\n}"
                 }
               ]
             },
@@ -14402,10 +14459,16 @@
                       "key": "per_page",
                       "value": "20",
                       "disabled": true
+                    },
+                    {
+                      "key": "frsc_flagged",
+                      "value": "true",
+                      "description": "Only papers flagged by the FRSC lookup",
+                      "disabled": true
                     }
                   ]
                 },
-                "description": "Operations, Safety. Papers across all drivers: renewals waiting for review (oldest first), papers expiring soon or expired (soonest first), licences missing an expiry date. `summary` counts pending renewals, expiring, expired, licences missing expiry, and blocked drivers."
+                "description": "Operations, Safety. Papers across all drivers: renewals waiting for review (oldest first), papers expiring soon or expired (soonest first), licences missing an expiry date. `summary` counts pending renewals, expiring, expired, licences missing expiry, and blocked drivers. Driving licences carry `frsc_check` (FRSC lookup); `frsc_flagged=true` lists papers whose lookup didn't match, and `summary.frsc_flagged` counts the pending ones."
               },
               "response": [
                 {
@@ -14497,7 +14560,7 @@
                     "driver-documents"
                   ]
                 },
-                "description": "Operations. Any of `reminders_enabled` (bool), `reminder_days` (1\u20136 distinct days, 1\u201390), `licence_grace_days` (0\u201330), `block_on_expired_licence` (bool). Changing the grace period or block re-checks drivers at once."
+                "description": "Operations. Any of `reminders_enabled` (bool), `reminder_days` (1\u20136 distinct days, 1\u201390), `licence_grace_days` (0\u201330), `block_on_expired_licence` (bool). Changing the grace period or block re-checks drivers at once. `frsc_check_on_renewal` (bool) switches the FRSC lookup of renewed licences."
               },
               "response": [
                 {

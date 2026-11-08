@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\DriverLicenceCheckService;
 use App\Support\UploadLinks;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -29,6 +30,9 @@ class DriverDocumentResource extends JsonResource
             'reviewed_at' => $this->reviewed_at,
             // Withdrawn by operations after approval (status is rejected).
             'revoked_at' => $this->revoked_at,
+            // Operations only: what FRSC records say about a driving licence
+            // (renewal check, or the onboarding verification), or null.
+            'frsc_check' => $this->when((bool) $request->user()?->isAdmin(), fn () => app(DriverLicenceCheckService::class)->record($this->resource)),
             'created_at' => $this->created_at,
         ];
     }

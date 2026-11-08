@@ -1,6 +1,6 @@
 # Driver Document Renewals: Decisions for Confirmation
 
-**Date:** 7 November 2026  
+**Date:** 7 November 2026 (DR-11 added 8 November 2026)  
 **Status:** Built (engineering recommendation). **Not yet confirmed by E-TiGO.** Every value in section 2 can be changed by Operations in the dashboard without a new release.
 
 ## 1. The approach
@@ -25,9 +25,9 @@
 | DR-8 | Licences approved before this change, with no expiry date on file | Not blocked. Operations add the dates from a "missing expiry date" list | Ask every driver to re-upload |
 | DR-9 | Who may withdraw or correct a paper | Operations and Safety | Operations only |
 | DR-10 | Fleet drivers | Same rule. Operations also get an email when a fleet driver is blocked | — |
+| DR-11 | Where the expiry date comes from | The driver enters it and Operations confirm it against the photo. A renewed licence is also looked up in FRSC records (through QoreID, the check used at onboarding): the reviewer sees whether FRSC knows the licence in the driver's name and FRSC's expiry date, and a mismatch is flagged. FRSC's date is used when no date was entered. Operations still decide | Driver's date only (no lookup); or approve automatically when FRSC matches |
 
 ## 3. Out of scope for now
 
 - **Lagos LASDRI and LASSRA cards.** Bolt asks for these in Lagos. They are not yet E-tiGo document types. If E-TiGO wants them, they can be added as papers with their own expiry dates, required only in Lagos.
-- **Automatic checks of a renewed licence against FRSC records.** Renewals are checked by Operations by hand. The licence check used at onboarding (QoreID) could be re-run on renewal later.
 - **Periodic selfie checks** to confirm the person driving is the account holder. This is a separate safety feature.

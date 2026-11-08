@@ -25,6 +25,13 @@ use Illuminate\Validation\Rule;
 class AdminDriverDocumentController extends Controller
 {
     /**
+     * The renewal lookup found no match: another name, a different expiry
+     * date, or no confirmation at all.
+     */
+    private const FRSC_FLAGGED = "(licence_check->>'status' IN ('name_mismatch', 'unavailable')
+        OR (licence_check->>'frsc_expires_at' IS NOT NULL AND expires_at IS NOT NULL AND licence_check->>'frsc_expires_at' <> to_char(expires_at, 'YYYY-MM-DD')))";
+
+    /**
      * Papers across drivers, filtered for the renewals queue, with a summary of counts for the tab badges.
      */
     public function index(Request $request, DriverDocumentComplianceService $compliance): JsonResponse
@@ -34,6 +41,8 @@ class AdminDriverDocumentController extends Controller
             'type' => ['sometimes', 'nullable', Rule::enum(DocumentType::class)],
             'expiry' => ['sometimes', 'nullable', Rule::in(['expiring_soon', 'expired', 'no_expiry'])],
             'renewals_only' => ['sometimes', 'in:true,false,1,0'],
+            // Renewals whose FRSC lookup didn't match: name, expiry date, or no record.
+            'frsc_flagged' => ['sometimes', 'in:true,false,1,0'],
             'city_id' => ['sometimes', 'nullable', 'uuid'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
@@ -55,6 +64,7 @@ class AdminDriverDocumentController extends Controller
             ->when($expiry === 'no_expiry', fn (Builder $q) => $q->whereNull('expires_at'))
             // Renewals: uploads from drivers already on the road.
             ->when($request->boolean('renewals_only'), fn (Builder $q) => $q->whereHas('driver', fn (Builder $d) => $d->whereNotIn('status', [DriverStatus::Onboarding, DriverStatus::PendingReview])))
+            ->when($request->boolean('frsc_flagged'), fn (Builder $q) => $q->whereRaw(self::FRSC_FLAGGED))
             ->when($validated['city_id'] ?? null, fn (Builder $q, string $city) => $q->whereHas('driver', fn (Builder $d) => $d->where('city_id', $city)))
             ->when($validated['search'] ?? null, fn (Builder $q, string $search) => $q->whereHas('driver', fn (Builder $d) => $d->where('reference_number', 'ilike', "%{$search}%")
                 ->orWhereHas('user', fn (Builder $u) => $u->where('first_name', 'ilike', "%{$search}%")
@@ -97,6 +107,7 @@ class AdminDriverDocumentController extends Controller
                 'licences_missing_expiry' => DriverDocument::where('status', DocumentStatus::Approved)->whereNull('revoked_at')
                     ->where('type', DocumentType::DrivingLicence)->whereNull('expires_at')->count(),
                 'blocked_drivers' => Driver::whereNotNull('documents_blocked_at')->count(),
+                'frsc_flagged' => DriverDocument::where('status', DocumentStatus::Pending)->whereRaw(self::FRSC_FLAGGED)->count(),
             ],
             'meta' => [
                 'current_page' => $documents->currentPage(),

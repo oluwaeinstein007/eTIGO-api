@@ -35,4 +35,11 @@ return [
     'licence_grace_days' => (int) env('DRIVER_DOCUMENTS_LICENCE_GRACE_DAYS', 0),
     'block_on_expired_licence' => (bool) env('DRIVER_DOCUMENTS_BLOCK_ON_EXPIRED_LICENCE', true),
 
+    // Look a working driver's renewed licence up in FRSC records (QoreID's
+    // licence check, one paid lookup per renewal upload) and show operations
+    // the result and FRSC's expiry date. It informs the review; it never
+    // approves or rejects on its own. Not a new KYC: the driver's KYC status
+    // is untouched.
+    'frsc_check_on_renewal' => (bool) env('DRIVER_DOCUMENTS_FRSC_CHECK_ON_RENEWAL', true),
+
 ];

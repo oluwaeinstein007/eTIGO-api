@@ -304,7 +304,7 @@ class AppSetting extends Model
      * Driver document renewals: the admin's runtime overrides
      * (PUT /admin/settings/driver-documents) over config/driver_documents.php.
      *
-     * @return array{reminders_enabled: bool, reminder_days: list<int>, licence_grace_days: int, block_on_expired_licence: bool}
+     * @return array{reminders_enabled: bool, reminder_days: list<int>, licence_grace_days: int, block_on_expired_licence: bool, frsc_check_on_renewal: bool}
      */
     public static function driverDocuments(): array
     {
@@ -320,6 +320,7 @@ class AppSetting extends Model
             'reminder_days' => $days,
             'licence_grace_days' => max(0, (int) $value('licence_grace_days')),
             'block_on_expired_licence' => filter_var($value('block_on_expired_licence'), FILTER_VALIDATE_BOOLEAN),
+            'frsc_check_on_renewal' => filter_var($value('frsc_check_on_renewal'), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 

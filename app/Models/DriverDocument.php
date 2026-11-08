@@ -18,6 +18,7 @@ class DriverDocument extends Model
         'uploaded_by',
         'type',
         'document_number',
+        'licence_check',
         'file_path',
         'original_filename',
         'mime_type',
@@ -39,6 +40,7 @@ class DriverDocument extends Model
         return [
             'type' => DocumentType::class,
             'document_number' => 'encrypted',
+            'licence_check' => 'array',
             'status' => DocumentStatus::class,
             'file_size' => 'integer',
             'expires_at' => 'date',
