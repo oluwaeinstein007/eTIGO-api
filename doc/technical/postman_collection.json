@@ -8736,7 +8736,7 @@
                     "toggle-online"
                   ]
                 },
-                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. Returns reasons array on failure.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).\n\n**Driving licence:** `document_notice` warns only when the licence expires within 7 days or is in its grace period (in that window it says the renewal is being checked if one is pending); otherwise `null`, even with a renewal pending. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`.",
+                "description": "Toggle driver online/offline status. Requires approved status, registered vehicle with assigned class. On failure (422) `message` is the single most relevant reason (`reasons[0]`); always read the full `reasons` array too, since there can be more than one.\n\nAn online driver whose app sends no location for 5 minutes gets a `driver_location_missing` push (`MATCHING_SILENT_DRIVER_WARNING_MINUTES`); after 30 minutes (`MATCHING_SILENT_DRIVER_OFFLINE_MINUTES`) they are set offline and get a `driver_set_offline` push. A driver on a trip is only warned, never set offline.\n\n**Multi-city:** refused (422, in `reasons`) while the driver's city is still onboarding. In a paused city the driver can go online for bookings made before the pause, and the response has a `city_notice`.\n\n**Phase 2 (OQ-19/20):** plug-in cars may send `battery_level_percent` (0\u2013100). Refused (422 `reasons`) when the car's insurance, roadworthiness or vehicle licence expired more than 7 days ago, and for a shared fleet car outside the driver's shift window or while the previous driver still has the car. A shared car passes to the shift driver here. A 200 adds `shift` (shared cars) and `vehicle_notice` (papers expiring or in their grace period).\n\n**Driving licence:** `document_notice` warns only when the licence expires within 7 days or is in its grace period (in that window it says the renewal is being checked if one is pending); otherwise `null`, even with a renewal pending. An expired (past the grace period) or withdrawn licence returns 422 with the reason in `reasons`.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"battery_level_percent\": 64\n}"
@@ -8801,7 +8801,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Cannot go online.\",\n  \"reasons\": [\n    \"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it.\"\n  ]\n}"
+                  "body": "{\n  \"message\": \"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it.\",\n  \"reasons\": [\n    \"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it.\"\n  ]\n}"
                 },
                 {
                   "name": "422 \u2014 Driving Licence Not Valid",
@@ -8813,7 +8813,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"Cannot go online.\",\n  \"reasons\": [\n    \"Your driving licence was withdrawn by E-tiGo: FRSC reports this licence as suspended. Upload your renewed licence; you can go online once E-tiGo approves it.\"\n  ]\n}"
+                  "body": "{\n  \"message\": \"Your driving licence was withdrawn by E-tiGo: FRSC reports this licence as suspended. Upload your renewed licence; you can go online once E-tiGo approves it.\",\n  \"reasons\": [\n    \"Your driving licence was withdrawn by E-tiGo: FRSC reports this licence as suspended. Upload your renewed licence; you can go online once E-tiGo approves it.\"\n  ]\n}"
                 }
               ]
             },

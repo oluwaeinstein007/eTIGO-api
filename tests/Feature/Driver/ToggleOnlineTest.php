@@ -46,7 +46,7 @@ it('rejects unapproved driver from going online', function () {
         ->postJson('/api/v1/driver/toggle-online');
 
     $response->assertStatus(422)
-        ->assertJson(['message' => 'Cannot go online.']);
+        ->assertJson(['message' => 'Driver account is not approved.']);
 });
 
 it('rejects suspended driver from going online', function () {
@@ -58,7 +58,7 @@ it('rejects suspended driver from going online', function () {
         ->postJson('/api/v1/driver/toggle-online');
 
     $response->assertStatus(422)
-        ->assertJson(['message' => 'Cannot go online.']);
+        ->assertJsonPath('reasons', fn ($reasons) => in_array('Driver account is suspended.', $reasons, true));
 });
 
 it('rejects driver without vehicle from going online', function () {

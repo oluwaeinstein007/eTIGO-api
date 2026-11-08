@@ -129,7 +129,7 @@ class DriverController extends Controller
                 }
 
                 return response()->json([
-                    'message' => 'Cannot go online.',
+                    'message' => $reasons !== [] ? $reasons[0] : 'Cannot go online.',
                     'reasons' => $reasons,
                 ], 422);
             }
