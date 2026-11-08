@@ -53,7 +53,7 @@ class ProcessDriverShiftsJob implements ShouldQueue
                 headline: count($missed) === 1 ? '1 fleet shift has not started' : count($missed).' fleet shifts have not started',
                 body: 'These drivers were not online '.$settings['shift_missed_after_minutes'].' minutes after their shift started. Reassign the car or contact the driver.',
                 lines: $missed,
-                actionPath: '/admin/driver-shifts?status=missed',
+                actionPath: '/admin/driver-scheduling?status=missed',
                 actionLabel: 'Open shifts',
             );
         }

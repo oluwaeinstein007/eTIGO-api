@@ -23,7 +23,7 @@ class AdminPasswordResetNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $resetUrl = config('app.frontend_url', config('app.url')).'/admin/reset-password?token='.$this->token.'&email='.urlencode($notifiable->email);
+        $resetUrl = config('app.frontend_url', config('app.url')).'/auth/reset-password?token='.$this->token.'&email='.urlencode($notifiable->email);
         $requestedAt = now();
         $expiryMinutes = config('auth.passwords.users.expire', 60);
         $expiresAt = $requestedAt->copy()->addMinutes($expiryMinutes);
