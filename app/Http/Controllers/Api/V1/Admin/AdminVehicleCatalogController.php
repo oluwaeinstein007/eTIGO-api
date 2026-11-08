@@ -10,10 +10,35 @@ use App\Models\VehicleMake;
 use App\Models\VehicleModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AdminVehicleCatalogController extends Controller
 {
+    /**
+     * Every make, active or not, with every model, for catalog management.
+     * The public catalog (GET /vehicle-makes) only ever shows active ones.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'is_active' => ['sometimes', 'nullable', 'boolean'],
+        ]);
+
+        $makes = VehicleMake::query()
+            ->with('models')
+            ->when(array_key_exists('is_active', $validated) && $validated['is_active'] !== null, fn ($q) => $q->where('is_active', $validated['is_active']))
+            ->when($validated['search'] ?? null, fn ($q, $search) => $q->where('name', 'ilike', "%{$search}%"))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'makes' => VehicleMakeResource::collection($makes),
+        ]);
+    }
+
     public function storeMake(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -38,12 +63,36 @@ class AdminVehicleCatalogController extends Controller
             'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 
+        // A rename must free up its old slug (and claim a unique new one) or a
+        // later make reusing that name can never be created.
+        if (isset($validated['name']) && $validated['name'] !== $vehicleMake->name) {
+            $validated['slug'] = $this->uniqueMakeSlug($validated['name'], $vehicleMake->id);
+        }
+
         $vehicleMake->update($validated);
 
         return response()->json([
             'message' => 'Vehicle make updated successfully.',
             'make' => new VehicleMakeResource($vehicleMake->fresh()->load('models')),
         ]);
+    }
+
+    /**
+     * A slug for $name that is not already taken by another make, appending
+     * `-2`, `-3`, ... on a collision.
+     */
+    private function uniqueMakeSlug(string $name, string $ignoreId): string
+    {
+        $base = Str::slug($name);
+        $slug = $base;
+        $suffix = 2;
+
+        while (VehicleMake::where('slug', $slug)->whereKeyNot($ignoreId)->exists()) {
+            $slug = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     public function destroyMake(VehicleMake $vehicleMake): JsonResponse

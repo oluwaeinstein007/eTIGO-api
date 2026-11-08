@@ -581,6 +581,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     });
 
     Route::middleware('admin.role:operations')->prefix('vehicle-catalog')->group(function () {
+        Route::get('/makes', [AdminVehicleCatalogController::class, 'index']);
         Route::post('/makes', [AdminVehicleCatalogController::class, 'storeMake']);
         Route::put('/makes/{vehicleMake}', [AdminVehicleCatalogController::class, 'updateMake']);
         Route::delete('/makes/{vehicleMake}', [AdminVehicleCatalogController::class, 'destroyMake']);
@@ -609,6 +610,11 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
     Route::middleware('admin.role:operations')->prefix('monitoring')->group(function () {
         Route::get('/active-rides', [AdminMonitoringController::class, 'activeRides']);
         Route::get('/online-drivers', [AdminMonitoringController::class, 'onlineDrivers']);
+    });
+
+    // Finance also opens a ride's detail to review it before refunding, but
+    // not the live active-rides / online-drivers monitoring views above.
+    Route::middleware('admin.role:operations,finance')->prefix('monitoring')->group(function () {
         Route::get('/rides/{ride}', [AdminMonitoringController::class, 'rideDetail']);
     });
 
@@ -872,6 +878,7 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
 
     Route::middleware('admin.role:finance')->prefix('rides')->group(function () {
         Route::post('/{ride}/refund', [AdminRefundController::class, 'refundToWallet']);
+        Route::get('/{ride}/refunds', [AdminRefundController::class, 'index']);
     });
 
     Route::middleware('admin.role:finance,support,support_lead')->prefix('balances-due')->group(function () {

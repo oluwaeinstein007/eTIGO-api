@@ -434,7 +434,9 @@ it('only searches the areas the admin can open', function () {
         ->assertOk()
         ->json('results');
 
-    expect($results)->each->toBeNull();
+    // Finance can also find a ride to refund it, but nothing else.
+    expect(collect($results)->except('rides'))->each->toBeNull()
+        ->and($results['rides'])->not->toBeNull();
 });
 
 it('treats search wildcards literally and needs two characters', function () {

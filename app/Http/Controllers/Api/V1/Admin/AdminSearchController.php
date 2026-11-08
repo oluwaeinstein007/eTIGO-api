@@ -12,6 +12,7 @@ use App\Models\SosIncident;
 use App\Models\User;
 use App\Services\AdminAreaAccess;
 use App\Services\DisputeAccess;
+use App\Services\WalletRefundService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class AdminSearchController extends Controller
     public function __construct(
         private AdminAreaAccess $access,
         private DisputeAccess $disputeAccess,
+        private WalletRefundService $refundService,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -56,11 +58,11 @@ class AdminSearchController extends Controller
         return response()->json([
             'query' => $term,
             'results' => [
-                'rides' => $can(AdminAreaAccess::MONITORING) ? Ride::query()
+                'rides' => ($can(AdminAreaAccess::MONITORING) || $can(AdminAreaAccess::FINANCE)) ? Ride::query()
                     ->where(fn (Builder $q) => $q->where('reference_number', 'ilike', $like)
                         ->orWhereHas('passenger', $matchesPerson)
                         ->orWhereHas('driver', $matchesPerson))
-                    ->with(['passenger', 'driver'])
+                    ->with(['passenger', 'driver', 'payment'])
                     ->orderByRaw($exactFirst, [$term])
                     ->latest()
                     ->limit($limit)
@@ -73,6 +75,11 @@ class AdminSearchController extends Controller
                         'destination_address' => $ride->destination_address,
                         'passenger_name' => $ride->passenger ? $this->name($ride->passenger) : null,
                         'driver_name' => $ride->driver ? $this->name($ride->driver) : null,
+                        'fare_estimate_amount' => $ride->fare_estimate_amount,
+                        'final_fare_amount' => $ride->final_fare_amount,
+                        'paid_kobo' => $this->refundService->paidAmountKobo($ride),
+                        'refunded_kobo' => $this->refundService->refundedAmountKobo($ride),
+                        'remaining_refundable_kobo' => $this->refundService->remainingRefundableKobo($ride),
                         'created_at' => $ride->created_at?->toIso8601String(),
                     ]) : null,
 

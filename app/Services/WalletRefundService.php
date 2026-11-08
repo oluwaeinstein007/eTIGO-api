@@ -9,6 +9,7 @@ use App\Enums\PaymentStatus;
 use App\Models\Driver;
 use App\Models\Journal;
 use App\Models\Ride;
+use App\Models\RideRefund;
 use App\Models\User;
 use App\Notifications\WalletRefundNotification;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +134,15 @@ class WalletRefundService
                     $this->clawbackDriverEarnings($ride, $clawbackKobo, "clawback-{$refundKey}");
                 }
             }
+
+            RideRefund::create([
+                'ride_id' => $ride->id,
+                'amount_kobo' => $amountKobo,
+                'driver_clawback_kobo' => $clawbackKobo,
+                'reason' => $reason,
+                'refunded_by_admin_id' => $admin->id,
+                'dispute_id' => $disputeId ?? $ride->disputes()->latest()->value('id'),
+            ]);
 
             return ['refund_kobo' => $amountKobo, 'clawback_kobo' => $clawbackKobo];
         });

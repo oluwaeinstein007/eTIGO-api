@@ -35,15 +35,15 @@ class VehicleCatalogController extends Controller
             }
 
             if (! empty($search)) {
-                $modelQuery->where('name', 'like', "%{$search}%");
+                $modelQuery->where('name', 'ilike', "%{$search}%");
             }
         }]);
 
         if (! empty($search)) {
             $query->where(function (Builder $q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('name', 'ilike', "%{$search}%")
                     ->orWhereHas('models', function (Builder $mq) use ($search) {
-                        $mq->active()->where('name', 'like', "%{$search}%");
+                        $mq->active()->where('name', 'ilike', "%{$search}%");
                     });
             });
         }
@@ -76,7 +76,7 @@ class VehicleCatalogController extends Controller
         }
 
         if (! empty($search)) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where('name', 'ilike', "%{$search}%");
         }
 
         $models = $query->get();

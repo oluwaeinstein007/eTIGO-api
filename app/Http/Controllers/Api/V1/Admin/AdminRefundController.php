@@ -5,14 +5,33 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Wallet\RefundToWalletRequest;
+use App\Http\Resources\RideRefundResource;
 use App\Models\AuditLog;
 use App\Models\Ride;
+use App\Models\RideRefund;
 use App\Services\WalletRefundService;
 use Illuminate\Http\JsonResponse;
 
 class AdminRefundController extends Controller
 {
     public function __construct(private WalletRefundService $refundService) {}
+
+    /**
+     * Refunds made on a ride, newest first, with what is left to refund.
+     */
+    public function index(Ride $ride): JsonResponse
+    {
+        $ride->loadMissing('payment');
+
+        return response()->json([
+            'refunds' => RideRefundResource::collection(
+                RideRefund::where('ride_id', $ride->id)->with('refundedBy')->latest()->get(),
+            ),
+            'paid_kobo' => $this->refundService->paidAmountKobo($ride),
+            'refunded_kobo' => $this->refundService->refundedAmountKobo($ride),
+            'remaining_refundable_kobo' => $this->refundService->remainingRefundableKobo($ride),
+        ]);
+    }
 
     public function refundToWallet(RefundToWalletRequest $request, Ride $ride): JsonResponse
     {

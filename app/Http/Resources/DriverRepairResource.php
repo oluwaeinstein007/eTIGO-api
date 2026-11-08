@@ -65,7 +65,9 @@ class DriverRepairResource extends JsonResource
             'attachments' => $attachments,
             'vehicle_id' => $this->vehicle_id,
             'driver' => $this->when($isAdmin && $this->relationLoaded('driver'), fn () => $this->driver ? [
-                'id' => $this->driver->id,
+                // The driver profile id, which is what the admin driver page opens by.
+                'id' => $this->driver->driver?->id,
+                'user_id' => $this->driver->id,
                 'name' => trim("{$this->driver->first_name} {$this->driver->last_name}"),
                 'phone' => $this->driver->phone,
             ] : null),
