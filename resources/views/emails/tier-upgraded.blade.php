@@ -77,6 +77,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $rewardsUrl])
+
 <p style="margin: 0 0 24px 0; font-size: 13px; color: #6b7280; line-height: 1.5;">
     Keep riding green to unlock even more rewards. Every eco-friendly trip counts toward your next level.
 </p>

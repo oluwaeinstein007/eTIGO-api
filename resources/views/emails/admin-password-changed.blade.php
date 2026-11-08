@@ -14,11 +14,13 @@
     If you made this change, there is nothing more to do. If you did not, reset your password straight away and tell a system administrator.
 </p>
 
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
 <tr>
     <td style="background-color: #0d7c3d; border-radius: 8px;">
         <a href="{{ $resetUrl }}" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none;">Reset my password</a>
     </td>
 </tr>
 </table>
+
+@include('emails.partials.fallback-link', ['url' => $resetUrl])
 @endsection

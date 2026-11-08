@@ -115,6 +115,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $supportUrl])
+
 <p style="margin: 0 0 24px 0; font-size: 13px; color: #6b7280; line-height: 1.5;">
     Thank you for helping us improve your ride experience. If you have further questions about this report, please contact our support team.
 </p>

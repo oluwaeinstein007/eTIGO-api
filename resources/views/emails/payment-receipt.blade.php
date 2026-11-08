@@ -87,6 +87,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $receiptUrl])
+
 {{-- Confirmation callout --}}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; margin-bottom: 20px;">
 <tr>
