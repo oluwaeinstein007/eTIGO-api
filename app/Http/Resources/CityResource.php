@@ -42,6 +42,8 @@ class CityResource extends JsonResource
                 ),
                 'readiness_confirmations' => $this->readiness_confirmations,
             ]),
+            // Papers drivers here must upload on top of the standard ones.
+            'required_driver_documents' => $this->required_driver_documents ?? [],
             // Admin city list: every city's ready flag and missing gates.
             'readiness' => $this->when(array_key_exists('readiness_summary', $this->resource->getAttributes()), fn () => $this->readiness_summary),
             'waitlist_count' => $this->whenCounted('waitlistEntries'),

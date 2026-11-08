@@ -34,6 +34,7 @@ class City extends Model
         'launch_status_changed_at',
         'launch_status_changed_by_admin_id',
         'readiness_confirmations',
+        'required_driver_documents',
     ];
 
     protected static function booted(): void
@@ -72,6 +73,7 @@ class City extends Model
             'paused_at' => 'datetime',
             'launch_status_changed_at' => 'datetime',
             'readiness_confirmations' => 'array',
+            'required_driver_documents' => 'array',
         ];
     }
 

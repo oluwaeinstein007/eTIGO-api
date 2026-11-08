@@ -7,9 +7,9 @@
 {{-- Headline --}}
 <h1 style="margin: 0 0 16px 0; font-size: 26px; font-weight: 700; color: #18181b; line-height: 1.2;">
     @if($isExpired ?? false)
-        Your {{ strtolower($documentType) }} has expired.
+        Your {{ $documentTypeInSentence ?? strtolower($documentType) }} has expired.
     @else
-        Keep your {{ strtolower($documentType) }} up to date.
+        Keep your {{ $documentTypeInSentence ?? strtolower($documentType) }} up to date.
     @endif
 </h1>
 
@@ -19,11 +19,11 @@
     @if(!empty($reminderLine))
         {{ $reminderLine }}
     @elseif($isExpired ?? false)
-        The {{ strtolower($documentType) }} on your Etigo driver profile expired on {{ $expiryDate }}. Please upload the renewed document to keep driving.
+        The {{ $documentTypeInSentence ?? strtolower($documentType) }} on your Etigo driver profile expired on {{ $expiryDate }}. Please upload the renewed document to keep driving.
     @elseif(($daysRemaining ?? 0) === 0)
-        The {{ strtolower($documentType) }} on your Etigo driver profile expires today. Please upload the renewed document now.
+        The {{ $documentTypeInSentence ?? strtolower($documentType) }} on your Etigo driver profile expires today. Please upload the renewed document now.
     @else
-        The {{ strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} {{ $daysRemaining === 1 ? 'day' : 'days' }}. Please renew it and upload the updated document before {{ $expiryDate }}.
+        The {{ $documentTypeInSentence ?? strtolower($documentType) }} on your Etigo driver profile expires in {{ $daysRemaining }} {{ $daysRemaining === 1 ? 'day' : 'days' }}. Please renew it and upload the updated document before {{ $expiryDate }}.
     @endif
 </p>
 
@@ -92,7 +92,7 @@
         <div style="width: 32px; height: 32px; background-color: #0d7c3d; border-radius: 50%; text-align: center; line-height: 32px; font-size: 13px; font-weight: 700; color: #ffffff;">01</div>
     </td>
     <td valign="top">
-        <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">Upload your renewed {{ strtolower($documentType) }}</p>
+        <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700; color: #18181b;">Upload your renewed {{ $documentTypeInSentence ?? strtolower($documentType) }}</p>
         <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5;">In Etigo Driver, open Account &gt; Documents &gt; {{ $documentType }}.</p>
     </td>
 </tr>
@@ -122,7 +122,7 @@
         </td>
         <td>
             <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #18181b;">{{ ($blocksDriving ?? false) ? "Don't let an expired document pause your rides" : 'Keep your profile up to date' }}</p>
-            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">@if($blocksDriving ?? false)You won't be able to accept rides with an expired {{ strtolower($documentType) }}. Upload the renewed document in time for review.@else Keep your records up to date: upload the renewed document in time for review.@endif</p>
+            <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5;">@if($blocksDriving ?? false)You won't be able to accept rides with an expired {{ $documentTypeInSentence ?? strtolower($documentType) }}. Upload the renewed document in time for review.@else Keep your records up to date: upload the renewed document in time for review.@endif</p>
         </td>
     </tr>
     </table>

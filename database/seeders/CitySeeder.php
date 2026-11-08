@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\CityLaunchStatus;
+use App\Enums\DocumentType;
 use App\Models\City;
 use App\Models\User;
 use App\Models\VehicleClass;
@@ -51,6 +52,13 @@ class CitySeeder extends Seeder
 
             if ($city === null) {
                 $city = $this->createCity($data, $this->drawable($boundaries, $boundary, $data['name']), $admin);
+
+                // Lagos drivers also need their LASDRI and LASSRA cards (client,
+                // 8 Nov 2026). Only on creation, so a reseed keeps what
+                // operations set since.
+                if ($data['slug'] === 'lagos') {
+                    $city->update(['required_driver_documents' => [DocumentType::LasdriCard->value, DocumentType::LassraCard->value]]);
+                }
             } elseif ($this->hasLegacyBoundary($city, $data['slug'])
                 && ($drawn = $this->drawable($boundaries, $boundary, $data['name'], $city->id)) !== null) {
                 $city->update([

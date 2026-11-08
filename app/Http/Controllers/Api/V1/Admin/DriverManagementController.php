@@ -901,6 +901,8 @@ class DriverManagementController extends Controller
 
             $locked->update([
                 'city_id' => $city->id,
+                // The new city may require other papers: remind at the next run.
+                'city_documents_reminded_at' => null,
                 'is_online' => false,
             ]);
 
@@ -1049,6 +1051,7 @@ class DriverManagementController extends Controller
             $requiredDocTypes[] = 'vehicle_registration';
             $requiredDocTypes[] = 'insurance_certificate';
         }
+        $requiredDocTypes = [...$requiredDocTypes, ...$driver->cityDocumentTypes()];
 
         $uploadedDocTypes = $driver->documents()
             ->where('status', '!=', DocumentStatus::Rejected)

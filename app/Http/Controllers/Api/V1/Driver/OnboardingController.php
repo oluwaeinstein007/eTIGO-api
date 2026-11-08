@@ -592,6 +592,7 @@ class OnboardingController extends Controller
             $types[] = 'insurance_certificate';
         }
 
-        return $types;
+        // Papers the driver's city adds (Lagos: LASDRI and LASSRA cards).
+        return [...$types, ...$driver->cityDocumentTypes()];
     }
 }

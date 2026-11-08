@@ -266,7 +266,7 @@ it('reminds about an expired government ID but never blocks the driver for it', 
 
     expect($this->driver->fresh()->isDocumentsBlocked())->toBeFalse()
         ->and(Notification::where('user_id', $this->user->id)->where('type', 'document_expiring')->first()->body)
-        ->toBe('Your government id expired on 1 Nov 2026. Upload the new one to keep your records up to date.');
+        ->toBe('Your government ID expired on 1 Nov 2026. Upload the new one to keep your records up to date.');
 });
 
 it('sends nothing and marks nothing while reminders are off', function () {

@@ -39,7 +39,8 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
     public function toMail(object $notifiable): MailMessage
     {
         $updateDocumentUrl = config('app.frontend_url', config('app.url')).'/driver/documents';
-        $documentType = ucwords(str_replace('_', ' ', $this->document->type->value));
+        $documentType = $this->document->type->label();
+        $documentTypeInSentence = $this->document->type->inSentence();
         $expiryDate = $this->document->expires_at->format('j F Y');
         // Calendar days in Lagos: 0 on the expiry date itself, which is still valid.
         $today = now()->setTimezone('Africa/Lagos')->startOfDay();
@@ -51,9 +52,9 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
         $driverId = $this->driver->reference_number ?? 'DRV-'.now()->format('ymd').'-'.substr($this->driver->id, 0, 4);
 
         $subject = match (true) {
-            $isExpired => "Your {$documentType} has expired",
-            $daysRemaining === 0 => "Your {$documentType} expires today",
-            default => "Your {$documentType} expires on {$this->document->expires_at->format('j F')}",
+            $isExpired => "Your {$documentTypeInSentence} has expired",
+            $daysRemaining === 0 => "Your {$documentTypeInSentence} expires today",
+            default => "Your {$documentTypeInSentence} expires on {$this->document->expires_at->format('j F')}",
         };
         $preheaderSub = $this->line ?? ($isExpired
             ? 'Upload your renewed document now to keep driving.'
@@ -70,6 +71,7 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
                 'userName' => $notifiable->first_name,
                 'recipientEmail' => $notifiable->email,
                 'documentType' => $documentType,
+                'documentTypeInSentence' => $documentTypeInSentence,
                 'expiryDate' => $expiryDate,
                 'daysRemaining' => $daysRemaining,
                 'isExpired' => $isExpired,

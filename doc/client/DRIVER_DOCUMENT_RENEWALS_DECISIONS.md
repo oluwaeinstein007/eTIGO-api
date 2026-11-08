@@ -1,7 +1,7 @@
 # Driver Document Renewals: Decisions for Confirmation
 
-**Date:** 7 November 2026 (DR-11 added 8 November 2026)  
-**Status:** Built (engineering recommendation). **Not yet confirmed by E-TiGO.** Every value in section 2 can be changed by Operations in the dashboard without a new release.
+**Date:** 7 November 2026 (DR-11 and DR-12 added 8 November 2026)  
+**Status:** Built. **Approved by Augustine Opara for E-TiGO on 8 November 2026**, including adding the Lagos LASDRI and LASSRA cards (DR-12). Every value in section 2 can be changed by Operations in the dashboard without a new release.
 
 ## 1. The approach
 
@@ -10,6 +10,7 @@
 - **No gap while a renewal is checked.** The licence on file stays valid until the renewed one is approved. A driver who renews early never loses a day of driving.
 - **An expired driving licence stops driving.** The rule is enforced on the server, not only hidden in the app: no going online, no new trips, no manual assignment, no fleet shifts, and reserved pickups go back to other drivers. **A trip in progress is never interrupted.**
 - **Reminders go out by push, in-app message and email.** Push alone isn't enough, because drivers turn notifications off.
+- **Vehicle papers follow the same idea.** Vehicle licence, insurance and roadworthiness are tracked by the expiry date on each paper, not on a fixed yearly cycle, because each one runs out on a different date. Drivers are reminded before expiry and the car is taken off the road 7 days after a paper expires, until the renewed paper is approved.
 
 ## 2. Choices made (please confirm or change)
 
@@ -26,8 +27,8 @@
 | DR-9 | Who may withdraw or correct a paper | Operations and Safety | Operations only |
 | DR-10 | Fleet drivers | Same rule. Operations also get an email when a fleet driver is blocked | — |
 | DR-11 | Where the expiry date comes from | The driver enters it and Operations confirm it against the photo. A renewed licence is also looked up in FRSC records (through QoreID, the check used at onboarding): the reviewer sees whether FRSC knows the licence in the driver's name and FRSC's expiry date, and a mismatch is flagged. FRSC's date is used when no date was entered. Operations still decide | Driver's date only (no lookup); or approve automatically when FRSC matches |
+| DR-12 | Lagos LASDRI and LASSRA cards | Required from drivers in Lagos (set per city, so other cities can be added later). New Lagos applicants must upload both before submitting; the LASDRI card needs its expiry date. Drivers already working in Lagos are **reminded every 14 days, not blocked**, until they upload them. An expiring LASDRI card gets the usual reminders and never blocks | Block Lagos drivers without the cards, possibly after a deadline |
 
 ## 3. Out of scope for now
 
-- **Lagos LASDRI and LASSRA cards.** Bolt asks for these in Lagos. They are not yet E-tiGo document types. If E-TiGO wants them, they can be added as papers with their own expiry dates, required only in Lagos.
 - **Periodic selfie checks** to confirm the person driving is the account holder. This is a separate safety feature.

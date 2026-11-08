@@ -1582,9 +1582,9 @@ Content-Type: multipart/form-data
 
 | Field    | Type   | Required | Description                                                                        |
 |----------|--------|----------|------------------------------------------------------------------------------------|
-| type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`, `government_id` |
+| type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`, `government_id`, `lasdri_card`, `lassra_card` (the last two where the driver's city requires them; see [City-Required Driver Documents](#city-required-driver-documents-lagos-lasdri-and-lassra)) |
 | document | file   | Yes      | JPG, PNG, or PDF. Max 10MB.                                                        |
-| expires_at | date | For `roadworthiness_certificate`, `vehicle_licence`, and every `driving_licence` (first upload or renewal) | Expiry on the paper (after today). For a renewed licence (an approved one is on file) it must also be later than the licence on file, else 422 `Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.` Optional otherwise, but send it whenever the paper shows one |
+| expires_at | date | For `roadworthiness_certificate`, `vehicle_licence`, `lasdri_card`, and every `driving_licence` (first upload or renewal) | Expiry on the paper (after today). For a renewed licence (an approved one is on file) it must also be later than the licence on file, else 422 `Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.` Optional otherwise, but send it whenever the paper shows one |
 | document_number | string | No | The number printed on the paper (max 30). On a renewed licence that carries a new number, operations make it the driver's licence number when they approve it. Stored encrypted; the driver sees only the last 4 (`"•••• ZZ09"`) |
 
 Re-uploading a document of the same type replaces a **pending or rejected** upload of that type. An **approved** paper (any type, driver or vehicle) stays valid until its renewal is approved, so renewing early never leaves the driver or the car without papers. A paper operations **withdrew** (`revoked_at` set) is kept, not replaced. See [Driver Document Renewals](#driver-document-renewals). **Vehicle papers** (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) belong to the driver's car (Phase 2). Papers uploaded before the car is registered are linked to it when it is. Drivers of a fleet car with no car assigned get 422 (operations manage fleet papers). Insurance, roadworthiness and the vehicle licence decide whether the car may be driven: see [Vehicle Maintenance](#vehicle-maintenance-phase-2).
@@ -1617,7 +1617,7 @@ Re-uploading a document of the same type replaces a **pending or rejected** uplo
 GET /driver/documents
 ```
 
-Returns the complete server-driven checklist of required documents for the authenticated driver based on their `vehicle_ownership_type` (`fleet_vehicle` requires 2 personal documents; `own_vehicle` requires 4 personal and vehicle documents). Fleet: `driving_licence`, `government_id`. Own car: those plus `vehicle_registration`, `insurance_certificate`, in that order. `can_submit` covers documents only; `POST /driver/onboarding/submit` also checks ownership type, vehicle, licence number and city. Each item represents a required document slot with its current submission, review, or rejection status.
+Returns the complete server-driven checklist of required documents for the authenticated driver based on their `vehicle_ownership_type` (`fleet_vehicle` requires 2 personal documents; `own_vehicle` requires 4 personal and vehicle documents). Fleet: `driving_licence`, `government_id`. Own car: those plus `vehicle_registration`, `insurance_certificate`, in that order. Then any papers the driver's **city** requires: in **Lagos**, `lasdri_card` and `lassra_card` (so 4 for a Lagos fleet driver, 6 for a Lagos own-car driver). `can_submit` covers documents only; `POST /driver/onboarding/submit` also checks ownership type, vehicle, licence number and city. Each item represents a required document slot with its current submission, review, or rejection status.
 
 **Response 200:**
 ```json
@@ -1730,7 +1730,7 @@ Papers are renewed when the date printed on them runs out, **not on a yearly clo
 
 A blocked driver cannot go online (422, reason in `reasons`), gets no offers, cannot be manually assigned or booked on fleet shifts, and loses reserved scheduled pickups (reason `documents_blocked`, passenger told). An idle online driver is set offline. **A trip in progress is never ended.** For a fleet driver, operations get an email alert. The block lifts as soon as a renewed licence is **approved**; a pending upload doesn't lift it. A driver with no licence on file at all is left to the onboarding rules.
 
-**Government ID** expiry only reminds; it never blocks. **Vehicle papers** keep their own grace period and block under [Vehicle Maintenance](#vehicle-maintenance-phase-2); this adds reminder emails for own cars (fleet cars' papers are operations').
+**Government ID** and the **Lagos LASDRI/LASSRA cards** only remind when they expire; they never block. **Vehicle papers** keep their own grace period and block under [Vehicle Maintenance](#vehicle-maintenance-phase-2); this adds reminder emails for own cars (fleet cars' papers are operations').
 
 **Block checks** run at 00:05 Lagos and again with the reminders. Matching doesn't wait for them: a driver whose licence has run out past the grace period gets no offers from the moment it lapses, even before the block is recorded. A driver blocked during a trip is set offline as soon as that trip ends. Each run also re-does the clean-up for drivers still blocked: an idle online driver is set offline (for example, once the trip they were on when the block started has ended), and reserved pickups are released. A block that starts also frees the driver's upcoming fleet shifts (operations are emailed which slots to fill), and an offer can't be accepted while blocked.
 
@@ -1764,6 +1764,19 @@ A blocked driver cannot go online (422, reason in `reasons`), gets no offers, ca
 | Licences approved before expiry dates were required | `expiry_status: no_expiry`, never blocked; operations add the date with `PATCH` (queue filter `expiry=no_expiry`) |
 | Driver on a trip when the block starts | Finishes the trip; no new offers |
 | Approved driver edits licence number in profile | 422; it comes with the renewed licence |
+
+### City-Required Driver Documents (Lagos LASDRI and LASSRA)
+
+A city can require papers on top of the standard ones (`cities.required_driver_documents`). **Lagos** requires the **`lasdri_card`** (Lagos State Drivers' Institute card; `expires_at` required on upload) and the **`lassra_card`** (Lagos State Residents Registration Agency ID; expiry optional). The migration turns this on for the city with slug `lagos`, and the city seeder does the same on fresh setups. Operations change a city's list with [Update City](#update-city) (`required_driver_documents`: `lasdri_card` and/or `lassra_card`; `[]` or `null` for none).
+
+| Who | What happens |
+|---|---|
+| **Applicants** in the city | The cards appear in the `GET /driver/documents` checklist, `required_documents` (onboarding status) and `is_profile_complete`. `POST /driver/onboarding/submit` is refused until they're uploaded (`Missing documents: lasdri_card, lassra_card`). The admin complete-onboarding shortcut checks them too |
+| **Working drivers** already in the city | **Never blocked** for a missing card. A `document_required` push (and in-app message) every **14 days** while one is missing (or rejected or withdrawn); a pending upload stops it. In `compliance.documents`, a missing card shows with `missing: true`, `required_by_city: true` and `action_required: true` |
+| Expiring or expired **LASDRI card** | Same staged reminders as other dated papers (30/14/7/1 days, on the day, after); never blocks |
+| Driver **moved to another city** by operations | Reminded about that city's papers at the next daily run |
+
+Applications already submitted (`pending_review`) when Lagos turned this on can still be approved; those drivers then get the reminder. Every compliance entry now has `missing` and `required_by_city`.
 
 ### Admin — Driver Documents (Renewals Queue)
 ```
@@ -5618,6 +5631,12 @@ PUT /admin/cities/{city_id}
 ```
 Same fields as create, all optional (partial update supported). Slug auto-regenerated if name changes.
 
+| Extra field | Type | Description |
+|---|---|---|
+| required_driver_documents | array\|null | Papers this city's drivers must upload on top of the standard ones: `lasdri_card`, `lassra_card` (any other value is 422). `[]` or `null` for none. See [City-Required Driver Documents](#city-required-driver-documents-lagos-lasdri-and-lassra) |
+
+Every city response now carries `required_driver_documents` (an array, empty when none).
+
 **Response 200:**
 ```json
 {
@@ -5633,6 +5652,7 @@ Same fields as create, all optional (partial update supported). Slug auto-regene
     "timezone": "Africa/Lagos",
     "currency_code": "NGN",
     "is_active": true,
+    "required_driver_documents": ["lasdri_card", "lassra_card"],
     "created_at": "2026-10-01T10:00:00.000000Z",
     "updated_at": "2026-10-06T14:00:00.000000Z"
   }
@@ -17544,6 +17564,7 @@ Push notifications are sent automatically on ride state transitions. The mobile 
 | Vehicle check due | Driver | `vehicle_maintenance_due` | Items became due soon, overdue, expired or still need a record; once per change (data: `vehicle_id`). See [Vehicle Maintenance](#vehicle-maintenance-phase-2) |
 | Car off the road / back on | Driver | `vehicle_blocked` / `vehicle_unblocked` | Papers expired past the grace period (bypasses preferences; reserved pickups released) / a renewal was approved |
 | Document expiring / expired | Driver | `document_expiring` | Driving licence or government ID (and other papers that aren't vehicle legal papers): 30, 14, 7 and 1 days before, on the day, and once expired (government ID, or a licence still in its grace period). The same reminder is emailed, and vehicle legal papers get the email only. Never sent while a renewal waits for review (data: `document_id`, `document_type`, `expires_at`). See [Driver Document Renewals](#driver-document-renewals) |
+| Document needed | Driver | `document_required` | A working driver is missing a paper their city requires (Lagos: LASDRI, LASSRA card). Every 14 days until uploaded; never blocks (data: `document_types`, comma-separated) |
 | Document checked | Driver | `document_reviewed` | Operations approved, rejected or withdrew a paper of a working driver (data: `document_id`, `document_type`, `status`, `revoked` `"true"`/`"false"`) |
 | Can't drive / can drive again (licence) | Driver | `driver_documents_blocked` / `driver_documents_unblocked` | Driving licence expired past the grace period, or withdrawn. Bypasses preferences; the driver is set offline unless on a trip, and reserved pickups are released (reason `documents_blocked`) / a renewed licence was approved |
 | Maintenance record checked | Driver | `maintenance_record_reviewed` | Operations approved or rejected a submitted record (data: `vehicle_id`, `record_id`) |

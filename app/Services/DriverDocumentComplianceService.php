@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
+use App\Enums\DriverStatus;
 use App\Enums\NotificationType;
 use App\Enums\RideStatus;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
+use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverDocument;
 use App\Models\Ride;
@@ -38,6 +40,9 @@ class DriverDocumentComplianceService
 
     /** The reminder step stored once a paper has expired. */
     public const STAGE_EXPIRED = -1;
+
+    /** Days between reminders to upload a paper the city requires. */
+    public const CITY_DOCUMENT_REMINDER_DAYS = 14;
 
     /**
      * Push and in-app messages for drivers; email alerts for operations.
@@ -162,6 +167,7 @@ class DriverDocumentComplianceService
         $settings = AppSetting::driverDocuments();
         $documents = $driver->documents()->with('vehicle:id,is_fleet')->get();
         $currentVehicleId = $driver->vehicle()->value('id');
+        $cityRequired = $driver->cityDocumentTypes();
         $entries = [];
 
         foreach (DocumentType::cases() as $type) {
@@ -172,6 +178,24 @@ class DriverDocumentComplianceService
                 && ($document->vehicle_id === null || $document->vehicle_id === $currentVehicleId));
 
             if ($ofType->isEmpty()) {
+                // A paper the driver's city requires that was never uploaded.
+                if (in_array($type->value, $cityRequired, true)) {
+                    $entries[] = [
+                        'type' => $type->value,
+                        'label' => $type->label(),
+                        'document_id' => null,
+                        'expires_at' => null,
+                        'expiry_status' => null,
+                        'days_until_expiry' => null,
+                        'blocks_driving' => false,
+                        'revoked_at' => null,
+                        'renewal' => null,
+                        'missing' => true,
+                        'required_by_city' => true,
+                        'action_required' => true,
+                    ];
+                }
+
                 continue;
             }
 
@@ -200,6 +224,11 @@ class DriverDocumentComplianceService
                     'rejection_reason' => $renewal->rejection_reason,
                     'uploaded_at' => $renewal->created_at?->toIso8601String(),
                 ] : null,
+                // A city paper whose only uploads were rejected or withdrawn
+                // is still missing (it is reminded about as missing too).
+                'missing' => in_array($type->value, $cityRequired, true)
+                    && ! $ofType->contains(fn (DriverDocument $document) => $document->status !== DocumentStatus::Rejected && $document->revoked_at === null),
+                'required_by_city' => in_array($type->value, $cityRequired, true),
                 // Something for the driver to do: upload a renewal, or fix a rejected one.
                 'action_required' => ($renewal === null || $renewal->status === DocumentStatus::Rejected)
                     && ($current === null || in_array($expiryStatus, ['expiring_soon', 'expired'], true)),
@@ -257,6 +286,70 @@ class DriverDocumentComplianceService
             });
 
         return $sent;
+    }
+
+    /**
+     * Working drivers missing a paper their city requires (Lagos: LASDRI and
+     * LASSRA cards) get a reminder every 14 days until they upload it. A
+     * pending upload counts; a rejected or withdrawn one doesn't. Missing
+     * city papers never block.
+     *
+     * @return int drivers reminded
+     */
+    public function remindMissingCityDocuments(): int
+    {
+        if (! AppSetting::driverDocuments()['reminders_enabled']) {
+            return 0;
+        }
+
+        $cityIds = City::whereNotNull('required_driver_documents')->get()
+            ->filter(fn (City $city) => array_intersect($city->required_driver_documents ?? [], DocumentType::cityDocumentValues()) !== [])
+            ->pluck('id');
+
+        if ($cityIds->isEmpty()) {
+            return 0;
+        }
+
+        $reminded = 0;
+
+        Driver::query()
+            ->whereIn('city_id', $cityIds)
+            ->whereIn('status', [DriverStatus::Approved, DriverStatus::Suspended])
+            ->where(fn ($q) => $q->whereNull('city_documents_reminded_at')->orWhere('city_documents_reminded_at', '<=', now()->subDays(self::CITY_DOCUMENT_REMINDER_DAYS)))
+            ->with(['city', 'documents'])
+            ->lazyById()
+            ->each(function (Driver $driver) use (&$reminded) {
+                $onFile = $driver->documents
+                    ->filter(fn (DriverDocument $document) => $document->status !== DocumentStatus::Rejected && $document->revoked_at === null)
+                    ->map(fn (DriverDocument $document) => $document->type->value)
+                    ->all();
+                $missing = array_values(array_diff($driver->cityDocumentTypes(), $onFile));
+
+                if ($missing === []) {
+                    return;
+                }
+
+                $labels = collect($missing)->map(fn (string $type) => DocumentType::from($type)->label())->join(', ', ' and ');
+
+                // Only marked as reminded once it went out, so a failure is
+                // retried at the next run rather than in 14 days.
+                $sent = $this->attempt(fn () => $this->notifications->send(
+                    userId: $driver->user_id,
+                    type: NotificationType::DocumentRequired,
+                    title: NotificationType::DocumentRequired->label(),
+                    body: "Drivers in {$driver->city->name} need their {$labels} on E-tiGo. Upload ".(count($missing) === 1 ? 'it' : 'them').' in the app under Documents.',
+                    data: ['document_types' => implode(',', $missing)],
+                ));
+
+                if (! $sent) {
+                    return;
+                }
+
+                $driver->forceFill(['city_documents_reminded_at' => now()])->saveQuietly();
+                $reminded++;
+            });
+
+        return $reminded;
     }
 
     /**
@@ -639,7 +732,7 @@ class DriverDocumentComplianceService
      */
     private function lower(string $label): string
     {
-        return mb_strtolower($label);
+        return DocumentType::tryFromLabel($label)?->inSentence() ?? mb_strtolower($label);
     }
 
     /**
