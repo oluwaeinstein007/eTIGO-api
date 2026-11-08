@@ -16268,7 +16268,7 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Every refund made on the ride, newest first, so finance can see what was refunded, by whom, why and whether the driver's earnings were clawed back — without reading the audit log, and without having to refuse a refund first just to learn what is left.
+Every refund made on the ride, newest first, so finance can see what was refunded, by whom, why and whether the driver's earnings were clawed back — without reading the audit log, and without having to refuse a refund first just to learn what is left. Backfilled from the ledger when this shipped, so refunds made before that are listed too (a backfilled row's `refunded_by` may be `null` if the original refund predates admin attribution on refunds).
 
 **Response 200:**
 ```json

@@ -165,6 +165,8 @@ class AdminVehicleMaintenanceController extends Controller
             ->where('status', $status)
             ->when($validated['vehicle_id'] ?? null, fn ($q, $id) => $q->where('vehicle_id', $id))
             ->orderBy($sortColumn, $sortDir)
+            // Records tied on $sortColumn must not swap between pages.
+            ->orderBy('id', $sortDir)
             ->paginate(30);
 
         return response()->json([

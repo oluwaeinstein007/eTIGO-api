@@ -19,6 +19,7 @@ use App\Models\Journal;
 use App\Models\PassengerBalanceDue;
 use App\Models\PricingConfig;
 use App\Models\Ride;
+use App\Models\RideRefund;
 use App\Models\ScheduledRide;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
@@ -420,6 +421,15 @@ class ScheduledRideCancellationFeeService
                 $this->refunds->clawbackDriverEarnings($ride, $amountKobo, "clawback-{$key}", $driver);
                 $clawbackKobo = $amountKobo;
             }
+
+            RideRefund::create([
+                'ride_id' => $ride->id,
+                'amount_kobo' => $amountKobo,
+                'driver_clawback_kobo' => $clawbackKobo,
+                'reason' => $reason,
+                'refunded_by_admin_id' => $admin->id,
+                'dispute_id' => $disputeId,
+            ]);
 
             AuditLog::record($ride, 'scheduled_ride_late_cancellation_fee_refunded', $admin, null, [
                 'refund_kobo' => $amountKobo,

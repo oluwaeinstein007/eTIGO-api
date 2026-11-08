@@ -12,6 +12,7 @@ use App\Models\Ride;
 use App\Models\RideRefund;
 use App\Models\User;
 use App\Notifications\WalletRefundNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -198,6 +199,89 @@ class WalletRefundService
             ->join('ledger_entries', 'journals.id', '=', 'ledger_entries.journal_id')
             ->where('ledger_entries.type', LedgerEntryType::Credit->value)
             ->sum('ledger_entries.amount');
+    }
+
+    /**
+     * paidAmountKobo()/refundedAmountKobo()/remainingRefundableKobo() for
+     * several rides in one batch of queries instead of 2-4 per ride (used by
+     * ride search, which can return a handful of rides at once).
+     *
+     * @param  Collection<int, Ride>  $rides  each with `payment` eager loaded
+     * @return array<string, array{paid_kobo: int, refunded_kobo: int, remaining_refundable_kobo: int}>
+     */
+    public function refundSummaryBatch(Collection $rides): array
+    {
+        $paidStatuses = [
+            PaymentStatus::Captured,
+            PaymentStatus::Settled,
+            PaymentStatus::Collected,
+            PaymentStatus::PendingCollection,
+        ];
+
+        $paid = [];
+        $settlementRideIds = [];
+
+        foreach ($rides as $ride) {
+            $payment = $ride->payment;
+
+            if ($payment && in_array($payment->status, $paidStatuses, true)) {
+                $paid[$ride->id] = (int) round((float) $payment->amount * 100);
+            } elseif ($payment && $payment->method === PaymentMethod::Wallet && $payment->status === PaymentStatus::Failed) {
+                $settlementRideIds[] = $ride->id;
+            } else {
+                $paid[$ride->id] = 0;
+            }
+        }
+
+        if ($settlementRideIds !== []) {
+            $settlements = Journal::whereIn('idempotency_key', array_map(fn ($id) => "ride-settlement-{$id}", $settlementRideIds))
+                ->get()
+                ->keyBy('idempotency_key');
+
+            foreach ($settlementRideIds as $rideId) {
+                $paid[$rideId] = (int) ($settlements->get("ride-settlement-{$rideId}")?->metadata['charged_kobo'] ?? 0);
+            }
+        }
+
+        $rideIds = $rides->pluck('id')->all();
+        $refunded = array_fill_keys($rideIds, 0);
+
+        if ($rideIds !== []) {
+            $rows = Journal::query()
+                ->join('ledger_entries', 'journals.id', '=', 'ledger_entries.journal_id')
+                ->where('ledger_entries.type', LedgerEntryType::Credit->value)
+                ->where(function ($q) use ($rideIds) {
+                    foreach ($rideIds as $rideId) {
+                        $q->orWhere('journals.idempotency_key', 'like', "refund-{$rideId}-%");
+                    }
+                })
+                ->get(['journals.idempotency_key', 'ledger_entries.amount']);
+
+            foreach ($rows as $row) {
+                foreach ($rideIds as $rideId) {
+                    if (str_starts_with($row->idempotency_key, "refund-{$rideId}-")) {
+                        $refunded[$rideId] += (int) $row->amount;
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        $summary = [];
+
+        foreach ($rides as $ride) {
+            $paidKobo = $paid[$ride->id] ?? 0;
+            $refundedKobo = $refunded[$ride->id] ?? 0;
+
+            $summary[$ride->id] = [
+                'paid_kobo' => $paidKobo,
+                'refunded_kobo' => $refundedKobo,
+                'remaining_refundable_kobo' => max(0, $paidKobo - $refundedKobo),
+            ];
+        }
+
+        return $summary;
     }
 
     /**

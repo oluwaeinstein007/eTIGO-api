@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\VehicleMakeResource;
 use App\Http\Resources\VehicleModelResource;
 use App\Models\VehicleMake;
+use App\Support\SearchTerm;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,15 +36,15 @@ class VehicleCatalogController extends Controller
             }
 
             if (! empty($search)) {
-                $modelQuery->where('name', 'ilike', "%{$search}%");
+                $modelQuery->whereLike('name', SearchTerm::like($search), false);
             }
         }]);
 
         if (! empty($search)) {
             $query->where(function (Builder $q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
+                $q->whereLike('name', SearchTerm::like($search), false)
                     ->orWhereHas('models', function (Builder $mq) use ($search) {
-                        $mq->active()->where('name', 'ilike', "%{$search}%");
+                        $mq->active()->whereLike('name', SearchTerm::like($search), false);
                     });
             });
         }
@@ -76,7 +77,7 @@ class VehicleCatalogController extends Controller
         }
 
         if (! empty($search)) {
-            $query->where('name', 'ilike', "%{$search}%");
+            $query->whereLike('name', SearchTerm::like($search), false);
         }
 
         $models = $query->get();
