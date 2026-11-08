@@ -46,7 +46,7 @@ class ProcessVehicleMaintenanceJob implements ShouldQueue
                 headline: count($digest) === 1 ? '1 fleet item needs attention' : count($digest).' fleet items need attention',
                 body: 'These fleet cars have overdue maintenance or expired papers. Overdue maintenance only warns; expired papers stop the car after the grace period.',
                 lines: $digest,
-                actionPath: '/admin/vehicle-maintenance?status=overdue,expired',
+                actionPath: '/admin/vehicle-maintenance',
                 actionLabel: 'Open fleet maintenance',
             );
         }

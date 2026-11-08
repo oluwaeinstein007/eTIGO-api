@@ -141,4 +141,6 @@
 </td>
 </tr>
 </table>
+
+@include('emails.partials.fallback-link', ['url' => $applicationUrl])
 @endsection

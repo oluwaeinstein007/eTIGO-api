@@ -46,10 +46,7 @@
 </tr>
 </table>
 
-{{-- Fallback link --}}
-<p style="margin: 0 0 20px 0; font-size: 13px;">
-    <a href="{{ $resetUrl }}" style="color: #0d7c3d;">Button not working? Open {{ parse_url($resetUrl, PHP_URL_HOST) . parse_url($resetUrl, PHP_URL_PATH) }}</a>
-</p>
+@include('emails.partials.fallback-link', ['url' => $resetUrl])
 
 {{-- Expiry note --}}
 <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280;">

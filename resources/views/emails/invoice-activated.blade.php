@@ -104,6 +104,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $invoicesUrl])
+
 <p style="margin: 0 0 24px 0; font-size: 13px; color: #6b7280;">
     This email confirms access only. It isn't an invoice or a payment request. If an invoice isn't listed yet, check with your workspace administrator.
 </p>

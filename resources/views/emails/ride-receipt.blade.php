@@ -125,6 +125,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $receiptUrl])
+
 <p style="margin: 0 0 24px 0; font-size: 13px; color: #6b7280;">
     Questions about this ride? Share ride ID {{ $rideReference }} with support.
 </p>

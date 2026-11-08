@@ -80,6 +80,8 @@
 </tr>
 </table>
 
+@include('emails.partials.fallback-link', ['url' => $updateDocumentUrl])
+
 {{-- Steps heading --}}
 <h2 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #18181b;">A quick update keeps you moving</h2>
 
