@@ -3,6 +3,7 @@
 .DS_Store
 .env
 .env.backup
+.env.bak-*
 .env.production
 .env.passenger-simulator.local
 .env.driver-simulator.local
