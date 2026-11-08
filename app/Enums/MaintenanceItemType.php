@@ -14,6 +14,8 @@ enum MaintenanceItemType: string
     case Roadworthiness = 'roadworthiness';
     case VehicleLicence = 'vehicle_licence';
     case BatteryHealth = 'battery_health';
+    case AccidentRepair = 'accident_repair';
+    case Other = 'other';
 
     public function label(): string
     {
@@ -24,7 +26,19 @@ enum MaintenanceItemType: string
             self::Roadworthiness => 'Roadworthiness certificate',
             self::VehicleLicence => 'Vehicle licence',
             self::BatteryHealth => 'Battery health check',
+            self::AccidentRepair => 'Accident repair',
+            self::Other => 'Other work',
         };
+    }
+
+    /**
+     * One-off work with no due date of its own: an accident repair or
+     * anything else that does not fit the tracked items. Never gets its own
+     * VehicleMaintenanceItem or interval settings, only a record.
+     */
+    public function isAdHoc(): bool
+    {
+        return in_array($this, [self::AccidentRepair, self::Other], true);
     }
 
     /**
@@ -68,12 +82,35 @@ enum MaintenanceItemType: string
     }
 
     /**
-     * Items whose work is logged as a maintenance record (not a document).
+     * Items whose work is logged as a maintenance record (not a document)
+     * and tracked against its own due date / interval settings.
      *
      * @return list<self>
      */
     public static function recordable(): array
     {
+        return array_values(array_filter(self::cases(), fn (self $type) => ! $type->isLegalPaper() && ! $type->isAdHoc()));
+    }
+
+    /**
+     * Every type that can be chosen on a maintenance record, including
+     * one-off work that has no due date of its own.
+     *
+     * @return list<self>
+     */
+    public static function loggable(): array
+    {
         return array_values(array_filter(self::cases(), fn (self $type) => ! $type->isLegalPaper()));
+    }
+
+    /**
+     * Types that get their own VehicleMaintenanceItem (a due date tracked
+     * per vehicle): every type except the one-off, ad-hoc ones.
+     *
+     * @return list<self>
+     */
+    public static function tracked(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $type) => ! $type->isAdHoc()));
     }
 }

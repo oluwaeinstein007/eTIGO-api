@@ -53,11 +53,18 @@ class AdminDriverShiftController extends Controller
             'to' => ['sometimes', 'nullable', 'date'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'per_page' => ['sometimes', 'nullable', 'integer'],
+            'sort_dir' => ['sometimes', 'nullable', 'in:asc,desc'],
         ]);
 
         [$from, $to] = $this->range($validated['from'] ?? null, $validated['to'] ?? null);
         $statuses = $this->statusList($validated['status'] ?? '');
         $search = trim((string) ($validated['search'] ?? ''));
+
+        // Scheduled/active shifts read best soonest-first; a finished-only
+        // view (completed/missed/cancelled) reads best most-recent-first.
+        $terminal = [DriverShiftStatus::Completed->value, DriverShiftStatus::Missed->value, DriverShiftStatus::Cancelled->value];
+        $isTerminalOnly = $statuses !== [] && array_diff($statuses, $terminal) === [];
+        $sortDir = $validated['sort_dir'] ?? ($isTerminalOnly ? 'desc' : 'asc');
 
         $filtered = fn () => DriverShift::query()
             ->overlapping($from, $to)
@@ -68,9 +75,9 @@ class AdminDriverShiftController extends Controller
         $shifts = $filtered()
             ->with(['driver.user', 'vehicle'])
             ->when($statuses !== [], fn (Builder $q) => $q->whereIn('status', $statuses))
-            ->orderBy('starts_at')
+            ->orderBy('starts_at', $sortDir)
             // Shifts starting together must not swap between pages.
-            ->orderBy('id')
+            ->orderBy('id', $sortDir)
             ->paginate($this->perPage($request));
 
         $counts = $filtered()->toBase()

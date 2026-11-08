@@ -128,11 +128,11 @@ class AdminVehicleMaintenanceController extends Controller
     public function storeRecord(Request $request, Vehicle $vehicle): JsonResponse
     {
         $validated = $request->validate([
-            'item_type' => ['required', Rule::in(array_map(fn (MaintenanceItemType $type) => $type->value, MaintenanceItemType::recordable()))],
+            'item_type' => ['required', Rule::in(array_map(fn (MaintenanceItemType $type) => $type->value, MaintenanceItemType::loggable()))],
             'performed_at' => ['required', 'date', 'before_or_equal:today'],
             'odometer_km' => ['nullable', 'integer', 'min:0', 'max:2000000'],
             'workshop' => ['nullable', 'string', 'max:120'],
-            'notes' => ['nullable', 'string', 'max:1000'],
+            'notes' => [Rule::requiredIf(fn () => $request->input('item_type') === MaintenanceItemType::Other->value), 'nullable', 'string', 'max:1000'],
             'driver_repair_id' => ['nullable', 'uuid', Rule::exists('driver_repairs', 'id')],
             'proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ]);
@@ -151,13 +151,20 @@ class AdminVehicleMaintenanceController extends Controller
         $validated = $request->validate([
             'status' => ['sometimes', Rule::enum(MaintenanceRecordStatus::class)],
             'vehicle_id' => ['sometimes', 'uuid'],
+            'sort_dir' => ['sometimes', 'in:asc,desc'],
         ]);
+
+        $status = $validated['status'] ?? MaintenanceRecordStatus::Pending->value;
+        // Pending: oldest first (a review queue). Approved/rejected: most recently reviewed first.
+        $isPending = $status === MaintenanceRecordStatus::Pending->value;
+        $sortColumn = $isPending ? 'created_at' : 'reviewed_at';
+        $sortDir = $validated['sort_dir'] ?? ($isPending ? 'asc' : 'desc');
 
         $records = VehicleMaintenanceRecord::query()
             ->with(['vehicle', 'submitter'])
-            ->where('status', $validated['status'] ?? MaintenanceRecordStatus::Pending->value)
+            ->where('status', $status)
             ->when($validated['vehicle_id'] ?? null, fn ($q, $id) => $q->where('vehicle_id', $id))
-            ->oldest()
+            ->orderBy($sortColumn, $sortDir)
             ->paginate(30);
 
         return response()->json([

@@ -1780,8 +1780,9 @@ Operations, Safety. Papers across all drivers.
 | frsc_flagged | `true`: the FRSC lookup didn't match (name, expiry date, or no confirmation). See [FRSC Licence Check](#frsc-licence-check-renewals) |
 | city_id, search | Driver's city; driver name, email, phone or reference |
 | per_page | 1–100 (default 20) |
+| sort_dir | `asc` / `desc`, overrides the default below |
 
-`status=pending` is oldest first (a queue). Each item is the document plus `vehicle` (`id`, `plate_number`, `is_fleet` or `null`), `expiry_status`, `days_until_expiry`, `is_renewal`, and `driver` (`id`, `reference_number`, `name`, `phone`, `status`, `city`, `documents_blocked`). `summary`: `pending_renewals`, `expiring_soon`, `expired`, `licences_missing_expiry`, `blocked_drivers`, `frsc_flagged` (pending papers flagged by the FRSC lookup). Driving licences carry `frsc_check`. Review with [Review Document](#review-document).
+Newest first by default (pending, approved, rejected, and `expiry=no_expiry` all default to `desc`), except `expiry=expiring_soon` which stays soonest-due-first (`asc`) and `expiry=expired` which defaults to most-recently-expired-first (`desc`). Each item is the document plus `vehicle` (`id`, `plate_number`, `is_fleet` or `null`), `expiry_status`, `days_until_expiry`, `is_renewal`, and `driver` (`id`, `reference_number`, `name`, `phone`, `status`, `city`, `documents_blocked`). `document_number` and `file_url` are left out of the response when there is no value (never `{}`), matching the driver page. `summary`: `pending_renewals`, `expiring_soon`, `expired`, `licences_missing_expiry`, `blocked_drivers`, `frsc_flagged` (pending papers flagged by the FRSC lookup). Driving licences carry `frsc_check`. Review with [Review Document](#review-document).
 
 **Typical views:** renewals to check: `?status=pending&renewals_only=1`. Licences expiring: `?type=driving_licence&expiry=expiring_soon`. Backfill: `?type=driving_licence&expiry=no_expiry`.
 
@@ -6040,6 +6041,43 @@ All fields are optional (partial update supported). Omitting `city_ids` leaves c
 
 ---
 
+## Admin — Vehicle Catalog Management (Makes & Models)
+
+The public vehicle catalog (`GET /vehicle-makes`, `GET /vehicle-makes/{make}/models`, used by the driver/passenger apps) only ever lists **active** makes and models. The admin endpoints below list and manage every make and model, active or not.
+
+### List Vehicle Makes (Admin)
+```
+GET /admin/vehicle-catalog/makes
+```
+**Auth:** operations.
+
+| Query | Description |
+|---|---|
+| search | Match a make's name, case-insensitively |
+| is_active | `true` / `false`. Omitted: both active and inactive |
+
+**Response 200:** `{ "makes": [{ "id", "name", "slug", "is_active", "models": [{ "id", "name", "fuel_type", "vehicle_class_id", "is_active", "sort_order" }] }] }` — every model of every returned make, active or not.
+
+### Create / Update / Delete Vehicle Make
+```
+POST   /admin/vehicle-catalog/makes
+PUT    /admin/vehicle-catalog/makes/{make}
+DELETE /admin/vehicle-catalog/makes/{make}
+```
+**Auth:** operations. Fields: `name` (unique), `is_active`, `sort_order`. To switch a make off (so it drops out of the public catalog) or back on, `PUT` with `is_active`; nothing is deleted.
+
+Renaming a make (`PUT` with a new `name`) regenerates its `slug`, appending `-2`, `-3`, … on a collision, so a later make can always reuse a name freed up by an earlier rename — this no longer fails with a server error.
+
+### Create / Update / Delete Vehicle Model
+```
+POST   /admin/vehicle-catalog/makes/{make}/models
+PUT    /admin/vehicle-catalog/models/{model}
+DELETE /admin/vehicle-catalog/models/{model}
+```
+**Auth:** operations. Fields: `name`, `fuel_type`, `vehicle_class_id`, `is_active`, `sort_order`.
+
+---
+
 ## Ride Estimates
 
 ### Get Fare Estimates
@@ -8358,8 +8396,9 @@ Every shift has a `reference_number` (`SH-000123`, six digits, numbered in the o
 | status | string | One or more of `scheduled`, `active`, `missed`, `completed`, `cancelled`, comma-separated. Any other value: 422 |
 | from, to | date or ISO 8601 | Shifts overlapping the range. A plain date (`2026-11-02`) is a Lagos day: `from` its start, `to` its end. Without either: yesterday to 14 days ahead. Only `from`: 15 days from it. Only `to`: the 15 days before it. `to` not after `from`: 422 |
 | per_page | integer | Default 20, 1–100 (values outside are clamped) |
+| sort_dir | `asc` / `desc` | Overrides the default direction below |
 
-Soonest first (ties by id, so pages don't overlap). `summary` has a count for **every** status (0 when none) under the same filters except `status`, for tab counts. `meta.from`/`meta.to` are the range used, in UTC.
+Soonest first by default; a `status` filter that is only `completed`, `missed` and/or `cancelled` defaults to most-recent-first instead (ties by id, so pages don't overlap either way). `summary` has a count for **every** status (0 when none) under the same filters except `status`, for tab counts. `meta.from`/`meta.to` are the range used, in UTC.
 
 **Response 200:**
 ```json
@@ -8650,7 +8689,7 @@ POST /admin/vehicles/{vehicle_id}/documents
 **Auth:** operations. Works for any car (own or fleet).
 
 - `GET` → `vehicle` (with `shift_mode`, `odometer_km`, `estimated_odometer_km`, `is_blocked`, `block_reason`), `items`, `records` (last 50), `documents` (the car's papers).
-- `POST …/maintenance-records` → same fields as the driver's, `proof` optional; the record is approved at once. Response 201 with `record` and the updated `items`. Audit `maintenance_record_added`.
+- `POST …/maintenance-records` → same fields as the driver's, `proof` optional, plus two more item types operations-only: `accident_repair` and `other` (one-off work; `notes` is required when `item_type` is `other`). Neither gets its own tracked due-date item — they are logged, not scheduled. The record is approved at once. Response 201 with `record` and the updated `items`. Audit `maintenance_record_added`.
 - `POST …/documents` (multipart) → `type` (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`), `document` (file), `expires_at` (required except for `vehicle_registration`). Approved at once; replaces the car's approved paper of that type. A renewal the driver sent that is still `pending` is kept for review and listed in `pending_documents` (empty when none; the message then says one is waiting). Response 201 with `document`, `pending_documents` and `items`. Audit `vehicle_document_uploaded_by_admin`.
 - Approving a driver's renewal (`POST /admin/drivers/{driver}/documents/{document}/review`) replaces the car's approved papers of that type, except one that expires later than the renewal, which is kept (the car goes by the latest expiry).
 
@@ -8659,7 +8698,7 @@ POST /admin/vehicles/{vehicle_id}/documents
 GET  /admin/vehicle-maintenance/records?status=pending&vehicle_id=
 POST /admin/vehicle-maintenance/records/{record_id}/review
 ```
-**Auth:** operations. The queue lists `pending` records oldest first by default (`status` also `approved` / `rejected`). Each record's `vehicle` is `{ "id", "plate_number", "make", "model", "is_fleet" }`. Review body: `action` (`approve` / `reject`), `rejection_reason` (required to reject). Only pending records; approving re-checks the odometer. Audit `maintenance_record_approved` / `maintenance_record_rejected`.
+**Auth:** operations. The queue lists `pending` records oldest first by default (`status` also `approved` / `rejected`, which default to most-recently-reviewed first). `sort_dir` (`asc` / `desc`) overrides the default direction. Each record's `vehicle` is `{ "id", "plate_number", "make", "model", "is_fleet" }`. Review body: `action` (`approve` / `reject`), `rejection_reason` (required to reject). Only pending records; approving re-checks the odometer. Audit `maintenance_record_approved` / `maintenance_record_rejected`.
 
 ### Admin — Unlinked Vehicle Papers
 ```
@@ -15093,8 +15132,10 @@ Authorization: Bearer {admin_token}
 | `from` / `to` | date | Submitted between these Lagos dates |
 | `vehicle_id` | uuid | One vehicle |
 | `per_page` | integer | 1–100, default 20 |
+| `sort_by` | string | `created_at`, `updated_at` or `scheduled_at`. Given, this replaces the default queue order below with a plain sort (ties by id) |
+| `sort_dir` | string | `asc` / `desc`, default `desc`. Only used with `sort_by` |
 
-New requests first (oldest first), then booked visits (soonest first), then finished ones (most recently changed first).
+Default order (no `sort_by`): new requests first (oldest-waiting first, a queue), then booked visits (soonest appointment first), then finished ones (most recently changed first). Pass `sort_by=created_at&sort_dir=desc` for a single newest-first list across every status instead. `driver.id` is the driver's **driver profile id** (what `GET /admin/drivers/{id}` expects), not the user account id; the account id is `driver.user_id`.
 
 **Response 200:**
 ```json
@@ -15109,7 +15150,7 @@ New requests first (oldest first), then booked visits (soonest first), then fini
       "preferred_date": "2026-10-29",
       "preferred_time": "10:00 am",
       "vehicle_plate": "KJA-210-XY",
-      "driver": { "id": "…", "name": "Musa Ibrahim", "phone": "+2348098765432" },
+      "driver": { "id": "…", "user_id": "…", "name": "Musa Ibrahim", "phone": "+2348098765432" },
       "handled_by": null,
       "can_cancel": true,
       "...": "..."
@@ -16217,6 +16258,41 @@ Refunds part or all of a completed ride's fare to the passenger's E-tiGo wallet,
 - a ledger error, e.g. the driver's earnings account is frozen (retry with `clawback_driver_earnings: false`)
 
 The passenger receives a `wallet_refund` notification once the refund is committed.
+
+### List Ride Refunds
+
+```
+GET /admin/rides/{ride}/refunds
+Authorization: Bearer {admin_token}
+```
+
+**Allowed Roles:** Finance
+
+Every refund made on the ride, newest first, so finance can see what was refunded, by whom, why and whether the driver's earnings were clawed back — without reading the audit log, and without having to refuse a refund first just to learn what is left.
+
+**Response 200:**
+```json
+{
+  "refunds": [
+    {
+      "id": "…",
+      "amount_kobo": 100000,
+      "driver_clawback_kobo": 80000,
+      "reason": "Driver took the wrong route",
+      "dispute_id": null,
+      "refunded_by": { "id": "…", "name": "Ada Finance" },
+      "created_at": "2026-11-08T09:00:00+00:00"
+    }
+  ],
+  "paid_kobo": 500000,
+  "refunded_kobo": 100000,
+  "remaining_refundable_kobo": 400000
+}
+```
+
+### Finance Can Also Find and Open a Ride
+
+`GET /admin/search` now includes `results.rides` for Finance too (previously Operations-only), each row with `fare_estimate_amount`, `final_fare_amount`, `paid_kobo`, `refunded_kobo` and `remaining_refundable_kobo`, so finance can find the trip to refund from the top-bar search. Finance can also open `GET /admin/monitoring/rides/{ride}` (the ride detail endpoint) to review a trip before refunding; a completed ride's response there carries a `refund` object with the same `paid_kobo` / `refunded_kobo` / `remaining_refundable_kobo` figures. Finance does **not** get `GET /admin/monitoring/active-rides` or `/online-drivers` (the live map), which stay Operations-only.
 
 ### Commission Settings
 

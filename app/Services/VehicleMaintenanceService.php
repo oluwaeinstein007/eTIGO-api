@@ -63,7 +63,7 @@ class VehicleMaintenanceService
         $existing = VehicleMaintenanceItem::where('vehicle_id', $vehicle->id)->get()->keyBy(fn ($item) => $item->type->value);
         $missing = [];
 
-        foreach (MaintenanceItemType::cases() as $type) {
+        foreach (MaintenanceItemType::tracked() as $type) {
             $applies = $type->appliesTo($vehicle->fuel_type);
             $item = $existing->get($type->value);
 

@@ -34,6 +34,8 @@ class AdminDriverRepairController extends Controller
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'vehicle_id' => ['nullable', 'uuid'],
+            'sort_by' => ['nullable', 'in:created_at,updated_at,scheduled_at'],
+            'sort_dir' => ['nullable', 'in:asc,desc'],
         ]);
 
         $statuses = $this->statuses($validated['status'] ?? null);
@@ -63,14 +65,22 @@ class AdminDriverRepairController extends Controller
                         ->where('first_name', 'ilike', $like)
                         ->orWhere('last_name', 'ilike', $like)
                         ->orWhere('phone', 'ilike', $like))));
-            })
+            });
+
+        if (isset($validated['sort_by'])) {
+            // An explicit sort replaces the priority queue below with a plain order.
+            $repairs = $repairs->orderBy($validated['sort_by'], $validated['sort_dir'] ?? 'desc')->orderBy('id');
+        } else {
             // New requests first (oldest waiting longest), then booked visits
             // soonest first, then finished ones newest first.
-            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END")
-            ->orderByRaw("CASE WHEN status = 'in_progress' THEN created_at END ASC")
-            ->orderByRaw("CASE WHEN status = 'scheduled' THEN scheduled_at END ASC")
-            ->orderByDesc('updated_at')
-            ->paginate($this->perPage($request));
+            $repairs = $repairs
+                ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END")
+                ->orderByRaw("CASE WHEN status = 'in_progress' THEN created_at END ASC")
+                ->orderByRaw("CASE WHEN status = 'scheduled' THEN scheduled_at END ASC")
+                ->orderByDesc('updated_at');
+        }
+
+        $repairs = $repairs->paginate($this->perPage($request));
 
         return response()->json([
             'repairs' => DriverRepairResource::collection($repairs),

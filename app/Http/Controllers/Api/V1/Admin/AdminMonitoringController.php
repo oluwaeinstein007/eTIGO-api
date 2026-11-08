@@ -13,6 +13,7 @@ use App\Models\SosIncident;
 use App\Services\DriverLocationService;
 use App\Services\EtaService;
 use App\Services\RideRouteService;
+use App\Services\WalletRefundService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,7 @@ class AdminMonitoringController extends Controller
         private DriverLocationService $locationService,
         private EtaService $etaService,
         private RideRouteService $routeService,
+        private WalletRefundService $refundService,
     ) {}
 
     private function bulkAverageRatings(array $userIds): array
@@ -233,6 +235,17 @@ class AdminMonitoringController extends Controller
             'vehicle_class' => $vehicle->vehicleClass?->name,
         ] : null;
         $payload['route'] = $this->routeService->getPlannedRoute($ride);
+
+        // Only a completed ride can be refunded, so this is what finance needs to decide.
+        if ($ride->status === RideStatus::Completed) {
+            $ride->loadMissing('payment');
+
+            $payload['refund'] = [
+                'paid_kobo' => $this->refundService->paidAmountKobo($ride),
+                'refunded_kobo' => $this->refundService->refundedAmountKobo($ride),
+                'remaining_refundable_kobo' => $this->refundService->remainingRefundableKobo($ride),
+            ];
+        }
 
         return response()->json(['ride' => $payload]);
     }

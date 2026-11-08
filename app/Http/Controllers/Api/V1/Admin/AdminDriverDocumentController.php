@@ -46,6 +46,7 @@ class AdminDriverDocumentController extends Controller
             'city_id' => ['sometimes', 'nullable', 'uuid'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'sort_dir' => ['sometimes', 'nullable', 'in:asc,desc'],
         ]);
 
         $settings = AppSetting::driverDocuments();
@@ -72,16 +73,26 @@ class AdminDriverDocumentController extends Controller
                     ->orWhere('email', 'ilike', "%{$search}%")
                     ->orWhere('phone', 'ilike', "%{$search}%"))));
 
-        // Pending: oldest first (a queue). Expiry views: soonest expiry first.
-        $expiry !== null
-            ? $query->orderBy('expires_at')
-            : $query->orderBy(($validated['status'] ?? null) === DocumentStatus::Pending->value ? 'created_at' : 'updated_at', ($validated['status'] ?? null) === DocumentStatus::Pending->value ? 'asc' : 'desc');
+        $sortDirOverride = $validated['sort_dir'] ?? null;
+
+        // Expiring soon: soonest due first. Expired: most recently expired first.
+        // No expiry: expires_at is null for every row, so sort by upload date instead.
+        // Everything else (pending, approved, rejected): newest first.
+        match (true) {
+            $expiry === 'expiring_soon' => $query->orderBy('expires_at', $sortDirOverride ?? 'asc'),
+            $expiry === 'expired' => $query->orderBy('expires_at', $sortDirOverride ?? 'desc'),
+            $expiry === 'no_expiry' => $query->orderBy('created_at', $sortDirOverride ?? 'desc'),
+            default => $query->orderBy(
+                ($validated['status'] ?? null) === DocumentStatus::Pending->value ? 'created_at' : 'updated_at',
+                $sortDirOverride ?? 'desc',
+            ),
+        };
 
         $documents = $query->orderBy('id')->paginate($validated['per_page'] ?? 20);
 
         return response()->json([
             'documents' => $documents->getCollection()->map(fn (DriverDocument $document) => [
-                ...(new DriverDocumentResource($document))->toArray($request),
+                ...(new DriverDocumentResource($document))->resolve($request),
                 'vehicle' => $document->vehicle ? ['id' => $document->vehicle->id, 'plate_number' => $document->vehicle->plate_number, 'is_fleet' => (bool) $document->vehicle->is_fleet] : null,
                 'expiry_status' => $compliance->expiryStatus($document, $settings),
                 'days_until_expiry' => $document->expires_at !== null ? $compliance->daysUntilExpiry($document) : null,
