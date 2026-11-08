@@ -70,6 +70,7 @@ it('gives a driver an API link to the document they uploaded', function () {
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence.pdf', 10, 'application/pdf'),
+            'expires_at' => now()->addYears(3)->toDateString(),
         ])
         ->assertCreated()
         ->json('document.file_url');

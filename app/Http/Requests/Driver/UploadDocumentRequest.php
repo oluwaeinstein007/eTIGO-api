@@ -29,9 +29,10 @@ class UploadDocumentRequest extends FormRequest
             'type' => ['required', 'string', Rule::enum(DocumentType::class)],
             'document' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
             // Roadworthiness and vehicle licence are only useful with their
-            // expiry date, and so is a renewed driving licence.
+            // expiry date, and so is every driving licence (first upload or
+            // renewal) — admin approval requires it either way.
             'expires_at' => [
-                Rule::requiredIf(fn () => (DocumentType::tryFrom((string) $this->input('type'))?->requiresExpiry() ?? false) || $this->isLicenceRenewal()),
+                Rule::requiredIf(fn () => (DocumentType::tryFrom((string) $this->input('type'))?->requiresExpiry() ?? false) || $this->input('type') === DocumentType::DrivingLicence->value),
                 'nullable', 'date', 'after:today',
             ],
             // The number printed on the paper (a renewed licence may carry a new one).
