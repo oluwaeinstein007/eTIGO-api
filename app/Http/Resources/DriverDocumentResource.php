@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\DocumentType;
 use App\Services\DriverLicenceCheckService;
 use App\Support\UploadLinks;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class DriverDocumentResource extends JsonResource
         return [
             'id' => $this->id,
             'type' => $this->type,
+            'requires_expiry' => (bool) ($this->type?->requiresExpiry() || $this->type === DocumentType::DrivingLicence),
             // Operations see the whole number; the driver sees the last 4.
             'document_number' => $this->when($this->document_number !== null, fn () => $request->user()?->isAdmin()
                 ? $this->document_number
