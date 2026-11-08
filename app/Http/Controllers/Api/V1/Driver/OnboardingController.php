@@ -16,11 +16,13 @@ use App\Http\Resources\DriverDocumentResource;
 use App\Http\Resources\DriverResource;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\VehicleResource;
+use App\Jobs\CheckRenewedLicenceJob;
 use App\Jobs\VerifyVehiclePlateJob;
 use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\User;
 use App\Services\DriverDocumentComplianceService;
+use App\Services\DriverLicenceCheckService;
 use App\Support\UploadLinks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -251,6 +253,12 @@ class OnboardingController extends Controller
         }
 
         AuditLog::record($document, 'document_uploaded', $user);
+
+        // A working driver's renewed licence is looked up in FRSC records
+        // for the reviewer (not a new KYC).
+        if (app(DriverLicenceCheckService::class)->shouldCheck($document->setRelation('driver', $driver))) {
+            CheckRenewedLicenceJob::dispatch($document);
+        }
 
         return response()->json([
             'message' => 'Document uploaded successfully.',

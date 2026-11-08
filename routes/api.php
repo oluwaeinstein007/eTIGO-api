@@ -542,6 +542,8 @@ Route::middleware(['auth:sanctum', 'user.type:admin'])->prefix('admin')->group(f
         // Renewals: withdraw an approved paper found invalid; correct its expiry date or number.
         Route::post('/{driver}/documents/{document}/revoke', [DriverManagementController::class, 'revokeDocument']);
         Route::patch('/{driver}/documents/{document}', [DriverManagementController::class, 'updateDocument']);
+        // Look a pending licence up in FRSC records again (QoreID, paid).
+        Route::post('/{driver}/documents/{document}/frsc-check', [DriverManagementController::class, 'checkLicence'])->middleware('throttle:10,1');
         Route::post('/{driver}/suspend', [DriverManagementController::class, 'suspend']);
         Route::post('/{driver}/reactivate', [DriverManagementController::class, 'reactivate']);
         Route::get('/{driver}/trips', [DriverManagementController::class, 'tripHistory']);

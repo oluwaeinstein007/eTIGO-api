@@ -1777,10 +1777,11 @@ Operations, Safety. Papers across all drivers.
 | type | A document type |
 | expiry | `expiring_soon` (today to the first reminder step), `expired`, `no_expiry`: approved papers in force only, soonest expiry first |
 | renewals_only | `true`: uploads from drivers already working (not onboarding or pending review) |
+| frsc_flagged | `true`: the FRSC lookup didn't match (name, expiry date, or no confirmation). See [FRSC Licence Check](#frsc-licence-check-renewals) |
 | city_id, search | Driver's city; driver name, email, phone or reference |
 | per_page | 1–100 (default 20) |
 
-`status=pending` is oldest first (a queue). Each item is the document plus `vehicle` (`id`, `plate_number`, `is_fleet` or `null`), `expiry_status`, `days_until_expiry`, `is_renewal`, and `driver` (`id`, `reference_number`, `name`, `phone`, `status`, `city`, `documents_blocked`). `summary`: `pending_renewals`, `expiring_soon`, `expired`, `licences_missing_expiry`, `blocked_drivers`. Review with [Review Document](#review-document).
+`status=pending` is oldest first (a queue). Each item is the document plus `vehicle` (`id`, `plate_number`, `is_fleet` or `null`), `expiry_status`, `days_until_expiry`, `is_renewal`, and `driver` (`id`, `reference_number`, `name`, `phone`, `status`, `city`, `documents_blocked`). `summary`: `pending_renewals`, `expiring_soon`, `expired`, `licences_missing_expiry`, `blocked_drivers`, `frsc_flagged` (pending papers flagged by the FRSC lookup). Driving licences carry `frsc_check`. Review with [Review Document](#review-document).
 
 **Typical views:** renewals to check: `?status=pending&renewals_only=1`. Licences expiring: `?type=driving_licence&expiry=expiring_soon`. Backfill: `?type=driving_licence&expiry=no_expiry`.
 
@@ -1797,6 +1798,7 @@ Operations.
 | reminder_days | `[30, 14, 7, 1]` | 1–6 distinct days (1–90), stored largest first; plus the day itself and once expired |
 | licence_grace_days | `0` | Days after the expiry date before the block (0–30) |
 | block_on_expired_licence | `true` | Off: expired licences only remind (a withdrawn licence still blocks) |
+| frsc_check_on_renewal | `true` | Look working drivers' renewed licences up in FRSC records (one paid QoreID lookup per renewal upload) |
 
 Changing the grace period or the block re-checks drivers at once. Logged as `driver_document_settings.updated`.
 
@@ -3022,6 +3024,27 @@ Approved, active drivers (not onboarding or pending review) get a `document_revi
   "message": "Only pending documents can be reviewed."
 }
 ```
+
+### FRSC Licence Check (Renewals)
+```
+POST /admin/drivers/{driver_id}/documents/{document_id}/frsc-check
+```
+Operations, Safety (throttled 10/min). When a **working driver** (approved or suspended) uploads a renewed `driving_licence`, a background job looks it up in FRSC records through QoreID, the same licence lookup onboarding KYC uses. The number looked up is the upload's `document_number`, else the driver's `licence_number`. The result is stored on the document. It's **not a new KYC**: no KYC verification row is created and `kyc_status` doesn't change. It informs the review and never approves or rejects. Switch it off with `frsc_check_on_renewal` ([settings](#admin--driver-document-settings)); each lookup is a paid QoreID call.
+
+This endpoint runs the lookup again (for a pending licence only; 422 otherwise), for example when the provider was down at upload. Response: `message` and `document`.
+
+Admins see **`frsc_check`** on every driving licence document (driver page, review responses, renewals queue). Drivers never see it. It is `null` when there's no record:
+
+| Field | Description |
+|---|---|
+| status | `matched` (found in the driver's name), `name_mismatch`, `unavailable` (not found or provider down: QoreID answers both the same way; check the photo by hand) |
+| frsc_expires_at | Expiry date on FRSC's record (`YYYY-MM-DD`), or `null` |
+| expiry_matches | `true`/`false` comparing `frsc_expires_at` with the document's `expires_at`; `null` when either is missing |
+| number_last4 | Last 4 of the number looked up |
+| source | `renewal_check`, or `onboarding_kyc` for a licence uploaded at onboarding (taken from the driver's verified onboarding licence check) |
+| checked_at, provider_reference, note | When, QoreID's reference, and a reason when not matched |
+
+**Dates:** approving a licence with no `expires_at` (on the paper or in the request) uses `frsc_expires_at` when there is one, and so does approving an application. The `document_approved` history entry records the `frsc_check` status the reviewer saw. In the [renewals queue](#admin--driver-documents-renewals-queue), `frsc_flagged=true` lists papers whose lookup didn't match (name, expiry date, or no confirmation), and `summary.frsc_flagged` counts the pending ones.
 
 ### Withdraw an Approved Document
 ```

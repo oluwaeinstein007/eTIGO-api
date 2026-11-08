@@ -37,6 +37,7 @@ class AdminDriverDocumentSettingsController extends Controller
             'reminder_days.*' => ['integer', 'min:1', 'max:90', 'distinct'],
             'licence_grace_days' => ['sometimes', 'integer', 'min:0', 'max:30'],
             'block_on_expired_licence' => ['sometimes', 'boolean'],
+            'frsc_check_on_renewal' => ['sometimes', 'boolean'],
         ]);
 
         $current = AppSetting::driverDocuments();

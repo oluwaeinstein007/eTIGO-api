@@ -31,6 +31,7 @@ use App\Models\VehicleClass;
 use App\Notifications\DriverApprovedNotification;
 use App\Services\DriverDocumentComplianceService;
 use App\Services\DriverHistoryService;
+use App\Services\DriverLicenceCheckService;
 use App\Services\DriverLocationService;
 use App\Services\KycVerificationService;
 use App\Services\NotificationService;
@@ -175,6 +176,15 @@ class DriverManagementController extends Controller
             // papers that decide whether a car may be driven) needs its expiry
             // date, and nothing already expired.
             $today = app(DriverDocumentComplianceService::class)->today()->toDateString();
+
+            // A licence with no date takes FRSC's, when its records have one.
+            $driver->documents()->where('status', DocumentStatus::Pending)->where('type', DocumentType::DrivingLicence)->whereNull('expires_at')->get()
+                ->each(function (DriverDocument $doc) {
+                    if (($frsc = app(DriverLicenceCheckService::class)->frscExpiry($doc)) !== null) {
+                        $doc->update(['expires_at' => $frsc]);
+                    }
+                });
+
             $problems = $driver->documents()->where('status', DocumentStatus::Pending)->get()
                 ->map(fn (DriverDocument $doc) => match (true) {
                     $doc->expires_at === null && ($doc->type === DocumentType::DrivingLicence || $doc->type->requiresExpiry()) => "{$doc->type->label()}: enter its expiry date (approve the document with expires_at).",
@@ -268,6 +278,12 @@ class DriverManagementController extends Controller
         if ($newStatus === DocumentStatus::Approved) {
             $expiresAt = array_key_exists('expires_at', $validated) ? $validated['expires_at'] : $document->expires_at?->toDateString();
 
+            // No date on the paper or in the request: FRSC's date, when its
+            // records have one.
+            if ($expiresAt === null && ($frsc = app(DriverLicenceCheckService::class)->frscExpiry($document)) !== null) {
+                $expiresAt = $validated['expires_at'] = $frsc;
+            }
+
             // Renewals go by the date on the paper, so a licence (and the
             // papers that decide whether a car may be driven) needs one.
             if ($expiresAt === null && ($document->type === DocumentType::DrivingLicence || $document->type->requiresExpiry())) {
@@ -320,6 +336,8 @@ class DriverManagementController extends Controller
             AuditLog::record($document, $action, $admin, ['status' => DocumentStatus::Pending->value], [
                 'status' => $newStatus->value,
                 'rejection_reason' => $validated['rejection_reason'] ?? null,
+                // What FRSC records said when the reviewer decided.
+                'frsc_check' => app(DriverLicenceCheckService::class)->record($document->fresh())['status'] ?? null,
                 'type' => $document->type->value,
                 // The driver too, since an approved renewal deletes the paper it replaces.
                 'driver_id' => $driver->id,
@@ -597,6 +615,28 @@ class DriverManagementController extends Controller
     /**
      * Tell a working driver what happened to their paper (approved, rejected or withdrawn).
      */
+    /**
+     * Run the FRSC lookup again, for example when the provider was down at
+     * upload. Driving licences waiting for review only (a paid lookup).
+     */
+    public function checkLicence(Driver $driver, DriverDocument $document, DriverLicenceCheckService $checks): JsonResponse
+    {
+        if ($document->driver_id !== $driver->id) {
+            return response()->json(['message' => 'Document does not belong to this driver.'], 404);
+        }
+
+        if ($document->type !== DocumentType::DrivingLicence || $document->status !== DocumentStatus::Pending) {
+            return response()->json(['message' => 'Only a driving licence waiting for review can be checked.'], 422);
+        }
+
+        $checks->check($document);
+
+        return response()->json([
+            'message' => 'Licence checked against FRSC records.',
+            'document' => new DriverDocumentResource($document->fresh()),
+        ]);
+    }
+
     private function notifyDocumentReviewed(Driver $driver, DriverDocument $document): void
     {
         $label = $document->type->label();
