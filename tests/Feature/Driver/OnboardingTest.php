@@ -146,16 +146,17 @@ it('replaces existing document of same type on re-upload', function () {
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence1.pdf', 100, 'application/pdf'),
             'expires_at' => now()->addYear()->toDateString(),
-        ]);
+        ])->assertCreated();
 
     $this->withToken($token)
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence2.pdf', 100, 'application/pdf'),
             'expires_at' => now()->addYear()->toDateString(),
-        ]);
+        ])->assertCreated();
 
-    expect($driver->documents()->where('type', 'driving_licence')->count())->toBe(1);
+    expect($driver->documents()->where('type', 'driving_licence')->count())->toBe(1)
+        ->and($driver->documents()->where('type', 'driving_licence')->first()->original_filename)->toBe('licence2.pdf');
 });
 
 it('lists driver documents as a complete required checklist', function () {

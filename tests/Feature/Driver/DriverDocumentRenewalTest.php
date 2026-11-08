@@ -137,7 +137,8 @@ it('needs the expiry date on a new driver licence too, per DR-11', function () {
         'type' => 'driving_licence',
         'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
         'expires_at' => now()->addYears(3)->toDateString(),
-    ])->assertCreated();
+    ])->assertCreated()
+        ->assertJsonPath('document.expires_at', fn ($value) => str_starts_with($value, now()->addYears(3)->toDateString()));
 });
 
 it('only changes an approved driver licence number through a renewed licence', function () {

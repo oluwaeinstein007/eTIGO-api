@@ -313,7 +313,7 @@ class OnboardingController extends Controller
                 'original_filename' => $doc?->original_filename,
                 'file_url' => $doc?->file_path ? UploadLinks::url($doc->file_path) : null,
                 'rejection_reason' => $doc?->rejection_reason,
-                'requires_expiry' => $type->requiresExpiry(),
+                'requires_expiry' => $type->requiresExpiry() || $type === DocumentType::DrivingLicence,
                 'expires_at' => $doc?->expires_at?->toDateString(),
                 // Renewals: no_expiry, valid, expiring_soon or expired, and the
                 // renewed paper waiting for review (null when none).
