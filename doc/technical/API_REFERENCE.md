@@ -2109,7 +2109,7 @@ The silence counts from the last location, or from going online if none has come
 **Response 422:**
 ```json
 {
-  "message": "Cannot go online.",
+  "message": "Driver account is not approved.",
   "reasons": [
     "Driver account is not approved.",
     "No vehicle registered.",
@@ -2119,6 +2119,8 @@ The silence counts from the last location, or from going online if none has come
   ]
 }
 ```
+
+`message` is `reasons[0]` — the single most relevant reason, for clients that only show the top-level message. Always read the full `reasons` array when you can: there can be more than one, and showing just `message` hides the rest. `message` falls back to the generic `"Cannot go online."` only in the impossible case of an empty `reasons` array. **Breaking for any client reading `message` as a fixed string** (e.g. `"Cannot go online."`) instead of displaying it or reading `reasons` — it now varies with the failure.
 
 Phase 2 reasons: `"Insurance expired on 13 Oct 2026. Upload the renewed paper; you can go online once E-tiGo approves it."` (car off the road), and for shared fleet cars the shift reasons listed under [My Shifts](#my-shifts-driver).
 
