@@ -9,6 +9,7 @@ use App\Enums\BalanceDueStatus;
 use App\Enums\CancellationReason;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
+use App\Enums\RideRefundCategory;
 use App\Enums\RideStatus;
 use App\Jobs\ChargeScheduledRideCancellationFeeJob;
 use App\Models\Account;
@@ -361,7 +362,7 @@ class ScheduledRideCancellationFeeService
         $feeKobo = (int) round((float) $scheduled->late_cancellation_fee * 100);
 
         return match ($scheduled->late_cancellation_fee_status) {
-            'charged' => max(0, $feeKobo - $this->refunds->refundedAmountKobo($ride)),
+            'charged' => max(0, $feeKobo - $this->refunds->refundedAmountKoboFor($ride, RideRefundCategory::CancellationFee)),
             'balance_due' => $this->outstandingBalance($ride) !== null ? $feeKobo : 0,
             default => 0,
         };
@@ -426,6 +427,7 @@ class ScheduledRideCancellationFeeService
                 'ride_id' => $ride->id,
                 'amount_kobo' => $amountKobo,
                 'driver_clawback_kobo' => $clawbackKobo,
+                'category' => RideRefundCategory::CancellationFee,
                 'reason' => $reason,
                 'refunded_by_admin_id' => $admin->id,
                 'dispute_id' => $disputeId,

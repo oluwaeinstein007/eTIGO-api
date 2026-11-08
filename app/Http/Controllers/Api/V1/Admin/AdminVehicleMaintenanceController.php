@@ -164,7 +164,13 @@ class AdminVehicleMaintenanceController extends Controller
             ->with(['vehicle', 'submitter'])
             ->where('status', $status)
             ->when($validated['vehicle_id'] ?? null, fn ($q, $id) => $q->where('vehicle_id', $id))
-            ->orderBy($sortColumn, $sortDir)
+            // A null reviewed_at (a legacy record) must sort last, not first,
+            // or it pushes recently reviewed records off the first page.
+            ->when(
+                $sortColumn === 'reviewed_at',
+                fn ($q) => $q->orderByRaw("reviewed_at {$sortDir} NULLS LAST"),
+                fn ($q) => $q->orderBy($sortColumn, $sortDir),
+            )
             // Records tied on $sortColumn must not swap between pages.
             ->orderBy('id', $sortDir)
             ->paginate(30);

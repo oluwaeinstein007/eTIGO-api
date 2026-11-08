@@ -108,11 +108,22 @@ class AdminVehicleCatalogController extends Controller
             try {
                 return $save($slug);
             } catch (QueryException $e) {
-                if ($attempts >= 3 || ! str_contains($e->getMessage(), 'vehicle_makes_slug_unique')) {
+                if ($attempts >= 3 || ! $this->isSlugUniqueViolation($e)) {
                     throw $e;
                 }
             }
         }
+    }
+
+    /**
+     * Whether $e is a unique-constraint violation on vehicle_makes.slug,
+     * which Postgres names by its constraint ("vehicle_makes_slug_unique")
+     * and SQLite by its table and column ("vehicle_makes.slug").
+     */
+    private function isSlugUniqueViolation(QueryException $e): bool
+    {
+        return str_contains($e->getMessage(), 'vehicle_makes_slug_unique')
+            || str_contains($e->getMessage(), 'vehicle_makes.slug');
     }
 
     public function destroyMake(VehicleMake $vehicleMake): JsonResponse

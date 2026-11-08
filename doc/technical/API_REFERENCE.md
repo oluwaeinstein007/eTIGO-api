@@ -16268,7 +16268,9 @@ Authorization: Bearer {admin_token}
 
 **Allowed Roles:** Finance
 
-Every refund made on the ride, newest first, so finance can see what was refunded, by whom, why and whether the driver's earnings were clawed back — without reading the audit log, and without having to refuse a refund first just to learn what is left. Backfilled from the ledger when this shipped, so refunds made before that are listed too (a backfilled row's `refunded_by` may be `null` if the original refund predates admin attribution on refunds).
+Every refund made on the ride, newest first, so finance can see what was refunded, by whom, why and whether the driver's earnings were clawed back — without reading the audit log, and without having to refuse a refund first just to learn what is left. Backfilled from the ledger when this shipped, so refunds made before that are listed too (a backfilled row's `refunded_by` may be `null` if the original refund predates admin attribution on refunds, or if the admin who made it has since been deleted).
+
+Each refund's `category` is `fare` (an ordinary ride refund, `POST /admin/rides/{ride}/refund`) or `cancellation_fee` (a scheduled ride's late-cancellation fee, refunded through a dispute). The two come out of separate balances: `paid_kobo`/`refunded_kobo`/`remaining_refundable_kobo` are the **fare's** figures only; `fee_refunded_kobo` is the total refunded against the cancellation fee. Never add the two together.
 
 **Response 200:**
 ```json
@@ -16278,6 +16280,7 @@ Every refund made on the ride, newest first, so finance can see what was refunde
       "id": "…",
       "amount_kobo": 100000,
       "driver_clawback_kobo": 80000,
+      "category": "fare",
       "reason": "Driver took the wrong route",
       "dispute_id": null,
       "refunded_by": { "id": "…", "name": "Ada Finance" },
@@ -16286,7 +16289,8 @@ Every refund made on the ride, newest first, so finance can see what was refunde
   ],
   "paid_kobo": 500000,
   "refunded_kobo": 100000,
-  "remaining_refundable_kobo": 400000
+  "remaining_refundable_kobo": 400000,
+  "fee_refunded_kobo": 0
 }
 ```
 
