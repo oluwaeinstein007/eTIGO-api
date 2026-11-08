@@ -10,6 +10,9 @@ enum DocumentType: string
     case RoadworthinessCertificate = 'roadworthiness_certificate';
     case VehicleLicence = 'vehicle_licence';
     case GovernmentId = 'government_id';
+    // Lagos State permits, required only where a city asks for them.
+    case LasdriCard = 'lasdri_card';
+    case LassraCard = 'lassra_card';
 
     public function label(): string
     {
@@ -20,7 +23,35 @@ enum DocumentType: string
             self::RoadworthinessCertificate => 'Roadworthiness certificate',
             self::VehicleLicence => 'Vehicle licence',
             self::GovernmentId => 'Government ID',
+            self::LasdriCard => 'LASDRI card',
+            self::LassraCard => 'LASSRA card',
         };
+    }
+
+    /**
+     * The type whose label() this is, or null.
+     */
+    public static function tryFromLabel(string $label): ?self
+    {
+        foreach (self::cases() as $type) {
+            if ($type->label() === $label) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The label inside a sentence: lower case, except acronyms
+     * ("driving licence", "government ID", "LASDRI card").
+     */
+    public function inSentence(): string
+    {
+        return implode(' ', array_map(
+            fn (string $word) => strlen($word) > 1 && strtoupper($word) === $word ? $word : mb_strtolower($word),
+            explode(' ', $this->label()),
+        ));
     }
 
     public function description(): string
@@ -32,6 +63,8 @@ enum DocumentType: string
             self::InsuranceCertificate => 'Valid commercial insurance certificate',
             self::RoadworthinessCertificate => 'Valid roadworthiness inspection certificate',
             self::VehicleLicence => 'Valid state vehicle licence',
+            self::LasdriCard => 'Lagos State Drivers’ Institute (LASDRI) driver card, valid',
+            self::LassraCard => 'Lagos State Residents Registration Agency (LASSRA) ID card',
         };
     }
 
@@ -55,7 +88,20 @@ enum DocumentType: string
      */
     public function requiresExpiry(): bool
     {
-        return in_array($this, [self::RoadworthinessCertificate, self::VehicleLicence], true);
+        return in_array($this, [self::RoadworthinessCertificate, self::VehicleLicence, self::LasdriCard], true);
+    }
+
+    /**
+     * Papers a city can require on top of the standard ones
+     * (cities.required_driver_documents), e.g. Lagos's LASDRI and LASSRA
+     * cards. They belong to the driver, and when missing or expired they
+     * remind, never block.
+     *
+     * @return list<string>
+     */
+    public static function cityDocumentValues(): array
+    {
+        return [self::LasdriCard->value, self::LassraCard->value];
     }
 
     /**

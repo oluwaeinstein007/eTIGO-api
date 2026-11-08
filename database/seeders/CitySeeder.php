@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\CityLaunchStatus;
+use App\Enums\DocumentType;
 use App\Models\City;
 use App\Models\User;
 use App\Models\VehicleClass;
@@ -57,6 +58,11 @@ class CitySeeder extends Seeder
                     'boundary' => $drawn,
                     'area_sq_km' => City::calculateAreaFromPolygon($drawn['coordinates']),
                 ]);
+            }
+
+            // Lagos drivers also need their LASDRI and LASSRA cards (client, 8 Nov 2026).
+            if ($data['slug'] === 'lagos' && $city->required_driver_documents === null) {
+                $city->update(['required_driver_documents' => [DocumentType::LasdriCard->value, DocumentType::LassraCard->value]]);
             }
 
             if (! $city->vehicleClasses()->exists()) {

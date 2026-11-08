@@ -77,6 +77,7 @@ enum NotificationType: string
     // Driver document renewals
     case DocumentExpiring = 'document_expiring';
     case DocumentReviewed = 'document_reviewed';
+    case DocumentRequired = 'document_required';
     case DriverDocumentsBlocked = 'driver_documents_blocked';
     case DriverDocumentsUnblocked = 'driver_documents_unblocked';
 
@@ -153,6 +154,7 @@ enum NotificationType: string
             self::MaintenanceRecordReviewed => 'Maintenance Record Checked',
             self::DocumentExpiring => 'Document Expiring',
             self::DocumentReviewed => 'Document Checked',
+            self::DocumentRequired => 'Document Needed',
             self::DriverDocumentsBlocked => 'You Can\'t Go Online',
             self::DriverDocumentsUnblocked => 'You Can Go Online Again',
             self::RepairRequestScheduled => 'Workshop Visit Booked',
@@ -220,6 +222,7 @@ enum NotificationType: string
             self::MaintenanceRecordReviewed,
             self::DocumentExpiring,
             self::DocumentReviewed,
+            self::DocumentRequired,
             self::DriverDocumentsBlocked,
             self::DriverDocumentsUnblocked => NotificationCategory::Compliance,
 

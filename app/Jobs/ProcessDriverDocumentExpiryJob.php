@@ -27,5 +27,6 @@ class ProcessDriverDocumentExpiryJob implements ShouldQueue
     {
         $compliance->refreshDue();
         $compliance->sendReminders();
+        $compliance->remindMissingCityDocuments();
     }
 }

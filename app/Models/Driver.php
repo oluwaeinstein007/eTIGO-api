@@ -45,6 +45,7 @@ class Driver extends Model
         'suspension_reason',
         'documents_blocked_at',
         'documents_block_reason',
+        'city_documents_reminded_at',
         'reference_number',
     ];
 
@@ -106,6 +107,7 @@ class Driver extends Model
             'approved_at' => 'datetime',
             'suspended_at' => 'datetime',
             'documents_blocked_at' => 'datetime',
+            'city_documents_reminded_at' => 'datetime',
             'kyc_verified_at' => 'datetime',
         ];
     }
@@ -204,6 +206,19 @@ class Driver extends Model
     }
 
     /**
+     * Extra papers the driver's city requires (e.g. Lagos: LASDRI and LASSRA
+     * cards), on top of the standard ones. Empty without a city.
+     *
+     * @return list<string>
+     */
+    public function cityDocumentTypes(): array
+    {
+        $city = $this->relationLoaded('city') ? $this->city : $this->city()->first();
+
+        return array_values(array_intersect($city?->required_driver_documents ?? [], DocumentType::cityDocumentValues()));
+    }
+
+    /**
      * An expired or withdrawn driving licence keeps the driver off the road
      * until a renewed one is approved.
      */
@@ -276,6 +291,7 @@ class Driver extends Model
             $requiredDocTypes[] = 'vehicle_registration';
             $requiredDocTypes[] = 'insurance_certificate';
         }
+        $requiredDocTypes = [...$requiredDocTypes, ...$this->cityDocumentTypes()];
 
         $docs = $this->relationLoaded('documents')
             ? $this->documents
