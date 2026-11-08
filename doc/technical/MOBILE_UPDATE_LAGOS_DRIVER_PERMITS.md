@@ -1,7 +1,7 @@
 # Lagos LASDRI and LASSRA Cards: Driver App Updates
 
 **Date:** November 8, 2026  
-**Backend:** branch `feature/lagos-driver-permits-v2`; live on staging once merged  
+**Backend:** PR #171 (`feature/lagos-driver-permits-v2`); live on staging once merged  
 **Prepared for:** Driver app team. **Passenger app: no changes.**
 
 Drivers in Lagos now also need two Lagos State papers: the **LASDRI card** (Lagos State Drivers' Institute) and the **LASSRA card** (Lagos State Residents Registration Agency ID). They're required per city, so only Lagos drivers see them for now. Operations can add them to other cities later.

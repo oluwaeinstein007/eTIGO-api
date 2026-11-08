@@ -1,7 +1,7 @@
 # Lagos LASDRI and LASSRA Cards: Admin Dashboard Updates
 
 **Date:** November 8, 2026  
-**Backend:** branch `feature/lagos-driver-permits-v2`; live on staging once merged  
+**Backend:** PR #171 (`feature/lagos-driver-permits-v2`); live on staging once merged  
 **Prepared for:** Admin dashboard team.
 
 Drivers in Lagos now also need the **LASDRI card** and the **LASSRA card**. Which papers a city requires is a city setting, and Lagos has both turned on.
