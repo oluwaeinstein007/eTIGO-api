@@ -94,13 +94,17 @@ class DriverController extends Controller
                     $reasons[] = 'Driver account is suspended.';
                 }
 
-                if (! $driver->isKycVerified()) {
+                if (! $driver->isKycVerified() && ! $driver->isApproved()) {
                     $reasons[] = 'KYC verification is not complete.';
                 }
 
                 if (! $driver->vehicle) {
                     if ($shiftCheck['errors'] === []) {
-                        $reasons[] = 'No vehicle registered.';
+                        if ($driver->isAwaitingVehicleAssignment()) {
+                            $reasons[] = 'Your company vehicle has not been assigned yet. Contact your fleet manager.';
+                        } else {
+                            $reasons[] = 'No vehicle registered.';
+                        }
                     }
                 } elseif (! $driver->vehicle->vehicle_class_id) {
                     $reasons[] = 'Vehicle class not assigned.';

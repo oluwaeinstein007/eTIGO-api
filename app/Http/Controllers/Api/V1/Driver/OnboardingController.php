@@ -73,6 +73,7 @@ class OnboardingController extends Controller
             'has_city' => $driver->city_id !== null,
             'kyc_status' => $driver->kyc_status,
             'kyc_verified_at' => $driver->kyc_verified_at,
+            'is_awaiting_vehicle_assignment' => $driver->isAwaitingVehicleAssignment(),
         ]);
     }
 

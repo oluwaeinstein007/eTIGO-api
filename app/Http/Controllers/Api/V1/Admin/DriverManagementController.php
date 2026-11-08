@@ -204,6 +204,8 @@ class DriverManagementController extends Controller
             DB::transaction(function () use ($driver, $admin, $oldStatus) {
                 $driver->update([
                     'status' => DriverStatus::Approved,
+                    'kyc_status' => KycStatus::Verified,
+                    'kyc_verified_at' => $driver->kyc_verified_at ?? now(),
                     'rejection_reason' => null,
                     'approved_at' => now(),
                 ]);

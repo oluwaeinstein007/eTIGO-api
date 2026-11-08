@@ -2,6 +2,7 @@
 
 use App\Enums\AccountType;
 use App\Enums\DriverStatus;
+use App\Enums\VehicleOwnershipType;
 use App\Models\Driver;
 use App\Models\Ride;
 use App\Models\User;
@@ -70,6 +71,20 @@ it('rejects driver without vehicle from going online', function () {
 
     $response->assertStatus(422)
         ->assertJsonPath('reasons.0', 'No vehicle registered.');
+});
+
+it('rejects fleet driver awaiting vehicle assignment with informative message', function () {
+    $user = User::factory()->driver()->create();
+    Driver::factory()->approved()->for($user)->create([
+        'vehicle_ownership_type' => VehicleOwnershipType::FleetVehicle,
+    ]);
+    $token = $user->createToken('driver-auth', ['driver'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->postJson('/api/v1/driver/toggle-online');
+
+    $response->assertStatus(422)
+        ->assertJsonPath('reasons.0', 'Your company vehicle has not been assigned yet. Contact your fleet manager.');
 });
 
 it('rejects going online with 422 when the earnings balance is below the negative threshold', function () {

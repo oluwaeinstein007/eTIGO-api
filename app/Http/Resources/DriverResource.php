@@ -27,6 +27,7 @@ class DriverResource extends JsonResource
             'suspension_reason' => $this->when($this->resource->status === DriverStatus::Suspended, $this->suspension_reason),
             'is_online' => $this->is_online,
             'is_profile_complete' => $this->resource->isProfileComplete(),
+            'is_awaiting_vehicle_assignment' => $this->resource->isAwaitingVehicleAssignment(),
             'approved_at' => $this->approved_at,
             'suspended_at' => $this->suspended_at,
             // An expired (past the grace period) or withdrawn driving licence:
