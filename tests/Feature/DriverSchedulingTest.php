@@ -303,7 +303,7 @@ it('waits for the previous driver to hand the car over', function () {
     // Kemi's shift is over and she no longer holds a car.
     ($this->as)($this->nightToken)->postJson('/api/v1/driver/toggle-online')
         ->assertStatus(422)
-        ->assertJsonPath('reasons.0', 'No vehicle registered.');
+        ->assertJsonPath('reasons.0', 'Your company vehicle has not been assigned yet. Contact your fleet manager.');
 
     // Bayo holds the car but has no shift later on.
     $this->travelTo(Carbon::parse('2026-10-19 16:00:00', 'UTC'));
