@@ -317,7 +317,7 @@ class VehicleMaintenanceService
                 headline: "{$vehicle->plate_number} can't be driven",
                 body: "{$vehicle->block_reason} Upload the renewed paper for the car to drive again.",
                 lines: [],
-                actionPath: "/admin/vehicles/{$vehicle->id}/maintenance",
+                actionPath: "/admin/fleet?vehicle={$vehicle->id}",
                 actionLabel: 'Open the car',
             );
         }

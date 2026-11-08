@@ -58,7 +58,7 @@ class DisputeAlertNotification extends Notification implements ShouldQueue
                 'category' => $this->dispute->category->label(),
                 'tier' => $this->dispute->tierLabel(),
                 'dueAt' => $due?->timezone('Africa/Lagos')->format('j M Y, H:i'),
-                'caseUrl' => config('app.frontend_url', config('app.url')).'/admin/disputes/'.$this->dispute->id,
+                'caseUrl' => config('app.frontend_url', config('app.url')).'/admin/disputes?dispute='.$this->dispute->id,
             ]);
     }
 }

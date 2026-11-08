@@ -284,7 +284,7 @@ class DriverShiftService
                 headline: count($lines) === 1 ? '1 fleet shift needs a new driver' : count($lines).' fleet shifts need a new driver',
                 body: "{$name} can no longer drive ({$reason}), so their shifts were cancelled. Give these slots to another driver.",
                 lines: $lines,
-                actionPath: '/admin/driver-shifts?status=cancelled',
+                actionPath: '/admin/driver-scheduling?status=cancelled',
                 actionLabel: 'Open shifts',
             );
         }
