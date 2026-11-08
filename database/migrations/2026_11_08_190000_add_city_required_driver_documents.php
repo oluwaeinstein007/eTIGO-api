@@ -26,8 +26,16 @@ return new class extends Migration
             $table->timestamp('city_documents_reminded_at')->nullable()->after('documents_block_reason');
         });
 
-        DB::table('cities')
-            ->where(fn ($q) => $q->where('slug', 'lagos')->orWhereRaw('LOWER(name) = ?', ['lagos']))
+        // Lagos by its slug. Only when no city has that slug, a single city
+        // named Lagos; if the name is ambiguous, operations set it by hand.
+        $lagos = DB::table('cities')->where('slug', 'lagos')->pluck('id');
+
+        if ($lagos->isEmpty()) {
+            $named = DB::table('cities')->whereRaw('LOWER(name) = ?', ['lagos'])->pluck('id');
+            $lagos = $named->count() === 1 ? $named : collect();
+        }
+
+        DB::table('cities')->whereIn('id', $lagos)
             ->update(['required_driver_documents' => json_encode(['lasdri_card', 'lassra_card'])]);
     }
 

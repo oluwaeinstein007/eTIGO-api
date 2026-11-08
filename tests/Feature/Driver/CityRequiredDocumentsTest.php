@@ -11,6 +11,7 @@ use App\Models\DriverDocument;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\DriverLocationService;
+use App\Services\NotificationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -159,6 +160,10 @@ it('lets operations set a city\'s required papers, LASDRI and LASSRA only', func
     ($this->as)($this->adminToken)->putJson("/api/v1/admin/cities/{$this->abuja->id}", ['required_driver_documents' => ['driving_licence']])
         ->assertUnprocessable();
 
+    // A list only, not an object keyed by the values.
+    ($this->as)($this->adminToken)->putJson("/api/v1/admin/cities/{$this->abuja->id}", ['required_driver_documents' => ['a' => 'lasdri_card']])
+        ->assertUnprocessable();
+
     ($this->as)($this->adminToken)->putJson("/api/v1/admin/cities/{$this->abuja->id}", ['required_driver_documents' => []])
         ->assertOk();
     expect($this->abuja->fresh()->required_driver_documents)->toBe([]);
@@ -173,4 +178,35 @@ it('reminds a driver moved to another city at the next run', function () {
     expect($driver->fresh()->city_documents_reminded_at)->toBeNull();
     ($this->runJob)();
     expect(($this->required)($driver))->toHaveCount(1);
+});
+
+it('shows a city card as missing when its only upload was rejected', function () {
+    $driver = ($this->workingDriver)($this->lagos);
+    ($this->paper)($driver, DocumentType::LassraCard);
+    $rejected = ($this->paper)($driver, DocumentType::LasdriCard, '2027-06-30', DocumentStatus::Rejected);
+    $rejected->update(['rejection_reason' => 'Blurry.']);
+
+    ($this->as)($driver->user->createToken('a', ['driver'])->plainTextToken)->getJson('/api/v1/driver/documents')
+        ->assertJsonFragment(['type' => 'lasdri_card', 'missing' => true, 'required_by_city' => true]);
+});
+
+it('retries a city document reminder that failed at the next run', function () {
+    $driver = ($this->workingDriver)($this->lagos);
+    $calls = 0;
+    $service = Mockery::mock(NotificationService::class);
+    $service->shouldReceive('send')->andReturnUsing(function () use (&$calls) {
+        if (++$calls === 1) {
+            throw new RuntimeException('notifications table down');
+        }
+
+        return null;
+    });
+    $this->app->instance(NotificationService::class, $service);
+
+    ($this->runJob)();
+    expect($driver->fresh()->city_documents_reminded_at)->toBeNull();
+
+    ($this->runJob)();
+    expect($driver->fresh()->city_documents_reminded_at)->not->toBeNull()
+        ->and($calls)->toBe(2);
 });

@@ -224,7 +224,10 @@ class DriverDocumentComplianceService
                     'rejection_reason' => $renewal->rejection_reason,
                     'uploaded_at' => $renewal->created_at?->toIso8601String(),
                 ] : null,
-                'missing' => false,
+                // A city paper whose only uploads were rejected or withdrawn
+                // is still missing (it is reminded about as missing too).
+                'missing' => in_array($type->value, $cityRequired, true)
+                    && ! $ofType->contains(fn (DriverDocument $document) => $document->status !== DocumentStatus::Rejected && $document->revoked_at === null),
                 'required_by_city' => in_array($type->value, $cityRequired, true),
                 // Something for the driver to do: upload a renewal, or fix a rejected one.
                 'action_required' => ($renewal === null || $renewal->status === DocumentStatus::Rejected)
@@ -328,13 +331,19 @@ class DriverDocumentComplianceService
 
                 $labels = collect($missing)->map(fn (string $type) => DocumentType::from($type)->label())->join(', ', ' and ');
 
-                $this->safely(fn () => $this->notifications->send(
+                // Only marked as reminded once it went out, so a failure is
+                // retried at the next run rather than in 14 days.
+                $sent = $this->attempt(fn () => $this->notifications->send(
                     userId: $driver->user_id,
                     type: NotificationType::DocumentRequired,
                     title: NotificationType::DocumentRequired->label(),
                     body: "Drivers in {$driver->city->name} need their {$labels} on E-tiGo. Upload ".(count($missing) === 1 ? 'it' : 'them').' in the app under Documents.',
                     data: ['document_types' => implode(',', $missing)],
                 ));
+
+                if (! $sent) {
+                    return;
+                }
 
                 $driver->forceFill(['city_documents_reminded_at' => now()])->saveQuietly();
                 $reminded++;

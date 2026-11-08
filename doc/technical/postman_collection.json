@@ -7653,7 +7653,7 @@
                       "key": "expires_at",
                       "value": "2031-11-20",
                       "type": "text",
-                      "description": "Expiry on the paper (YYYY-MM-DD, after today). Required for roadworthiness_certificate, vehicle_licence and a renewed driving_licence (must be later than the licence on file). Also required for lasdri_card."
+                      "description": "Expiry on the paper (YYYY-MM-DD, after today). Required for roadworthiness_certificate, vehicle_licence, lasdri_card and every driving_licence. For a renewed driving_licence, it must be later than the licence on file."
                     },
                     {
                       "key": "document_number",
@@ -19146,7 +19146,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"01a1bd10-03a0-73e6-be68-2a4cb71f7ae6\",\n    \"name\": \"Lagos\",\n    \"slug\": \"lagos\",\n    \"state\": \"District of Columbia\",\n    \"region\": null,\n    \"boundary\": null,\n    \"area_sq_km\": null,\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"launch_status\": \"live\",\n    \"launch_status_label\": \"Live\",\n    \"launch_date\": null,\n    \"launched_at\": \"2026-11-08T09:00:00.000000Z\",\n    \"paused_at\": null,\n    \"pause_reason\": null,\n    \"pause_scheduled_rides\": null,\n    \"launch_status_changed_at\": null,\n    \"launch_status_changed_by\": null,\n    \"readiness_confirmations\": null,\n    \"required_driver_documents\": [\n      \"lasdri_card\",\n      \"lassra_card\"\n    ],\n    \"vehicle_classes\": [],\n    \"created_at\": \"2026-11-08T09:00:00.000000Z\",\n    \"updated_at\": \"2026-11-08T09:00:00.000000Z\"\n  },\n  \"warnings\": [\n    \"Lagos is active but doesn't offer any vehicle classes, so passengers can't book rides there.\",\n    \"Lagos has no map boundary, so pickups are not placed in it by location. Draw its outline.\"\n  ]\n}"
+                  "body": "{\n  \"message\": \"City updated successfully.\",\n  \"city\": {\n    \"id\": \"01a1bd10-03a0-73e6-be68-2a4cb71f7ae6\",\n    \"name\": \"Lagos\",\n    \"slug\": \"lagos\",\n    \"state\": \"Lagos\",\n    \"region\": \"South-West\",\n    \"boundary\": null,\n    \"area_sq_km\": null,\n    \"timezone\": \"Africa/Lagos\",\n    \"currency_code\": \"NGN\",\n    \"is_active\": true,\n    \"launch_status\": \"live\",\n    \"launch_status_label\": \"Live\",\n    \"launch_date\": null,\n    \"launched_at\": \"2026-11-08T09:00:00.000000Z\",\n    \"paused_at\": null,\n    \"pause_reason\": null,\n    \"pause_scheduled_rides\": null,\n    \"launch_status_changed_at\": null,\n    \"launch_status_changed_by\": null,\n    \"readiness_confirmations\": null,\n    \"required_driver_documents\": [\n      \"lasdri_card\",\n      \"lassra_card\"\n    ],\n    \"vehicle_classes\": [],\n    \"created_at\": \"2026-11-08T09:00:00.000000Z\",\n    \"updated_at\": \"2026-11-08T09:00:00.000000Z\"\n  },\n  \"warnings\": [\n    \"Lagos is active but doesn't offer any vehicle classes, so passengers can't book rides there.\",\n    \"Lagos has no map boundary, so pickups are not placed in it by location. Draw its outline.\"\n  ]\n}"
                 }
               ]
             },

@@ -36,7 +36,7 @@ class UpdateCityRequest extends FormRequest
             'currency_code' => ['sometimes', 'string', 'size:3', Rule::in([...config('cities.supported_currencies'), $this->route('city')?->currency_code])],
             'launch_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             // Extra papers drivers in this city must upload (Lagos: LASDRI and LASSRA cards).
-            'required_driver_documents' => ['sometimes', 'nullable', 'array'],
+            'required_driver_documents' => ['sometimes', 'nullable', 'array', 'list'],
             'required_driver_documents.*' => ['string', 'distinct', Rule::in(DocumentType::cityDocumentValues())],
             'vehicle_class_ids' => ['nullable', 'array'],
             'vehicle_class_ids.*' => ['uuid', 'distinct', 'exists:vehicle_classes,id'],
