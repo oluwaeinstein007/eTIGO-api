@@ -139,6 +139,8 @@ class RideService
                     ...$estimate['pricing_snapshot'],
                     'distance_km' => $estimate['distance_km'],
                     'duration_minutes' => $estimate['duration_minutes'],
+                    'distance_source' => $estimate['distance_source'],
+                    'is_approximate' => $estimate['is_approximate'],
                     'surge_multiplier' => (float) $estimate['surge']['multiplier'],
                     'surge_rule_name' => $estimate['surge']['rule_name'],
                     'booking_fee_discount_pct' => $bookingFeeDiscountPct,

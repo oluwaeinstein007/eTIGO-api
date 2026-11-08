@@ -33,6 +33,8 @@ class HaversineMapsGateway implements MapsGateway
         return [
             'distance_km' => $distanceKm,
             'duration_minutes' => $durationMinutes,
+            'source' => 'haversine',
+            'is_approximate' => true,
         ];
     }
 
@@ -40,7 +42,7 @@ class HaversineMapsGateway implements MapsGateway
      * Without a routing provider the route is the straight line between the
      * two points.
      *
-     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getRoute(
         float $originLat,

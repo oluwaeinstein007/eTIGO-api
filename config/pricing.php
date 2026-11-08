@@ -25,4 +25,22 @@ return [
 
     'max_billed_time_multiplier' => (float) env('PRICING_MAX_BILLED_TIME_MULTIPLIER', 3),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Routing Fallback
+    |--------------------------------------------------------------------------
+    |
+    | When every routing provider (Google, Mapbox) is unavailable, distance
+    | falls back to a straight-line (Haversine) estimate. That estimate is
+    | not trustworthy at long range, where road detours, bridges and one-way
+    | networks diverge most from a straight line, so a booking is refused
+    | past max_approximate_distance_km rather than committing a passenger
+    | and driver to a fare that may be badly wrong. Surge is never applied
+    | on top of an approximate distance: compounding two uncertain numbers
+    | hurts drivers and passengers in opposite, unpredictable directions.
+    |
+    */
+
+    'max_approximate_distance_km' => (float) env('PRICING_MAX_APPROXIMATE_DISTANCE_KM', 40),
+
 ];

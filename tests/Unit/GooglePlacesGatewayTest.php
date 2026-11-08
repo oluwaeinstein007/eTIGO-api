@@ -26,6 +26,8 @@ it('returns distance and duration from the routes API', function () {
     expect($result)->toBe([
         'distance_km' => 12.61,
         'duration_minutes' => 25.4,
+        'source' => 'google',
+        'is_approximate' => false,
     ]);
 
     Http::assertSent(function ($request) {
