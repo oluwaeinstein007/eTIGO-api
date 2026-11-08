@@ -1,7 +1,7 @@
 # FRSC Check on Renewed Licences: Admin Dashboard Updates
 
 **Date:** November 8, 2026  
-**Backend:** branch `feature/licence-renewal-frsc-check`; live on staging once merged  
+**Backend:** PR #164 (`feature/licence-renewal-frsc-check`); live on staging once merged  
 **Prepared for:** Admin dashboard team. **Driver app: no changes.**
 
 When a working driver uploads a renewed driving licence, the backend now looks it up in FRSC records through QoreID, the same licence lookup used at onboarding. The reviewer sees whether FRSC knows the licence in the driver's name and what expiry date FRSC has on record. It's a flag for the reviewer: it never approves or rejects on its own, and it isn't a new KYC.
