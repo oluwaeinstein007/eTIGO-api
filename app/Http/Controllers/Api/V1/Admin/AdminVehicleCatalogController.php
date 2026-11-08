@@ -8,6 +8,8 @@ use App\Http\Resources\VehicleMakeResource;
 use App\Http\Resources\VehicleModelResource;
 use App\Models\VehicleMake;
 use App\Models\VehicleModel;
+use App\Support\SearchTerm;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -29,7 +31,7 @@ class AdminVehicleCatalogController extends Controller
         $makes = VehicleMake::query()
             ->with('models')
             ->when(array_key_exists('is_active', $validated) && $validated['is_active'] !== null, fn ($q) => $q->where('is_active', $validated['is_active']))
-            ->when($validated['search'] ?? null, fn ($q, $search) => $q->where('name', 'ilike', "%{$search}%"))
+            ->when($validated['search'] ?? null, fn ($q, $search) => $q->whereLike('name', SearchTerm::like($search), false))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -47,7 +49,7 @@ class AdminVehicleCatalogController extends Controller
             'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 
-        $make = VehicleMake::create($validated);
+        $make = $this->saveMakeWithUniqueSlug($validated['name'], null, fn (string $slug) => VehicleMake::create([...$validated, 'slug' => $slug]));
 
         return response()->json([
             'message' => 'Vehicle make created successfully.',
@@ -66,10 +68,14 @@ class AdminVehicleCatalogController extends Controller
         // A rename must free up its old slug (and claim a unique new one) or a
         // later make reusing that name can never be created.
         if (isset($validated['name']) && $validated['name'] !== $vehicleMake->name) {
-            $validated['slug'] = $this->uniqueMakeSlug($validated['name'], $vehicleMake->id);
-        }
+            $this->saveMakeWithUniqueSlug($validated['name'], $vehicleMake->id, function (string $slug) use ($vehicleMake, $validated) {
+                $vehicleMake->update([...$validated, 'slug' => $slug]);
 
-        $vehicleMake->update($validated);
+                return $vehicleMake;
+            });
+        } else {
+            $vehicleMake->update($validated);
+        }
 
         return response()->json([
             'message' => 'Vehicle make updated successfully.',
@@ -79,20 +85,45 @@ class AdminVehicleCatalogController extends Controller
 
     /**
      * A slug for $name that is not already taken by another make, appending
-     * `-2`, `-3`, ... on a collision.
+     * `-2`, `-3`, ... on a collision, then runs $save with it. Retried a few
+     * times if two requests claim the same freed-up slug at once (a unique
+     * constraint violation on `slug`), which a plain existence check cannot
+     * rule out on its own.
      */
-    private function uniqueMakeSlug(string $name, string $ignoreId): string
+    private function saveMakeWithUniqueSlug(string $name, ?string $ignoreId, \Closure $save): VehicleMake
     {
-        $base = Str::slug($name);
-        $slug = $base;
-        $suffix = 2;
+        $attempts = 0;
 
-        while (VehicleMake::where('slug', $slug)->whereKeyNot($ignoreId)->exists()) {
-            $slug = "{$base}-{$suffix}";
-            $suffix++;
+        while (true) {
+            $attempts++;
+            $base = Str::slug($name);
+            $slug = $base;
+            $suffix = 2;
+
+            while (VehicleMake::where('slug', $slug)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))->exists()) {
+                $slug = "{$base}-{$suffix}";
+                $suffix++;
+            }
+
+            try {
+                return $save($slug);
+            } catch (QueryException $e) {
+                if ($attempts >= 3 || ! $this->isSlugUniqueViolation($e)) {
+                    throw $e;
+                }
+            }
         }
+    }
 
-        return $slug;
+    /**
+     * Whether $e is a unique-constraint violation on vehicle_makes.slug,
+     * which Postgres names by its constraint ("vehicle_makes_slug_unique")
+     * and SQLite by its table and column ("vehicle_makes.slug").
+     */
+    private function isSlugUniqueViolation(QueryException $e): bool
+    {
+        return str_contains($e->getMessage(), 'vehicle_makes_slug_unique')
+            || str_contains($e->getMessage(), 'vehicle_makes.slug');
     }
 
     public function destroyMake(VehicleMake $vehicleMake): JsonResponse

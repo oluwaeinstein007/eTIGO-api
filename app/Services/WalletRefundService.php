@@ -6,12 +6,14 @@ use App\Enums\AccountType;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Enums\RideRefundCategory;
 use App\Models\Driver;
 use App\Models\Journal;
 use App\Models\Ride;
 use App\Models\RideRefund;
 use App\Models\User;
 use App\Notifications\WalletRefundNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -139,6 +141,7 @@ class WalletRefundService
                 'ride_id' => $ride->id,
                 'amount_kobo' => $amountKobo,
                 'driver_clawback_kobo' => $clawbackKobo,
+                'category' => RideRefundCategory::Fare,
                 'reason' => $reason,
                 'refunded_by_admin_id' => $admin->id,
                 'dispute_id' => $disputeId ?? $ride->disputes()->latest()->value('id'),
@@ -190,14 +193,97 @@ class WalletRefundService
     }
 
     /**
-     * Total already refunded to the passenger's wallet for this ride, in kobo.
+     * Total already refunded against the ride's fare, in kobo. Excludes a
+     * cancellation fee's own refunds (RideRefundCategory::CancellationFee),
+     * which come out of a separate balance the fare's cap never covered.
      */
     public function refundedAmountKobo(Ride $ride): int
     {
-        return (int) Journal::where('journals.idempotency_key', 'like', "refund-{$ride->id}-%")
-            ->join('ledger_entries', 'journals.id', '=', 'ledger_entries.journal_id')
-            ->where('ledger_entries.type', LedgerEntryType::Credit->value)
-            ->sum('ledger_entries.amount');
+        return $this->refundedAmountKoboFor($ride, RideRefundCategory::Fare);
+    }
+
+    /**
+     * Total already refunded in one category (fare, or a cancellation fee)
+     * for the ride, in kobo. Each category is refunded out of its own
+     * balance, so they must never be summed together.
+     */
+    public function refundedAmountKoboFor(Ride $ride, RideRefundCategory $category): int
+    {
+        return (int) RideRefund::where('ride_id', $ride->id)
+            ->where('category', $category)
+            ->sum('amount_kobo');
+    }
+
+    /**
+     * paidAmountKobo()/refundedAmountKobo()/remainingRefundableKobo() for
+     * several rides in one batch of queries instead of 2-4 per ride (used by
+     * ride search, which can return a handful of rides at once).
+     *
+     * @param  Collection<int, Ride>  $rides  each with `payment` eager loaded
+     * @return array<string, array{paid_kobo: int, refunded_kobo: int, remaining_refundable_kobo: int}>
+     */
+    public function refundSummaryBatch(Collection $rides): array
+    {
+        $paidStatuses = [
+            PaymentStatus::Captured,
+            PaymentStatus::Settled,
+            PaymentStatus::Collected,
+            PaymentStatus::PendingCollection,
+        ];
+
+        $paid = [];
+        $settlementRideIds = [];
+
+        foreach ($rides as $ride) {
+            $payment = $ride->payment;
+
+            if ($payment && in_array($payment->status, $paidStatuses, true)) {
+                $paid[$ride->id] = (int) round((float) $payment->amount * 100);
+            } elseif ($payment && $payment->method === PaymentMethod::Wallet && $payment->status === PaymentStatus::Failed) {
+                $settlementRideIds[] = $ride->id;
+            } else {
+                $paid[$ride->id] = 0;
+            }
+        }
+
+        if ($settlementRideIds !== []) {
+            $settlements = Journal::whereIn('idempotency_key', array_map(fn ($id) => "ride-settlement-{$id}", $settlementRideIds))
+                ->get()
+                ->keyBy('idempotency_key');
+
+            foreach ($settlementRideIds as $rideId) {
+                $paid[$rideId] = (int) ($settlements->get("ride-settlement-{$rideId}")?->metadata['charged_kobo'] ?? 0);
+            }
+        }
+
+        $rideIds = $rides->pluck('id')->all();
+        $refunded = array_fill_keys($rideIds, 0);
+
+        if ($rideIds !== []) {
+            RideRefund::whereIn('ride_id', $rideIds)
+                ->where('category', RideRefundCategory::Fare)
+                ->selectRaw('ride_id, sum(amount_kobo) as total')
+                ->groupBy('ride_id')
+                ->get()
+                ->each(function ($row) use (&$refunded) {
+                    $refunded[$row->ride_id] = (int) $row->total;
+                });
+        }
+
+        $summary = [];
+
+        foreach ($rides as $ride) {
+            $paidKobo = $paid[$ride->id] ?? 0;
+            $refundedKobo = $refunded[$ride->id] ?? 0;
+
+            $summary[$ride->id] = [
+                'paid_kobo' => $paidKobo,
+                'refunded_kobo' => $refundedKobo,
+                'remaining_refundable_kobo' => max(0, $paidKobo - $refundedKobo),
+            ];
+        }
+
+        return $summary;
     }
 
     /**

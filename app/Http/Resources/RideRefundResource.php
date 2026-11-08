@@ -16,6 +16,7 @@ class RideRefundResource extends JsonResource
             'id' => $this->id,
             'amount_kobo' => $this->amount_kobo,
             'driver_clawback_kobo' => $this->driver_clawback_kobo,
+            'category' => $this->category?->value,
             'reason' => $this->reason,
             'dispute_id' => $this->dispute_id,
             'refunded_by' => $this->whenLoaded('refundedBy', fn () => $this->refundedBy ? [

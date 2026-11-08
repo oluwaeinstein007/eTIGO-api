@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\RideRefundCategory;
 use App\Enums\RideStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Wallet\RefundToWalletRequest;
@@ -18,6 +19,9 @@ class AdminRefundController extends Controller
 
     /**
      * Refunds made on a ride, newest first, with what is left to refund.
+     * `*_kobo` figures are the fare's; a cancellation fee is refunded out of
+     * its own balance (ScheduledRideCancellationFeeService), reported apart
+     * as `fee_refunded_kobo` so the two are never added together.
      */
     public function index(Ride $ride): JsonResponse
     {
@@ -30,6 +34,7 @@ class AdminRefundController extends Controller
             'paid_kobo' => $this->refundService->paidAmountKobo($ride),
             'refunded_kobo' => $this->refundService->refundedAmountKobo($ride),
             'remaining_refundable_kobo' => $this->refundService->remainingRefundableKobo($ride),
+            'fee_refunded_kobo' => $this->refundService->refundedAmountKoboFor($ride, RideRefundCategory::CancellationFee),
         ]);
     }
 

@@ -9,6 +9,7 @@ use App\Enums\BalanceDueStatus;
 use App\Enums\CancellationReason;
 use App\Enums\LedgerEntryType;
 use App\Enums\PaymentMethod;
+use App\Enums\RideRefundCategory;
 use App\Enums\RideStatus;
 use App\Jobs\ChargeScheduledRideCancellationFeeJob;
 use App\Models\Account;
@@ -19,6 +20,7 @@ use App\Models\Journal;
 use App\Models\PassengerBalanceDue;
 use App\Models\PricingConfig;
 use App\Models\Ride;
+use App\Models\RideRefund;
 use App\Models\ScheduledRide;
 use App\Models\User;
 use App\Models\UserPaymentMethod;
@@ -360,7 +362,7 @@ class ScheduledRideCancellationFeeService
         $feeKobo = (int) round((float) $scheduled->late_cancellation_fee * 100);
 
         return match ($scheduled->late_cancellation_fee_status) {
-            'charged' => max(0, $feeKobo - $this->refunds->refundedAmountKobo($ride)),
+            'charged' => max(0, $feeKobo - $this->refunds->refundedAmountKoboFor($ride, RideRefundCategory::CancellationFee)),
             'balance_due' => $this->outstandingBalance($ride) !== null ? $feeKobo : 0,
             default => 0,
         };
@@ -420,6 +422,16 @@ class ScheduledRideCancellationFeeService
                 $this->refunds->clawbackDriverEarnings($ride, $amountKobo, "clawback-{$key}", $driver);
                 $clawbackKobo = $amountKobo;
             }
+
+            RideRefund::create([
+                'ride_id' => $ride->id,
+                'amount_kobo' => $amountKobo,
+                'driver_clawback_kobo' => $clawbackKobo,
+                'category' => RideRefundCategory::CancellationFee,
+                'reason' => $reason,
+                'refunded_by_admin_id' => $admin->id,
+                'dispute_id' => $disputeId,
+            ]);
 
             AuditLog::record($ride, 'scheduled_ride_late_cancellation_fee_refunded', $admin, null, [
                 'refund_kobo' => $amountKobo,
