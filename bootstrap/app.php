@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\FareEstimateUnavailableException;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureDriverApproved;
 use App\Http\Middleware\EnsureUserType;
@@ -53,6 +54,15 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Unauthenticated.',
                     'error_code' => 'UNAUTHENTICATED',
                 ], 401);
+            }
+        });
+
+        $exceptions->render(function (FareEstimateUnavailableException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'error_code' => 'FARE_ESTIMATE_UNAVAILABLE',
+                ], 422);
             }
         });
 

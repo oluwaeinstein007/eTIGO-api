@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\MapsGateway;
+use App\Exceptions\FareEstimateUnavailableException;
 use App\Models\AppSetting;
 use App\Models\City;
 use App\Models\PricingConfig;
@@ -21,7 +22,9 @@ class FareEstimationService
     /**
      * @param  float  $bookingFeeDiscountPct  The passenger's tier booking-fee discount (0-100)
      * @param  CarbonInterface|null  $pickupAt  A scheduled ride's pickup time; surge is evaluated for that time
-     * @return array{fare_estimate: string, reservation_fee: float, distance_km: float, duration_minutes: float, currency: string, pricing_snapshot: array, waiting_time_policy: array, surge: array, booking_fee_discount: float}
+     * @return array{fare_estimate: string, reservation_fee: float, distance_km: float, duration_minutes: float, distance_source: string, is_approximate: bool, currency: string, pricing_snapshot: array, waiting_time_policy: array, surge: array, booking_fee_discount: float}
+     *
+     * @throws FareEstimateUnavailableException every routing provider failed and the straight-line fallback distance exceeds pricing.max_approximate_distance_km
      */
     public function estimate(
         PricingConfig $pricing,
@@ -37,8 +40,11 @@ class FareEstimationService
             $pickupLat, $pickupLng, $destinationLat, $destinationLng,
         );
 
+        $this->guardAgainstUnreliableDistance($route);
+
         $baseFare = $this->calculateFare($pricing, $route['distance_km'], $route['duration_minutes']);
         $surge = $this->surgePricingService->getCurrentMultiplier($pricing->city_id, $pricing->vehicle_class_id, $pickupAt);
+        $surge = $this->capSurgeForApproximateRoute($surge, $route);
         $adjusted = $this->applyAdjustments($pricing, $baseFare, $surge['multiplier'], $bookingFeeDiscountPct);
         $reservationFee = $pickupAt ? self::reservationFee() : 0.0;
 
@@ -47,6 +53,8 @@ class FareEstimationService
             'reservation_fee' => $reservationFee,
             'distance_km' => $route['distance_km'],
             'duration_minutes' => $route['duration_minutes'],
+            'distance_source' => $route['source'] ?? 'unknown',
+            'is_approximate' => $route['is_approximate'] ?? false,
             'currency' => $currency,
             'pricing_snapshot' => $pricing->toSnapshot(),
             'waiting_time_policy' => [
@@ -56,6 +64,47 @@ class FareEstimationService
             'surge' => $this->buildSurgeResponse($surge),
             'booking_fee_discount' => $adjusted['booking_fee_discount'],
         ];
+    }
+
+    /**
+     * Refuses a booking when the distance is a straight-line guess over a
+     * long trip: the longer the trip, the more a road network can diverge
+     * from a straight line (bridges, one-way networks, gated estates), and
+     * the more a passenger and driver stand to lose from a fare based on it.
+     *
+     * @param  array{distance_km: float, is_approximate?: bool}  $route
+     */
+    private function guardAgainstUnreliableDistance(array $route): void
+    {
+        $maxApproximateKm = (float) config('pricing.max_approximate_distance_km', 40);
+
+        if (($route['is_approximate'] ?? false) && $route['distance_km'] > $maxApproximateKm) {
+            Log::warning('Refused a booking: only an approximate (Haversine) distance was available for a long trip.', [
+                'distance_km' => $route['distance_km'],
+                'max_approximate_distance_km' => $maxApproximateKm,
+            ]);
+
+            throw new FareEstimateUnavailableException;
+        }
+    }
+
+    /**
+     * Surge multiplies an already-uncertain number when the distance is a
+     * straight-line guess, compounding two unreliable figures in whichever
+     * direction hurts drivers or passengers most. Approximate quotes are
+     * never surged.
+     *
+     * @param  array{multiplier: float, rule: SurgeRule|null}  $surge
+     * @param  array{is_approximate?: bool}  $route
+     * @return array{multiplier: float, rule: SurgeRule|null}
+     */
+    private function capSurgeForApproximateRoute(array $surge, array $route): array
+    {
+        if (($route['is_approximate'] ?? false) && $surge['multiplier'] > 1.0) {
+            return ['multiplier' => 1.0, 'rule' => null];
+        }
+
+        return $surge;
     }
 
     /**
@@ -128,6 +177,8 @@ class FareEstimationService
     /**
      * @param  CarbonInterface|null  $pickupAt  A scheduled pickup time; surge is evaluated for that time
      * @return array{estimates: array, warnings: array<string>, cross_city: array|null}
+     *
+     * @throws FareEstimateUnavailableException every routing provider failed and the straight-line fallback distance exceeds pricing.max_approximate_distance_km
      */
     public function estimateAllClasses(
         string $cityId,
@@ -156,6 +207,8 @@ class FareEstimationService
             $pickupLat, $pickupLng, $destinationLat, $destinationLng,
         );
 
+        $this->guardAgainstUnreliableDistance($route);
+
         try {
             $pickupAddress = $this->mapsGateway->reverseGeocode($pickupLat, $pickupLng);
         } catch (\Throwable) {
@@ -179,6 +232,10 @@ class FareEstimationService
             $warnings[] = 'This is a long-distance ride (over 100 km). Fare is estimated based on route distance and may vary.';
         }
 
+        if ($route['is_approximate'] ?? false) {
+            $warnings[] = 'Our mapping provider is temporarily unavailable, so this fare is an approximate estimate based on straight-line distance and may differ from the final fare.';
+        }
+
         $vehicleClassIds = $activeClasses->pluck('id')->all();
         $surgeMap = $this->surgePricingService->getMultipliersForCity($cityId, $vehicleClassIds, $pickupAt);
         $reservationFee = $pickupAt ? self::reservationFee() : 0.0;
@@ -194,6 +251,7 @@ class FareEstimationService
 
             $baseFare = $this->calculateFare($pricing, $route['distance_km'], $route['duration_minutes']);
             $surge = $surgeMap[$vehicleClass->id] ?? ['multiplier' => 1.0, 'rule' => null];
+            $surge = $this->capSurgeForApproximateRoute($surge, $route);
             $adjusted = $this->applyAdjustments($pricing, $baseFare, $surge['multiplier'], $bookingFeeDiscountPct);
             $finalFare = $adjusted['fare'] + $reservationFee;
 
@@ -208,6 +266,8 @@ class FareEstimationService
                 'fare_estimate' => number_format($finalFare, 2, '.', ''),
                 'distance_km' => $route['distance_km'],
                 'duration_minutes' => $route['duration_minutes'],
+                'distance_source' => $route['source'] ?? 'unknown',
+                'is_approximate' => $route['is_approximate'] ?? false,
                 'currency' => $currency,
                 'pickup_address' => $pickupAddress['address'],
                 'destination_address' => $destinationAddress['address'],

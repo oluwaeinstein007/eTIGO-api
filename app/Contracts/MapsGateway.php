@@ -5,7 +5,12 @@ namespace App\Contracts;
 interface MapsGateway extends PlaceSearchGateway
 {
     /**
-     * @return array{distance_km: float, duration_minutes: float}
+     * `source` names the provider that answered ('google', 'mapbox' or
+     * 'haversine'). `is_approximate` is true only for the straight-line
+     * fallback: no provider could route the trip, so the distance is a
+     * guess and should not be trusted for long trips or stacked with surge.
+     *
+     * @return array{distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getDistanceAndDuration(
         float $originLat,
@@ -18,7 +23,7 @@ interface MapsGateway extends PlaceSearchGateway
      * Driving route between two points. The polyline uses Google's encoded
      * polyline format at precision 5.
      *
-     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getRoute(
         float $originLat,

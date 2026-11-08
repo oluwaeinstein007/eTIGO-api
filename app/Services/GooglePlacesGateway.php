@@ -14,7 +14,7 @@ class GooglePlacesGateway implements MapsGateway
     ) {}
 
     /**
-     * @return array{distance_km: float, duration_minutes: float}
+     * @return array{distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getDistanceAndDuration(
         float $originLat,
@@ -28,7 +28,7 @@ class GooglePlacesGateway implements MapsGateway
     }
 
     /**
-     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getRoute(
         float $originLat,
@@ -109,6 +109,8 @@ class GooglePlacesGateway implements MapsGateway
         return [
             'distance_km' => round($distanceMeters / 1000, 2),
             'duration_minutes' => round($durationSeconds / 60, 1),
+            'source' => 'google',
+            'is_approximate' => false,
         ];
     }
 

@@ -26,6 +26,8 @@ it('returns distance and duration from the directions API', function () {
     expect($result)->toBe([
         'distance_km' => 12.5,
         'duration_minutes' => 20.0,
+        'source' => 'mapbox',
+        'is_approximate' => false,
     ]);
 
     Http::assertSent(function ($request) {

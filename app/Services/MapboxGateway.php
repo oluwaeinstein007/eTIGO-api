@@ -13,7 +13,7 @@ class MapboxGateway implements MapsGateway
     ) {}
 
     /**
-     * @return array{distance_km: float, duration_minutes: float}
+     * @return array{distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getDistanceAndDuration(
         float $originLat,
@@ -43,11 +43,13 @@ class MapboxGateway implements MapsGateway
         return [
             'distance_km' => round($route['distance'] / 1000, 2),
             'duration_minutes' => round($route['duration'] / 60, 1),
+            'source' => 'mapbox',
+            'is_approximate' => false,
         ];
     }
 
     /**
-     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float}
+     * @return array{encoded_polyline: string, distance_km: float, duration_minutes: float, source: string, is_approximate: bool}
      */
     public function getRoute(
         float $originLat,
@@ -78,6 +80,8 @@ class MapboxGateway implements MapsGateway
             'encoded_polyline' => (string) ($route['geometry'] ?? ''),
             'distance_km' => round($route['distance'] / 1000, 2),
             'duration_minutes' => round($route['duration'] / 60, 1),
+            'source' => 'mapbox',
+            'is_approximate' => false,
         ];
     }
 

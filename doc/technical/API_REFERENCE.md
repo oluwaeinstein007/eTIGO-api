@@ -6064,6 +6064,13 @@ POST /rides/estimate
 - The pickup's city must be **live**. A pickup inside an onboarding or paused city returns 422 on `pickup_lat` with that city's message (`E-tiGo is not available in Ibadan yet. Join the waitlist and we will tell you when we launch.` / `Rides in Lagos are paused for now. Please try again later.`), whatever `city_id` says, so a city that has not opened cannot be booked under a live city's name and prices. When the city used is the `city_id` sent (pickup outside every drawn city), the same messages come on `city_id`. (`POST /rides` returns the same)
 - A pickup outside every drawn city with no `city_id` returns 422 on `pickup_lat`: `E-tiGo is not available at this pickup location yet.`
 - Pickup and destination coordinates cannot be identical — returns 422
+- When Google and Mapbox routing both fail, distance falls back to a straight-line (Haversine) estimate × a 1.3 road-detour multiplier. Past 40 km that fallback is not trusted for pricing: the request returns `422` with `error_code: "FARE_ESTIMATE_UNAVAILABLE"` and the passenger should retry shortly, rather than booking on a long-trip guess:
+  ```json
+  {
+    "message": "We could not calculate a reliable fare for this trip right now. Please try again shortly.",
+    "error_code": "FARE_ESTIMATE_UNAVAILABLE"
+  }
+  ```
 
 **How `fare_estimate` is calculated:** metered fare (base + distance + time, never below the minimum fare) × current surge multiplier − the passenger's loyalty-tier booking-fee discount. The discount is a percentage of the base fare and is returned separately as `booking_fee_discount` (NGN). `POST /rides` and the final fare use the same calculation, so the price shown here is the price charged (an upfront fare). Only two things can change it: a waiting charge after the free minutes, and a trip that runs significantly longer than the quoted time (more than 25% and at least 10 minutes over), which bills the actual trip time, capped at 3× the quoted time. A quicker trip keeps the quote.
 
@@ -6083,6 +6090,8 @@ POST /rides/estimate
       "fare_estimate": "4100.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
+      "distance_source": "mapbox",
+      "is_approximate": false,
       "currency": "NGN",
       "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
       "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
@@ -6120,6 +6129,8 @@ POST /rides/estimate
       "fare_estimate": "8325.00",
       "distance_km": 10.0,
       "duration_minutes": 25.0,
+      "distance_source": "mapbox",
+      "is_approximate": false,
       "currency": "NGN",
       "pickup_address": "123 Herbert Macaulay Way, Yaba, Lagos, Nigeria",
       "destination_address": "456 Broad Street, Lagos Island, Lagos, Nigeria",
@@ -6168,11 +6179,13 @@ POST /rides/estimate
 
 The `surge` object is always included. When no surge is active, `active` is `false` and `multiplier` is `1`. The `fare_estimate` already includes the surge multiplier applied.
 
+**`distance_source` and `is_approximate`:** `distance_source` is `"google"`, `"mapbox"` or `"haversine"` — which provider measured this route. `is_approximate` is `true` only for `"haversine"`: both real providers failed, so the distance is a straight-line estimate × a 1.3 road-detour multiplier, not an actual route. **Show the passenger a visible "approximate fare" notice whenever `is_approximate` is `true`** — the quoted price may differ more than usual from the final fare. Surge is never applied on top of an approximate distance: `surge.active` is forced `false` and `surge.multiplier` to `1` even if a surge rule would otherwise match, so the fare does not stack two uncertain numbers.
+
 **Edge case fields (conditional):**
 
 | Field       | Included When                                     | Description                                                       |
 |-------------|---------------------------------------------------|-------------------------------------------------------------------|
-| `warnings`  | Cross-city ride, destination outside service area, or distance > 100 km | Array of human-readable warning strings for the mobile app to display |
+| `warnings`  | Cross-city ride, destination outside service area, distance > 100 km, or `is_approximate` | Array of human-readable warning strings for the mobile app to display |
 | `cross_city`| Destination is in a different city or outside all service areas | Object with pickup/destination city details                        |
 
 ---
@@ -6206,7 +6219,7 @@ Creates a new ride, snapshots pricing, generates a 4-digit PIN for driver verifi
 
 **Booking for someone else:** send `rider_name`, `rider_phone` and `rider_age_confirmed: true` to book and pay for a ride someone else takes. The booker stays the ride's passenger. The rider gets the driver details, PIN and a tracking link by WhatsApp/SMS. Wallet or card only by default. See [Third-Party Bookings](#third-party-bookings).
 
-**What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo).
+**What the quote locks in:** the `pricing_snapshot` records the rates, the surge multiplier in effect at booking (`surge_multiplier`, `surge_rule_name`) and the passenger's tier booking-fee discount (`booking_fee_discount_pct`, `tier_name`). It also records the quoted route (`distance_km`, `duration_minutes`, `distance_source`, `is_approximate`), which the final fare reuses (upfront fare: the time charge changes only when the trip runs significantly longer), with these same values, so a surge that ends mid-trip does not change the agreed multiplier. `fare_estimate_amount` already includes surge and the tier discount (before any promo). A booking whose only available distance is an approximate one past the 40 km threshold is refused before it reaches this point — see [Get Fare Estimates](#get-fare-estimates) — so `is_approximate: true` on a created ride always means a *short* approximate trip, never a long untrustworthy one.
 
 **PIN:** valid for 6 hours (the whole pickup phase). If the driver uses up the 3 attempts, the passenger can issue a new PIN with `POST /rides/{ride}/pin/regenerate`.
 
@@ -6556,6 +6569,7 @@ GET /rides/{ride}
 |-----|-------|---------|
 | `distance_km` | Booking | Quoted route distance, charged on the final fare |
 | `duration_minutes` | Booking, replaced at completion | Quoted travel time, then the minutes billed |
+| `distance_source`, `is_approximate` | Booking | Which provider measured the quoted route (`google`/`mapbox`/`haversine`) and whether it was a straight-line fallback estimate |
 | `quoted_distance_km`, `quoted_duration_minutes` | Completion | The route quoted at booking, kept for reference |
 | `actual_trip_minutes` | Completion | Trip start (PIN) to completion; `null` if either time is missing |
 | `time_adjusted` | Completion | `true` when the trip ran past the tolerance and the actual time was billed |

@@ -51,6 +51,8 @@ class RideDetailResource extends JsonResource
             'pricing_snapshot' => $this->pricing_snapshot,
             'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
+            'distance_source' => data_get($this->pricing_snapshot, 'distance_source'),
+            'is_approximate' => data_get($this->pricing_snapshot, 'is_approximate', false),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,
             'tip_amount' => $this->relationLoaded('payment') ? $this->payment?->tip_amount : null,
