@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\MapsGateway;
+use App\Exceptions\FareEstimateUnavailableException;
 use App\Models\PricingConfig;
 use App\Models\SurgeRule;
 use App\Services\CityDetectionService;
@@ -114,6 +115,65 @@ it('applies surge multiplier to fare estimate', function () {
     expect($result['surge']['active'])->toBeTrue();
     expect($result['surge']['multiplier'])->toBe(1.5);
     expect($result['surge']['rule_name'])->toBe('Rush Hour');
+});
+
+it('refuses an estimate when the only available distance is approximate and over the limit', function () {
+    config(['pricing.max_approximate_distance_km' => 40]);
+
+    $this->mockMaps->shouldReceive('getDistanceAndDuration')
+        ->andReturn(['distance_km' => 50.0, 'duration_minutes' => 90.0, 'source' => 'haversine', 'is_approximate' => true]);
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500, 'per_km_rate' => 100, 'per_minute_rate' => 20, 'minimum_fare' => 700,
+        'version' => 1, 'effective_from' => now()->subDay(),
+    ]);
+
+    $this->service->estimate($pricing, 6.5244, 3.3792, 6.4541, 3.3947, 'NGN');
+})->throws(FareEstimateUnavailableException::class);
+
+it('accepts an approximate distance exactly at the configured limit', function () {
+    config(['pricing.max_approximate_distance_km' => 40]);
+
+    $this->mockMaps->shouldReceive('getDistanceAndDuration')
+        ->andReturn(['distance_km' => 40.0, 'duration_minutes' => 70.0, 'source' => 'haversine', 'is_approximate' => true]);
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500, 'per_km_rate' => 100, 'per_minute_rate' => 20, 'minimum_fare' => 700,
+        'version' => 1, 'effective_from' => now()->subDay(),
+    ]);
+
+    $result = $this->service->estimate($pricing, 6.5244, 3.3792, 6.4541, 3.3947, 'NGN');
+
+    expect($result['distance_km'])->toBe(40.0);
+    expect($result['is_approximate'])->toBeTrue();
+    expect($result['distance_source'])->toBe('haversine');
+});
+
+it('never applies surge on top of an approximate (Haversine) distance', function () {
+    $this->mockMaps->shouldReceive('getDistanceAndDuration')
+        ->andReturn(['distance_km' => 10.0, 'duration_minutes' => 20.0, 'source' => 'haversine', 'is_approximate' => true]);
+
+    $surgeRule = Mockery::mock(SurgeRule::class);
+    $surgeRule->shouldReceive('getAttribute')->with('name')->andReturn('Rush Hour');
+
+    $this->mockSurge->shouldReceive('getCurrentMultiplier')
+        ->andReturn(['multiplier' => 1.5, 'rule' => $surgeRule]);
+    $this->mockSurge->shouldReceive('applySurge')
+        ->with(Mockery::type('float'), 1.0)
+        ->andReturnUsing(fn (float $fare, float $multiplier) => round($fare * $multiplier, 2));
+
+    $pricing = PricingConfig::factory()->make([
+        'base_fare' => 500, 'per_km_rate' => 100, 'per_minute_rate' => 20, 'minimum_fare' => 700,
+        'version' => 1, 'effective_from' => now()->subDay(),
+    ]);
+
+    $result = $this->service->estimate($pricing, 6.5244, 3.3792, 6.4541, 3.3947, 'NGN');
+
+    // Base fare: 500 + (10 * 100) + (20 * 20) = 1900; surge would be 1.5x but is capped to 1x for an approximate route.
+    expect($result['fare_estimate'])->toBe('1900.00');
+    expect($result['surge']['active'])->toBeFalse();
+    expect($result['surge']['multiplier'])->toBe(1.0);
+    expect($result['surge']['rule_name'])->toBeNull();
 });
 
 it('charges no waiting fee within free waiting period', function () {

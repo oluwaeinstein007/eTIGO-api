@@ -20,9 +20,11 @@ Ready-to-send drafts for the three app teams. Backend details are in `API_REFERE
 
 ## 2. Driver app dev
 
-> Backend update (staging): nothing you need to change. We added fields to the fare quote (`distance_source`, `is_approximate`) so passengers see when a fare is an approximate estimate instead of a routed one, and we stopped surge pricing from applying on top of those approximate quotes.
+> Backend update (staging): nothing you need to change in the app. We added fields to the fare quote (`distance_source`, `is_approximate`) so passengers see when a fare is an approximate estimate instead of a routed one, and we stopped surge pricing from applying on top of those approximate quotes.
 >
-> This is a passenger-app/admin-dashboard change only — ride offers, fare shown to you, and payout math are unaffected. Flagging it so you're not surprised if you see `distance_source`/`is_approximate` show up in a ride payload; you can ignore them.
+> One thing worth knowing even though it's not a code change for you: on the rare ride where routing fails and the fare falls back to an approximate distance, the fare (and so your earnings on that trip) can come out a bit lower than usual, since surge is skipped and the distance is a straight-line estimate rather than the routed one. The payout *formula* (your % of the fare) is unchanged — just the fare it's applied to can be slightly different on those specific trips. This should be rare; flagging it so it's not a surprise if you ever see it on a trip.
+>
+> No UI/API change needed from you. You may see `distance_source`/`is_approximate` show up in a ride payload — safe to ignore.
 
 ---
 

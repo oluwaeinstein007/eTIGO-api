@@ -57,6 +57,16 @@ This document lists the deliberate scope cuts from that review, so the reasoning
 
 ---
 
+## 6. Booking can silently re-quote a different (and possibly approximate) fare
+
+**Problem:** `POST /rides/estimate` and `POST /rides` each independently call `FareEstimationService::estimate()`, which calls the maps gateway fresh. If a routing provider goes down in the gap between the two calls — seconds to minutes, however long the passenger takes to confirm — the booking can silently commit a different fare than the one shown on the estimate screen, including flipping from a routed `distance_source` to an approximate one. This isn't new in this PR (fare, surge and `distance_km` could already drift between the two calls before `is_approximate` existed); this PR makes the drift visible via `distance_source`/`is_approximate` rather than introducing it.
+
+**Fix:** Would need a "locked quote" concept — the estimate response carries an id/token, `POST /rides` accepts it, and the server either honors that exact quote (if still current) or returns the new quote for the passenger to re-confirm rather than booking silently. This is an API contract change across the estimate and booking endpoints, not a bug fix.
+
+**Why deferred:** A real gap, but a genuine product/API design decision (hard block vs. soft re-confirm, how long a quote stays valid, what happens to in-flight promo validation) that shouldn't be improvised inside a routing-fallback-transparency PR. Flagging here for a deliberate follow-up.
+
+---
+
 ## Already addressed in this PR (for reference)
 
 - `distance_source` / `is_approximate` on every fare estimate and ride (`FareEstimationService`, `RideService`, `pricing_snapshot`)
