@@ -124,14 +124,21 @@ it('needs the expiry date on a renewed licence, and one later than the licence o
     $upload(['expires_at' => '2029-11-20'])->assertCreated();
 });
 
-it('still lets a new driver upload a licence without an expiry date', function () {
+it('needs the expiry date on a new driver licence too, per DR-11', function () {
     $newcomer = Driver::factory()->create(['status' => 'onboarding']);
     $token = $newcomer->user->createToken('auth', ['driver'])->plainTextToken;
 
     ($this->as)($token)->postJson('/api/v1/driver/documents', [
         'type' => 'driving_licence',
         'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
-    ])->assertCreated();
+    ])->assertUnprocessable()->assertJsonValidationErrors('expires_at');
+
+    ($this->as)($token)->postJson('/api/v1/driver/documents', [
+        'type' => 'driving_licence',
+        'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
+        'expires_at' => now()->addYears(3)->toDateString(),
+    ])->assertCreated()
+        ->assertJsonPath('document.expires_at', fn ($value) => str_starts_with($value, now()->addYears(3)->toDateString()));
 });
 
 it('only changes an approved driver licence number through a renewed licence', function () {

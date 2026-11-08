@@ -122,6 +122,7 @@ it('allows driver to upload a KYC document', function () {
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
+            'expires_at' => now()->addYear()->toDateString(),
         ]);
 
     $response->assertCreated()
@@ -144,15 +145,18 @@ it('replaces existing document of same type on re-upload', function () {
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence1.pdf', 100, 'application/pdf'),
-        ]);
+            'expires_at' => now()->addYear()->toDateString(),
+        ])->assertCreated();
 
     $this->withToken($token)
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence2.pdf', 100, 'application/pdf'),
-        ]);
+            'expires_at' => now()->addYear()->toDateString(),
+        ])->assertCreated();
 
-    expect($driver->documents()->where('type', 'driving_licence')->count())->toBe(1);
+    expect($driver->documents()->where('type', 'driving_licence')->count())->toBe(1)
+        ->and($driver->documents()->where('type', 'driving_licence')->first()->original_filename)->toBe('licence2.pdf');
 });
 
 it('lists driver documents as a complete required checklist', function () {
@@ -165,6 +169,7 @@ it('lists driver documents as a complete required checklist', function () {
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
+            'expires_at' => now()->addYear()->toDateString(),
         ]);
 
     $response = $this->withToken($token)
@@ -311,6 +316,7 @@ it('replaces a rejected document when re-uploading', function () {
         ->postJson('/api/v1/driver/documents', [
             'type' => 'driving_licence',
             'document' => $file,
+            'expires_at' => now()->addYear()->toDateString(),
         ]);
 
     $response->assertCreated();

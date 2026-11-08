@@ -88,6 +88,7 @@ it('does not look up onboarding uploads, or renewals with the check switched off
     ($this->as)($token)->postJson('/api/v1/driver/documents', [
         'type' => 'driving_licence',
         'document' => UploadedFile::fake()->create('licence.pdf', 100, 'application/pdf'),
+        'expires_at' => now()->addYears(3)->toDateString(),
     ])->assertCreated();
 
     AppSetting::setValue('driver_documents.frsc_check_on_renewal', 'false', 'driver_documents');

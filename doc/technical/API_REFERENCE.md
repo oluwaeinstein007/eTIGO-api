@@ -1584,7 +1584,7 @@ Content-Type: multipart/form-data
 |----------|--------|----------|------------------------------------------------------------------------------------|
 | type     | string | Yes      | `driving_licence`, `vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`, `government_id` |
 | document | file   | Yes      | JPG, PNG, or PDF. Max 10MB.                                                        |
-| expires_at | date | For `roadworthiness_certificate`, `vehicle_licence`, and a **renewed** `driving_licence` | Expiry on the paper (after today). For a renewed licence (an approved one is on file) it must also be later than the licence on file, else 422 `Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.` Optional otherwise, but send it whenever the paper shows one |
+| expires_at | date | For `roadworthiness_certificate`, `vehicle_licence`, and every `driving_licence` (first upload or renewal) | Expiry on the paper (after today). For a renewed licence (an approved one is on file) it must also be later than the licence on file, else 422 `Your licence on file is valid until 20 Nov 2026. Upload the renewed licence, which expires later.` Optional otherwise, but send it whenever the paper shows one |
 | document_number | string | No | The number printed on the paper (max 30). On a renewed licence that carries a new number, operations make it the driver's licence number when they approve it. Stored encrypted; the driver sees only the last 4 (`"•••• ZZ09"`) |
 
 Re-uploading a document of the same type replaces a **pending or rejected** upload of that type. An **approved** paper (any type, driver or vehicle) stays valid until its renewal is approved, so renewing early never leaves the driver or the car without papers. A paper operations **withdrew** (`revoked_at` set) is kept, not replaced. See [Driver Document Renewals](#driver-document-renewals). **Vehicle papers** (`vehicle_registration`, `insurance_certificate`, `roadworthiness_certificate`, `vehicle_licence`) belong to the driver's car (Phase 2). Papers uploaded before the car is registered are linked to it when it is. Drivers of a fleet car with no car assigned get 422 (operations manage fleet papers). Insurance, roadworthiness and the vehicle licence decide whether the car may be driven: see [Vehicle Maintenance](#vehicle-maintenance-phase-2).
@@ -1700,7 +1700,7 @@ Returns the complete server-driven checklist of required documents for the authe
 }
 ```
 
-One item per required type. While a renewal waits for review, the item shows the **approved paper in force** (`status: "approved"`) with the upload under `renewal`; `total_uploaded` counts types, not uploads. `requires_expiry` is `true` only for `roadworthiness_certificate` and `vehicle_licence` at first upload; a renewed `driving_licence` also needs `expires_at`.
+One item per required type. While a renewal waits for review, the item shows the **approved paper in force** (`status: "approved"`) with the upload under `renewal`; `total_uploaded` counts types, not uploads. `requires_expiry` is `true` for `roadworthiness_certificate`, `vehicle_licence`, and `driving_licence` (first upload or renewal).
 
 - `expiry_status` (approved papers only, else `null`): `no_expiry` (none recorded), `valid`, `expiring_soon` (within the first reminder step, 30 days by default), `expired`.
 - `days_until_expiry`: calendar days in Lagos; `0` on the expiry date (still valid), negative once expired.
