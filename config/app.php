@@ -54,7 +54,11 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
-    'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
+    'frontend_url' => env('ADMIN_FRONTEND_URL', env('FRONTEND_URL', 'https://admin-dev.etigorides.com')),
+
+    'admin_frontend_url' => env('ADMIN_FRONTEND_URL', env('FRONTEND_URL', 'https://admin-dev.etigorides.com')),
+
+    'landing_page_url' => env('LANDING_PAGE_URL', 'https://www.etigorides.com'),
 
     /*
     |--------------------------------------------------------------------------

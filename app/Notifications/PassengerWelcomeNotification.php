@@ -19,7 +19,7 @@ class PassengerWelcomeNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $bookRideUrl = config('app.frontend_url', config('app.url')).'/rides/book';
+        $bookRideUrl = config('app.landing_page_url', config('app.url')).'/rides/book';
 
         return (new MailMessage)
             ->subject("Welcome to Etigo, {$notifiable->first_name}. Let's get moving.")

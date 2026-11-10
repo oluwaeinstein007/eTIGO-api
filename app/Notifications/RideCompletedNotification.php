@@ -95,7 +95,7 @@ class RideCompletedNotification extends Notification implements ShouldQueue
                 'fareItems' => $fareItems,
                 'paymentNote' => $paymentNote,
                 'mapImageUrl' => $this->mapImageUrl ?? $this->buildMapUrl(),
-                'receiptUrl' => config('app.frontend_url', config('app.url')).'/rides/'.$this->ride->id,
+                'receiptUrl' => config('app.landing_page_url', config('app.url')).'/rides/'.$this->ride->id,
             ]);
     }
 

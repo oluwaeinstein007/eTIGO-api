@@ -25,7 +25,7 @@ class DriverOnboardingWelcomeNotification extends Notification implements Should
 
     public function toMail(object $notifiable): MailMessage
     {
-        $applicationUrl = config('app.frontend_url', config('app.url')).'/driver/application';
+        $applicationUrl = config('app.landing_page_url', config('app.url')).'/driver/application';
         $applicationId = $this->driver->reference_number ?? 'DRV-'.now()->format('ymd').'-'.substr($this->driver->id, 0, 4);
         $submittedDate = $this->driver->created_at?->format('j F Y') ?? now()->format('j F Y');
 

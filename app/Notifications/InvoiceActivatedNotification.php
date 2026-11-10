@@ -24,7 +24,7 @@ class InvoiceActivatedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $invoicesUrl = config('app.frontend_url', config('app.url')).'/admin/billing/invoices';
+        $invoicesUrl = config('app.admin_frontend_url', config('app.url')).'/admin/billing/invoices';
         $workspace = $this->workspaceName ?? config('app.name', 'Etigo');
 
         return (new MailMessage)

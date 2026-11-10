@@ -19,7 +19,7 @@ class AdminWelcomeNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $dashboardUrl = config('app.frontend_url', config('app.url')).'/admin/dashboard';
+        $dashboardUrl = config('app.admin_frontend_url', config('app.url')).'/admin/dashboard';
         $role = $notifiable->admin_role
             ? ucwords(str_replace('_', ' ', $notifiable->admin_role->value))
             : 'Administrator';

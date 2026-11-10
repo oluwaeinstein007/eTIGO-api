@@ -46,7 +46,7 @@ class OperationsAlertNotification extends Notification implements ShouldQueue
                 'lines' => $this->lines,
                 'userName' => $notifiable->first_name,
                 'recipientEmail' => $notifiable->email,
-                'actionUrl' => rtrim((string) config('app.frontend_url', config('app.url')), '/').$this->actionPath,
+                'actionUrl' => rtrim((string) config('app.admin_frontend_url', config('app.url')), '/').$this->actionPath,
                 'actionLabel' => $this->actionLabel,
             ]);
     }

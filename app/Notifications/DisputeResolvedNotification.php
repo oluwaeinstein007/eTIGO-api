@@ -26,7 +26,7 @@ class DisputeResolvedNotification extends Notification implements ShouldQueue
     {
         $status = $this->dispute->status->label();
         $ref = $this->dispute->reference_number;
-        $supportUrl = config('app.frontend_url', config('app.url')).'/rides';
+        $supportUrl = config('app.landing_page_url', config('app.url')).'/rides';
 
         return (new MailMessage)
             ->subject("Report {$ref} — {$status}")

@@ -34,7 +34,7 @@ class AdminPasswordChangedNotification extends Notification implements ShouldQue
                 'preheaderSub' => 'If this was not you, reset your password now.',
                 'subject' => 'Your Etigo admin password was changed',
                 'userName' => $notifiable->first_name ?? 'there',
-                'resetUrl' => config('app.frontend_url', config('app.url')).'/auth/forgot-password',
+                'resetUrl' => config('app.admin_frontend_url', config('app.url')).'/auth/forgot-password',
                 'recipientEmail' => $notifiable->email,
                 'changedAt' => $changedAt->format('j F Y').' · '.$changedAt->format('H:i').' WAT',
             ]);

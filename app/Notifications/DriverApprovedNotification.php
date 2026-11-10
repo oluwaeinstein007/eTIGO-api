@@ -24,7 +24,7 @@ class DriverApprovedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $driverAppUrl = config('app.frontend_url', config('app.url')).'/driver';
+        $driverAppUrl = config('app.landing_page_url', config('app.url')).'/driver';
         $driverName = trim(($notifiable->first_name ?? '').' '.($notifiable->last_name ?? ''));
         $driverId = $this->driver->reference_number ?? 'DRV-'.now()->format('ymd').'-'.substr($this->driver->id, 0, 4);
         $approvedDate = $this->driver->approved_at?->format('j F Y') ?? now()->format('j F Y');

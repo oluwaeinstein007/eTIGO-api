@@ -24,7 +24,7 @@ class AdminInvitationNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $acceptUrl = config('app.frontend_url', config('app.url')).'/auth/set-password?token='.$this->invitation->token;
+        $acceptUrl = config('app.admin_frontend_url', config('app.url')).'/auth/set-password?token='.$this->invitation->token;
         $role = ucwords(str_replace('_', ' ', $this->invitation->admin_role->value));
         $inviter = $this->invitation->inviter;
         $inviterName = $inviter ? trim($inviter->first_name.' '.$inviter->last_name) : 'Your administrator';

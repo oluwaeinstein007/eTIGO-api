@@ -29,7 +29,7 @@ class TierUpgradedNotification extends Notification implements ShouldQueue
         $previousName = TierLevel::from($this->previousTier)->label();
         $newName = TierLevel::from($this->newTier)->label();
         $benefits = $this->tierBenefits();
-        $rewardsUrl = config('app.frontend_url', config('app.url')).'/rewards';
+        $rewardsUrl = config('app.landing_page_url', config('app.url')).'/rewards';
 
         return (new MailMessage)
             ->subject("You've levelled up to {$this->tierName}!")

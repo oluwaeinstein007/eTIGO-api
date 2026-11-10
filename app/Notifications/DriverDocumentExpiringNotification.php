@@ -38,7 +38,7 @@ class DriverDocumentExpiringNotification extends Notification implements ShouldQ
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $updateDocumentUrl = config('app.frontend_url', config('app.url')).'/driver/documents';
+        $updateDocumentUrl = config('app.landing_page_url', config('app.url')).'/driver/documents';
         $documentType = $this->document->type->label();
         $documentTypeInSentence = $this->document->type->inSentence();
         $expiryDate = $this->document->expires_at->format('j F Y');

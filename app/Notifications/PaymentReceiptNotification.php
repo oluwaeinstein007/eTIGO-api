@@ -67,7 +67,7 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
                 'paymentDate' => $paymentDate->format('j F Y').' · '.$paymentDate->format('H:i').' WAT',
                 'paidBy' => trim(($notifiable->first_name ?? '').' '.($notifiable->last_name ?? '')),
                 'paymentFor' => "Ride {$rideRef}",
-                'receiptUrl' => config('app.frontend_url', config('app.url')).'/payments/'.$ref,
+                'receiptUrl' => config('app.landing_page_url', config('app.url')).'/payments/'.$ref,
             ]);
     }
 
