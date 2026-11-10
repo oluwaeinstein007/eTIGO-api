@@ -121,8 +121,7 @@ class ThirdPartyBookingService
             ]);
         }
 
-        $choice = in_array($shareWith?->value, self::shareWithOptions($policy), true) ? $shareWith : null;
-        $pinRecipient = $choice?->value ?? $policy['pin_recipient'];
+        $pinRecipient = ThirdPartyRecipient::Both->value;
         $trackingRecipient = $policy['tracking_recipient'];
 
         $messagesRider = ThirdPartyRecipient::from($pinRecipient)->includesRider()
@@ -148,9 +147,7 @@ class ThirdPartyBookingService
      */
     public static function shareWithOptions(array $policy): array
     {
-        return $policy['pin_recipient'] === ThirdPartyRecipient::Booker->value
-            ? []
-            : [ThirdPartyRecipient::Rider->value, ThirdPartyRecipient::Both->value];
+        return [];
     }
 
     /**
@@ -195,13 +192,7 @@ class ThirdPartyBookingService
      */
     public static function defaultShareWith(array $policy): ?string
     {
-        if (self::shareWithOptions($policy) === []) {
-            return null;
-        }
-
-        return $policy['pin_recipient'] === ThirdPartyRecipient::Rider->value
-            ? ThirdPartyRecipient::Rider->value
-            : ThirdPartyRecipient::Both->value;
+        return ThirdPartyRecipient::Both->value;
     }
 
     /**

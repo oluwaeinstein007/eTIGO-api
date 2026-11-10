@@ -131,6 +131,24 @@ class ThirdPartyRoutingService
         }
 
         Log::info('Third-party rider message sent', ['ride_id' => $ride->id, 'type' => $type, 'channel' => $channel]);
+
+        if (in_array($type, [self::DRIVER_DETAILS, self::PIN_UPDATE], true)) {
+            $bookerPhone = $ride->passenger?->phone;
+            if ($bookerPhone && $bookerPhone !== $ride->rider_phone) {
+                $bookerMessage = $this->composeBookerMessage($ride, $type);
+                if ($bookerMessage !== null) {
+                    try {
+                        $this->deliverToBooker($bookerPhone, $bookerMessage);
+                    } catch (\Throwable $e) {
+                        Log::warning('Third-party booker message delivery failed', [
+                            'ride_id' => $ride->id,
+                            'type' => $type,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -292,6 +310,64 @@ class ThirdPartyRoutingService
         }
 
         return $line;
+    }
+
+    private function composeBookerMessage(Ride $ride, string $type): ?string
+    {
+        return match ($type) {
+            self::DRIVER_DETAILS => $this->bookerDetailsMessage($ride),
+            self::PIN_UPDATE => $this->bookerPinUpdateMessage($ride),
+            default => null,
+        };
+    }
+
+    private function bookerDetailsMessage(Ride $ride): string
+    {
+        $rider = $this->plain($ride->rider_name, 40) ?: 'your rider';
+        $driver = 'Driver: '.($ride->driver?->first_name ?? 'assigned');
+        if ($car = $this->carDescription($ride)) {
+            $driver .= ", {$car}";
+        }
+
+        $pin = $this->pinService->getCachedPin($ride) ?? $this->pinService->generatePin($ride)['pin_code'];
+
+        $lines = [
+            "E-tiGo: A driver is on the way for {$rider}.",
+            $driver.'.',
+            "Your ride PIN: {$pin}. Only tell it to the driver once you are in the right car.",
+        ];
+
+        if ($ride->bookerSeesTracking()) {
+            $lines[] = 'Track your driver: '.$this->trackingUrl($ride);
+        }
+
+        $lines[] = $this->safetyLine();
+
+        return implode("\n", $lines);
+    }
+
+    private function bookerPinUpdateMessage(Ride $ride): ?string
+    {
+        $rider = $this->plain($ride->rider_name, 40) ?: 'your rider';
+        $pin = $this->pinService->getCachedPin($ride);
+        if ($pin === null) {
+            return null;
+        }
+
+        return "E-tiGo: your new ride PIN is {$pin} for {$rider}'s ride. The old PIN no longer works. Only tell it to the driver once you are in the right car.";
+    }
+
+    private function deliverToBooker(string $phone, string $message): void
+    {
+        $channel = $this->gateway->deliver($phone, $message);
+        if ($channel === 'whatsapp') {
+            try {
+                $this->gateway->send($phone, $message);
+            } catch (\Throwable) {
+                // Ignore SMS error if WhatsApp already succeeded
+            }
+        }
+        Log::info('Third-party booker message sent', ['phone' => $phone, 'channel' => $channel]);
     }
 
     private function broadcast(Ride $ride): void
