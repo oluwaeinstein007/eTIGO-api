@@ -2,7 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Account;
+use App\Models\Dispute;
+use App\Models\EvChargingStall;
+use App\Models\EvReservation;
+use App\Models\PassengerBalanceDue;
+use App\Models\PromoRedemption;
+use App\Models\Rating;
 use App\Models\Ride;
+use App\Models\SosIncident;
+use App\Models\TripCarbonScore;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\DriverLocationService;
@@ -14,10 +23,12 @@ use Illuminate\Support\Str;
 class DeleteDriverCommand extends Command
 {
     protected $signature = 'driver:delete
-                            {identifier : Driver phone number, email, user ID, or driver ID}
+                            {identifier : Driver or user phone number, email, user ID, or driver ID}
                             {--force : Force delete without confirmation prompt}';
 
-    protected $description = 'Delete a driver account and all associated records from the database';
+    protected $aliases = ['user:delete'];
+
+    protected $description = 'Delete a driver or user account and all associated records from the database';
 
     public function handle(): int
     {
@@ -62,8 +73,10 @@ class DeleteDriverCommand extends Command
             $this->info("Driver ID: {$driver->id} (Status: {$driver->status->value})");
         }
 
+        $identifierLabel = $user->phone ?: ($user->email ?: $user->id);
+
         if (! $this->option('force')) {
-            if (! $this->confirm("Are you sure you want to permanently delete this account ({$user->phone})?", false)) {
+            if (! $this->confirm("Are you sure you want to permanently delete this account ({$identifierLabel})?", false)) {
                 $this->warn('Operation cancelled.');
 
                 return self::SUCCESS;
@@ -87,6 +100,11 @@ class DeleteDriverCommand extends Command
 
                 // Detach vehicles
                 Vehicle::where('driver_id', $driver->id)->update(['driver_id' => null]);
+
+                // Delete driver-specific records
+                $driver->documents()->delete();
+                $driver->bankAccounts()->delete();
+                Account::forOwner($driver)->delete();
             }
 
             // Remove profile photo
@@ -94,8 +112,43 @@ class DeleteDriverCommand extends Command
                 Storage::disk(config('filesystems.uploads'))->delete($user->profile_photo_path);
             }
 
-            // Delete associated rides if any (e.g. test rides) to allow full cascade
-            Ride::where('driver_id', $user->id)->delete();
+            // Unlink non-cascading references on other rides
+            Ride::where('cancelled_by', $user->id)->update(['cancelled_by' => null]);
+
+            // Delete associated rides where user was either driver OR passenger
+            // Child records with cascadeOnDelete (payments, scheduled_rides, disputes, ratings on these rides) will cascade.
+            Ride::where('driver_id', $user->id)
+                ->orWhere('passenger_id', $user->id)
+                ->delete();
+
+            // Delete non-cascading ratings where user was rated or rater
+            Rating::where('rated_by_user_id', $user->id)
+                ->orWhere('rated_user_id', $user->id)
+                ->delete();
+
+            // Delete non-cascading disputes reported by this user
+            Dispute::where('reported_by_user_id', $user->id)->delete();
+            Dispute::where('resolved_by_admin_id', $user->id)->update(['resolved_by_admin_id' => null]);
+
+            // Delete non-cascading SOS incidents
+            SosIncident::where('triggered_by_user_id', $user->id)->delete();
+            SosIncident::where('operator_id', $user->id)->update(['operator_id' => null]);
+
+            // Delete non-cascading EV reservations
+            EvReservation::where('driver_id', $user->id)->delete();
+            EvChargingStall::where('current_vehicle_driver_id', $user->id)->update(['current_vehicle_driver_id' => null]);
+
+            // Delete user-related records
+            $user->savedPlaces()->delete();
+            $user->paymentMethods()->delete();
+            $user->notifications()->delete();
+            $user->notificationPreferences()->delete();
+            $user->gamificationProfile()?->delete();
+            TripCarbonScore::where('user_id', $user->id)->delete();
+            PromoRedemption::where('user_id', $user->id)->delete();
+            PassengerBalanceDue::where('passenger_id', $user->id)->delete();
+            PassengerBalanceDue::where('payee_driver_id', $user->id)->update(['payee_driver_id' => null]);
+            Account::forOwner($user)->delete();
 
             // Clear tokens
             $user->tokens()->delete();
@@ -109,7 +162,8 @@ class DeleteDriverCommand extends Command
             $user->delete();
         });
 
-        $this->info("Driver account [{$identifier}] has been permanently deleted.");
+        $accountType = $user->isDriver() ? 'Driver account' : 'Account';
+        $this->info("{$accountType} [{$identifier}] has been permanently deleted.");
 
         return self::SUCCESS;
     }

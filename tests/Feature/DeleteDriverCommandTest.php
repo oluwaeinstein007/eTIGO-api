@@ -2,6 +2,7 @@
 
 use App\Enums\DriverStatus;
 use App\Models\Driver;
+use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
 
@@ -90,4 +91,36 @@ it('fails when driver identifier does not exist', function () {
     $this->artisan('driver:delete', ['identifier' => '+2340000000000', '--force' => true])
         ->expectsOutputToContain('No user found matching identifier: +2340000000000')
         ->assertFailed();
+});
+
+it('successfully deletes a passenger account with existing rides by email', function () {
+    $passenger = User::factory()->passenger()->create([
+        'phone' => null,
+        'email' => 'baggrbot@gmail.com',
+    ]);
+
+    $ride = Ride::factory()->create([
+        'passenger_id' => $passenger->id,
+    ]);
+
+    $this->artisan('driver:delete', ['identifier' => 'baggrbot@gmail.com', '--force' => true])
+        ->expectsOutputToContain('Account [baggrbot@gmail.com] has been permanently deleted.')
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('users', ['id' => $passenger->id]);
+    $this->assertDatabaseMissing('rides', ['id' => $ride->id]);
+});
+
+it('works using user:delete alias and confirms with email when phone is null', function () {
+    $user = User::factory()->passenger()->create([
+        'phone' => null,
+        'email' => 'passenger-test@etigo.ng',
+    ]);
+
+    $this->artisan('user:delete', ['identifier' => 'passenger-test@etigo.ng'])
+        ->expectsConfirmation('Are you sure you want to permanently delete this account (passenger-test@etigo.ng)?', 'yes')
+        ->expectsOutputToContain('Account [passenger-test@etigo.ng] has been permanently deleted.')
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('users', ['id' => $user->id]);
 });
