@@ -7247,7 +7247,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"places\": [\n    {\n      \"id\": \"6f1b2a3c-7e2d-4a3b-9c1d-5e6f7a8b9c0d\",\n      \"name\": \"Home\",\n      \"address\": \"12 Ahmadu Bello Way, Victoria Island, Lagos\",\n      \"latitude\": 6.4281,\n      \"longitude\": 3.4219,\n      \"source\": \"saved_place\",\n      \"saved_place_type\": \"home\"\n    },\n    {\n      \"id\": \"place_abc123\",\n      \"name\": \"Lekki Phase 1\",\n      \"address\": \"Lekki Phase 1, Lagos, Nigeria\",\n      \"latitude\": 6.4478,\n      \"longitude\": 3.4723,\n      \"source\": \"search\"\n    }\n  ]\n}"
+                  "body": "{\n  \"places\": [\n    {\n      \"id\": \"6f1b2a3c-7e2d-4a3b-9c1d-5e6f7a8b9c0d\",\n      \"name\": \"Home\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"latitude\": 6.4408,\n      \"longitude\": 3.4719,\n      \"source\": \"saved_place\",\n      \"saved_place_type\": \"home\"\n    },\n    {\n      \"id\": \"place_abc123\",\n      \"name\": \"Lekki Phase 1\",\n      \"address\": \"Lekki Phase 1, Lagos, Nigeria\",\n      \"latitude\": 6.4478,\n      \"longitude\": 3.4723,\n      \"source\": \"search\"\n    }\n  ]\n}"
                 }
               ]
             },

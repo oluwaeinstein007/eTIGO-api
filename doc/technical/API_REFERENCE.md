@@ -5348,9 +5348,9 @@ Authorization: Bearer {token}
     {
       "id": "6f1b2a3c-...",
       "name": "Home",
-      "address": "12 Ahmadu Bello Way, Victoria Island, Lagos",
-      "latitude": 6.4281,
-      "longitude": 3.4219,
+      "address": "12 Admiralty Way, Lekki Phase 1, Lagos",
+      "latitude": 6.4408,
+      "longitude": 3.4719,
       "source": "saved_place",
       "saved_place_type": "home"
     },
