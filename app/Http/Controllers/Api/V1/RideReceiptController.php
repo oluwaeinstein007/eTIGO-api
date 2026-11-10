@@ -38,6 +38,20 @@ class RideReceiptController extends Controller
         $tierDiscount = $snapshot['tier_discount'] ?? null;
         $promoDiscount = $snapshot['promo'] ?? null;
 
+        $baseFare = (float) ($snapshot['base_fare'] ?? 0);
+        $distanceCharge = round(
+            ($snapshot['distance_km'] ?? 0) * ($snapshot['per_km_rate'] ?? 0), 2
+        );
+        $timeCharge = round(
+            ($snapshot['duration_minutes'] ?? 0) * ($snapshot['per_minute_rate'] ?? 0), 2
+        );
+        $waitingCharge = (float) ($snapshot['waiting_charge'] ?? 0);
+        $meteredFare = $baseFare + $distanceCharge + $timeCharge + $waitingCharge;
+        $surgeMultiplier = isset($snapshot['surge_multiplier']) ? (float) $snapshot['surge_multiplier'] : 1.0;
+        $surgeAmount = isset($snapshot['surge_amount'])
+            ? (float) $snapshot['surge_amount']
+            : ($surgeMultiplier > 1.0 ? round($meteredFare * ($surgeMultiplier - 1.0), 2) : 0.0);
+
         return response()->json([
             'receipt' => [
                 'ride_id' => $ride->id,
@@ -78,16 +92,12 @@ class RideReceiptController extends Controller
                     'year' => $ride->driver->driver->vehicle->year,
                 ] : null,
                 'fare_breakdown' => [
-                    'base_fare' => (float) ($snapshot['base_fare'] ?? 0),
+                    'base_fare' => $baseFare,
                     'per_km_rate' => (float) ($snapshot['per_km_rate'] ?? 0),
                     'per_minute_rate' => (float) ($snapshot['per_minute_rate'] ?? 0),
-                    'distance_charge' => round(
-                        ($snapshot['distance_km'] ?? 0) * ($snapshot['per_km_rate'] ?? 0), 2
-                    ),
-                    'time_charge' => round(
-                        ($snapshot['duration_minutes'] ?? 0) * ($snapshot['per_minute_rate'] ?? 0), 2
-                    ),
-                    'waiting_charge' => (float) ($snapshot['waiting_charge'] ?? 0),
+                    'distance_charge' => $distanceCharge,
+                    'time_charge' => $timeCharge,
+                    'waiting_charge' => $waitingCharge,
                     'tip' => $payment ? (float) ($payment->tip_amount ?? 0) : 0,
                     'tier_discount' => $tierDiscount ? [
                         'tier' => $tierDiscount['tier'] ?? null,
@@ -101,6 +111,7 @@ class RideReceiptController extends Controller
                     ] : null,
                     'minimum_fare' => (float) ($snapshot['minimum_fare'] ?? 0),
                     'surge_multiplier' => $snapshot['surge_multiplier'] ?? null,
+                    'surge_amount' => $surgeAmount,
                     'reservation_fee' => (float) ($snapshot['reservation_fee'] ?? 0),
                 ],
                 'fare_estimate' => $ride->fare_estimate_amount,

@@ -797,6 +797,7 @@ class RideService
                 'waiting_minutes' => round((float) $waitingMinutes, 2),
                 'waiting_charge' => $waitingCharge,
                 'surge_multiplier' => $surgeMultiplier,
+                'surge_amount' => round($adjusted['surged_fare'] - $meteredFare, 2),
                 ...($tierDiscountSnapshot ? ['tier_discount' => $tierDiscountSnapshot] : []),
                 ...($promoSnapshot ? ['promo' => $promoSnapshot] : []),
             ],
