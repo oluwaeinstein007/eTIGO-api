@@ -5339,23 +5339,36 @@ Authorization: Bearer {token}
 | proximity_lng | number  | No       | Longitude to bias results toward (-180 to 180)   |
 | limit         | integer | No       | Max results to return (1–20, default: 10)        |
 
+**Saved places.** For passengers, any of the caller's own [saved places](#saved-places) (home, work, custom) whose `name` or `address` contains the query (case-insensitive) are matched in and listed first, ahead of the geocoder results, up to `limit` total. Each place in the response carries a `source` of `"saved_place"` or `"search"`; saved-place entries also carry `saved_place_type` (`home`, `work`, or `custom`) so the client can pick an icon. Matches are ordered home → work → custom. A geocoder result that resolves to essentially the same coordinates (~11 m) as a matched saved place is dropped so the place isn't listed twice. Saved-place matching is skipped for drivers and is not part of the cached geocoder lookup, so it's always evaluated against the caller's current saved places.
+
 **Response 200:**
 ```json
 {
   "places": [
     {
+      "id": "6f1b2a3c-...",
+      "name": "Home",
+      "address": "12 Ahmadu Bello Way, Victoria Island, Lagos",
+      "latitude": 6.4281,
+      "longitude": 3.4219,
+      "source": "saved_place",
+      "saved_place_type": "home"
+    },
+    {
       "id": "place_abc123",
       "name": "Lekki Phase 1",
       "address": "Lekki Phase 1, Lekki, Lagos, Nigeria",
       "latitude": 6.4478,
-      "longitude": 3.4723
+      "longitude": 3.4723,
+      "source": "search"
     },
     {
       "id": "place_def456",
       "name": "Lekki Conservation Centre",
       "address": "Km 19 Lekki-Epe Expressway, Lagos, Nigeria",
       "latitude": 6.4382,
-      "longitude": 3.5432
+      "longitude": 3.5432,
+      "source": "search"
     }
   ]
 }
