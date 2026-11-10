@@ -1,10 +1,52 @@
 <?php
 
 use App\Enums\DriverStatus;
+use App\Enums\WalletTransactionStatus;
+use App\Models\Account;
 use App\Models\Driver;
+use App\Models\OfflineTripFlag;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\WalletTransaction;
+
+it('deletes a passenger whose wallet account has wallet transactions', function () {
+    $passenger = User::factory()->passenger()->create([
+        'phone' => null,
+        'email' => 'wallet-owner@etigo.ng',
+    ]);
+
+    $account = Account::factory()->passengerWallet()->create([
+        'owner_type' => $passenger->getMorphClass(),
+        'owner_id' => $passenger->id,
+    ]);
+
+    $transaction = WalletTransaction::create([
+        'account_id' => $account->id,
+        'reference' => 'TOPUP-DELETE01',
+        'amount' => 50000,
+        'status' => WalletTransactionStatus::Completed,
+    ]);
+
+    $this->artisan('driver:delete', ['identifier' => 'wallet-owner@etigo.ng', '--force' => true])
+        ->expectsOutputToContain('Account [wallet-owner@etigo.ng] has been permanently deleted.')
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('users', ['id' => $passenger->id]);
+    $this->assertDatabaseMissing('accounts', ['id' => $account->id]);
+    $this->assertDatabaseMissing('wallet_transactions', ['id' => $transaction->id]);
+});
+
+it('deletes a passenger referenced by an offline trip flag on another ride', function () {
+    $passenger = User::factory()->passenger()->create(['email' => 'flagged-passenger@etigo.ng']);
+    $flag = OfflineTripFlag::factory()->create(['passenger_id' => $passenger->id]);
+
+    $this->artisan('driver:delete', ['identifier' => 'flagged-passenger@etigo.ng', '--force' => true])
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('users', ['id' => $passenger->id]);
+    $this->assertDatabaseHas('offline_trip_flags', ['id' => $flag->id, 'passenger_id' => null]);
+});
 
 it('successfully deletes a driver account by phone number with --force', function () {
     $user = User::factory()->driver()->create([

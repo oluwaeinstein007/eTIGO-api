@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Dispute;
 use App\Models\EvChargingStall;
 use App\Models\EvReservation;
+use App\Models\OfflineTripFlag;
 use App\Models\PassengerBalanceDue;
 use App\Models\PromoRedemption;
 use App\Models\Rating;
@@ -14,8 +15,10 @@ use App\Models\SosIncident;
 use App\Models\TripCarbonScore;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\WalletTransaction;
 use App\Services\DriverLocationService;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -104,7 +107,7 @@ class DeleteDriverCommand extends Command
                 // Delete driver-specific records
                 $driver->documents()->delete();
                 $driver->bankAccounts()->delete();
-                Account::forOwner($driver)->delete();
+                $this->deleteAccountsFor($driver);
             }
 
             // Remove profile photo
@@ -114,6 +117,11 @@ class DeleteDriverCommand extends Command
 
             // Unlink non-cascading references on other rides
             Ride::where('cancelled_by', $user->id)->update(['cancelled_by' => null]);
+
+            // Delete non-cascading offline trip flags
+            OfflineTripFlag::where('driver_id', $user->id)->delete();
+            OfflineTripFlag::where('passenger_id', $user->id)->update(['passenger_id' => null]);
+            OfflineTripFlag::where('dispute_resolved_by_admin_id', $user->id)->update(['dispute_resolved_by_admin_id' => null]);
 
             // Delete associated rides where user was either driver OR passenger
             // Child records with cascadeOnDelete (payments, scheduled_rides, disputes, ratings on these rides) will cascade.
@@ -148,7 +156,7 @@ class DeleteDriverCommand extends Command
             PromoRedemption::where('user_id', $user->id)->delete();
             PassengerBalanceDue::where('passenger_id', $user->id)->delete();
             PassengerBalanceDue::where('payee_driver_id', $user->id)->update(['payee_driver_id' => null]);
-            Account::forOwner($user)->delete();
+            $this->deleteAccountsFor($user);
 
             // Clear tokens
             $user->tokens()->delete();
@@ -166,5 +174,20 @@ class DeleteDriverCommand extends Command
         $this->info("{$accountType} [{$identifier}] has been permanently deleted.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Delete the ledger accounts owned by a model, clearing wallet transactions
+     * first because that foreign key does not cascade.
+     */
+    private function deleteAccountsFor(Model $owner): void
+    {
+        $accountIds = Account::forOwner($owner)->pluck('id');
+        if ($accountIds->isEmpty()) {
+            return;
+        }
+
+        WalletTransaction::whereIn('account_id', $accountIds)->delete();
+        Account::whereIn('id', $accountIds)->delete();
     }
 }
