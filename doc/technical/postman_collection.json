@@ -7234,7 +7234,7 @@
                     }
                   ]
                 },
-                "description": "Search for places by name/address. Cached 6 hours. `q` required. Optional: `proximity_lat`/`proximity_lng`, `limit` (1-20, default 10)."
+                "description": "Search for places by name/address. Cached 6 hours. `q` required. Optional: `proximity_lat`/`proximity_lng`, `limit` (1-20, default 10). For passengers, any of the caller's own saved places (home/work/custom) whose name or address contains `q` (case-insensitive) are matched in ahead of the geocoder results, up to `limit` total; a geocoder result at essentially the same coordinates as a matched saved place is dropped. Each place carries `source` (`saved_place` or `search`); saved-place entries also carry `saved_place_type` (`home`/`work`/`custom`)."
               },
               "response": [
                 {
@@ -7247,7 +7247,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"places\": [\n    {\n      \"name\": \"Lekki Phase 1\",\n      \"address\": \"Lekki Phase 1, Lagos, Nigeria\",\n      \"lat\": 6.4478,\n      \"lng\": 3.4723\n    }\n  ]\n}"
+                  "body": "{\n  \"places\": [\n    {\n      \"id\": \"6f1b2a3c-7e2d-4a3b-9c1d-5e6f7a8b9c0d\",\n      \"name\": \"Home\",\n      \"address\": \"12 Admiralty Way, Lekki Phase 1, Lagos\",\n      \"latitude\": 6.4408,\n      \"longitude\": 3.4719,\n      \"source\": \"saved_place\",\n      \"saved_place_type\": \"home\"\n    },\n    {\n      \"id\": \"place_abc123\",\n      \"name\": \"Lekki Phase 1\",\n      \"address\": \"Lekki Phase 1, Lagos, Nigeria\",\n      \"latitude\": 6.4478,\n      \"longitude\": 3.4723,\n      \"source\": \"search\"\n    }\n  ]\n}"
                 }
               ]
             },

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Contracts\PlaceSearchGateway;
 use App\Http\Controllers\Controller;
+use App\Models\SavedPlace;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -32,7 +34,7 @@ class PlaceController extends Controller
         $lngBucket = $proximityLng !== null ? round($proximityLng, 2) : 'null';
         $cacheKey = 'places_search:'.md5(mb_strtolower($query).":{$latBucket}:{$lngBucket}:{$limit}");
 
-        $places = Cache::remember($cacheKey, now()->addHours(6), function () use ($query, $proximityLat, $proximityLng, $limit) {
+        $providerPlaces = Cache::remember($cacheKey, now()->addHours(6), function () use ($query, $proximityLat, $proximityLng, $limit) {
             return $this->placeSearchGateway->searchPlaces(
                 query: $query,
                 proximityLat: $proximityLat,
@@ -41,9 +43,76 @@ class PlaceController extends Controller
             );
         });
 
+        $providerPlaces = array_map(
+            fn (array $place) => $place + ['source' => 'search'],
+            $providerPlaces,
+        );
+
+        $savedPlaces = $this->matchingSavedPlaces($request->user(), $query);
+
         return response()->json([
-            'places' => $places,
+            'places' => $this->mergePlaces($savedPlaces, $providerPlaces, $limit),
         ]);
+    }
+
+    /**
+     * @return list<array{id: string, name: string, address: string, latitude: float, longitude: float, source: string, saved_place_type: string}>
+     */
+    private function matchingSavedPlaces(?User $user, string $query): array
+    {
+        if (! $user instanceof User || ! $user->isPassenger() || $query === '') {
+            return [];
+        }
+
+        $pattern = '%'.addcslashes($query, '\\%_').'%';
+
+        return $user->savedPlaces()
+            ->where(function ($q) use ($pattern) {
+                $q->whereLike('name', $pattern)
+                    ->orWhereLike('address', $pattern);
+            })
+            ->orderByRaw("CASE type WHEN 'home' THEN 0 WHEN 'work' THEN 1 ELSE 2 END")
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (SavedPlace $place) => [
+                'id' => $place->id,
+                'name' => $place->name,
+                'address' => $place->address,
+                'latitude' => (float) $place->latitude,
+                'longitude' => (float) $place->longitude,
+                'source' => 'saved_place',
+                'saved_place_type' => $place->type,
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $savedPlaces
+     * @param  list<array<string, mixed>>  $providerPlaces
+     * @return list<array<string, mixed>>
+     */
+    private function mergePlaces(array $savedPlaces, array $providerPlaces, int $limit): array
+    {
+        if ($savedPlaces === []) {
+            return array_slice($providerPlaces, 0, $limit);
+        }
+
+        $savedCoordinates = array_map(
+            fn (array $place) => $this->coordinateKey($place['latitude'], $place['longitude']),
+            $savedPlaces,
+        );
+
+        $providerPlaces = array_values(array_filter(
+            $providerPlaces,
+            fn (array $place) => ! in_array($this->coordinateKey($place['latitude'], $place['longitude']), $savedCoordinates, true),
+        ));
+
+        return array_slice([...$savedPlaces, ...$providerPlaces], 0, $limit);
+    }
+
+    private function coordinateKey(float $latitude, float $longitude): string
+    {
+        return round($latitude, 4).':'.round($longitude, 4);
     }
 
     public function reverse(Request $request): JsonResponse
