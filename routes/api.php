@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CityVehicleClassController;
 use App\Http\Controllers\Api\V1\CityWaitlistController;
 use App\Http\Controllers\Api\V1\ConfigController;
+use App\Http\Controllers\Api\V1\CountryController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\DisputeController;
 use App\Http\Controllers\Api\V1\Driver\BankAccountController;
@@ -135,6 +136,8 @@ Route::get('/config', ConfigController::class);
 | Public — Cities & Vehicle Classes
 |--------------------------------------------------------------------------
 */
+Route::get('/countries', [CountryController::class, 'index']);
+Route::get('/lookup/countries', [CountryController::class, 'index']);
 Route::get('/lookup/states', [LookupController::class, 'states']);
 Route::get('/lookup/regions', [LookupController::class, 'regions']);
 Route::get('/lookup/cancellation-reasons', [RideCancellationReasonController::class, 'index']);
