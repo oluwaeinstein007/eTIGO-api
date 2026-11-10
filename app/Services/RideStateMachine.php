@@ -168,6 +168,7 @@ class RideStateMachine
                 actorType: $triggeredByType,
                 actorId: $actor?->id === null ? null : (string) $actor->id,
                 occurredAt: $occurredAt->toISOString(),
+                freeWaitingMinutes: $ride->freeWaitingMinutes(),
             ));
         } catch (\Throwable) {
             // Reverb failures must not roll back a committed ride transition.

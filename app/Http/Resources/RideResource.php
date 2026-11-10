@@ -51,6 +51,7 @@ class RideResource extends JsonResource
             ]),
             'distance_km' => data_get($this->pricing_snapshot, 'distance_km'),
             'duration_minutes' => data_get($this->pricing_snapshot, 'duration_minutes'),
+            'free_waiting_minutes' => $this->freeWaitingMinutes(),
             'co2_saved_kg' => (float) ($this->passengerCo2Saved() ?? round(((float) data_get($this->pricing_snapshot, 'distance_km', 0)) * 0.12, 2)),
             'payment_method' => $this->payment_method?->value,
             'payment_status' => $this->payment_status?->value,

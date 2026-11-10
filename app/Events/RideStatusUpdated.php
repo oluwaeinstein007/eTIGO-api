@@ -22,6 +22,7 @@ class RideStatusUpdated implements ShouldBroadcastNow, ShouldDispatchAfterCommit
         public string $actorType,
         public ?string $actorId,
         public string $occurredAt,
+        public ?int $freeWaitingMinutes = null,
     ) {}
 
     /**
@@ -54,6 +55,7 @@ class RideStatusUpdated implements ShouldBroadcastNow, ShouldDispatchAfterCommit
             'actor_type' => $this->actorType,
             'actor_id' => $this->actorId,
             'occurred_at' => $this->occurredAt,
+            'free_waiting_minutes' => $this->freeWaitingMinutes,
         ];
     }
 }

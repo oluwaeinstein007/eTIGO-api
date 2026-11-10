@@ -317,4 +317,25 @@ class Ride extends Model
     {
         return $this->is_third_party ? $this->rider_phone : $this->passenger?->phone;
     }
+
+    /**
+     * Configured free waiting minutes for this ride, from pricing snapshot
+     * or active city pricing config.
+     */
+    public function freeWaitingMinutes(): ?int
+    {
+        $minutes = data_get($this->pricing_snapshot, 'free_waiting_minutes');
+        if ($minutes !== null) {
+            return (int) $minutes;
+        }
+
+        if ($this->city_id && $this->vehicle_class_id) {
+            $pricing = PricingConfig::currentFor($this->city_id, $this->vehicle_class_id);
+            if ($pricing && $pricing->free_waiting_minutes !== null) {
+                return (int) $pricing->free_waiting_minutes;
+            }
+        }
+
+        return null;
+    }
 }
